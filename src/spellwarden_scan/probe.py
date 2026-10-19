@@ -116,8 +116,28 @@ def long_running_tools_of(probe: ProbeResult) -> tuple[str, ...]:
 
 
 def text_of(value: object) -> str:
-    """A server's JSON as the rules read it: a string, or nothing (a recorded `null` or number is no text)."""
-    return value if isinstance(value, str) else ""
+    """A server's JSON as the rules read it: a string as it is; a list or an object as every string and number in
+    it, joined by spaces (an injection phrase hidden in a nested description is still read); a number as its
+    digits; `null` and booleans as nothing."""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, bool) or value is None:
+        return ""
+    if isinstance(value, (int, float)):
+        return str(value)
+    parts: list[str] = []
+    stack = [value]
+    while stack and len(parts) < 1000:
+        item = stack.pop()
+        if isinstance(item, str):
+            parts.append(item)
+        elif isinstance(item, (int, float)) and not isinstance(item, bool):
+            parts.append(str(item))
+        elif isinstance(item, dict):
+            stack.extend(reversed(list(item.values())))
+        elif isinstance(item, (list, tuple)):
+            stack.extend(reversed(item))
+    return " ".join(parts)
 
 
 def list_meta_missing_of(probe: ProbeResult) -> bool:

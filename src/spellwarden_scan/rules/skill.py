@@ -91,7 +91,11 @@ _ZWJ = "\u200d"
 
 
 def _emoji_base(char: str) -> bool:
-    return bool(char) and (unicodedata.category(char).startswith("S") or char in _EMOJI_BASES or char >= "\U0001f000")
+    """An emoji base: an `So` or `Sm` symbol (❤, ↔, ◻), one of `_EMOJI_BASES`, or a character of the emoji
+    blocks U+1F000 to U+1FAFF; never a currency or modifier symbol and nothing above those blocks (tags, selectors)."""
+    if not char:
+        return False
+    return unicodedata.category(char) in ("So", "Sm") or char in _EMOJI_BASES or "\U0001f000" <= char <= "\U0001faff"
 
 
 def _ideograph(char: str) -> bool:
@@ -100,7 +104,7 @@ def _ideograph(char: str) -> bool:
 
 def _without_emoji_joiners(line: str) -> str:
     """A zero-width joiner inside an emoji sequence (an emoji, optionally its selector or modifier, the joiner,
-    the next emoji: 👨‍💻, 🏳️‍🌈) is how those emoji are written; only a joiner elsewhere is hidden text."""
+    the next emoji: 👨\u200d💻, 🏳\ufe0f\u200d🌈) is how those emoji are written; only a joiner elsewhere is hidden text."""
     if _ZWJ not in line:
         return line
     kept: list[str] = []
