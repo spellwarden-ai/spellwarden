@@ -63,7 +63,8 @@ def test_mcp_rule_has_both_fixtures_and_they_match(rule_id):
 
 
 def test_every_fixture_directory_belongs_to_a_rule():
-    on_disk = sorted(p.name for p in SKILL_FIXTURES.iterdir() if p.is_dir())
+    # A fresh checkout has no `fixtures/skills` until a rule commits one (git keeps no empty directory): r0:F4.
+    on_disk = sorted(p.name for p in SKILL_FIXTURES.iterdir() if p.is_dir()) if SKILL_FIXTURES.is_dir() else []
     assert set(on_disk) <= set(SKILL_IDS)
     for path in (PROBE_FIXTURES / "rules").glob("*.json"):
         assert path.name.rsplit("-", 1)[0] in MCP_IDS, path.name
