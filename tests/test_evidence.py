@@ -59,13 +59,15 @@ def test_any_value_after_a_secret_like_name_is_masked_whatever_its_shape():
     assert mask_credentials(f"export API_KEY={short}x") == "export API_KEY=***"
     assert mask_credentials(f"db_password: {short} # prod") == "db_password: *** # prod"
     assert mask_credentials(f'"client_secret": "{short}"') == '"client_secret": "***"'
-    for kept in ("token=$TOKEN", "api_key=<your-key>", "password: ${DB_PASSWORD}", 'secret: "xxxx"', "password: <your password>",
-                 "export GITHUB_TOKEN=$(gh auth token)"):
+    for kept in ("token=$TOKEN", "api_key=<your-key>", "password: ${DB_PASSWORD}", 'secret: "xxxx"', "password: <your password>"):
         assert mask_credentials(kept) == kept
     for leaked in ("x" + "yz$1abc", "my" + "example1", "s3cr" + "et<b>"):  # a placeholder word inside a real value
         assert mask_credentials(f"password={leaked}") == "password=***", leaked
     assert mask_credentials('password = "hunter two"') == 'password = "***"'  # masked to the closing quote
     assert mask_credentials("password=" + "abc,def;ghi&jk" + " next") == "password=*** next"  # to the next space
+    # A default or a command may carry the secret itself: masked whole (security review of 478b8aa).
+    for written in ("password=${DB_PASS:-" + short + "}", "token=$(echo " + short + ")", "api_key=<" + short + "1>"):
+        assert short not in mask_credentials(written), written
     secret = "hun" + "ter two"
     for written, masked in ((f'password = "{secret}', 'password = "***'), (f'password = """{secret}""" end', 'password = """***""" end'),
                             (f"secret: '{secret}", "secret: '***"), (f'password = """{secret}', 'password = """***'), ('token = "ab\\"cd ef" end', 'token = "***" end')):

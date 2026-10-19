@@ -130,7 +130,9 @@ ASSIGNED_VALUE = re.compile(
     r"""("{3}[^\n]*?"{3}|'{3}[^\n]*?'{3}|"(?:[^"\\\n]|\\.)*"(?!")|'(?:[^'\\\n]|\\.)*'(?!')|["'][^\n]*|<[^<>\n]*>|"""
     r"""\$\([^()\n]*\)|\$\{[^{}\n]*\}|[^\s"']+)""", _I)
 # evidence.mask_credentials only: a value that is nothing but a placeholder stays readable (`$TOKEN`, `<your-key>`)
-PLACEHOLDER_VALUE = re.compile(r"(\$\{?[A-Za-z_][A-Za-z0-9_]*\}?|\$\{[^{}]*\}|\$\([^()]*\)|<[^<>]*>|x{3,}|\.{3}|\*+|your[-_][A-Za-z0-9_-]*|changeme|example)", _I)
+# Only a bare reference or a word placeholder: `${VAR:-default}` and `$(command args)` may carry the secret itself, so
+# they are masked like any value.
+PLACEHOLDER_VALUE = re.compile(r"(\$\{?[A-Za-z_][A-Za-z0-9_]*\}?|<[A-Za-z][A-Za-z _-]*>|x{3,}|\.{3}|\*+|your[-_][A-Za-z0-9_-]*|changeme|example)", _I)
 PLACEHOLDER = re.compile(r"(xxx|\.\.\.|<|your[_-]|example|changeme|\$\{|\$[A-Z_]+)", _I)
 
 # SW-SKL-008, SW-SKL-012

@@ -224,6 +224,14 @@ def test_platform_collisions_outside_the_scanned_root_are_kept(entries):
     assert set(unpack_zip(raw_zip(entries), root=None)) == {name for name, _ in entries}
 
 
+def test_a_name_that_lands_under_the_root_on_some_file_system_counts_as_under_it():
+    """Security review of f767f29: `Skill/SKILL.md` and `skill./x` are written into `skill/` by a macOS or Windows
+    extractor, so they collide with the scanned files there."""
+    for other in ("Skill/SKILL.md", "SKILL /SKILL.md", "skill./SKILL.md"):
+        with pytest.raises(ArchiveError):
+            unpack_zip(raw_zip([("skill/SKILL.md", b"a"), (other, b"b"), ("README.md", b"r")]), root="skill")
+
+
 def test_under_the_root_case_and_windows_names_are_refused_but_sharp_s_is_not_ss():
     with pytest.raises(ArchiveError):
         unpack_zip(raw_zip([("skill/SKILL.md", b"a"), ("skill/skill.md", b"b"), ("README.md", b"r")]), root="skill")

@@ -76,10 +76,28 @@ def _skl_001(package: Package) -> Iterator[Finding]:
 # Spec 5.3, plus the characters that hide text the same way: the combining grapheme joiner, the Hangul fillers, the
 # Mongolian vowel separator, the line and paragraph separators, the interlinear annotation marks, the tag block
 # U+E0000 to U+E007F ("ASCII smuggling") and the variation selectors supplement U+E0100 to U+E01EF (bytes hidden
-# behind an emoji); the basic variation selectors U+FE00 to U+FE0F only two or more in a row (one follows many emoji).
+# behind an emoji); a basic variation selector U+FE00 to U+FE0F when two or more follow each other, or one follows a
+# character that takes none (`_stray_selectors`: emoji and symbols take one, U+FE0F after an emoji is ordinary).
 # The soft hyphen is not flagged (ordinary in text copied from a word processor); `_visible` drops it before matching.
 _HIDDEN = re.compile("[\u034f\u115f\u180e\u200b-\u200f\u2028\u2029\u2060-\u2064\u202a-\u202e\u2066-\u2069\u3164\ufeff"
                      "\ufff9-\ufffb\U000e0000-\U000e007f\U000e0100-\U000e01ef]|[\ufe00-\ufe0f]{2,}")
+_SELECTOR = re.compile("[\ufe00-\ufe0f]")
+_KEYCAP_BASES = frozenset("0123456789#*")
+
+
+def _stray_selectors(line: str) -> list[str]:
+    """Single basic variation selectors after a base that takes none: emoji and other symbols (`So`, `Sm`), the
+    keycap bases and CJK ideographs take one; after a letter, a digit in prose or a space it only hides data."""
+    stray: list[str] = []
+    for match in _SELECTOR.finditer(line):
+        start = match.start()
+        base = line[start - 1] if start else ""
+        if not base or "\ufe00" <= base <= "\ufe0f":
+            continue  # the run rule above reports runs; a selector opening the line has no base to judge
+        if unicodedata.category(base) in ("So", "Sm", "Sk") or base in _KEYCAP_BASES or "\u3400" <= base <= "\u9fff":
+            continue
+        stray.append(match.group(0))
+    return stray
 # Every format character and the soft hyphen, removed before the injection phrases are matched (SW-SKL-001,
 # SW-MCP-011): `ig\u00adnore previous instructions` reads as the phrase to an agent.
 _INVISIBLE = re.compile("[\u00ad\u034f\u115f\u180e\u200b-\u200f\u2060-\u2064\u202a-\u202e\u2066-\u2069\u3164\ufeff\ufe00-\ufe0f"
@@ -94,7 +112,7 @@ def _skl_002(package: Package) -> Iterator[Finding]:
     for unit in package.text_files:
         for number, line in enumerate(unit.lines, start=1):
             text = line[1:] if number == 1 and line.startswith("\ufeff") else line
-            hidden = _HIDDEN.findall(text)
+            hidden = _HIDDEN.findall(text) + (_stray_selectors(text) if "\ufe00" <= max(text, default="") else [])
             if hidden:
                 names = code_point_names("".join(hidden))
                 yield _finding("SW-SKL-002", "high", TITLES["SW-SKL-002"], unit.path, number, names, evidence=names)

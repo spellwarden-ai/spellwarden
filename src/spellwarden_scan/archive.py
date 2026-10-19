@@ -59,10 +59,21 @@ def _folded(name: str) -> str:
     return unicodedata.normalize("NFC", name).lower()
 
 
+def _platform_key(name: str) -> str:
+    """The path as a case-insensitive, normalising Windows or macOS extractor writes it: each segment without its
+    trailing dots and spaces, NFC, lower-cased."""
+    return "/".join(_folded(part.rstrip(". ")) for part in name.split("/"))
+
+
 def _under(name: str, root: str | None) -> bool:
+    """Whether `name` lands under the scanned root on some file system: decided on the platform key, so
+    `Skill/SKILL.md` or `skill./x` is under `skill` too (a macOS or Windows extractor merges them)."""
     if root is None:
         return False
-    return not root or name == root or name.startswith(root + "/")
+    if not root:
+        return True
+    key, scope = _platform_key(name), _platform_key(root)
+    return key == scope or key.startswith(scope + "/")
 
 
 def _is_special(info: zipfile.ZipInfo) -> bool:
@@ -129,9 +140,9 @@ def unpack_zip(data: bytes, limits: ArchiveLimits = DEFAULT_LIMITS, *, with_mode
         if _under(name, scope):
             # Under the scanned root, a name that differs only in case or normalisation, or that Windows renames,
             # would let an extractor install a file the scan never read.
-            if _platform_unsafe(name) or _folded(name) in folded:
+            if _platform_unsafe(name) or _platform_key(name) in folded:
                 raise ArchiveError("unsafe_path", f"colliding {info.filename}")
-            folded.add(_folded(name))
+            folded.add(_platform_key(name))
         content, total = _read_entry(archive, info, limits, total)
         files[name] = content
         if _is_executable(info):
@@ -146,13 +157,13 @@ def _check_file_directory_clash(files: dict[str, bytes], directories: list[str],
     """`a/b` as a file and `a/b/c` (or a directory entry `a/b/`) as another: no file system holds both, so an
     extractor keeps one of them. Exact names everywhere; under the scanned root also case- and NFC-folded."""
     exact = set(files)
-    folded = {_folded(name) for name in files if _under(name, scope)}
+    folded = {_platform_key(name) for name in files if _under(name, scope)}
     directory_set = set(directories)
     for name in list(files) + directories:
         parts = name.split("/")
         for depth in range(1, len(parts) + (name in directory_set)):
             prefix = "/".join(parts[:depth])
-            if prefix in exact or (_under(prefix, scope) and _folded(prefix) in folded):
+            if prefix in exact or (_under(prefix, scope) and _platform_key(prefix) in folded):
                 raise ArchiveError("unsafe_path", f"file and directory {name}")
 
 

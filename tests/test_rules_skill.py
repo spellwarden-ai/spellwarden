@@ -248,9 +248,12 @@ def test_002_also_finds_tag_characters_and_other_invisible_separators():
                          ("\ufff9", "INTERLINEAR ANNOTATION ANCHOR"), ("\ufe00\ufe01", "VARIATION SELECTOR-1")):
         found = findings({"SKILL.md": md(f"Run the{hidden} command.")}, "SW-SKL-002")
         assert [f.location.line for f in found] == [11] and name in found[0].evidence, name
-    # Build review: one variation selector after an emoji and a soft hyphen are ordinary text, not hidden text.
-    for ordinary in ("Ship it \u2764\ufe0f today.", "Ma\u00adri\u00adus wrote this."):
+    # Build review: one variation selector after an emoji, a symbol or a keycap base, and a soft hyphen, are ordinary
+    # text; one after a letter or a space only hides data (security review of 478b8aa).
+    for ordinary in ("Ship it \u2764\ufe0f today.", "Ma\u00adri\u00adus wrote this.", "Press 1\ufe0f\u20e3 now.", "\u2603\ufe0e cold"):
         assert findings({"SKILL.md": md(ordinary)}, "SW-SKL-002") == [], ordinary
+    for stray in ("Run th\ufe01e command.", "Run the \ufe0f command."):
+        assert len(findings({"SKILL.md": md(stray)}, "SW-SKL-002")) == 1, stray
 
 
 def test_001_reads_through_invisible_characters():
