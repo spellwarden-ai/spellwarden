@@ -195,7 +195,7 @@ def test_an_unsupported_zip_version_in_the_central_directory_is_bad_zip():
     [("SKILL.md", b"a"), ("caf\u00e9.md", b"c"), ("cafe\u0301.md", b"d")],  # NFC-equal names
     [("run.sh.", b"x"), ("SKILL.md", b"y")],
     [("run.sh ", b"x"), ("SKILL.md", b"y")],
-    [("a:b", b"x"), ("SKILL.md", b"y")],
+    [("x/ab:c", b"x"), ("SKILL.md", b"y")],
     [("tools/", b""), ("tools", b"x"), ("SKILL.md", b"y")],
     [("x/../", b""), ("SKILL.md", b"y")],
 ])
@@ -205,3 +205,29 @@ def test_names_that_collide_or_change_on_some_file_system_are_refused(entries):
     with pytest.raises(ArchiveError) as caught:
         unpack_zip(raw_zip(entries))
     assert caught.value.code == "unsafe_path"
+
+
+@pytest.mark.parametrize("entries", [
+    [("docs/2024-01-01T10:00.md", b"x"), ("skill/SKILL.md", b"y")],
+    [("Makefile", b"a"), ("makefile", b"b"), ("skill/SKILL.md", b"y")],
+    [("README.md", b"a"), ("readme.md", b"b"), ("skill/SKILL.md", b"y")],
+    [("notes/run.sh.", b"a"), ("skill/SKILL.md", b"y")],
+])
+def test_platform_collisions_outside_the_scanned_root_are_kept(entries):
+    """Build review: a repository may hold a name Windows refuses, or two names that differ only in case, in a
+    directory the scan does not read; only names under `root` must survive every extractor."""
+    files = unpack_zip(raw_zip(entries), root="skill")
+    assert set(files) == {name for name, _ in entries}
+    with pytest.raises(ArchiveError) as caught:
+        unpack_zip(raw_zip(entries))  # the default root is the whole archive
+    assert caught.value.code == "unsafe_path"
+    assert set(unpack_zip(raw_zip(entries), root=None)) == {name for name, _ in entries}
+
+
+def test_under_the_root_case_and_windows_names_are_refused_but_sharp_s_is_not_ss():
+    with pytest.raises(ArchiveError):
+        unpack_zip(raw_zip([("skill/SKILL.md", b"a"), ("skill/skill.md", b"b"), ("README.md", b"r")]), root="skill")
+    with pytest.raises(ArchiveError):
+        unpack_zip(raw_zip([("skill/SKILL.md", b"a"), ("skill/run.sh ", b"b"), ("README.md", b"r")]), root="skill")
+    kept = unpack_zip(raw_zip([("SKILL.md", b"a"), ("stra\u00dfe.md", b"b"), ("strasse.md", b"c")]))
+    assert len(kept) == 3  # NTFS and APFS fold case, not `\u00df` to `ss`

@@ -43,16 +43,26 @@ def _unsafe(name: str, limits: ArchiveLimits) -> bool:
     if len(name) > limits.max_path:
         return True
     parts = name.split("/")
-    # `.` and `..` anywhere, and empty parts (`a//b`): every consumer must read the same path the scan read. A part
-    # ending in a dot or a space, or holding `:`, is renamed or refused by Windows extractors (`run.sh.` is `run.sh`).
-    if any(part in ("..", ".", "") for part in parts[:-1]) or parts[-1] in ("..", "."):
-        return True
-    return any(part.endswith((".", " ")) or ":" in part for part in parts)
+    # `.` and `..` anywhere, and empty parts (`a//b`): every consumer must read the same path the scan read.
+    return any(part in ("..", ".", "") for part in parts[:-1]) or parts[-1] in ("..", ".")
+
+
+def _platform_unsafe(name: str) -> bool:
+    """A part ending in a dot or a space, or holding `:`, is renamed or refused by Windows extractors (`run.sh.`
+    becomes `run.sh`): checked only under the scanned root (a repository may hold `docs/10:00.md` elsewhere)."""
+    return any(part.endswith((".", " ")) or ":" in part for part in name.split("/"))
 
 
 def _folded(name: str) -> str:
-    """The key two names collide on in some file system: NFC-normalised (macOS) and case-folded (Windows, macOS)."""
-    return unicodedata.normalize("NFC", name).casefold()
+    """The key two names collide on in a case-insensitive, normalising file system (Windows, macOS): NFC and
+    `lower()` (not `casefold()`, which maps `ß` to `ss` where NTFS and APFS do not)."""
+    return unicodedata.normalize("NFC", name).lower()
+
+
+def _under(name: str, root: str | None) -> bool:
+    if root is None:
+        return False
+    return not root or name == root or name.startswith(root + "/")
 
 
 def _is_special(info: zipfile.ZipInfo) -> bool:
@@ -74,9 +84,16 @@ def _strip_common_top(names: list[str]) -> str:
     return top if all("/" in name for name in names) else ""
 
 
-def unpack_zip(data: bytes, limits: ArchiveLimits = DEFAULT_LIMITS, *, with_modes: bool = False):
+def unpack_zip(data: bytes, limits: ArchiveLimits = DEFAULT_LIMITS, *, with_modes: bool = False, root: str | None = ""):
     """`{path: bytes}` of a zip held in memory; with `with_modes=True`,
-    `(files, executable_paths)`. Raises `ArchiveError` (spec 5.6)."""
+    `(files, executable_paths)`. Raises `ArchiveError` (spec 5.6).
+
+    Everywhere in the archive, a repeated name, a `.`, `..` or empty segment and a file that is also a
+    directory are `unsafe_path` (every extractor reads them differently). Under `root` (the directory
+    that will be scanned, relative to the stripped top; `""` is the whole archive, `None` none of it),
+    two names equal after NFC normalisation and lower-casing and a segment Windows renames or refuses
+    are `unsafe_path` as well: outside it they belong to another directory of a repository."""
+    scope = None if root is None else root.strip("/")
     if len(data) > limits.max_compressed:
         raise ArchiveError("too_large", "compressed size over the limit")
     try:
@@ -107,30 +124,35 @@ def unpack_zip(data: bytes, limits: ArchiveLimits = DEFAULT_LIMITS, *, with_mode
     total = 0
     for info in entries:
         name = info.filename[len(top) + 1:] if top else info.filename
-        if _unsafe(name, limits) or posixpath.normpath(name) != name:
+        if _unsafe(name, limits) or posixpath.normpath(name) != name or name in files:
             raise ArchiveError("unsafe_path", info.filename)
-        # A repeated name (or one that differs only in case) would let an extractor install a file the scan never read.
-        if _folded(name) in folded:
-            raise ArchiveError("unsafe_path", f"duplicate {info.filename}")
-        folded.add(_folded(name))
+        if _under(name, scope):
+            # Under the scanned root, a name that differs only in case or normalisation, or that Windows renames,
+            # would let an extractor install a file the scan never read.
+            if _platform_unsafe(name) or _folded(name) in folded:
+                raise ArchiveError("unsafe_path", f"colliding {info.filename}")
+            folded.add(_folded(name))
         content, total = _read_entry(archive, info, limits, total)
         files[name] = content
         if _is_executable(info):
             executable.add(name)
-    _check_file_directory_clash(files, [d[len(top) + 1:] if top and d.startswith(top + "/") else d for d in directories])
+    _check_file_directory_clash(files, [d[len(top) + 1:] if top and d.startswith(top + "/") else d for d in directories], scope)
     if with_modes:
         return files, frozenset(executable)
     return files
 
 
-def _check_file_directory_clash(files: dict[str, bytes], directories: list[str]) -> None:
+def _check_file_directory_clash(files: dict[str, bytes], directories: list[str], scope: str | None) -> None:
     """`a/b` as a file and `a/b/c` (or a directory entry `a/b/`) as another: no file system holds both, so an
-    extractor keeps one of them."""
-    names = {_folded(name) for name in files}
+    extractor keeps one of them. Exact names everywhere; under the scanned root also case- and NFC-folded."""
+    exact = set(files)
+    folded = {_folded(name) for name in files if _under(name, scope)}
+    directory_set = set(directories)
     for name in list(files) + directories:
-        parts = _folded(name).split("/")
-        for depth in range(1, len(parts) + (name in directories)):
-            if "/".join(parts[:depth]) in names:
+        parts = name.split("/")
+        for depth in range(1, len(parts) + (name in directory_set)):
+            prefix = "/".join(parts[:depth])
+            if prefix in exact or (_under(prefix, scope) and _folded(prefix) in folded):
                 raise ArchiveError("unsafe_path", f"file and directory {name}")
 
 
