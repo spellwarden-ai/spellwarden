@@ -60,25 +60,34 @@ def _decode(content: bytes) -> str | None:
 def _code_blocks(path: str, lines: tuple[str, ...]) -> list[CodeBlock]:
     blocks: list[CodeBlock] = []
     fence: str | None = None
+    width = 0
     language = ""
     start = 0
     body: list[str] = []
+
+    def finish() -> None:
+        nonlocal language
+        if not language:
+            first = next((b for b in body if b.strip()), "")
+            if first.strip().startswith(_SHELL_STARTS):
+                language = "sh"
+        blocks.append(CodeBlock(path, language, "\n".join(body), start))
+
     for number, line in enumerate(lines, start=1):
         match = _FENCE.match(line.strip())
         if fence is None:
             if match:
-                fence, language, start, body = match.group(1)[0], match.group(2).lower(), number + 1, []
+                fence, width = match.group(1)[0], len(match.group(1))
+                language, start, body = match.group(2).lower(), number + 1, []
             continue
-        if match and match.group(1)[0] == fence and not match.group(2):
-            text = "\n".join(body)
-            if not language:
-                first = next((b for b in body if b.strip()), "")
-                if first.strip().startswith(_SHELL_STARTS):
-                    language = "sh"
-            blocks.append(CodeBlock(path, language, text, start))
+        # CommonMark: a closing fence repeats the opening character, is at least as long and has no info string.
+        if match and match.group(1)[0] == fence and len(match.group(1)) >= width and not match.group(2):
+            finish()
             fence = None
             continue
         body.append(line)
+    if fence is not None:
+        finish()  # an unclosed fence runs to the end of the file, as an agent reads it
     return blocks
 
 

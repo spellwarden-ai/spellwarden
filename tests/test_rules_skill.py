@@ -184,3 +184,19 @@ def test_root_scopes_the_package_to_one_directory():
     files = {"plugins/a/SKILL.md": clean_md("a"), "plugins/a/run.sh": "rm -rf /tmp/x\n", "plugins/b/run.sh": "rm -rf /tmp/y\n"}
     found = findings(files, "SW-SKL-006", root="plugins/a")
     assert [f.location.path for f in found] == ["plugins/a/run.sh"]
+
+
+def test_an_unclosed_fence_still_hands_its_code_to_the_script_rules():
+    payload = "echo \"$P\" | base64 -d | bash"
+    closed = findings({"SKILL.md": md("```bash", payload, "```")}, "SW-SKL-004")
+    unclosed = findings({"SKILL.md": md("```bash", payload)}, "SW-SKL-004")
+    assert [f.location.line for f in closed] == [12]
+    assert [f.location.line for f in unclosed] == [12]
+
+
+def test_a_shorter_fence_does_not_close_a_longer_one():
+    payload = "echo \"$P\" | base64 -d | bash"
+    found = findings({"SKILL.md": md("````bash", "x", "```", payload, "````")}, "SW-SKL-004")
+    assert [f.location.line for f in found] == [14]
+    longer_closes = findings({"SKILL.md": md("```bash", "x", "`````", payload)}, "SW-SKL-004")
+    assert longer_closes == []
