@@ -72,8 +72,20 @@ def _generated_skl_011_positive() -> dict[str, bytes]:
     })
 
 
-# Fixtures that must not exist on disk as literals (credential-shaped text): built at test time.
-GENERATED: dict[str, object] = {"SW-SKL-011/positive": _generated_skl_011_positive}
+def _generated_skl_002_positive() -> dict[str, bytes]:
+    return make_package({"SKILL.md": clean_md() + "Run the​ command.\n"})
+
+
+def _generated_skl_002_negative() -> dict[str, bytes]:
+    return make_package({"SKILL.md": "﻿" + clean_md() + "Plain text only.\n"})
+
+
+# Fixtures that must not exist on disk as literals (credential-shaped or invisible text): built at test time.
+GENERATED: dict[str, object] = {
+    "SW-SKL-011/positive": _generated_skl_011_positive,
+    "SW-SKL-002/positive": _generated_skl_002_positive,
+    "SW-SKL-002/negative": _generated_skl_002_negative,
+}
 
 
 def load_skill_fixture(rule_id: str, side: str) -> tuple[dict[str, bytes], dict]:

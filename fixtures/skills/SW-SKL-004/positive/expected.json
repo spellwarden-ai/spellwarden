@@ -1,0 +1,10 @@
+{
+ "findings": [
+  {
+   "rule_id": "SW-SKL-004",
+   "severity": "critical",
+   "path": "scripts/run.sh",
+   "line": 2
+  }
+ ]
+}

@@ -1,0 +1,10 @@
+{
+ "findings": [
+  {
+   "rule_id": "SW-SKL-014",
+   "severity": "medium",
+   "path": "scripts/run.py",
+   "line": 1
+  }
+ ]
+}

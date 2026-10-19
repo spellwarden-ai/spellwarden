@@ -13,13 +13,12 @@ from spellwarden_scan.model import (
     ProbeResult, Severity, SkillScanResult, ToolInfo,
 )
 from spellwarden_scan.rules import Rule, RuleSet
-
-__version__ = "0.1.0"
-RULES_VERSION = "2026.10.0"
+from spellwarden_scan.scan import scan_skill_package
+from spellwarden_scan.version import RULES_VERSION, __version__
 
 __all__ = [
     "RULES_VERSION", "SEVERITY_RANK", "Area", "ArchiveError", "ArchiveLimits", "AuthServerMetadata", "ChecklistItem",
     "CurationInputs", "Finding", "FrontmatterError", "Location", "McpScanResult", "Metadata", "ProbeResult", "Rule",
     "RuleSet", "Severity", "SkillScanResult", "ToolInfo", "__version__", "canonical_sha256", "mask_credentials",
-    "parse_frontmatter", "unpack_zip",
+    "parse_frontmatter", "scan_skill_package", "unpack_zip",
 ]

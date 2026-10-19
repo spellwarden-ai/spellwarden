@@ -1,0 +1,10 @@
+{
+ "findings": [
+  {
+   "rule_id": "SW-SKL-010",
+   "severity": "medium",
+   "path": "tools/helper.exe",
+   "line": null
+  }
+ ]
+}

@@ -1,0 +1,10 @@
+{
+ "findings": [
+  {
+   "rule_id": "SW-SKL-002",
+   "severity": "high",
+   "path": "SKILL.md",
+   "line": 11
+  }
+ ]
+}

@@ -1,0 +1,10 @@
+{
+ "findings": [
+  {
+   "rule_id": "SW-SKL-006",
+   "severity": "medium",
+   "path": "scripts/clean.sh",
+   "line": 2
+  }
+ ]
+}

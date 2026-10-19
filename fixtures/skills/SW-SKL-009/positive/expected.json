@@ -1,0 +1,10 @@
+{
+ "findings": [
+  {
+   "rule_id": "SW-SKL-009",
+   "severity": "medium",
+   "path": "scripts/setup.sh",
+   "line": 2
+  }
+ ]
+}
