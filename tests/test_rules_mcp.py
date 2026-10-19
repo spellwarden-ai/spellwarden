@@ -159,3 +159,13 @@ def test_a_password_holding_url_delimiters_never_reaches_a_location():
                                             error="not_https"), RULES).findings[0]
     assert path_token.location.path == "http://mcp.example/api/mcp/s/a1b2***/mcp" and token not in path_token.evidence
     assert evaluate_probe(ProbeResult(endpoint="http://user:pw@", reachable=False, error="not_https"), RULES).findings[0].location.path == "http://redacted"
+
+
+def test_loosely_typed_server_json_never_crashes_the_rules():
+    """Release review: a server may answer `null` annotations, a numeric description or issuer, or the string
+    "false"; the rules read only strings and the literal `true`."""
+    tools = (ToolInfo("a", None, None), ToolInfo("b", 7, {"longRunning": True}))  # type: ignore[arg-type]
+    odd = AuthServerMetadata(issuer=5, metadata_url=ASM.metadata_url, client_id_metadata_document_supported="false",  # type: ignore[arg-type]
+                             grant_types_supported=None)  # type: ignore[arg-type]
+    result = evaluate_probe(probe(tools=tools, auth_server_metadata=odd), RULES)
+    assert result.auth_mode != "oauth-cimd" and result.long_running_tools == ("b",)

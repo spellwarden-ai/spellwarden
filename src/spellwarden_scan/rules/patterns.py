@@ -127,8 +127,8 @@ ASSIGNED_VALUE = re.compile(
     r"""(password|passwd|secret|api[_-]?key|apikey|token|access[_-]?key|private[_-]?key|credentials?)(["']?\s*[:=]\s*)"""
     # triple-quoted, quoted with backslash escapes, a quote never closed (masked to the end of the line), a `<...>`,
     # `$(...)` or `${...}` placeholder kept whole, bare
-    r"""("{3}[^\n]*?"{3}|'{3}[^\n]*?'{3}|"(?:[^"\\\n]|\\.)*"(?!")|'(?:[^'\\\n]|\\.)*'(?!')|["'][^\n]*|<[^<>\n]*>|"""
-    r"""\$\([^()\n]*\)|\$\{[^{}\n]*\}|[^\s"']+)""", _I)
+    r"""("{3}[^\n]*?"{3}|'{3}[^\n]*?'{3}|"(?:[^"\\\n]|\\.)*"(?!")|'(?:[^'\\\n]|\\.)*'(?!')|["'][^\n]*|<[^<>\n]*>(?=[\s"']|$)|"""
+    r"""\$\([^()\n]*\)(?=[\s"']|$)|\$\{[^{}\n]*\}(?=[\s"']|$)|[^\s"']+)""", _I)
 # evidence.mask_credentials only: a value that is nothing but a placeholder stays readable (`$TOKEN`, `<your-key>`)
 # Only a bare reference or a word placeholder: `${VAR:-default}` and `$(command args)` may carry the secret itself, so
 # they are masked like any value.

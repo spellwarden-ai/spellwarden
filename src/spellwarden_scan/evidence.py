@@ -12,6 +12,8 @@ EVIDENCE_MAX = 300
 # the run wherever it sits, so `token=abcd1234abcd1234` is one run and is masked whole (a short secret after `=` never leaks).
 _MIXED_RUN = re.compile(r"(?<![A-Za-z0-9_\-+/=])[A-Za-z0-9_\-+/=]{20,}")
 _SCHEME = re.compile(r"(?i)\b(bearer|basic)\s+[A-Za-z0-9._~+/=\-]+")  # any length: the scheme word is the tell (spec 5.10)
+# `scheme://user:password@host`: the password, whatever its shape, before the last `@` of the authority (spec 5.10)
+_URL_PASSWORD = re.compile(r"(://[^/\s@:]*:)(?!\*\*\*@)[^/\s]+@")
 _HAS_LETTER = re.compile(r"[A-Za-z]")
 _HAS_DIGIT = re.compile(r"[0-9]")
 
@@ -60,6 +62,7 @@ def mask_credentials(text: str) -> str:
     for pattern in CREDENTIAL_PATTERNS:
         masked = pattern.sub(_mask_match, masked)
     masked = _MIXED_RUN.sub(_mask_run, masked)
+    masked = _URL_PASSWORD.sub(r"\1***@", masked)
     return ASSIGNED_VALUE.sub(_mask_value, masked)
 
 

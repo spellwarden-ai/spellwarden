@@ -67,7 +67,8 @@ def _lines_matching(units, pattern: re.Pattern, rule_id: str, severity: str, tit
 def _skl_001(package: Package) -> Iterator[Finding]:
     for unit in package.instructions():
         for path, number, line in _numbered(unit):
-            if any(p.search(visible(line)) for p in P.INJECTION):
+            seen = visible(line)
+            if any(p.search(seen) for p in P.INJECTION):
                 yield _finding("SW-SKL-001", "high", TITLES["SW-SKL-001"], path, number, line)
 
 
@@ -84,10 +85,35 @@ _HIDDEN = re.compile("[\u034f\u115f\u180e\u200b-\u200f\u2028\u2029\u2060-\u2064\
 _SELECTOR = re.compile("[\ufe00-\ufe0f]")
 _KEYCAP_BASES = frozenset("0123456789#*")
 _KEYCAP = "\u20e3"
+# Emoji bases outside the symbol categories (emoji-variation-sequences.txt): ℹ (Ll), ‼ ⁉ 〽 (Po), 〰 (Pd).
+_EMOJI_BASES = frozenset("\u2139\u203c\u2049\u3030\u303d")
+_ZWJ = "\u200d"
+
+
+def _emoji_base(char: str) -> bool:
+    return bool(char) and (unicodedata.category(char).startswith("S") or char in _EMOJI_BASES or char >= "\U0001f000")
 
 
 def _ideograph(char: str) -> bool:
     return "\u3400" <= char <= "\u9fff" or "\uf900" <= char <= "\ufaff"
+
+
+def _without_emoji_joiners(line: str) -> str:
+    """A zero-width joiner inside an emoji sequence (an emoji, optionally its selector or modifier, the joiner,
+    the next emoji: 👨‍💻, 🏳️‍🌈) is how those emoji are written; only a joiner elsewhere is hidden text."""
+    if _ZWJ not in line:
+        return line
+    kept: list[str] = []
+    for index, char in enumerate(line):
+        if char == _ZWJ:
+            before = line[index - 1] if index else ""
+            if before in ("\ufe0f",) or "\U0001f3fb" <= before <= "\U0001f3ff":  # a selector or a skin-tone modifier
+                before = line[index - 2] if index > 1 else ""
+            after = line[index + 1] if index + 1 < len(line) else ""
+            if _emoji_base(before) and _emoji_base(after):
+                continue
+        kept.append(char)
+    return "".join(kept)
 
 
 def _stray_selectors(line: str) -> list[str]:
@@ -103,7 +129,7 @@ def _stray_selectors(line: str) -> list[str]:
             continue  # part of a run, which `_HIDDEN` reports
         if selector in "\ufe0e\ufe0f":
             keycap = base in _KEYCAP_BASES and line[start + 1:start + 2] == _KEYCAP
-            if base and (unicodedata.category(base) == "So" or keycap):
+            if _emoji_base(base) or keycap:
                 continue
         elif base and _ideograph(base):
             continue
@@ -112,18 +138,23 @@ def _stray_selectors(line: str) -> list[str]:
 # Every format character and the soft hyphen, removed before the injection phrases are matched (SW-SKL-001,
 # SW-MCP-011): `ig\u00adnore previous instructions` reads as the phrase to an agent.
 _INVISIBLE = re.compile("[\u00ad\u034f\u115f\u180e\u200b-\u200f\u2060-\u2064\u202a-\u202e\u2066-\u2069\u3164\ufeff\ufe00-\ufe0f"
-                        "\U000e0000-\U000e007f\U000e0100-\U000e01ef]")
+                        "\ufff9-\ufffb\U000e0000-\U000e007f\U000e0100-\U000e01ef]")
 
 
 def visible(text: str) -> str:
-    return _INVISIBLE.sub("", text)
+    """`text` without the characters `_INVISIBLE` names and without every other format character (`Cf`: U+061C,
+    U+1BCA0 and the rest), as an agent reads it."""
+    text = _INVISIBLE.sub("", text)
+    if text.isascii():
+        return text
+    return "".join(char for char in text if unicodedata.category(char) != "Cf")
 
 
 def _skl_002(package: Package) -> Iterator[Finding]:
     for unit in package.text_files:
         for number, line in enumerate(unit.lines, start=1):
             text = line[1:] if number == 1 and line.startswith("\ufeff") else line
-            hidden = _HIDDEN.findall(text) + (_stray_selectors(text) if "\ufe00" <= max(text, default="") else [])
+            hidden = _HIDDEN.findall(_without_emoji_joiners(text)) + (_stray_selectors(text) if "\ufe00" <= max(text, default="") else [])
             if hidden:
                 names = code_point_names("".join(hidden))
                 yield _finding("SW-SKL-002", "high", TITLES["SW-SKL-002"], unit.path, number, names, evidence=names)
@@ -459,7 +490,7 @@ def _suspicious_host(authority: str) -> bool:
         return name[4:] in P.SHORTENERS if name.startswith("www.") else name in P.SHORTENERS
     # Loopback and the documentation ranges are examples; a link-local address is not: `169.254.169.254` is the
     # cloud metadata endpoint, the classic place a skill steals instance credentials from.
-    if address.is_loopback:
+    if address.is_loopback or address.is_unspecified:  # `0.0.0.0:8000` is a local server in docs, like loopback
         return False
     return not any(address in network for network in _DOC_RANGES)
 

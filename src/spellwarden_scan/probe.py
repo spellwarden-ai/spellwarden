@@ -67,9 +67,9 @@ def auth_mode_of(probe: ProbeResult) -> str:
         return "unknown"
     asm = probe.auth_server_metadata
     if asm is not None:
-        if asm.client_id_metadata_document_supported:
+        if asm.client_id_metadata_document_supported is True:  # the JSON value `true`, not a truthy string (spec 5.7)
             return "oauth-cimd"
-        if JWT_BEARER in asm.grant_types_supported and not asm.registration_endpoint:
+        if JWT_BEARER in (asm.grant_types_supported or ()) and not asm.registration_endpoint:
             return "xaa"
         if asm.registration_endpoint:
             return "oauth-dcr"
@@ -111,7 +111,13 @@ def deprecated_capabilities(probe: ProbeResult) -> list[str]:
 def long_running_tools_of(probe: ProbeResult) -> tuple[str, ...]:
     """Tools whose `annotations.longRunning` is true or whose description says the call may take minutes."""
     return tuple(tool.name for tool in probe.tools
-                 if tool.annotations.get("longRunning") is True or _LONG_RUNNING.search(tool.description or ""))
+                 if (isinstance(tool.annotations, dict) and tool.annotations.get("longRunning") is True)
+                 or _LONG_RUNNING.search(text_of(tool.description)))
+
+
+def text_of(value: object) -> str:
+    """A server's JSON as the rules read it: a string, or nothing (a recorded `null` or number is no text)."""
+    return value if isinstance(value, str) else ""
 
 
 def list_meta_missing_of(probe: ProbeResult) -> bool:

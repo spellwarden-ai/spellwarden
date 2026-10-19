@@ -75,3 +75,13 @@ def test_any_value_after_a_secret_like_name_is_masked_whatever_its_shape():
         assert mask_credentials(masked) == masked
     once = mask_credentials(f"password={short} and token={short}")
     assert once == "password=*** and token=***" and mask_credentials(once) == once
+
+
+def test_a_password_in_a_url_and_text_after_a_placeholder_are_masked():
+    """Release review: `user:password@` in a URL is an ordinary credential shape; a placeholder only stays readable
+    when it is the whole value."""
+    secret = "Hunter" + "2xyz"
+    assert mask_credentials(f"curl https://admin:{secret}@169.254.169.254/latest") == "curl https://admin:***@169.254.169.254/latest"
+    for written in (f"token=${{A}}{secret}", f"token=<a>{secret}", f"token=$(a){secret}"):
+        masked = mask_credentials(written)
+        assert secret not in masked and mask_credentials(masked) == masked, written

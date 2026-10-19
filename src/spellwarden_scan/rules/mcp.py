@@ -7,6 +7,7 @@ from collections.abc import Iterator
 
 from spellwarden_scan.evidence import bounded_evidence, fingerprint, mask_credentials
 from spellwarden_scan.model import Finding, Location, ProbeResult
+from spellwarden_scan.probe import text_of
 from spellwarden_scan.probe import auth_mode_of, classify, deprecated_capabilities, initialize_only, spec_version_of, transport_of
 from spellwarden_scan.rules import Rule, make_rule
 from spellwarden_scan.rules import patterns as P
@@ -159,7 +160,7 @@ def _mcp_008(probe: ProbeResult) -> Iterator[Finding]:
         yield _finding("SW-MCP-008", "medium", probe, ", ".join(names))
         return
     for tool in probe.tools:
-        if "sampling/createMessage" in (tool.description or ""):
+        if "sampling/createMessage" in text_of(tool.description):
             yield _finding("SW-MCP-008", "medium", probe, f"tool {tool.name} mentions sampling/createMessage")
             return
 
@@ -183,7 +184,7 @@ def _mcp_010(probe: ProbeResult) -> Iterator[Finding]:
         yield _finding("SW-MCP-010", "medium", probe, "no authorization server listed")
         return
     asm = probe.auth_server_metadata
-    if asm is not None and not (asm.issuer or "").strip():
+    if asm is not None and not text_of(asm.issuer).strip():
         # RFC 8414 makes `issuer` required: metadata without one cannot be validated, so it is never a pass.
         yield _finding("SW-MCP-010", "medium", probe, "authorization server metadata has no issuer")
         return
@@ -213,7 +214,7 @@ def _covers(resource: str, endpoint: str | None) -> bool:
 
 def _mcp_011(probe: ProbeResult) -> Iterator[Finding]:
     for tool in probe.tools:
-        text = tool.description or ""
+        text = text_of(tool.description)
         seen = visible(text)  # invisible characters do not break a phrase up (`skill.visible`)
         if any(p.search(seen) for p in P.INJECTION) or any(p.search(seen) for p in _TOOL_INJECTION):
             yield _finding("SW-MCP-011", "high", probe, text, path=f"tool:{tool.name}")
