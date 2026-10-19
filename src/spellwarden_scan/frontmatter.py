@@ -9,7 +9,8 @@ import yaml
 
 from spellwarden_scan.model import Metadata
 
-NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
+NAME_RE = re.compile(r"[a-z0-9][a-z0-9-]{0,63}")  # always `fullmatch`: `$` would accept a trailing newline
+_LINE = re.compile(r"[^\n]*\n|[^\n]+$")
 DESCRIPTION_MAX = 1024
 FIELDS = ("name", "description", "version", "license", "publisher")
 
@@ -26,7 +27,9 @@ def parse_frontmatter(text: str) -> tuple[dict, str]:
     """`(mapping, body)` of a file that starts with a `---` line (spec 5.5)."""
     if text.startswith("\ufeff"):  # a byte-order mark is not part of the first line
         text = text[1:]
-    lines = text.splitlines(keepends=True)
+    # Split on `\n` only, like `package.split_lines`: `splitlines()` also breaks at `\x0c`, `\x85` or U+2028,
+    # which would let a `---` hidden behind one of them end the frontmatter here but not for an agent.
+    lines = _LINE.findall(text)
     if not lines or lines[0].rstrip("\r\n") != "---":
         raise FrontmatterError("missing")
     for index in range(1, len(lines)):
@@ -88,7 +91,7 @@ def metadata_of(files: Mapping[str, bytes], root: str = "") -> Metadata:
     present = frozenset(key for key, value in values.items() if value is not None and value.strip())
     problems: list[str] = []
     name = values["name"]
-    if name is None or NAME_RE.match(name) is None:
+    if name is None or NAME_RE.fullmatch(name) is None:
         problems.append("name must match ^[a-z0-9][a-z0-9-]{0,63}$")
     description = values["description"]
     if description is None or not description.strip():

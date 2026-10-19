@@ -16,7 +16,27 @@ SCRIPT_EXTENSIONS = (".sh", ".bash", ".zsh", ".py", ".js", ".mjs", ".ts", ".rb",
 SHELL_LANGUAGES = ("sh", "bash", "shell", "zsh", "console")
 CODE_LANGUAGES = SHELL_LANGUAGES + ("python", "js", "javascript", "ts", "typescript", "powershell")
 _SHELL_STARTS = ("$ ", "curl", "wget", "pip", "npm", "npx", "git", "rm", "sudo")
-_FENCE = re.compile(r"^(`{3,}|~{3,})\s*([A-Za-z0-9_+-]*)\s*$")
+# CommonMark fences: an opener is three or more backticks or tildes and any info string (a backtick fence's info
+# string holds no backtick); the language is the info string's first word, braces and dots stripped (`{bash}`,
+# `.sh`, `bash title=run.sh`). A closing fence is the opening character, at least as long, with nothing after it.
+_OPENER = re.compile(r"^(`{3,}(?=[^`]*$)|~{3,})(.*)$")
+_CLOSER = re.compile(r"^(`{3,}|~{3,})$")
+_LANGUAGE = re.compile(r"[A-Za-z0-9_+-]+")
+
+
+def _indent(line: str) -> int:
+    expanded = line.expandtabs(4)
+    return len(expanded) - len(expanded.lstrip(" "))
+
+
+def split_lines(text: str) -> tuple[str, ...]:
+    """The file's lines as an editor and an agent number them: split on `\\n` only, a trailing `\\r`
+    dropped. `str.splitlines()` also splits on `\\x0b`, `\\x0c`, `\\x1c`-`\\x1e`, `\\x85`, U+2028 and U+2029,
+    which would shift every line number after one of them (spec 5.3: line numbers are the file's)."""
+    lines = text.split("\n")
+    if lines and lines[-1] == "":
+        lines.pop()
+    return tuple(line[:-1] if line.endswith("\r") else line for line in lines)
 
 
 @dataclass(frozen=True)
@@ -24,6 +44,7 @@ class TextFile:
     path: str
     text: str
     lines: tuple[str, ...]
+    head: bytes = b""  # the raw first eight bytes: SW-SKL-010 reads magic numbers here, never from re-encoded text
 
 
 @dataclass(frozen=True)
@@ -42,7 +63,7 @@ class CodeBlock:
 
     @property
     def lines(self) -> tuple[str, ...]:
-        return tuple(self.text.splitlines())
+        return split_lines(self.text)
 
 
 def _decode(content: bytes) -> str | None:
@@ -71,15 +92,20 @@ def _code_blocks(path: str, lines: tuple[str, ...]) -> list[CodeBlock]:
                 language = "sh"
         blocks.append(CodeBlock(path, language, "\n".join(body), start))
 
+    indent = 0
     for number, line in enumerate(lines, start=1):
-        match = _FENCE.match(line.strip())
         if fence is None:
-            if match:
-                fence, width = match.group(1)[0], len(match.group(1))
-                language, start, body = match.group(2).lower(), number + 1, []
+            # Any indentation opens a block (a fence inside a list item is still code an agent runs).
+            opener = _OPENER.match(line.strip())
+            if opener:
+                fence, width, indent = opener.group(1)[0], len(opener.group(1)), _indent(line)
+                word = _LANGUAGE.search(opener.group(2))
+                language, start, body = (word.group(0).lower() if word else ""), number + 1, []
             continue
-        # CommonMark: a closing fence repeats the opening character, is at least as long and has no info string.
-        if match and match.group(1)[0] == fence and len(match.group(1)) >= width and not match.group(2):
+        # CommonMark: a closing fence repeats the opening character, is at least as long, has no info string
+        # and is indented less than four spaces more than the opener (a deeper one is content).
+        closer = _CLOSER.match(line.strip())
+        if closer and closer.group(1)[0] == fence and len(closer.group(1)) >= width and _indent(line) < indent + 4:
             finish()
             fence = None
             continue
@@ -116,8 +142,8 @@ class Package:
             if text is None:
                 binaries.append(BinaryFile(path, content[:8], len(content)))
                 continue
-            lines = tuple(text.splitlines())
-            texts.append(TextFile(path, text, lines))
+            lines = split_lines(text)
+            texts.append(TextFile(path, text, lines, content[:8]))
             if path.lower().endswith(".md"):
                 blocks.extend(_code_blocks(path, lines))
         # Only the executable entries under `root` belong to this package: a sibling directory's binaries are not its finding.

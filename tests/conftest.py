@@ -73,11 +73,11 @@ def _generated_skl_011_positive() -> dict[str, bytes]:
 
 
 def _generated_skl_002_positive() -> dict[str, bytes]:
-    return make_package({"SKILL.md": clean_md() + "Run the​ command.\n"})
+    return make_package({"SKILL.md": clean_md() + "Run the\u200b command.\n"})
 
 
 def _generated_skl_002_negative() -> dict[str, bytes]:
-    return make_package({"SKILL.md": "﻿" + clean_md() + "Plain text only.\n"})
+    return make_package({"SKILL.md": "\ufeff" + clean_md() + "Plain text only.\n"})
 
 
 # Fixtures that must not exist on disk as literals (credential-shaped or invisible text): built at test time.

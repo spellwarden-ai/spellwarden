@@ -53,3 +53,17 @@ def test_metadata_honours_the_root():
     files = {"plugins/a/SKILL.md": b"---\nname: a\ndescription: A.\n---\n", "SKILL.md": b"---\nname: top\ndescription: Top.\n---\n"}
     assert metadata_of(files, root="plugins/a").name == "a"
     assert metadata_of(files, root="plugins/a/").name == "a"
+
+
+def test_a_name_with_a_trailing_newline_is_invalid():
+    """r0:F12: `re.match` with `$` accepted `"demo-skill\\n"`; the name is checked with `fullmatch`."""
+    meta = metadata_of({"SKILL.md": b'---\nname: "demo-skill\\n"\ndescription: Fine.\n---\n'})
+    assert not meta.frontmatter_ok and any(p.startswith("name must match") for p in meta.problems)
+
+
+def test_only_a_newline_ends_a_frontmatter_line():
+    """A `---` behind U+2028 on the same line does not close the frontmatter early (`splitlines()` would,
+    and would scan `description` as body); the whole block is then not valid YAML."""
+    with pytest.raises(FrontmatterError) as caught:
+        parse_frontmatter("---\nname: demo\u2028---\ndescription: Fine.\n---\nbody\n")
+    assert caught.value.reason == "invalid_yaml"

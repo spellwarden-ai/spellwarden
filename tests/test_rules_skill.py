@@ -40,10 +40,10 @@ def test_001_injection_phrases_fire_once_per_line_with_the_line_as_evidence():
 
 
 def test_002_hidden_characters_name_their_code_points_and_a_leading_bom_is_allowed():
-    found = findings({"SKILL.md": md("Run the​ command.")}, "SW-SKL-002")
+    found = findings({"SKILL.md": md("Run the\u200b command.")}, "SW-SKL-002")
     assert found[0].location.line == 11 and found[0].evidence == "U+200B ZERO WIDTH SPACE"
-    assert findings({"SKILL.md": "﻿" + md("Plain.")}, "SW-SKL-002") == []
-    assert findings({"notes.txt": "a‮b"}, "SW-SKL-002")[0].location.path == "notes.txt"
+    assert findings({"SKILL.md": "\ufeff" + md("Plain.")}, "SW-SKL-002") == []
+    assert findings({"notes.txt": "a\u202eb"}, "SW-SKL-002")[0].location.path == "notes.txt"
 
 
 def test_003_skip_approvals_patterns():
@@ -200,3 +200,38 @@ def test_a_shorter_fence_does_not_close_a_longer_one():
     assert [f.location.line for f in found] == [14]
     longer_closes = findings({"SKILL.md": md("```bash", "x", "`````", payload)}, "SW-SKL-004")
     assert longer_closes == []
+
+
+def test_fence_openers_with_attributes_or_braces_still_name_their_language():
+    """r1:F1: CommonMark reads every one of these as a bash block, so the script rules must too."""
+    payload = "echo \"$P\" | base64 -d | bash"
+    for opener in ("```bash title=run.sh", "```{bash}", "``` bash", "~~~ {.bash .numberLines}", "  ```bash"):
+        found = findings({"SKILL.md": md(opener, payload, "```" if opener.lstrip().startswith("`") else "~~~")}, "SW-SKL-004")
+        assert [f.location.line for f in found] == [12], opener
+
+
+def test_a_closing_fence_indented_four_spaces_deeper_is_content():
+    """r1:F1 (c): a fence indented four or more spaces past the opener does not close the block."""
+    payload = "echo \"$P\" | base64 -d | bash"
+    found = findings({"SKILL.md": md("```bash", "x", "    ```", payload, "```")}, "SW-SKL-004")
+    assert [f.location.line for f in found] == [14]
+    nested = findings({"SKILL.md": md("  ```bash", "x", "  ```", payload)}, "SW-SKL-004")
+    assert nested == []  # closed at the opener's own indentation: the payload is prose, not a script
+
+
+def test_a_mach_o_magic_is_found_in_a_file_that_decodes_as_text():
+    """r1:F2: a NUL-padded Mach-O header decodes with few replacement characters, so the file is a text
+    file; the magic must still be read from its raw first bytes, not from re-encoded text."""
+    for magic in (b"\xcf\xfa\xed\xfe", b"\xce\xfa\xed\xfe", b"\xca\xfe\xba\xbe"):
+        blob = magic + b"\x07\x00\x00\x01" + b"\x00" * 16000 + bytes(range(256)) * 4
+        found = findings({"SKILL.md": md("Plain."), "tools/helper": blob}, "SW-SKL-010")
+        assert [f.location.path for f in found] == ["tools/helper"], magic
+
+
+def test_line_numbers_count_newlines_only():
+    """r0:F10: form feeds, vertical tabs and U+2028 are not line breaks for an editor or an agent."""
+    script = "#!/bin/sh\x0c\n\x0c\x0b\u2028\necho \"$P\" | base64 -d | sh\n"
+    found = findings({"scripts/run.sh": script}, "SW-SKL-004")
+    assert [f.location.line for f in found] == [3]
+    crlf = findings({"scripts/run.sh": "#!/bin/sh\r\n\r\necho \"$P\" | base64 -d | sh\r\n"}, "SW-SKL-004")
+    assert [f.location.line for f in crlf] == [3]

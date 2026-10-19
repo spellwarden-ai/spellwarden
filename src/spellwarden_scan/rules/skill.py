@@ -72,13 +72,13 @@ def _skl_001(package: Package) -> Iterator[Finding]:
 
 # --- SW-SKL-002 ------------------------------------------------------------------------------
 
-_HIDDEN = re.compile("[​-‏⁠-⁤‪-‮⁦-⁩﻿]")
+_HIDDEN = re.compile("[\u200b-\u200f\u2060-\u2064\u202a-\u202e\u2066-\u2069\ufeff]")
 
 
 def _skl_002(package: Package) -> Iterator[Finding]:
     for unit in package.text_files:
         for number, line in enumerate(unit.lines, start=1):
-            text = line[1:] if number == 1 and line.startswith("﻿") else line
+            text = line[1:] if number == 1 and line.startswith("\ufeff") else line
             hidden = _HIDDEN.findall(text)
             if hidden:
                 names = code_point_names("".join(hidden))
@@ -285,7 +285,7 @@ def _skl_010(package: Package) -> Iterator[Finding]:
         if binary.path.lower().endswith(_BINARY_EXTENSIONS) or binary.head.startswith(_MAGIC):
             seen.add(binary.path)
     for text in package.text_files:
-        if text.path.lower().endswith(_BINARY_EXTENSIONS) or text.text.encode("utf-8", "replace")[:4].startswith(_MAGIC):
+        if text.path.lower().endswith(_BINARY_EXTENSIONS) or text.head.startswith(_MAGIC):
             seen.add(text.path)
     seen.update(package.executable_paths)
     for path in sorted(seen):
