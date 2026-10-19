@@ -42,7 +42,8 @@ def _unsafe(name: str, limits: ArchiveLimits) -> bool:
     if len(name) > limits.max_path:
         return True
     parts = name.split("/")
-    return any(part in ("..", "") for part in parts[:-1]) or parts[-1] == ".."
+    # `.` and `..` anywhere, and empty parts (`a//b`): every consumer must read the same path the scan read.
+    return any(part in ("..", ".", "") for part in parts[:-1]) or parts[-1] in ("..", ".")
 
 
 def _is_special(info: zipfile.ZipInfo) -> bool:
@@ -72,7 +73,8 @@ def unpack_zip(data: bytes, limits: ArchiveLimits = DEFAULT_LIMITS, *, with_mode
     try:
         archive = zipfile.ZipFile(io.BytesIO(data))
         infos = archive.infolist()
-    except (zipfile.BadZipFile, ValueError, EOFError) as exc:
+    except (zipfile.BadZipFile, ValueError, EOFError, RuntimeError, OSError) as exc:
+        # `NotImplementedError` (a `RuntimeError`) for an unsupported "version needed to extract" in the central directory.
         raise ArchiveError("bad_zip", str(exc)) from exc
     entries = [info for info in infos if not info.is_dir()]
     if not entries:
@@ -88,19 +90,34 @@ def unpack_zip(data: bytes, limits: ArchiveLimits = DEFAULT_LIMITS, *, with_mode
     top = _strip_common_top([info.filename for info in entries])
     files: dict[str, bytes] = {}
     executable: set[str] = set()
+    folded: set[str] = set()
     total = 0
     for info in entries:
         name = info.filename[len(top) + 1:] if top else info.filename
-        name = posixpath.normpath(name)
-        if _unsafe(name, limits):
+        if _unsafe(name, limits) or posixpath.normpath(name) != name:
             raise ArchiveError("unsafe_path", info.filename)
+        # A repeated name (or one that differs only in case) would let an extractor install a file the scan never read.
+        if name.casefold() in folded:
+            raise ArchiveError("unsafe_path", f"duplicate {info.filename}")
+        folded.add(name.casefold())
         content, total = _read_entry(archive, info, limits, total)
         files[name] = content
         if _is_executable(info):
             executable.add(name)
+    _check_file_directory_clash(files)
     if with_modes:
         return files, frozenset(executable)
     return files
+
+
+def _check_file_directory_clash(files: dict[str, bytes]) -> None:
+    """`a/b` as a file and `a/b/c` as another: no file system holds both, so an extractor keeps one of them."""
+    names = {name.casefold() for name in files}
+    for name in files:
+        parts = name.casefold().split("/")
+        for depth in range(1, len(parts)):
+            if "/".join(parts[:depth]) in names:
+                raise ArchiveError("unsafe_path", f"file and directory {name}")
 
 
 def _check_declared(entries: list[zipfile.ZipInfo], limits: ArchiveLimits) -> None:

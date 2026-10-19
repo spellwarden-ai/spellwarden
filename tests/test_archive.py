@@ -46,7 +46,7 @@ def test_with_modes_reports_executable_entries():
     assert set(files) == {"SKILL.md", "bin/tool"} and executable == frozenset({"bin/tool"})
 
 
-@pytest.mark.parametrize("name", ["../x", "/x", "C:\\x", "a/../../x", "a\\b"])
+@pytest.mark.parametrize("name", ["../x", "/x", "C:\\x", "a/../../x", "a\\b", "a/./x", "./x", "a//x", "a/."])
 def test_unsafe_paths_are_refused(name):
     """A NUL in a name cannot be tested through a real archive: `zipfile` cuts the name at the NUL
     on both write and read, so `_unsafe`'s NUL check is defensive only."""
@@ -151,6 +151,41 @@ def test_a_corrupt_compressed_stream_is_bad_zip(method, skip):
     start = info.header_offset + 30 + len(info.filename.encode()) + skip  # into the compressed stream, flipping 20 bytes
     for offset in range(start, start + 20):
         data[offset] ^= 0xFF
+    with pytest.raises(ArchiveError) as caught:
+        unpack_zip(bytes(data))
+    assert caught.value.code == "bad_zip"
+
+
+def raw_zip(names_and_contents: list[tuple[str, bytes]]) -> bytes:
+    """An archive that may repeat a name, which `build`'s dict cannot express."""
+    import warnings
+    buffer = io.BytesIO()
+    with warnings.catch_warnings(), zipfile.ZipFile(buffer, "w") as zf:
+        warnings.simplefilter("ignore")  # `zipfile` warns about the duplicate name it is asked to write
+        for name, content in names_and_contents:
+            zf.writestr(name, content)
+    return buffer.getvalue()
+
+
+@pytest.mark.parametrize("entries", [
+    [("SKILL.md", b"scanned"), ("SKILL.md", b"installed")],
+    [("SKILL.md", b"scanned"), ("skill.md", b"installed")],
+    [("a/run.sh", b"x"), ("a/run.sh/inner", b"y"), ("SKILL.md", b"z")],
+])
+def test_repeated_or_clashing_names_are_refused(entries):
+    """Security review: a later entry with the same name (or one an extractor folds onto it) would
+    replace the file the scan read, so the archive is refused instead of keeping either copy."""
+    with pytest.raises(ArchiveError) as caught:
+        unpack_zip(raw_zip(entries))
+    assert caught.value.code == "unsafe_path"
+
+
+def test_an_unsupported_zip_version_in_the_central_directory_is_bad_zip():
+    """r1:F3: `zipfile.ZipFile()` raises `NotImplementedError` for a "version needed to extract" it
+    does not support while it reads the central directory; that is `bad_zip` like every corrupt archive."""
+    data = bytearray(build({"a/SKILL.md": b"x"}))
+    central = data.find(b"PK\x01\x02")
+    data[central + 6] = 80  # version needed to extract: 8.0
     with pytest.raises(ArchiveError) as caught:
         unpack_zip(bytes(data))
     assert caught.value.code == "bad_zip"
