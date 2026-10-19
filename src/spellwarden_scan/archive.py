@@ -139,8 +139,10 @@ def unpack_zip(data: bytes, limits: ArchiveLimits = DEFAULT_LIMITS, *, with_mode
             raise ArchiveError("unsafe_path", info.filename)
         if _under(name, scope):
             # Under the scanned root, a name that differs only in case or normalisation, or that Windows renames,
-            # would let an extractor install a file the scan never read.
-            if _platform_unsafe(name) or _platform_key(name) in folded:
+            # would let an extractor install a file the scan never read; so would a name an extractor merges into the
+            # root that is not under it byte for byte (`Skill/run.sh` for `skill`: the scan reads `skill/` only).
+            exact = not scope or name == scope or name.startswith(scope + "/")
+            if not exact or _platform_unsafe(name) or _platform_key(name) in folded:
                 raise ArchiveError("unsafe_path", f"colliding {info.filename}")
             folded.add(_platform_key(name))
         content, total = _read_entry(archive, info, limits, total)

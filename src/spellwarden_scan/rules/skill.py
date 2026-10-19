@@ -83,20 +83,31 @@ _HIDDEN = re.compile("[\u034f\u115f\u180e\u200b-\u200f\u2028\u2029\u2060-\u2064\
                      "\ufff9-\ufffb\U000e0000-\U000e007f\U000e0100-\U000e01ef]|[\ufe00-\ufe0f]{2,}")
 _SELECTOR = re.compile("[\ufe00-\ufe0f]")
 _KEYCAP_BASES = frozenset("0123456789#*")
+_KEYCAP = "\u20e3"
+
+
+def _ideograph(char: str) -> bool:
+    return "\u3400" <= char <= "\u9fff" or "\uf900" <= char <= "\ufaff"
 
 
 def _stray_selectors(line: str) -> list[str]:
-    """Single basic variation selectors after a base that takes none: emoji and other symbols (`So`, `Sm`), the
-    keycap bases and CJK ideographs take one; after a letter, a digit in prose or a space it only hides data."""
+    """Single basic variation selectors that no standard sequence explains. U+FE0E and U+FE0F (text and emoji
+    presentation) are ordinary after an emoji or other `So` symbol, or after a keycap base that a U+20E3 follows;
+    U+FE00 to U+FE0D only after a CJK ideograph (the ideographic variants). Anywhere else a selector only hides
+    data; the selector opening a line has no base and counts too."""
     stray: list[str] = []
     for match in _SELECTOR.finditer(line):
-        start = match.start()
+        start, selector = match.start(), match.group(0)
         base = line[start - 1] if start else ""
-        if not base or "\ufe00" <= base <= "\ufe0f":
-            continue  # the run rule above reports runs; a selector opening the line has no base to judge
-        if unicodedata.category(base) in ("So", "Sm", "Sk") or base in _KEYCAP_BASES or "\u3400" <= base <= "\u9fff":
+        if "\ufe00" <= base <= "\ufe0f":
+            continue  # part of a run, which `_HIDDEN` reports
+        if selector in "\ufe0e\ufe0f":
+            keycap = base in _KEYCAP_BASES and line[start + 1:start + 2] == _KEYCAP
+            if base and (unicodedata.category(base) == "So" or keycap):
+                continue
+        elif base and _ideograph(base):
             continue
-        stray.append(match.group(0))
+        stray.append(selector)
     return stray
 # Every format character and the soft hyphen, removed before the injection phrases are matched (SW-SKL-001,
 # SW-MCP-011): `ig\u00adnore previous instructions` reads as the phrase to an agent.
