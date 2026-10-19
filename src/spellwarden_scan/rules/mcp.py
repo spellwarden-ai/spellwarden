@@ -17,14 +17,25 @@ _TOOL_INJECTION = (
     re.compile(r"before (any|every|all) other tools?", re.IGNORECASE),
     re.compile(r"(do not|don't|never) (mention|reveal|show|tell)", re.IGNORECASE),
     re.compile(r"<(system|instructions?|important)>", re.IGNORECASE),
-    re.compile(r"IMPORTANT:.*(ignore|override|must)", re.IGNORECASE),
+    P.Then(r"IMPORTANT:", r"(ignore|override|must)"),  # linear: the regex `.*` form is quadratic on repeated `IMPORTANT:`
     re.compile(r"\bhidden\b", re.IGNORECASE),
     re.compile(r"secret instruction", re.IGNORECASE),
 )
 
 
+def _redacted(url: str) -> str:
+    """`url` without userinfo, query or fragment: a finding's location and evidence never carry
+    `https://user:pass@host/` or `?api_key=...` from a registered endpoint or repository URL."""
+    if "://" not in url:
+        return url
+    scheme, rest = url.split("://", 1)
+    rest = rest.split("#", 1)[0].split("?", 1)[0]
+    authority, separator, path = rest.partition("/")
+    return f"{scheme}://{authority.rsplit('@', 1)[-1]}{separator}{path}"
+
+
 def _where(probe: ProbeResult) -> str:
-    return probe.endpoint or probe.repository or "server"
+    return _redacted(probe.endpoint or probe.repository or "server")
 
 
 def _finding(rule_id: str, severity: str, probe: ProbeResult, evidence: str, *, path: str | None = None) -> Finding:
@@ -146,7 +157,7 @@ def _mcp_009(probe: ProbeResult) -> Iterator[Finding]:
         return
     origin = _origin(probe.endpoint)
     if origin is None or not origin.startswith("https://"):
-        yield _finding("SW-MCP-009", "high", probe, probe.endpoint)
+        yield _finding("SW-MCP-009", "high", probe, _redacted(probe.endpoint))
 
 
 def _mcp_010(probe: ProbeResult) -> Iterator[Finding]:
@@ -160,7 +171,11 @@ def _mcp_010(probe: ProbeResult) -> Iterator[Finding]:
         yield _finding("SW-MCP-010", "medium", probe, "no authorization server listed")
         return
     asm = probe.auth_server_metadata
-    if asm is not None and asm.issuer and asm.metadata_url:
+    if asm is not None and not (asm.issuer or "").strip():
+        # RFC 8414 makes `issuer` required: metadata without one cannot be validated, so it is never a pass.
+        yield _finding("SW-MCP-010", "medium", probe, "authorization server metadata has no issuer")
+        return
+    if asm is not None and asm.metadata_url:
         # RFC 8414: the metadata of issuer `https://host/tenant` lives at
         # `https://host/.well-known/<suffix>/tenant`; the expected issuer is the origin plus that trailing path.
         before, _, after = asm.metadata_url.partition("/.well-known/")
@@ -170,9 +185,18 @@ def _mcp_010(probe: ProbeResult) -> Iterator[Finding]:
             yield _finding("SW-MCP-010", "medium", probe, f"issuer {asm.issuer} differs from {expected}")
             return
     resource = metadata.get("resource")
-    endpoint = probe.endpoint or ""
-    if not isinstance(resource, str) or not (endpoint == resource or endpoint.startswith(resource)):
+    if not isinstance(resource, str) or not _covers(resource, probe.endpoint):
         yield _finding("SW-MCP-010", "medium", probe, f"resource {resource} is not the endpoint")
+
+
+def _covers(resource: str, endpoint: str | None) -> bool:
+    """RFC 9728: the protected resource is the endpoint itself or a parent path of it on the same origin.
+    Compared canonically (case, default port, trailing slash) and on a path-segment boundary, so neither
+    `https://mcp.example` for `https://mcp.example.attacker.net/mcp` nor `/mc` for `/mcp` passes."""
+    wanted, probed = _canonical(resource), _canonical(endpoint)
+    if wanted is None or probed is None:
+        return False
+    return probed == wanted or probed.startswith(wanted + "/")
 
 
 def _mcp_011(probe: ProbeResult) -> Iterator[Finding]:
