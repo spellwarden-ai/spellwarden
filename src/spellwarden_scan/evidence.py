@@ -5,7 +5,7 @@ import hashlib
 import re
 import unicodedata
 
-from spellwarden_scan.rules.patterns import ASSIGNED_SECRET, ASSIGNED_VALUE, CREDENTIAL_PATTERNS, PLACEHOLDER
+from spellwarden_scan.rules.patterns import ASSIGNED_SECRET, ASSIGNED_VALUE, CREDENTIAL_PATTERNS, PLACEHOLDER_VALUE
 
 EVIDENCE_MAX = 300
 # Spec 5.10: a run of 20 or more characters of `[A-Za-z0-9_\-+/=]` that does not continue an earlier run; `=` is part of
@@ -41,9 +41,11 @@ def _mask_value(match: re.Match) -> str:
     """Any value assigned to a secret-like name, quoted or not and of any length, becomes `***` (a short or
     letters-only password is still a password); a placeholder such as `$TOKEN` or `<your-key>` stays readable."""
     value = match.group(3)
-    if value.endswith("***") or PLACEHOLDER.search(value):
+    quote = value[0] if value[:1] in ("'", '"') else ""
+    inner = value[1:-1] if quote and len(value) > 1 else value
+    if inner.endswith("***") or PLACEHOLDER_VALUE.fullmatch(inner):
         return match.group(0)
-    return match.group(1) + match.group(2) + "***"
+    return match.group(1) + match.group(2) + quote + "***" + quote  # a quoted value is masked to its closing quote
 
 
 def mask_credentials(text: str) -> str:

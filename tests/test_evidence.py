@@ -59,7 +59,10 @@ def test_any_value_after_a_secret_like_name_is_masked_whatever_its_shape():
     assert mask_credentials(f"export API_KEY={short}x") == "export API_KEY=***"
     assert mask_credentials(f"db_password: {short} # prod") == "db_password: *** # prod"
     assert mask_credentials(f'"client_secret": "{short}"') == '"client_secret": "***"'
-    for kept in ("token=$TOKEN", "api_key=<your-key>", "password: ${DB_PASSWORD}"):
+    for kept in ("token=$TOKEN", "api_key=<your-key>", "password: ${DB_PASSWORD}", 'secret: "xxxx"'):
         assert mask_credentials(kept) == kept
+    for leaked in ("x" + "yz$1abc", "my" + "example1", "s3cr" + "et<b>"):  # a placeholder word inside a real value
+        assert mask_credentials(f"password={leaked}") == "password=***", leaked
+    assert mask_credentials('password = "hunter two"') == 'password = "***"'  # masked to the closing quote
     once = mask_credentials(f"password={short} and token={short}")
     assert once == "password=*** and token=***" and mask_credentials(once) == once

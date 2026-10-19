@@ -253,10 +253,12 @@ def test_013_resolves_the_host_a_client_would_reach():
     are IP literals, and a link-local address (the cloud metadata endpoint) is not exempt."""
     for url in ("http://169.254.169.254/latest/meta-data/", "http://[fe80::1]/", "https://github.com@45.33.32.156/x",
                 "http://758292636/config", "http://0x2d.0x21.0x20.0x9c/config", "http://0x2D.33.8348/", "http://055.041.040.0234/",
-                "https://bit.ly./abc", "https://user:pw@bit.ly/abc"):
+                "https://bit.ly./abc", "https://user:pw@bit.ly/abc", "https://\uff42\uff49\uff54\uff0e\uff4c\uff59/abc",
+                "https://BIT\u3002ly/x", "http://45.33.32.156\\@github.com/"):
         assert len(findings({"SKILL.md": md(f"Fetch {url} first.")}, "SW-SKL-013")) == 1, url
     for url in ("http://127.0.0.1:8080/", "http://127.1/", "http://[::1]/", "http://2130706433/", "https://192.0.2.7/",
-                "https://github.com/org/repo", "https://1.2.3.4.example.com/", "https://user@github.com/"):
+                "https://github.com/org/repo", "https://1.2.3.4.example.com/", "https://user@github.com/",
+                "https://github.com\\@bit.ly/"):  # WHATWG: `\\` ends the authority, so the host is github.com
         assert findings({"SKILL.md": md(f"Fetch {url} first.")}, "SW-SKL-013") == [], url
 
 

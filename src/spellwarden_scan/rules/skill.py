@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import ipaddress
 import re
+import unicodedata
 from collections.abc import Iterator
 
 from spellwarden_scan.evidence import bounded_evidence, code_point_names, excerpt, fingerprint
@@ -343,7 +344,7 @@ def _skl_012(package: Package) -> Iterator[Finding]:
 
 # --- SW-SKL-013 ------------------------------------------------------------------------------
 
-_URL_AUTHORITY = re.compile(r"https?://([^/\s?#]+)", _I)
+_URL_AUTHORITY = re.compile(r"https?://([^/\\\s?#]+)", _I)  # a browser ends the authority at `\\` too
 _DOC_RANGES = (ipaddress.ip_network("192.0.2.0/24"), ipaddress.ip_network("198.51.100.0/24"),
                ipaddress.ip_network("203.0.113.0/24"), ipaddress.ip_network("2001:db8::/32"))
 
@@ -351,7 +352,9 @@ _DOC_RANGES = (ipaddress.ip_network("192.0.2.0/24"), ipaddress.ip_network("198.5
 def _host_of(authority: str) -> str:
     """The host a client connects to: userinfo dropped (`https://github.com@203.0.113.9/` goes to the
     IP), the port dropped, IPv6 brackets removed, a trailing dot removed (`bit.ly.` is `bit.ly`)."""
-    host = authority.rsplit("@", 1)[-1]
+    # UTS 46 folding as a browser applies it: full-width digits and dots (NFKC), the ideographic and halfwidth
+    # full stops, case. `ｂｉｔ．ｌｙ` and `１２７。０。０。１` are the hosts they look like.
+    host = unicodedata.normalize("NFKC", authority.rsplit("@", 1)[-1]).replace("\u3002", ".").replace("\uff61", ".").lower()
     if host.startswith("["):
         end = host.find("]")
         return host[1:end] if end > 0 else host[1:]
