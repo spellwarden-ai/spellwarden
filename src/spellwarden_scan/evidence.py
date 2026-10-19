@@ -5,7 +5,7 @@ import hashlib
 import re
 import unicodedata
 
-from spellwarden_scan.rules.patterns import ASSIGNED_SECRET, CREDENTIAL_PATTERNS
+from spellwarden_scan.rules.patterns import ASSIGNED_SECRET, ASSIGNED_VALUE, CREDENTIAL_PATTERNS, PLACEHOLDER
 
 EVIDENCE_MAX = 300
 # Spec 5.10: a run of 20 or more characters of `[A-Za-z0-9_\-+/=]` that does not continue an earlier run; `=` is part of
@@ -31,22 +31,32 @@ def _mask_run(match: re.Match) -> str:
 
 
 def _mask_assigned(match: re.Match) -> str:
-    """`password = "hunter2hunter2"` keeps its name and quotes; the value becomes its first four characters and `***`."""
+    """A quoted secret assignment keeps its name and quotes; the value becomes its first four characters and `***`."""
     whole, value = match.group(0), match.group(2)
     start = match.start(2) - match.start(0)
     return whole[:start] + value[:4] + "***" + whole[start + len(value):]
 
 
+def _mask_value(match: re.Match) -> str:
+    """Any value assigned to a secret-like name, quoted or not and of any length, becomes `***` (a short or
+    letters-only password is still a password); a placeholder such as `$TOKEN` or `<your-key>` stays readable."""
+    value = match.group(3)
+    if value.endswith("***") or PLACEHOLDER.search(value):
+        return match.group(0)
+    return match.group(1) + match.group(2) + "***"
+
+
 def mask_credentials(text: str) -> str:
     """Every SW-SKL-011 pattern and every 20+ character mixed run becomes its
     first four characters and `***`; `Bearer` and `Basic` tokens are masked
-    after the scheme word. Idempotent."""
+    after the scheme word; whatever is left after a secret-like name and `=`
+    or `:` becomes `***`. Idempotent."""
     masked = _SCHEME.sub(lambda m: m.group(1) + " ***", text)
     masked = ASSIGNED_SECRET.sub(_mask_assigned, masked)
     for pattern in CREDENTIAL_PATTERNS:
         masked = pattern.sub(_mask_match, masked)
     masked = _MIXED_RUN.sub(_mask_run, masked)
-    return masked
+    return ASSIGNED_VALUE.sub(_mask_value, masked)
 
 
 def bounded_evidence(text: str) -> str:
@@ -76,7 +86,7 @@ def code_point_names(text: str) -> str:
     """`U+200B ZERO WIDTH SPACE, ...` for the distinct hidden characters of `text` (SW-SKL-002)."""
     seen: list[str] = []
     for char in text:
-        if unicodedata.category(char) not in ("Cf", "Cc", "Co", "Cn") and char != "\ufeff":
+        if unicodedata.category(char) not in ("Cf", "Cc", "Co", "Cn", "Zl", "Zp") and char != "\ufeff":
             continue
         label = f"U+{ord(char):04X} {unicodedata.name(char, 'UNNAMED')}"
         if label not in seen:

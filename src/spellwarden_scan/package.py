@@ -29,14 +29,17 @@ def _indent(line: str) -> int:
     return len(expanded) - len(expanded.lstrip(" "))
 
 
+_NEWLINE = re.compile(r"\r\n|\r|\n")
+
+
 def split_lines(text: str) -> tuple[str, ...]:
-    """The file's lines as an editor and an agent number them: split on `\\n` only, a trailing `\\r`
-    dropped. `str.splitlines()` also splits on `\\x0b`, `\\x0c`, `\\x1c`-`\\x1e`, `\\x85`, U+2028 and U+2029,
-    which would shift every line number after one of them (spec 5.3: line numbers are the file's)."""
-    lines = text.split("\n")
+    """The file's lines as CommonMark and an editor number them: ended by `\\r\\n`, `\\r` or `\\n`, nothing
+    else. `str.splitlines()` also breaks at `\\x0b`, `\\x0c`, `\\x1c`-`\\x1e`, `\\x85`, U+2028 and U+2029,
+    which shifts every line number after one of them (spec 5.3: line numbers are the file's)."""
+    lines = _NEWLINE.split(text)
     if lines and lines[-1] == "":
         lines.pop()
-    return tuple(line[:-1] if line.endswith("\r") else line for line in lines)
+    return tuple(lines)
 
 
 @dataclass(frozen=True)

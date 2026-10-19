@@ -10,7 +10,7 @@ import yaml
 from spellwarden_scan.model import Metadata
 
 NAME_RE = re.compile(r"[a-z0-9][a-z0-9-]{0,63}")  # always `fullmatch`: `$` would accept a trailing newline
-_LINE = re.compile(r"[^\n]*\n|[^\n]+$")
+_LINE = re.compile(r"[^\r\n]*(?:\r\n|\r|\n)|[^\r\n]+$")
 DESCRIPTION_MAX = 1024
 FIELDS = ("name", "description", "version", "license", "publisher")
 
@@ -27,7 +27,7 @@ def parse_frontmatter(text: str) -> tuple[dict, str]:
     """`(mapping, body)` of a file that starts with a `---` line (spec 5.5)."""
     if text.startswith("\ufeff"):  # a byte-order mark is not part of the first line
         text = text[1:]
-    # Split on `\n` only, like `package.split_lines`: `splitlines()` also breaks at `\x0c`, `\x85` or U+2028,
+    # Split at `\r\n`, `\r` and `\n` only, like `package.split_lines`: `splitlines()` also breaks at `\x0c`, `\x85` or U+2028,
     # which would let a `---` hidden behind one of them end the frontmatter here but not for an agent.
     lines = _LINE.findall(text)
     if not lines or lines[0].rstrip("\r\n") != "---":

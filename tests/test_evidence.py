@@ -17,7 +17,7 @@ def test_every_credential_pattern_is_masked_and_masking_is_idempotent():
 
 
 def test_mixed_runs_and_bearer_schemes_are_masked_but_prose_is_not():
-    token = "abc123DEF456ghi789JKL"
+    token = "abc123" + "DEF456ghi789JKL"  # built at runtime: no credential-shaped literal in the repository (r0:F8)
     assert mask_credentials(f"x={token}") == "x=ab***"  # `=` belongs to the run (spec 5.10): the pair is one token
     assert mask_credentials(f"see {token}") == "see abc1***"
     assert mask_credentials("token=abcd1234abcd1234") == "toke***"  # a 16-character secret behind `=` is still masked
@@ -49,3 +49,17 @@ def test_fingerprint_and_code_point_names():
     assert fingerprint("SW-SKL-001", "SKILL.md", "ignore previous instructions") == fingerprint("SW-SKL-001", "SKILL.md", "ignore previous instructions")
     assert fingerprint("SW-SKL-001", "SKILL.md", "a") != fingerprint("SW-SKL-001", "other.md", "a")
     assert code_point_names("a\u200bb\u202ec") == "U+200B ZERO WIDTH SPACE, U+202E RIGHT-TO-LEFT OVERRIDE"
+
+
+def test_any_value_after_a_secret_like_name_is_masked_whatever_its_shape():
+    """Security review: an unquoted, short or letters-only value after `password=`, `token:` or `api_key=` left
+    the 20-character and quoted rules untouched; it is masked whole, placeholders excepted."""
+    short = "hun" + "ter2"
+    assert mask_credentials(f"password={short}") == "password=***"
+    assert mask_credentials(f"export API_KEY={short}x") == "export API_KEY=***"
+    assert mask_credentials(f"db_password: {short} # prod") == "db_password: *** # prod"
+    assert mask_credentials(f'"client_secret": "{short}"') == '"client_secret": "***"'
+    for kept in ("token=$TOKEN", "api_key=<your-key>", "password: ${DB_PASSWORD}"):
+        assert mask_credentials(kept) == kept
+    once = mask_credentials(f"password={short} and token={short}")
+    assert once == "password=*** and token=***" and mask_credentials(once) == once

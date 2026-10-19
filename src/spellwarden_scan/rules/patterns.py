@@ -7,6 +7,83 @@ import re
 
 _I = re.IGNORECASE
 
+
+class Then:
+    """`A.*B.*C` without the regex: each part searched after the end of the previous one. The regex form
+    backtracks quadratically on a line that repeats `A` without a `B` (a 1 MB line of `curl ` is hours);
+    this is one linear pass per part. Truthy match or `None`, like `re.Pattern.search`."""
+
+    __slots__ = ("parts",)
+
+    def __init__(self, *parts: str, flags: int = _I) -> None:
+        self.parts = tuple(re.compile(part, flags) for part in parts)
+
+    def search(self, text: str, pos: int = 0):
+        match = None
+        for part in self.parts:
+            match = part.search(text, pos)
+            if match is None:
+                return None
+            pos = match.end()
+        return match
+
+
+class Within:
+    """`OPEN[^C]*INNER` without the regex: `inner` searched between the end of each `opener` and the next
+    `close` character (or the end of the line). An opener inside an earlier opener's span is skipped, its
+    span being a suffix of that one, so the line is read once."""
+
+    __slots__ = ("opener", "inner", "close")
+
+    def __init__(self, opener: str, inner: str, close: str, flags: int = _I) -> None:
+        self.opener, self.inner, self.close = re.compile(opener, flags), re.compile(inner, flags), close
+
+    def search(self, text: str, pos: int = 0):
+        reached = -1
+        for opened in self.opener.finditer(text, pos):
+            if opened.start() < reached:
+                continue
+            end = text.find(self.close, opened.end())
+            end = len(text) if end < 0 else end
+            match = self.inner.search(text, opened.end(), end)
+            if match:
+                return match
+            reached = end
+        return None
+
+
+class Piped:
+    """`SOURCE[^|]*\\|\\s*SINK` without the regex: the line is cut at every `|` and a segment holding
+    `source` must be followed by a segment that starts with `sink`."""
+
+    __slots__ = ("source", "sink")
+
+    def __init__(self, source: str, sink: str, flags: int = _I) -> None:
+        self.source, self.sink = re.compile(source, flags), re.compile(sink, flags)
+
+    def search(self, text: str, pos: int = 0):
+        segments = text[pos:].split("|")
+        for index in range(len(segments) - 1):
+            if self.source.search(segments[index]) and (match := self.sink.match(segments[index + 1])):
+                return match
+        return None
+
+
+class AnyOf:
+    """The first of several matchers (`re.Pattern`, `Then`, `Within`, `Piped`) that matches."""
+
+    __slots__ = ("matchers",)
+
+    def __init__(self, *matchers) -> None:
+        self.matchers = matchers
+
+    def search(self, text: str, pos: int = 0):
+        for matcher in self.matchers:
+            match = matcher.search(text, pos)
+            if match:
+                return match
+        return None
+
 # SW-SKL-001, SW-MCP-011
 INJECTION: tuple[re.Pattern, ...] = tuple(re.compile(p, _I) for p in (
     r"ignore (all |any |the |your )?(previous|prior|above|earlier) (instructions|prompts|rules)",
@@ -27,7 +104,10 @@ SHORTENERS: frozenset[str] = frozenset({
 })
 
 # SW-SKL-011 and evidence.mask_credentials (case-sensitive: the shapes are exact)
-CREDENTIAL_PATTERNS: tuple[re.Pattern, ...] = tuple(re.compile(p) for p in (
+# Each shape starts only where a token starts (the lookbehind): a line that repeats a prefix such as `eyJ` or
+# `glpat-` is then read once instead of once per repetition.
+_TOKEN_START = r"(?<![A-Za-z0-9_\-])"
+CREDENTIAL_PATTERNS: tuple[re.Pattern, ...] = tuple(re.compile(_TOKEN_START + p if not p.startswith("-") else p) for p in (
     r"AKIA[0-9A-Z]{16}",
     r"ASIA[0-9A-Z]{16}",
     r"gh[pousr]_[A-Za-z0-9]{36,}",
@@ -42,6 +122,11 @@ CREDENTIAL_PATTERNS: tuple[re.Pattern, ...] = tuple(re.compile(p) for p in (
 ))
 # SW-SKL-011: an assignment of a secret-like name to a quoted value that is not a placeholder
 ASSIGNED_SECRET = re.compile(r"""(password|passwd|secret|api[_-]?key|token)\s*[:=]\s*["']([^"'\s]{8,})["']""", _I)
+# evidence.mask_credentials only: the value of any secret-like assignment, quoted or not and of any length (it is
+# masked whole; SW-SKL-011 still fires on ASSIGNED_SECRET alone, so prose such as `token: see below` stays quiet).
+ASSIGNED_VALUE = re.compile(
+    r"""(password|passwd|secret|api[_-]?key|apikey|token|access[_-]?key|private[_-]?key|credentials?)(["']?\s*[:=]\s*["']?)"""
+    r"""([^\s"',;&]+)""", _I)
 PLACEHOLDER = re.compile(r"(xxx|\.\.\.|<|your[_-]|example|changeme|\$\{|\$[A-Z_]+)", _I)
 
 # SW-SKL-008, SW-SKL-012
