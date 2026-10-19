@@ -1,0 +1,47 @@
+{
+ "probe": {
+  "endpoint": "https://r004.example/mcp",
+  "reachable": true,
+  "capabilities": {
+   "tools": {}
+  },
+  "session_id_seen": false,
+  "probed_at": "2026-10-18T12:00:00Z",
+  "post_status": 405,
+  "get_content_type": "text/event-stream",
+  "sse_endpoint_event": true,
+  "negotiated_version": "2025-11-25",
+  "unauthenticated_status": 200,
+  "tools": [
+   {
+    "name": "query",
+    "description": "Runs a query.",
+    "annotations": {}
+   }
+  ],
+  "tools_source": "probe"
+ },
+ "expected": {
+  "transport": "sse",
+  "findings": [
+   {
+    "rule_id": "SW-MCP-001",
+    "severity": "high",
+    "path": "https://r004.example/mcp",
+    "line": null
+   },
+   {
+    "rule_id": "SW-MCP-004",
+    "severity": "medium",
+    "path": "https://r004.example/mcp",
+    "line": null
+   },
+   {
+    "rule_id": "SW-MCP-005",
+    "severity": "low",
+    "path": "https://r004.example/mcp",
+    "line": null
+   }
+  ]
+ }
+}

@@ -1,0 +1,18 @@
+{
+ "probe": {
+  "endpoint": "http://r009.example/mcp",
+  "reachable": false,
+  "error": "not_https"
+ },
+ "expected": {
+  "transport": "unknown",
+  "findings": [
+   {
+    "rule_id": "SW-MCP-009",
+    "severity": "high",
+    "path": "http://r009.example/mcp",
+    "line": null
+   }
+  ]
+ }
+}

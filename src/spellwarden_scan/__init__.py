@@ -12,6 +12,8 @@ from spellwarden_scan.model import (
     SEVERITY_RANK, Area, AuthServerMetadata, ChecklistItem, CurationInputs, Finding, Location, McpScanResult, Metadata,
     ProbeResult, Severity, SkillScanResult, ToolInfo,
 )
+from spellwarden_scan.checklist import migration_checklist
+from spellwarden_scan.probe import evaluate_probe
 from spellwarden_scan.rules import Rule, RuleSet
 from spellwarden_scan.scan import scan_skill_package
 from spellwarden_scan.version import RULES_VERSION, __version__
@@ -19,6 +21,6 @@ from spellwarden_scan.version import RULES_VERSION, __version__
 __all__ = [
     "RULES_VERSION", "SEVERITY_RANK", "Area", "ArchiveError", "ArchiveLimits", "AuthServerMetadata", "ChecklistItem",
     "CurationInputs", "Finding", "FrontmatterError", "Location", "McpScanResult", "Metadata", "ProbeResult", "Rule",
-    "RuleSet", "Severity", "SkillScanResult", "ToolInfo", "__version__", "canonical_sha256", "mask_credentials",
-    "parse_frontmatter", "scan_skill_package", "unpack_zip",
+    "RuleSet", "Severity", "SkillScanResult", "ToolInfo", "__version__", "canonical_sha256", "evaluate_probe",
+    "mask_credentials", "migration_checklist", "parse_frontmatter", "scan_skill_package", "unpack_zip",
 ]

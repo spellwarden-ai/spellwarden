@@ -1,0 +1,58 @@
+{
+ "probe": {
+  "endpoint": "https://grafana-query.example/mcp",
+  "reachable": true,
+  "capabilities": {
+   "tools": {}
+  },
+  "session_id_seen": true,
+  "probed_at": "2026-10-18T12:00:00Z",
+  "post_status": 200,
+  "post_content_type": "application/json",
+  "initialize": {
+   "protocolVersion": "2025-11-25",
+   "capabilities": {
+    "tools": {}
+   },
+   "serverInfo": {
+    "name": "grafana-query",
+    "version": "1.0.0"
+   }
+  },
+  "negotiated_version": "2025-11-25",
+  "unauthenticated_status": 401,
+  "www_authenticate": "Bearer resource_metadata=\"https://grafana-query.example/.well-known/oauth-protected-resource\"",
+  "resource_metadata": {
+   "resource": "https://grafana-query.example/mcp",
+   "authorization_servers": [
+    "https://auth.grafana-query.example"
+   ]
+  },
+  "auth_server_metadata": {
+   "issuer": "https://auth.grafana-query.example",
+   "metadata_url": "https://auth.grafana-query.example/.well-known/oauth-authorization-server",
+   "registration_endpoint": "https://auth.grafana-query.example/register",
+   "client_id_metadata_document_supported": false,
+   "grant_types_supported": [
+    "authorization_code",
+    "refresh_token"
+   ]
+  }
+ },
+ "expected": {
+  "transport": "streamable-http",
+  "auth_mode": "oauth-dcr",
+  "spec_version": "2025-11-25",
+  "migration_status": "to_migrate",
+  "checklist": [
+   "server_discover",
+   "remove_sessions",
+   "meta_version",
+   "oauth_cimd",
+   "validate_iss",
+   "list_ttl",
+   "traceparent",
+   "rescan"
+  ]
+ }
+}

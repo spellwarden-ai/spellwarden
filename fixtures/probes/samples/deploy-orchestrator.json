@@ -1,0 +1,53 @@
+{
+ "probe": {
+  "endpoint": "https://deploy-orchestrator.example/mcp",
+  "reachable": true,
+  "capabilities": {
+   "tools": {}
+  },
+  "session_id_seen": false,
+  "probed_at": "2026-10-18T12:00:00Z",
+  "post_status": 200,
+  "post_content_type": "application/json",
+  "discover": {
+   "supportedVersions": [
+    "2026-07-28"
+   ],
+   "capabilities": {
+    "tools": {}
+   },
+   "serverInfo": {
+    "name": "deploy-orchestrator",
+    "version": "1.0.0"
+   }
+  },
+  "unauthenticated_status": 401,
+  "www_authenticate": "Bearer resource_metadata=\"https://deploy-orchestrator.example/.well-known/oauth-protected-resource\"",
+  "resource_metadata": {
+   "resource": "https://deploy-orchestrator.example/mcp",
+   "authorization_servers": [
+    "https://auth.deploy-orchestrator.example"
+   ]
+  },
+  "auth_server_metadata": {
+   "issuer": "https://auth.deploy-orchestrator.example",
+   "metadata_url": "https://auth.deploy-orchestrator.example/.well-known/oauth-authorization-server",
+   "registration_endpoint": null,
+   "client_id_metadata_document_supported": false,
+   "grant_types_supported": [
+    "authorization_code",
+    "refresh_token",
+    "urn:ietf:params:oauth:grant-type:jwt-bearer"
+   ]
+  }
+ },
+ "expected": {
+  "transport": "streamable-http",
+  "auth_mode": "xaa",
+  "spec_version": "2026-07-28",
+  "migration_status": "ready",
+  "checklist": [
+   "rescan"
+  ]
+ }
+}

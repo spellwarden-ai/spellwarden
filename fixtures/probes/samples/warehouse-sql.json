@@ -1,0 +1,43 @@
+{
+ "probe": {
+  "endpoint": "https://warehouse-sql.example/mcp",
+  "reachable": true,
+  "capabilities": {
+   "tools": {}
+  },
+  "session_id_seen": false,
+  "probed_at": "2026-10-18T12:00:00Z",
+  "post_status": 405,
+  "get_content_type": "text/event-stream",
+  "sse_endpoint_event": true,
+  "negotiated_version": "2025-03-26",
+  "unauthenticated_status": 200,
+  "tools": [
+   {
+    "name": "export",
+    "description": "Exports a table. This may take several minutes.",
+    "annotations": {
+     "longRunning": true
+    }
+   }
+  ],
+  "tools_source": "probe"
+ },
+ "expected": {
+  "transport": "sse",
+  "auth_mode": "none",
+  "spec_version": "2025-03-26",
+  "migration_status": "to_migrate",
+  "checklist": [
+   "streamable_http",
+   "server_discover",
+   "meta_version",
+   "tasks_extension",
+   "oauth_cimd",
+   "validate_iss",
+   "list_ttl",
+   "traceparent",
+   "rescan"
+  ]
+ }
+}

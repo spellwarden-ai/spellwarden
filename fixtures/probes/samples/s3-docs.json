@@ -1,0 +1,42 @@
+{
+ "probe": {
+  "endpoint": "https://s3-docs.example/mcp",
+  "reachable": true,
+  "capabilities": {
+   "tools": {}
+  },
+  "session_id_seen": true,
+  "probed_at": "2026-10-18T12:00:00Z",
+  "post_status": 200,
+  "post_content_type": "application/json",
+  "initialize": {
+   "protocolVersion": "2025-06-18",
+   "capabilities": {
+    "tools": {}
+   },
+   "serverInfo": {
+    "name": "s3-docs",
+    "version": "1.0.0"
+   }
+  },
+  "negotiated_version": "2025-06-18",
+  "unauthenticated_status": 401,
+  "www_authenticate": "Bearer realm=\"mcp\""
+ },
+ "expected": {
+  "transport": "streamable-http",
+  "auth_mode": "static-key",
+  "spec_version": "2025-06-18",
+  "migration_status": "to_migrate",
+  "checklist": [
+   "server_discover",
+   "remove_sessions",
+   "meta_version",
+   "oauth_cimd",
+   "validate_iss",
+   "list_ttl",
+   "traceparent",
+   "rescan"
+  ]
+ }
+}

@@ -1,0 +1,54 @@
+{
+ "probe": {
+  "endpoint": "https://r003.example/mcp",
+  "reachable": true,
+  "capabilities": {
+   "tools": {}
+  },
+  "session_id_seen": false,
+  "probed_at": "2026-10-18T12:00:00Z",
+  "post_status": 200,
+  "post_content_type": "application/json",
+  "discover": {
+   "supportedVersions": [
+    "2026-07-28"
+   ],
+   "capabilities": {
+    "tools": {}
+   },
+   "serverInfo": {
+    "name": "r003",
+    "version": "1.0.0"
+   }
+  },
+  "unauthenticated_status": 401,
+  "www_authenticate": "Bearer resource_metadata=\"https://r003.example/.well-known/oauth-protected-resource\"",
+  "resource_metadata": {
+   "resource": "https://r003.example/mcp",
+   "authorization_servers": [
+    "https://auth.r003.example"
+   ]
+  },
+  "auth_server_metadata": {
+   "issuer": "https://auth.r003.example",
+   "metadata_url": "https://auth.r003.example/.well-known/oauth-authorization-server",
+   "registration_endpoint": "https://auth.r003.example/register",
+   "client_id_metadata_document_supported": false,
+   "grant_types_supported": [
+    "authorization_code",
+    "refresh_token"
+   ]
+  }
+ },
+ "expected": {
+  "transport": "streamable-http",
+  "findings": [
+   {
+    "rule_id": "SW-MCP-003",
+    "severity": "medium",
+    "path": "https://r003.example/mcp",
+    "line": null
+   }
+  ]
+ }
+}

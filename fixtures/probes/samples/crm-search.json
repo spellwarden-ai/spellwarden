@@ -1,0 +1,49 @@
+{
+ "probe": {
+  "endpoint": "https://crm-search.example/mcp",
+  "reachable": true,
+  "capabilities": {
+   "tools": {}
+  },
+  "session_id_seen": true,
+  "probed_at": "2026-10-18T12:00:00Z",
+  "post_status": 200,
+  "post_content_type": "application/json",
+  "initialize": {
+   "protocolVersion": "2025-06-18",
+   "capabilities": {
+    "tools": {}
+   },
+   "serverInfo": {
+    "name": "crm-search",
+    "version": "1.0.0"
+   }
+  },
+  "negotiated_version": "2025-06-18",
+  "unauthenticated_status": 200,
+  "tools": [
+   {
+    "name": "search",
+    "description": "Searches the CRM.",
+    "annotations": {}
+   }
+  ],
+  "tools_source": "probe"
+ },
+ "expected": {
+  "transport": "streamable-http",
+  "auth_mode": "none",
+  "spec_version": "2025-06-18",
+  "migration_status": "to_migrate",
+  "checklist": [
+   "server_discover",
+   "remove_sessions",
+   "meta_version",
+   "oauth_cimd",
+   "validate_iss",
+   "list_ttl",
+   "traceparent",
+   "rescan"
+  ]
+ }
+}

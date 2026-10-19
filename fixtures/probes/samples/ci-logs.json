@@ -1,0 +1,51 @@
+{
+ "probe": {
+  "endpoint": "https://ci-logs.example/mcp",
+  "reachable": true,
+  "capabilities": {
+   "tools": {},
+   "sampling": {}
+  },
+  "session_id_seen": false,
+  "probed_at": "2026-10-18T12:00:00Z",
+  "post_status": 200,
+  "post_content_type": "application/json",
+  "initialize": {
+   "protocolVersion": "2025-11-25",
+   "capabilities": {
+    "tools": {},
+    "sampling": {}
+   },
+   "serverInfo": {
+    "name": "ci-logs",
+    "version": "1.0.0"
+   }
+  },
+  "negotiated_version": "2025-11-25",
+  "unauthenticated_status": 200,
+  "tools": [
+   {
+    "name": "logs",
+    "description": "Reads CI logs.",
+    "annotations": {}
+   }
+  ],
+  "tools_source": "probe"
+ },
+ "expected": {
+  "transport": "streamable-http",
+  "auth_mode": "none",
+  "spec_version": "2025-11-25",
+  "migration_status": "to_migrate",
+  "checklist": [
+   "server_discover",
+   "meta_version",
+   "sampling_to_mrtr",
+   "oauth_cimd",
+   "validate_iss",
+   "list_ttl",
+   "traceparent",
+   "rescan"
+  ]
+ }
+}

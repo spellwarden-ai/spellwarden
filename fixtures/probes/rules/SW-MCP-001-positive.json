@@ -1,0 +1,45 @@
+{
+ "probe": {
+  "endpoint": "https://r001.example/mcp",
+  "reachable": true,
+  "capabilities": {
+   "tools": {}
+  },
+  "session_id_seen": false,
+  "probed_at": "2026-10-18T12:00:00Z",
+  "post_status": 200,
+  "post_content_type": "application/json",
+  "discover": {
+   "supportedVersions": [
+    "2026-07-28"
+   ],
+   "capabilities": {
+    "tools": {}
+   },
+   "serverInfo": {
+    "name": "r001",
+    "version": "1.0.0"
+   }
+  },
+  "unauthenticated_status": 200,
+  "tools": [
+   {
+    "name": "query",
+    "description": "Runs a query.",
+    "annotations": {}
+   }
+  ],
+  "tools_source": "probe"
+ },
+ "expected": {
+  "transport": "streamable-http",
+  "findings": [
+   {
+    "rule_id": "SW-MCP-001",
+    "severity": "high",
+    "path": "https://r001.example/mcp",
+    "line": null
+   }
+  ]
+ }
+}

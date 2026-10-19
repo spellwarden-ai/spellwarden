@@ -1,0 +1,40 @@
+{
+ "probe": {
+  "endpoint": "https://ticket-triage.example/mcp",
+  "reachable": true,
+  "capabilities": {
+   "tools": {}
+  },
+  "session_id_seen": false,
+  "probed_at": "2026-10-18T12:00:00Z",
+  "post_status": 405,
+  "get_content_type": "text/event-stream",
+  "sse_endpoint_event": true,
+  "negotiated_version": "2025-06-18",
+  "unauthenticated_status": 200,
+  "tools": [
+   {
+    "name": "triage",
+    "description": "Triages a ticket.",
+    "annotations": {}
+   }
+  ],
+  "tools_source": "probe"
+ },
+ "expected": {
+  "transport": "sse",
+  "auth_mode": "none",
+  "spec_version": "2025-06-18",
+  "migration_status": "to_migrate",
+  "checklist": [
+   "streamable_http",
+   "server_discover",
+   "meta_version",
+   "oauth_cimd",
+   "validate_iss",
+   "list_ttl",
+   "traceparent",
+   "rescan"
+  ]
+ }
+}
