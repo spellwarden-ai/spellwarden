@@ -64,5 +64,6 @@ def test_any_value_after_a_secret_like_name_is_masked_whatever_its_shape():
     for leaked in ("x" + "yz$1abc", "my" + "example1", "s3cr" + "et<b>"):  # a placeholder word inside a real value
         assert mask_credentials(f"password={leaked}") == "password=***", leaked
     assert mask_credentials('password = "hunter two"') == 'password = "***"'  # masked to the closing quote
+    assert mask_credentials("password=" + "abc,def;ghi&jk" + " next") == "password=*** next"  # to the next space
     once = mask_credentials(f"password={short} and token={short}")
     assert once == "password=*** and token=***" and mask_credentials(once) == once

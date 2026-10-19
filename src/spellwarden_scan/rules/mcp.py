@@ -29,9 +29,12 @@ def _redacted(url: str) -> str:
     if "://" not in url:
         return url
     scheme, rest = url.split("://", 1)
+    # Userinfo first, before any `/`, `?` or `#` split: a raw password may hold any of them
+    # (`https://u:p#w/d@host/mcp`). Everything up to the last `@` goes; with no host after it, nothing is kept.
+    rest = rest.rsplit("@", 1)[-1]
     rest = rest.split("#", 1)[0].split("?", 1)[0]
     authority, separator, path = rest.partition("/")
-    return f"{scheme}://{authority.rsplit('@', 1)[-1]}{separator}{path}"
+    return f"{scheme}://{authority}{separator}{path}" if authority else f"{scheme}://redacted"
 
 
 def _where(probe: ProbeResult) -> str:

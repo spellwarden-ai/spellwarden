@@ -126,7 +126,7 @@ ASSIGNED_SECRET = re.compile(r"""(password|passwd|secret|api[_-]?key|token)\s*[:
 # masked whole; SW-SKL-011 still fires on ASSIGNED_SECRET alone, so prose such as `token: see below` stays quiet).
 ASSIGNED_VALUE = re.compile(
     r"""(password|passwd|secret|api[_-]?key|apikey|token|access[_-]?key|private[_-]?key|credentials?)(["']?\s*[:=]\s*)"""
-    r"""("[^"\n]*"|'[^'\n]*'|[^\s"',;&]+)""", _I)
+    r"""("[^"\n]*"|'[^'\n]*'|[^\s"']+)""", _I)
 # evidence.mask_credentials only: a value that is nothing but a placeholder stays readable (`$TOKEN`, `<your-key>`)
 PLACEHOLDER_VALUE = re.compile(r"(\$\{?[A-Za-z_][A-Za-z0-9_]*\}?|<[^<>]*>|x{3,}|\.{3}|\*+|your[-_][A-Za-z0-9_-]*|changeme|example)", _I)
 PLACEHOLDER = re.compile(r"(xxx|\.\.\.|<|your[_-]|example|changeme|\$\{|\$[A-Z_]+)", _I)

@@ -143,3 +143,13 @@ def test_locations_and_evidence_carry_no_userinfo_or_query():
     open_server = evaluate_probe(probe(endpoint="https://tok@mcp.example/mcp?x=1", unauthenticated_status=200,
                                        tools=(ToolInfo("a"),), resource_metadata=None, auth_server_metadata=None), RULES)
     assert {f.location.path for f in open_server.findings} == {"https://mcp.example/mcp"}
+
+
+def test_a_password_holding_url_delimiters_never_reaches_a_location():
+    """Security review: the userinfo is removed before `?`, `#` and `/` are looked at."""
+    for password in ("p#ss", "p?ss", "p/ss", "p@ss"):
+        leaky = f"http://user:{password}word@mcp.example/mcp?x=1"
+        result = evaluate_probe(ProbeResult(endpoint=leaky, reachable=False, error="not_https"), RULES)
+        shown = {f.location.path for f in result.findings} | {f.evidence for f in result.findings}
+        assert shown == {"http://mcp.example/mcp"}, password
+    assert evaluate_probe(ProbeResult(endpoint="http://user:pw@", reachable=False, error="not_https"), RULES).findings[0].location.path == "http://redacted"
