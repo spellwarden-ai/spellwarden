@@ -41,7 +41,10 @@ _CONTINUES = ("|", "&&", "||")
 
 
 def _is_script(unit: TextFile | CodeBlock) -> bool:
-    return isinstance(unit, CodeBlock) or unit.path.lower().endswith(SCRIPT_EXTENSIONS)
+    """A fenced code block, a file with a script extension, or a file that starts with a shebang."""
+    if isinstance(unit, CodeBlock) or unit.path.lower().endswith(SCRIPT_EXTENSIONS):
+        return True
+    return bool(unit.lines) and unit.lines[0].startswith("#!")
 
 
 def _logical_lines(unit: TextFile | CodeBlock) -> Iterator[tuple[str, int, str]]:
@@ -272,9 +275,12 @@ _PIPED = P.AnyOf(
 
 
 def _skl_007(package: Package) -> Iterator[Finding]:
-    for unit in package.text_files:
+    seen: set[tuple[str, int]] = set()
+    # The text files, then the fenced blocks of the Markdown files, which join at `|`, `&&` and `||` as scripts do.
+    for unit in (*package.text_files, *package.code_blocks):
         for path, number, line in _logical_lines(unit):  # `curl ... |` then `sh` on the next line is one pipe
-            if _PIPED.search(line):
+            if (path, number) not in seen and _PIPED.search(line):
+                seen.add((path, number))
                 yield _finding("SW-SKL-007", "high", TITLES["SW-SKL-007"], path, number, line)
 
 
