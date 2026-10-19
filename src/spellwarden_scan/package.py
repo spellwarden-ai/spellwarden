@@ -52,8 +52,6 @@ def _decode(content: bytes) -> str | None:
     text = content.decode("utf-8", errors="replace")
     if content and text.count("\ufffd") > len(content) * REPLACEMENT_SHARE:
         return None
-    if b"\x00" in content:
-        return None
     return text
 
 
