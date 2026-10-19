@@ -3,10 +3,12 @@ memory; nothing touches the file system."""
 from __future__ import annotations
 
 import io
+import lzma
 import posixpath
 import re
 import stat
 import zipfile
+import zlib
 from dataclasses import dataclass
 
 _DRIVE = re.compile(r"^[A-Za-z]:")
@@ -132,6 +134,10 @@ def _read_entry(archive: zipfile.ZipFile, info: zipfile.ZipInfo, limits: Archive
                 if size > limits.max_file or total > limits.max_uncompressed:
                     raise ArchiveError("too_large", info.filename)
                 chunks.append(chunk)
-    except (zipfile.BadZipFile, RuntimeError, EOFError) as exc:
+    except ArchiveError:
+        raise  # an `ArchiveError` is a `ValueError`: keep `too_large` out of the corrupt-stream clause below
+    except (zipfile.BadZipFile, RuntimeError, EOFError, ValueError, OSError, zlib.error, lzma.LZMAError) as exc:
+        # A corrupt stream surfaces as `zlib.error` (deflate), `OSError` (bzip2) or `LZMAError`, and an
+        # unsupported method as `NotImplementedError` (a `RuntimeError`): all are `bad_zip`, the one code callers catch.
         raise ArchiveError("bad_zip", info.filename) from exc
     return b"".join(chunks), total

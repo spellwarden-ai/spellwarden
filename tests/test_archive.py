@@ -131,3 +131,26 @@ def test_empty_and_corrupt_archives():
     with pytest.raises(ArchiveError) as caught:
         unpack_zip(b"not a zip")
     assert caught.value.code == "bad_zip"
+
+
+@pytest.mark.parametrize("method, skip", [(zipfile.ZIP_DEFLATED, 2), (zipfile.ZIP_BZIP2, 2), (zipfile.ZIP_LZMA, 20)])
+def test_a_corrupt_compressed_stream_is_bad_zip(method, skip):
+    """r0:F3: a corrupt compressed stream surfaces from `zipfile` as `zlib.error` (deflate), `OSError`
+    (bzip2) or `lzma.LZMAError`; each must leave `unpack_zip` as `ArchiveError('bad_zip')`, the only
+    error the callers catch."""
+    import random
+    rng = random.Random(1)
+    words = ["alpha", "beta", "gamma", "delta", "spell", "ward"]
+    payload = " ".join(rng.choice(words) for _ in range(3000)).encode()
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as zf:  # `build` writes stored entries; this needs a real compressed stream
+        zf.writestr("a/SKILL.md", payload, compress_type=method)
+    data = bytearray(buffer.getvalue())
+    with zipfile.ZipFile(io.BytesIO(bytes(data))) as zf:
+        info = zf.getinfo("a/SKILL.md")
+    start = info.header_offset + 30 + len(info.filename.encode()) + skip  # into the compressed stream, flipping 20 bytes
+    for offset in range(start, start + 20):
+        data[offset] ^= 0xFF
+    with pytest.raises(ArchiveError) as caught:
+        unpack_zip(bytes(data))
+    assert caught.value.code == "bad_zip"
