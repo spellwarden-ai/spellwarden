@@ -65,5 +65,10 @@ def test_any_value_after_a_secret_like_name_is_masked_whatever_its_shape():
         assert mask_credentials(f"password={leaked}") == "password=***", leaked
     assert mask_credentials('password = "hunter two"') == 'password = "***"'  # masked to the closing quote
     assert mask_credentials("password=" + "abc,def;ghi&jk" + " next") == "password=*** next"  # to the next space
+    secret = "hun" + "ter two"
+    for written, masked in ((f'password = "{secret}', 'password = "***'), (f'password = """{secret}""" end', 'password = """***""" end'),
+                            (f"secret: '{secret}", "secret: '***"), (f'password = """{secret}', 'password = """***'), ('token = "ab\\"cd ef" end', 'token = "***" end')):
+        assert mask_credentials(written) == masked, written  # unterminated, triple-quoted, escaped quote
+        assert mask_credentials(masked) == masked
     once = mask_credentials(f"password={short} and token={short}")
     assert once == "password=*** and token=***" and mask_credentials(once) == once

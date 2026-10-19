@@ -41,11 +41,13 @@ def _mask_value(match: re.Match) -> str:
     """Any value assigned to a secret-like name, quoted or not and of any length, becomes `***` (a short or
     letters-only password is still a password); a placeholder such as `$TOKEN` or `<your-key>` stays readable."""
     value = match.group(3)
-    quote = value[0] if value[:1] in ("'", '"') else ""
-    inner = value[1:-1] if quote and len(value) > 1 else value
-    if inner.endswith("***") or PLACEHOLDER_VALUE.fullmatch(inner):
+    quote = value[:3] if value[:3] in ('"""', "'''") else value[:1] if value[:1] in ("'", '"') else ""
+    closed = bool(quote) and len(value) >= 2 * len(quote) and value.endswith(quote)
+    inner = value[len(quote):len(value) - len(quote)] if closed else value[len(quote):]
+    if inner in ("", "***") or PLACEHOLDER_VALUE.fullmatch(inner):  # only this function's own output counts as masked
         return match.group(0)
-    return match.group(1) + match.group(2) + quote + "***" + quote  # a quoted value is masked to its closing quote
+    # A quoted value is masked to its closing quote; one never closed, to the end of the line.
+    return match.group(1) + match.group(2) + quote + "***" + (quote if closed else "")
 
 
 def mask_credentials(text: str) -> str:

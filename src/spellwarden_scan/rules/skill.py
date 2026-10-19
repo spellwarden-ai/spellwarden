@@ -344,7 +344,9 @@ def _skl_012(package: Package) -> Iterator[Finding]:
 
 # --- SW-SKL-013 ------------------------------------------------------------------------------
 
-_URL_AUTHORITY = re.compile(r"https?://([^/\\\s?#]+)", _I)  # a browser ends the authority at `\\` too
+# The authority up to `/`, `?`, `#` or whitespace. A browser (WHATWG) also ends it at `\\`, curl (RFC 3986) does not:
+# both readings are checked, so `https://github.com\\@bit.ly/` is the shortener for curl and is flagged.
+_URL_AUTHORITY = re.compile(r"https?://([^/\s?#]+)", _I)
 _DOC_RANGES = (ipaddress.ip_network("192.0.2.0/24"), ipaddress.ip_network("198.51.100.0/24"),
                ipaddress.ip_network("203.0.113.0/24"), ipaddress.ip_network("2001:db8::/32"))
 
@@ -407,7 +409,8 @@ def _suspicious_host(authority: str) -> bool:
 def _skl_013(package: Package) -> Iterator[Finding]:
     for unit in package.text_files:
         for number, line in enumerate(unit.lines, start=1):
-            if any(_suspicious_host(m.group(1)) for m in _URL_AUTHORITY.finditer(line)):
+            if any(_suspicious_host(m.group(1)) or _suspicious_host(m.group(1).split("\\", 1)[0])
+                   for m in _URL_AUTHORITY.finditer(line)):
                 yield _finding("SW-SKL-013", "medium", TITLES["SW-SKL-013"], unit.path, number, line)
 
 

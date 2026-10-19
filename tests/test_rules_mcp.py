@@ -147,9 +147,11 @@ def test_locations_and_evidence_carry_no_userinfo_or_query():
 
 def test_a_password_holding_url_delimiters_never_reaches_a_location():
     """Security review: the userinfo is removed before `?`, `#` and `/` are looked at."""
-    for password in ("p#ss", "p?ss", "p/ss", "p@ss"):
-        leaky = f"http://user:{password}word@mcp.example/mcp?x=1"
-        result = evaluate_probe(ProbeResult(endpoint=leaky, reachable=False, error="not_https"), RULES)
-        shown = {f.location.path for f in result.findings} | {f.evidence for f in result.findings}
-        assert shown == {"http://mcp.example/mcp"}, password
+    def shown(endpoint):
+        result = evaluate_probe(ProbeResult(endpoint=endpoint, reachable=False, error="not_https"), RULES)
+        return {f.location.path for f in result.findings} | {f.evidence for f in result.findings}
+    assert shown("http://user:p@ssword@mcp.example/mcp?x=1") == {"http://mcp.example/mcp"}
+    for password in ("p#ss", "p?ss", "p/ss"):
+        assert shown(f"http://user:{password}word@mcp.example/mcp?x=1") == {"http://redacted"}, password
+    assert shown("http://mcp.example/mcp?email=a@b.example") == {"http://redacted"}  # no part of the query shows
     assert evaluate_probe(ProbeResult(endpoint="http://user:pw@", reachable=False, error="not_https"), RULES).findings[0].location.path == "http://redacted"
