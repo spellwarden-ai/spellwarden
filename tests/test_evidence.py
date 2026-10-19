@@ -59,7 +59,8 @@ def test_any_value_after_a_secret_like_name_is_masked_whatever_its_shape():
     assert mask_credentials(f"export API_KEY={short}x") == "export API_KEY=***"
     assert mask_credentials(f"db_password: {short} # prod") == "db_password: *** # prod"
     assert mask_credentials(f'"client_secret": "{short}"') == '"client_secret": "***"'
-    for kept in ("token=$TOKEN", "api_key=<your-key>", "password: ${DB_PASSWORD}", 'secret: "xxxx"'):
+    for kept in ("token=$TOKEN", "api_key=<your-key>", "password: ${DB_PASSWORD}", 'secret: "xxxx"', "password: <your password>",
+                 "export GITHUB_TOKEN=$(gh auth token)"):
         assert mask_credentials(kept) == kept
     for leaked in ("x" + "yz$1abc", "my" + "example1", "s3cr" + "et<b>"):  # a placeholder word inside a real value
         assert mask_credentials(f"password={leaked}") == "password=***", leaked

@@ -90,7 +90,7 @@ def code_point_names(text: str) -> str:
     """`U+200B ZERO WIDTH SPACE, ...` for the distinct hidden characters of `text` (SW-SKL-002)."""
     seen: list[str] = []
     for char in text:
-        if unicodedata.category(char) not in ("Cf", "Cc", "Co", "Cn", "Zl", "Zp") and char != "\ufeff":
+        if unicodedata.category(char) not in ("Cf", "Cc", "Co", "Cn", "Zl", "Zp", "Mn") and char not in "\ufeff\u115f\u3164":
             continue
         label = f"U+{ord(char):04X} {unicodedata.name(char, 'UNNAMED')}"
         if label not in seen:

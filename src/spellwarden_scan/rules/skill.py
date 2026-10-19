@@ -67,15 +67,27 @@ def _lines_matching(units, pattern: re.Pattern, rule_id: str, severity: str, tit
 def _skl_001(package: Package) -> Iterator[Finding]:
     for unit in package.instructions():
         for path, number, line in _numbered(unit):
-            if any(p.search(line) for p in P.INJECTION):
+            if any(p.search(visible(line)) for p in P.INJECTION):
                 yield _finding("SW-SKL-001", "high", TITLES["SW-SKL-001"], path, number, line)
 
 
 # --- SW-SKL-002 ------------------------------------------------------------------------------
 
-# Spec 5.3, plus the characters that hide text the same way: soft hyphen, Mongolian vowel separator, the line and
-# paragraph separators, and the tag block U+E0000 to U+E007F ("ASCII smuggling": invisible copies of ASCII).
-_HIDDEN = re.compile("[\u00ad\u180e\u200b-\u200f\u2028\u2029\u2060-\u2064\u202a-\u202e\u2066-\u2069\ufeff\U000e0000-\U000e007f]")
+# Spec 5.3, plus the characters that hide text the same way: the combining grapheme joiner, the Hangul fillers, the
+# Mongolian vowel separator, the line and paragraph separators, the interlinear annotation marks, the tag block
+# U+E0000 to U+E007F ("ASCII smuggling") and the variation selectors supplement U+E0100 to U+E01EF (bytes hidden
+# behind an emoji); the basic variation selectors U+FE00 to U+FE0F only two or more in a row (one follows many emoji).
+# The soft hyphen is not flagged (ordinary in text copied from a word processor); `_visible` drops it before matching.
+_HIDDEN = re.compile("[\u034f\u115f\u180e\u200b-\u200f\u2028\u2029\u2060-\u2064\u202a-\u202e\u2066-\u2069\u3164\ufeff"
+                     "\ufff9-\ufffb\U000e0000-\U000e007f\U000e0100-\U000e01ef]|[\ufe00-\ufe0f]{2,}")
+# Every format character and the soft hyphen, removed before the injection phrases are matched (SW-SKL-001,
+# SW-MCP-011): `ig\u00adnore previous instructions` reads as the phrase to an agent.
+_INVISIBLE = re.compile("[\u00ad\u034f\u115f\u180e\u200b-\u200f\u2060-\u2064\u202a-\u202e\u2066-\u2069\u3164\ufeff\ufe00-\ufe0f"
+                        "\U000e0000-\U000e007f\U000e0100-\U000e01ef]")
+
+
+def visible(text: str) -> str:
+    return _INVISIBLE.sub("", text)
 
 
 def _skl_002(package: Package) -> Iterator[Finding]:
@@ -204,7 +216,7 @@ def _skl_008(package: Package) -> Iterator[Finding]:
 _PIP = re.compile(r"\b(pip3?|uv pip|pipx) install\b(.*)", _I)
 _NPM = re.compile(r"\b(npm (install|i|add)|yarn add|pnpm add)\b(.*)", _I)
 _NPX = re.compile(r"\bnpx\s+(.*)", _I)
-_GO = re.compile(r"\bgo install\b.*@latest\b", _I)
+_GO = P.Then(r"\bgo install\b", r"@latest\b")
 _CARGO = re.compile(r"\bcargo install\b(.*)", _I)
 _GEM = re.compile(r"\bgem install\b(.*)", _I)
 _BREW = re.compile(r"\bbrew install\b", _I)
@@ -346,9 +358,25 @@ def _skl_012(package: Package) -> Iterator[Finding]:
 
 # The authority up to `/`, `?`, `#` or whitespace. A browser (WHATWG) also ends it at `\\`, curl (RFC 3986) does not:
 # both readings are checked, so `https://github.com\\@bit.ly/` is the shortener for curl and is flagged.
-_URL_AUTHORITY = re.compile(r"https?://([^/\s?#]+)", _I)
+# A browser also accepts `https:host`, `https:/\\host` and a percent-encoded host; quotes, backticks, brackets and
+# list punctuation around a URL in code or Markdown end the authority.
+_URL_AUTHORITY = re.compile(r"https?:[/\\]*([^/\s?#\"'`<>(){},;]+)", _I)
 _DOC_RANGES = (ipaddress.ip_network("192.0.2.0/24"), ipaddress.ip_network("198.51.100.0/24"),
                ipaddress.ip_network("203.0.113.0/24"), ipaddress.ip_network("2001:db8::/32"))
+
+
+_PERCENT = re.compile(r"%([0-9A-Fa-f]{2})")
+
+
+def _percent_decoded(text: str) -> str:
+    """`%2E` and the like decoded as a browser decodes a host (UTF-8 when the bytes form it)."""
+    if "%" not in text:
+        return text
+    raw = _PERCENT.sub(lambda m: chr(int(m.group(1), 16)), text)
+    try:
+        return raw.encode("latin-1").decode("utf-8")
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        return raw
 
 
 def _host_of(authority: str) -> str:
@@ -356,7 +384,8 @@ def _host_of(authority: str) -> str:
     IP), the port dropped, IPv6 brackets removed, a trailing dot removed (`bit.ly.` is `bit.ly`)."""
     # UTS 46 folding as a browser applies it: full-width digits and dots (NFKC), the ideographic and halfwidth
     # full stops, case. `ｂｉｔ．ｌｙ` and `１２７。０。０。１` are the hosts they look like.
-    host = unicodedata.normalize("NFKC", authority.rsplit("@", 1)[-1]).replace("\u3002", ".").replace("\uff61", ".").lower()
+    host = _percent_decoded(authority.rsplit("@", 1)[-1])
+    host = unicodedata.normalize("NFKC", host).replace("\u3002", ".").replace("\uff61", ".").lower()
     if host.startswith("["):
         end = host.find("]")
         return host[1:end] if end > 0 else host[1:]
@@ -421,7 +450,7 @@ _HEX_RUN = re.compile(r"(?:[0-9a-fA-F]{2}){100,}")
 _X_ESCAPES = re.compile(r"(?:\\x[0-9a-fA-F]{2}){20,}")
 _FROM_CHAR_CODE = re.compile(r"String\.fromCharCode\(")
 # Ten `chr(...)` calls joined by `+`: one whitespace run between them, never two adjacent `\s*` (they backtrack).
-_CHR_JOIN = re.compile(r"(?:chr\([^)]*\)\s*(?:\+\s*)?){10,}")
+_CHR_JOIN = re.compile(r"(?:chr\([^()]*\)\s*(?:\+\s*)?){10,}")  # `[^()]`: an unclosed `chr(` stops at the next `(`
 _EVAL_NONLITERAL = re.compile(r"\b(eval|exec)\(\s*(?![\"'])[^)]")
 _COMPILE_EXEC = P.Then(r"compile\(", r"exec\(", flags=0)
 

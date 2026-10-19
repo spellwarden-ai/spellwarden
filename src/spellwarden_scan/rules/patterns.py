@@ -104,10 +104,9 @@ SHORTENERS: frozenset[str] = frozenset({
 })
 
 # SW-SKL-011 and evidence.mask_credentials (case-sensitive: the shapes are exact)
-# Each shape starts only where a token starts (the lookbehind): a line that repeats a prefix such as `eyJ` or
-# `glpat-` is then read once instead of once per repetition.
-_TOKEN_START = r"(?<![A-Za-z0-9_\-])"
-CREDENTIAL_PATTERNS: tuple[re.Pattern, ...] = tuple(re.compile(_TOKEN_START + p if not p.startswith("-") else p) for p in (
+# The JWT shape starts only where a token starts (the lookbehind): it is the one shape that can fail after a long
+# run, so a line repeating `eyJ` is read once instead of once per repetition. The others match anywhere (spec 5.3).
+CREDENTIAL_PATTERNS: tuple[re.Pattern, ...] = tuple(re.compile(p) for p in (
     r"AKIA[0-9A-Z]{16}",
     r"ASIA[0-9A-Z]{16}",
     r"gh[pousr]_[A-Za-z0-9]{36,}",
@@ -118,7 +117,7 @@ CREDENTIAL_PATTERNS: tuple[re.Pattern, ...] = tuple(re.compile(_TOKEN_START + p 
     r"sk-[A-Za-z0-9]{32,}",
     r"AIza[0-9A-Za-z_-]{35}",
     r"-----BEGIN (RSA |EC |OPENSSH |DSA |PGP )?PRIVATE KEY-----",
-    r"eyJ[A-Za-z0-9_-]{20,}\.eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}",
+    r"(?<![A-Za-z0-9_\-])eyJ[A-Za-z0-9_-]{20,}\.eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}",
 ))
 # SW-SKL-011: an assignment of a secret-like name to a quoted value that is not a placeholder
 ASSIGNED_SECRET = re.compile(r"""(password|passwd|secret|api[_-]?key|token)\s*[:=]\s*["']([^"'\s]{8,})["']""", _I)
@@ -126,10 +125,12 @@ ASSIGNED_SECRET = re.compile(r"""(password|passwd|secret|api[_-]?key|token)\s*[:
 # masked whole; SW-SKL-011 still fires on ASSIGNED_SECRET alone, so prose such as `token: see below` stays quiet).
 ASSIGNED_VALUE = re.compile(
     r"""(password|passwd|secret|api[_-]?key|apikey|token|access[_-]?key|private[_-]?key|credentials?)(["']?\s*[:=]\s*)"""
-    # triple-quoted, quoted with backslash escapes, a quote never closed (masked to the end of the line), bare
-    r"""("{3}[^\n]*?"{3}|'{3}[^\n]*?'{3}|"(?:[^"\\\n]|\\.)*"(?!")|'(?:[^'\\\n]|\\.)*'(?!')|["'][^\n]*|[^\s"']+)""", _I)
+    # triple-quoted, quoted with backslash escapes, a quote never closed (masked to the end of the line), a `<...>`,
+    # `$(...)` or `${...}` placeholder kept whole, bare
+    r"""("{3}[^\n]*?"{3}|'{3}[^\n]*?'{3}|"(?:[^"\\\n]|\\.)*"(?!")|'(?:[^'\\\n]|\\.)*'(?!')|["'][^\n]*|<[^<>\n]*>|"""
+    r"""\$\([^()\n]*\)|\$\{[^{}\n]*\}|[^\s"']+)""", _I)
 # evidence.mask_credentials only: a value that is nothing but a placeholder stays readable (`$TOKEN`, `<your-key>`)
-PLACEHOLDER_VALUE = re.compile(r"(\$\{?[A-Za-z_][A-Za-z0-9_]*\}?|<[^<>]*>|x{3,}|\.{3}|\*+|your[-_][A-Za-z0-9_-]*|changeme|example)", _I)
+PLACEHOLDER_VALUE = re.compile(r"(\$\{?[A-Za-z_][A-Za-z0-9_]*\}?|\$\{[^{}]*\}|\$\([^()]*\)|<[^<>]*>|x{3,}|\.{3}|\*+|your[-_][A-Za-z0-9_-]*|changeme|example)", _I)
 PLACEHOLDER = re.compile(r"(xxx|\.\.\.|<|your[_-]|example|changeme|\$\{|\$[A-Z_]+)", _I)
 
 # SW-SKL-008, SW-SKL-012

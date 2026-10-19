@@ -154,4 +154,8 @@ def test_a_password_holding_url_delimiters_never_reaches_a_location():
     for password in ("p#ss", "p?ss", "p/ss"):
         assert shown(f"http://user:{password}word@mcp.example/mcp?x=1") == {"http://redacted"}, password
     assert shown("http://mcp.example/mcp?email=a@b.example") == {"http://redacted"}  # no part of the query shows
+    token = "a1b2c3d4" * 4
+    path_token = evaluate_probe(ProbeResult(endpoint=f"http://mcp.example/api/mcp/s/{token}/mcp", reachable=False,
+                                            error="not_https"), RULES).findings[0]
+    assert path_token.location.path == "http://mcp.example/api/mcp/s/a1b2***/mcp" and token not in path_token.evidence
     assert evaluate_probe(ProbeResult(endpoint="http://user:pw@", reachable=False, error="not_https"), RULES).findings[0].location.path == "http://redacted"

@@ -5,11 +5,12 @@ from __future__ import annotations
 import re
 from collections.abc import Iterator
 
-from spellwarden_scan.evidence import bounded_evidence, fingerprint
+from spellwarden_scan.evidence import bounded_evidence, fingerprint, mask_credentials
 from spellwarden_scan.model import Finding, Location, ProbeResult
 from spellwarden_scan.probe import auth_mode_of, classify, deprecated_capabilities, initialize_only, spec_version_of, transport_of
 from spellwarden_scan.rules import Rule, make_rule
 from spellwarden_scan.rules import patterns as P
+from spellwarden_scan.rules.skill import visible
 
 SPEC_BASELINE = "2026-07-28"
 _TOOL_INJECTION = (
@@ -37,7 +38,12 @@ def _redacted(url: str) -> str:
             return f"{scheme}://redacted"
     rest = rest.split("#", 1)[0].split("?", 1)[0]
     authority, separator, path = rest.partition("/")
-    return f"{scheme}://{authority}{separator}{path}" if authority else f"{scheme}://redacted"
+    if not authority:
+        return f"{scheme}://redacted"
+    # A token carried in the path (`/api/mcp/s/<token>/mcp`) is masked like any evidence (spec 5.10), segment by segment
+    # so the host and the other segments stay readable.
+    path = "/".join(mask_credentials(segment) for segment in path.split("/"))
+    return f"{scheme}://{authority}{separator}{path}"
 
 
 def _where(probe: ProbeResult) -> str:
@@ -208,7 +214,8 @@ def _covers(resource: str, endpoint: str | None) -> bool:
 def _mcp_011(probe: ProbeResult) -> Iterator[Finding]:
     for tool in probe.tools:
         text = tool.description or ""
-        if any(p.search(text) for p in P.INJECTION) or any(p.search(text) for p in _TOOL_INJECTION):
+        seen = visible(text)  # invisible characters do not break a phrase up (`skill.visible`)
+        if any(p.search(seen) for p in P.INJECTION) or any(p.search(seen) for p in _TOOL_INJECTION):
             yield _finding("SW-MCP-011", "high", probe, text, path=f"tool:{tool.name}")
 
 
