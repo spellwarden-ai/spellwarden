@@ -1,0 +1,193 @@
+"""The data classes of the public interface (spec 5.2). Every class is a
+frozen dataclass with `to_dict()` (JSON types only) and `from_dict()`; the
+hosted product stores exactly these dicts, a CLI prints them."""
+from __future__ import annotations
+
+from dataclasses import dataclass, field, fields
+from typing import Any, Literal
+
+Severity = Literal["critical", "high", "medium", "low"]
+Area = Literal["skill", "mcp"]
+SEVERITY_RANK: dict[str, int] = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+
+
+def _plain(value: Any) -> Any:
+    """A JSON value for `value`: data classes become dicts, tuples lists, frozensets sorted lists."""
+    if hasattr(value, "to_dict"):
+        return value.to_dict()
+    if isinstance(value, (tuple, list)):
+        return [_plain(item) for item in value]
+    if isinstance(value, (set, frozenset)):
+        return sorted(_plain(item) for item in value)
+    if isinstance(value, dict):
+        return {str(key): _plain(item) for key, item in value.items()}
+    return value
+
+
+class _Model:
+    """Mixin: `to_dict` and `from_dict` driven by the dataclass fields."""
+
+    def to_dict(self) -> dict:
+        return {f.name: _plain(getattr(self, f.name)) for f in fields(self)}  # type: ignore[arg-type]
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        known = {f.name: f for f in fields(cls)}  # type: ignore[arg-type]
+        values: dict[str, Any] = {}
+        for name in known:
+            if name not in data:
+                continue
+            values[name] = _convert(cls, name, data[name])
+        return cls(**values)
+
+
+def _convert(cls, name: str, value: Any) -> Any:
+    """Rebuilds nested classes and tuples from JSON by field name."""
+    nested = _NESTED.get((cls.__name__, name))
+    if nested is not None and value is not None:
+        kind, inner = nested
+        if kind == "one":
+            return inner.from_dict(value)
+        # A string item stays a string (severity-only `CurationInputs`).
+        return tuple(inner.from_dict(item) if isinstance(item, dict) else item for item in value)
+    if name in _TUPLE_FIELDS and value is not None:
+        return tuple(value)
+    if name == "present" and value is not None:
+        return frozenset(value)
+    return value
+
+
+@dataclass(frozen=True, slots=True)
+class Location(_Model):
+    path: str
+    line: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class Finding(_Model):
+    rule_id: str
+    severity: str
+    title: str
+    location: Location
+    evidence: str
+    fingerprint: str
+    malicious_indicator: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class Metadata(_Model):
+    name: str | None
+    description: str | None
+    version: str | None
+    license: str | None
+    publisher: str | None
+    present: frozenset[str]
+    frontmatter_ok: bool
+    problems: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class SkillScanResult(_Model):
+    findings: tuple[Finding, ...]
+    truncated: int
+    sha256: str
+    metadata: Metadata
+    files_scanned: int
+    rules_version: str
+    scanner_version: str
+
+
+@dataclass(frozen=True, slots=True)
+class ToolInfo(_Model):
+    name: str
+    description: str = ""
+    annotations: dict = field(default_factory=dict)
+
+
+@dataclass(frozen=True, slots=True)
+class AuthServerMetadata(_Model):
+    issuer: str | None = None
+    metadata_url: str | None = None
+    registration_endpoint: str | None = None
+    client_id_metadata_document_supported: bool = False
+    grant_types_supported: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class ProbeResult(_Model):
+    """What a prober records (spec 5.2); every field has a default so a partial probe is valid."""
+
+    endpoint: str | None = None
+    repository: str | None = None
+    reachable: bool = False
+    error: str | None = None
+    discover: dict | None = None
+    initialize: dict | None = None
+    negotiated_version: str | None = None
+    session_id_seen: bool = False
+    post_status: int | None = None
+    post_content_type: str | None = None
+    get_content_type: str | None = None
+    sse_endpoint_event: bool = False
+    unauthenticated_status: int | None = None
+    www_authenticate: str | None = None
+    resource_metadata: dict | None = None
+    auth_server_metadata: AuthServerMetadata | None = None
+    tools: tuple[ToolInfo, ...] = ()
+    tools_source: str | None = None
+    list_result_meta: dict | None = None
+    capabilities: dict = field(default_factory=dict)
+    probed_at: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ChecklistItem(_Model):
+    order: int
+    key: str
+    text: str
+
+
+@dataclass(frozen=True, slots=True)
+class McpScanResult(_Model):
+    findings: tuple[Finding, ...]
+    truncated: int
+    spec_version: str | None
+    transport: str
+    auth_mode: str
+    deprecated_features: tuple[str, ...]
+    migration_status: str
+    checklist: tuple[ChecklistItem, ...]
+    rules_version: str
+    scanner_version: str
+    # What the checklist generator reads (computed by `evaluate_probe`; defaults keep older dicts loadable).
+    list_meta_missing: bool = False
+    long_running_tools: tuple[str, ...] = ()
+    tasks_supported: bool = False
+    issuer_problem: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class CurationInputs(_Model):
+    """`open_findings` and `accepted_findings` hold `Finding`s or severity strings (spec 5.2);
+    `curation.severities_of` normalises either."""
+    open_findings: tuple[Finding | str, ...]
+    accepted_findings: tuple[Finding | str, ...]
+    metadata_present: int
+    eval_component: float = 0.5
+    sha256_matches: bool = True
+    quarantined: bool = False
+
+
+# (class, field) -> ("one" | "many", nested class)
+_NESTED: dict[tuple[str, str], tuple[str, type]] = {
+    ("Finding", "location"): ("one", Location),
+    ("SkillScanResult", "findings"): ("many", Finding),
+    ("SkillScanResult", "metadata"): ("one", Metadata),
+    ("ProbeResult", "auth_server_metadata"): ("one", AuthServerMetadata),
+    ("ProbeResult", "tools"): ("many", ToolInfo),
+    ("McpScanResult", "findings"): ("many", Finding),
+    ("McpScanResult", "checklist"): ("many", ChecklistItem),
+    ("CurationInputs", "open_findings"): ("many", Finding),
+    ("CurationInputs", "accepted_findings"): ("many", Finding),
+}
+_TUPLE_FIELDS = frozenset({"problems", "grant_types_supported", "deprecated_features", "long_running_tools"})

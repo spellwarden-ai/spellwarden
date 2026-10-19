@@ -1,0 +1,133 @@
+"""Spec 5.6 and claim P4: unsafe and oversize archives are refused with a code."""
+from __future__ import annotations
+
+import io
+import stat
+import zipfile
+
+import pytest
+
+from spellwarden_scan.archive import ArchiveError, ArchiveLimits, unpack_zip
+
+
+def build(entries: dict[str, bytes], *, attrs: dict[str, int] | None = None, top: str | None = None,
+          lie_size: tuple[str, int] | None = None) -> bytes:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for name, content in entries.items():
+            full = f"{top}/{name}" if top else name
+            info = zipfile.ZipInfo(full)
+            if attrs and name in attrs:
+                info.external_attr = attrs[name]
+            zf.writestr(info, content)
+    data = buffer.getvalue()
+    if lie_size:
+        # Rewrite the central-directory uncompressed size of one entry (a lying header). The central
+        # record is 46 bytes before the file name; the uncompressed size sits at offset 24 of the record.
+        name, declared = lie_size
+        with zipfile.ZipFile(io.BytesIO(data)) as zf:
+            info = zf.getinfo(name)
+        marker = info.filename.encode()
+        central = data.rfind(marker)
+        header = central - 46
+        data = data[:header + 24] + declared.to_bytes(4, "little") + data[header + 28:]
+    return data
+
+
+def test_a_plain_archive_unpacks_and_strips_the_common_top_directory():
+    data = build({"SKILL.md": b"---\n", "scripts/run.sh": b"x"}, top="repo-main")
+    assert unpack_zip(data) == {"SKILL.md": b"---\n", "scripts/run.sh": b"x"}
+    assert unpack_zip(build({"SKILL.md": b"a", "other/x": b"b"})) == {"SKILL.md": b"a", "other/x": b"b"}
+
+
+def test_with_modes_reports_executable_entries():
+    data = build({"SKILL.md": b"a", "bin/tool": b"b"}, attrs={"bin/tool": (0o100755 << 16)})
+    files, executable = unpack_zip(data, with_modes=True)
+    assert set(files) == {"SKILL.md", "bin/tool"} and executable == frozenset({"bin/tool"})
+
+
+@pytest.mark.parametrize("name", ["../x", "/x", "C:\\x", "a/../../x", "a\\b"])
+def test_unsafe_paths_are_refused(name):
+    """A NUL in a name cannot be tested through a real archive: `zipfile` cuts the name at the NUL
+    on both write and read, so `_unsafe`'s NUL check is defensive only."""
+    with pytest.raises(ArchiveError) as caught:
+        unpack_zip(build({name: b"x", "SKILL.md": b"y"}))
+    assert caught.value.code == "unsafe_path"
+
+
+def test_a_symlink_entry_is_refused():
+    data = build({"SKILL.md": b"y", "link": b"target"}, attrs={"link": (stat.S_IFLNK | 0o777) << 16})
+    with pytest.raises(ArchiveError) as caught:
+        unpack_zip(data)
+    assert caught.value.code == "symlink"
+
+
+def test_limits_on_compressed_size_files_and_path_length():
+    big = build({"SKILL.md": b"y", "blob": bytes(range(256)) * 64})
+    with pytest.raises(ArchiveError) as caught:
+        unpack_zip(big, ArchiveLimits(max_compressed=1000))
+    assert caught.value.code == "too_large"
+    many = build({f"f{i}": b"x" for i in range(5)})
+    with pytest.raises(ArchiveError) as caught:
+        unpack_zip(many, ArchiveLimits(max_files=4))
+    assert caught.value.code == "too_many_files"
+    with pytest.raises(ArchiveError) as caught:
+        unpack_zip(build({"a" * 300: b"x"}))
+    assert caught.value.code == "unsafe_path"
+
+
+def test_declared_sizes_over_the_limit_are_refused_before_any_entry_is_read(monkeypatch):
+    """A header that declares more than the limit is refused from the central directory alone:
+    `ZipFile.open` is never called (spec 5.6: the declared sizes are checked first)."""
+    data = build({"SKILL.md": b"y", "blob": b"z" * 100}, lie_size=("blob", 10 * 2**20 + 1))
+
+    def never(*args, **kwargs):  # noqa: ARG001
+        raise AssertionError("an entry was opened although the declared sizes already exceed the limit")
+
+    monkeypatch.setattr(zipfile.ZipFile, "open", never)
+    with pytest.raises(ArchiveError) as caught:
+        unpack_zip(data)
+    assert caught.value.code == "too_large"
+
+
+def test_real_bytes_are_counted_while_reading_independently_of_the_headers(monkeypatch):
+    """The declared-size check is disabled here on purpose: with chunks of 1024 bytes and a limit of
+    2000, a valid 5000-byte entry trips `too_large` on the second chunk, before the CRC is ever
+    checked. This is the guarantee that no archive yields more bytes than the limit whatever its
+    headers say (spec 5.6, claim P4)."""
+    from spellwarden_scan import archive as archive_module
+
+    monkeypatch.setattr(archive_module, "_check_declared", lambda _entries, _limits: None)
+    monkeypatch.setattr(archive_module, "_CHUNK", 1024)
+    reads = {"n": 0}
+    original = zipfile.ZipExtFile.read
+
+    def counting(self, n=-1):
+        reads["n"] += 1
+        return original(self, n)
+
+    monkeypatch.setattr(zipfile.ZipExtFile, "read", counting)
+    data = build({"SKILL.md": b"y", "blob": bytes(range(256)) * 20})
+    with pytest.raises(ArchiveError) as caught:
+        unpack_zip(data, ArchiveLimits(max_uncompressed=2000))
+    assert caught.value.code == "too_large"
+    # SKILL.md takes two reads (its byte and the end), the blob trips on its second chunk: four reads, never the six of a full read.
+    assert 1 <= reads["n"] <= 4, "the limit tripped mid-stream, long before the 5 chunks of the entry"
+
+
+def test_a_header_that_understates_the_size_is_bad_zip():
+    """`zipfile` never yields more than the declared size, so a header that declares 1 byte for a
+    5000-byte entry ends in a size or CRC mismatch, reported as `bad_zip`, never as a silent short read."""
+    data = build({"SKILL.md": b"y", "blob": b"z" * 5000}, lie_size=("blob", 1))
+    with pytest.raises(ArchiveError) as caught:
+        unpack_zip(data)
+    assert caught.value.code == "bad_zip"
+
+
+def test_empty_and_corrupt_archives():
+    with pytest.raises(ArchiveError) as caught:
+        unpack_zip(build({}))
+    assert caught.value.code == "empty"
+    with pytest.raises(ArchiveError) as caught:
+        unpack_zip(b"not a zip")
+    assert caught.value.code == "bad_zip"
