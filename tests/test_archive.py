@@ -189,3 +189,19 @@ def test_an_unsupported_zip_version_in_the_central_directory_is_bad_zip():
     with pytest.raises(ArchiveError) as caught:
         unpack_zip(bytes(data))
     assert caught.value.code == "bad_zip"
+
+
+@pytest.mark.parametrize("entries", [
+    [("SKILL.md", b"a"), ("caf\u00e9.md", b"c"), ("cafe\u0301.md", b"d")],  # NFC-equal names
+    [("run.sh.", b"x"), ("SKILL.md", b"y")],
+    [("run.sh ", b"x"), ("SKILL.md", b"y")],
+    [("a:b", b"x"), ("SKILL.md", b"y")],
+    [("tools/", b""), ("tools", b"x"), ("SKILL.md", b"y")],
+    [("x/../", b""), ("SKILL.md", b"y")],
+])
+def test_names_that_collide_or_change_on_some_file_system_are_refused(entries):
+    """Security review: NFC-equal names (macOS), a trailing dot or space and `:` (Windows), and a file
+    that is also a directory entry each make an extractor install something other than what was scanned."""
+    with pytest.raises(ArchiveError) as caught:
+        unpack_zip(raw_zip(entries))
+    assert caught.value.code == "unsafe_path"
