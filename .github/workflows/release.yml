@@ -37,8 +37,7 @@ jobs:
         with:
           name: dist
           path: dist/
-      # Pinned by commit SHA: look up the current commit of pypa/gh-action-pypi-publish's `release/v1` branch
-      # at build time (`git ls-remote https://github.com/pypa/gh-action-pypi-publish release/v1`) and write it here.
-      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33
+      # Every action is pinned by commit SHA (this job can mint the PyPI token); here the head of `release/v1` on 2026-10-19.
+      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33  # release/v1
         with:
           packages-dir: dist/
