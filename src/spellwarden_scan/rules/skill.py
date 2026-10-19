@@ -11,7 +11,7 @@ from collections.abc import Iterator
 from spellwarden_scan.evidence import bounded_evidence, code_point_names, excerpt, fingerprint
 from spellwarden_scan.frontmatter import FrontmatterError, parse_frontmatter
 from spellwarden_scan.model import Finding, Location
-from spellwarden_scan.package import CodeBlock, Package, TextFile
+from spellwarden_scan.package import SCRIPT_EXTENSIONS, CodeBlock, Package, TextFile
 from spellwarden_scan.rules import Rule, make_rule
 from spellwarden_scan.rules import patterns as P
 
@@ -37,17 +37,30 @@ def _numbered(unit: TextFile | CodeBlock) -> Iterator[tuple[str, int, str]]:
             yield unit.path, number, line
 
 
+_CONTINUES = ("|", "&&", "||")
+
+
+def _is_script(unit: TextFile | CodeBlock) -> bool:
+    return isinstance(unit, CodeBlock) or unit.path.lower().endswith(SCRIPT_EXTENSIONS)
+
+
 def _logical_lines(unit: TextFile | CodeBlock) -> Iterator[tuple[str, int, str]]:
-    """Lines with a trailing backslash joined to the next (one shell command), numbered by their first line."""
+    """One shell command per item, numbered by its first line: a line with a trailing backslash is joined to the
+    next, and in a script or a fenced code block so is a line ending in `|`, `&&` or `||` (the shell reads on).
+    Markdown prose is joined at backslashes only (a table row ends in `|`)."""
     pending: list[str] = []
     start = 0
     path = unit.path
+    operators = _is_script(unit)
     for path, number, line in _numbered(unit):
         if not pending:
             start = number
         stripped = line.rstrip()
         if stripped.endswith("\\"):
             pending.append(stripped[:-1])
+            continue
+        if operators and stripped.endswith(_CONTINUES):
+            pending.append(stripped)
             continue
         pending.append(line)
         yield path, start, " ".join(pending)
@@ -80,7 +93,7 @@ def _skl_001(package: Package) -> Iterator[Finding]:
 # behind an emoji); a basic variation selector U+FE00 to U+FE0F when two or more follow each other, or one follows a
 # character that takes none (`_stray_selectors`: emoji and symbols take one, U+FE0F after an emoji is ordinary).
 # The soft hyphen is not flagged (ordinary in text copied from a word processor); `_visible` drops it before matching.
-_HIDDEN = re.compile("[\u034f\u115f\u180e\u200b-\u200f\u2028\u2029\u2060-\u2064\u202a-\u202e\u2066-\u2069\u3164\ufeff"
+_HIDDEN = re.compile("[\u034f\u115f\u180b-\u180f\u200b-\u200f\u2028\u2029\u2060-\u2064\u202a-\u202e\u2066-\u2069\u3164\ufeff\uffa0"
                      "\ufff9-\ufffb\U000e0000-\U000e007f\U000e0100-\U000e01ef]|[\ufe00-\ufe0f]{2,}")
 _SELECTOR = re.compile("[\ufe00-\ufe0f]")
 _KEYCAP_BASES = frozenset("0123456789#*")
@@ -100,6 +113,19 @@ def _emoji_base(char: str) -> bool:
 
 def _ideograph(char: str) -> bool:
     return "\u3400" <= char <= "\u9fff" or "\uf900" <= char <= "\ufaff"
+
+
+def _hidden_in(text: str) -> list[str]:
+    """Every hidden character of a line: `_HIDDEN`, every other format character (`Cf`) but the soft hyphen, and the
+    stray variation selectors; a joiner inside an emoji sequence is not one."""
+    if text.isascii():
+        return []
+    joined = _without_emoji_joiners(text)
+    found = _HIDDEN.findall(joined)
+    found += [char for char in joined if unicodedata.category(char) == "Cf" and char != "\u00ad" and not _HIDDEN.fullmatch(char)]
+    if "\ufe00" <= max(text):
+        found += _stray_selectors(text)
+    return found
 
 
 def _without_emoji_joiners(line: str) -> str:
@@ -141,7 +167,7 @@ def _stray_selectors(line: str) -> list[str]:
     return stray
 # Every format character and the soft hyphen, removed before the injection phrases are matched (SW-SKL-001,
 # SW-MCP-011): `ig\u00adnore previous instructions` reads as the phrase to an agent.
-_INVISIBLE = re.compile("[\u00ad\u034f\u115f\u180e\u200b-\u200f\u2060-\u2064\u202a-\u202e\u2066-\u2069\u3164\ufeff\ufe00-\ufe0f"
+_INVISIBLE = re.compile("[\u00ad\u034f\u115f\u180b-\u180f\u200b-\u200f\u2060-\u2064\u202a-\u202e\u2066-\u2069\u3164\ufeff\uffa0\ufe00-\ufe0f"
                         "\ufff9-\ufffb\U000e0000-\U000e007f\U000e0100-\U000e01ef]")
 
 
@@ -158,7 +184,7 @@ def _skl_002(package: Package) -> Iterator[Finding]:
     for unit in package.text_files:
         for number, line in enumerate(unit.lines, start=1):
             text = line[1:] if number == 1 and line.startswith("\ufeff") else line
-            hidden = _HIDDEN.findall(_without_emoji_joiners(text)) + (_stray_selectors(text) if "\ufe00" <= max(text, default="") else [])
+            hidden = _hidden_in(text)
             if hidden:
                 names = code_point_names("".join(hidden))
                 yield _finding("SW-SKL-002", "high", TITLES["SW-SKL-002"], unit.path, number, names, evidence=names)
@@ -190,7 +216,7 @@ _EXECUTOR = re.compile(
 
 def _skl_004(package: Package) -> Iterator[Finding]:
     for unit in package.scripts():
-        for path, number, line in _numbered(unit):
+        for path, number, line in _logical_lines(unit):  # `... | base64 -d \` then `| sh`: one command
             if _DECODER.search(line) and _EXECUTOR.search(line):
                 yield _finding("SW-SKL-004", "critical", TITLES["SW-SKL-004"], path, number, line, malicious=True)
 
@@ -226,7 +252,7 @@ _CONFIRMED = re.compile(r"(confirm|\bask\b|approval|approve|only if the user|aft
 
 def _skl_006(package: Package) -> Iterator[Finding]:
     for unit in package.scripts():
-        entries = list(_numbered(unit))
+        entries = list(_logical_lines(unit))
         for index, (path, number, line) in enumerate(entries):
             if not _DESTRUCTIVE.search(line):
                 continue
@@ -246,7 +272,10 @@ _PIPED = P.AnyOf(
 
 
 def _skl_007(package: Package) -> Iterator[Finding]:
-    yield from _lines_matching(package.text_files, _PIPED, "SW-SKL-007", "high", TITLES["SW-SKL-007"])
+    for unit in package.text_files:
+        for path, number, line in _logical_lines(unit):  # `curl ... |` then `sh` on the next line is one pipe
+            if _PIPED.search(line):
+                yield _finding("SW-SKL-007", "high", TITLES["SW-SKL-007"], path, number, line)
 
 
 # --- SW-SKL-008 ------------------------------------------------------------------------------
@@ -338,7 +367,7 @@ def _unpinned_npx(rest: str) -> bool:
 
 def _skl_009(package: Package) -> Iterator[Finding]:
     for unit in package.scripts():
-        for path, number, line in _numbered(unit):
+        for path, number, line in _logical_lines(unit):
             fires = False
             if (m := _PIP.search(line)) and _unpinned_pip(m.group(2)):
                 fires = True

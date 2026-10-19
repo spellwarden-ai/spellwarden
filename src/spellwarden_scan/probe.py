@@ -116,9 +116,9 @@ def long_running_tools_of(probe: ProbeResult) -> tuple[str, ...]:
 
 
 def text_of(value: object) -> str:
-    """A server's JSON as the rules read it: a string as it is; a list or an object as every string and number in
-    it, joined by spaces (an injection phrase hidden in a nested description is still read); a number as its
-    digits; `null` and booleans as nothing."""
+    """A server's JSON as the rules read it: a string as it is; a list or an object as every key, string and number
+    in it, joined by spaces, all of it (an injection phrase hidden anywhere in a nested description is still read;
+    the probe already caps the JSON it records); a number as its digits; `null` and booleans as nothing."""
     if isinstance(value, str):
         return value
     if isinstance(value, bool) or value is None:
@@ -127,14 +127,15 @@ def text_of(value: object) -> str:
         return str(value)
     parts: list[str] = []
     stack = [value]
-    while stack and len(parts) < 1000:
+    while stack:
         item = stack.pop()
         if isinstance(item, str):
             parts.append(item)
         elif isinstance(item, (int, float)) and not isinstance(item, bool):
             parts.append(str(item))
         elif isinstance(item, dict):
-            stack.extend(reversed(list(item.values())))
+            for key, inner in reversed(list(item.items())):
+                stack.extend((inner, key))
         elif isinstance(item, (list, tuple)):
             stack.extend(reversed(item))
     return " ".join(parts)

@@ -184,7 +184,7 @@ def _mcp_010(probe: ProbeResult) -> Iterator[Finding]:
         yield _finding("SW-MCP-010", "medium", probe, "no authorization server listed")
         return
     asm = probe.auth_server_metadata
-    if asm is not None and not text_of(asm.issuer).strip():
+    if asm is not None and not (isinstance(asm.issuer, str) and asm.issuer.strip()):  # a number or a list is no issuer
         # RFC 8414 makes `issuer` required: metadata without one cannot be validated, so it is never a pass.
         yield _finding("SW-MCP-010", "medium", probe, "authorization server metadata has no issuer")
         return
