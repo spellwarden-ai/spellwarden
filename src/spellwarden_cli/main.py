@@ -86,6 +86,9 @@ def build_parser() -> argparse.ArgumentParser:
     _add_scan(commands)
     _add_version(commands)
     # Tasks 8, 9 and 10 add their sub-parsers below this line.
+    from spellwarden_cli import rulescmd
+
+    rulescmd.add_parser(commands)
     from spellwarden_cli import baseline, lockfile  # imported here: both import `run`, which main also imports
 
     lockfile.add_parser(commands)
