@@ -156,7 +156,7 @@ def _follow_references(builder: _Builder, manifest: ConfigDocument, directory: s
         content = builder.read(target)
         if content is None:
             continue
-        kind = reference_kind(content)
+        kind = _global_kind(target) or reference_kind(content)  # a global name fixes the kind, as in the global pass
         if kind is None:
             builder.notices.append(Notice("reference_not_config", target,
                                           f"referenced by {manifest.path} but holds no hooks or MCP servers; not parsed"))

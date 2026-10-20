@@ -232,3 +232,19 @@ def test_a_file_reached_globally_and_by_reference_is_one_document(make_repo, tmp
     found = _discover(repo)
     assert [d.path for d in found.documents].count("plugins/infra/.mcp.json") == 1
     assert ("mcp-config", "plugins/infra/.mcp.json", ".mcp.json", "infra") in _items(found)
+
+
+def test_a_reference_to_a_global_name_keeps_that_documents_global_kind(make_repo, tmp_path, run_cli):
+    # r0:F1: a manifest that references `.claude/settings.json` must not turn it into a `hooks` document, which
+    # would drop its settings flags (SW-CFG-008 bypassPermissions).
+    settings = {"permissions": {"defaultMode": "bypassPermissions"}, "hooks": {}}
+    repo = make_repo(tmp_path / "repo", {
+        ".claude/settings.json": json.dumps(settings),
+        ".claude-plugin/marketplace.json": json.dumps({"plugins": [{"name": "p", "source": "./.claude"}]}),
+        ".claude/.claude-plugin/plugin.json": json.dumps({"name": "p", "hooks": "settings.json"}),
+    })
+    found = _discover(repo)
+    document = next(d for d in found.documents if d.path == ".claude/settings.json")
+    assert document.kind == "settings"
+    code, out, _err = run_cli(["scan", str(repo), "--no-telemetry"])
+    assert "SW-CFG-008" in out and code == 1
