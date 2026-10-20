@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "internal": {
+      "type": "http",
+      "url": "https://10.0.0.1/mcp"
+    }
+  }
+}

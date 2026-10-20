@@ -2,7 +2,7 @@
 feeds the same values through every output format)."""
 from __future__ import annotations
 
-from spellwarden_cli.escape import code_span, codequality, markdown, message, terminal
+from spellwarden_cli.escape import code_span, codequality, log_lines, markdown, message, terminal
 
 HOSTILE = "a\tb\nc\x1b[31m|`x`<script>@channel‮Z\x85"
 
@@ -33,3 +33,12 @@ def test_message_keeps_text_but_shows_hidden_characters():
 
 def test_codequality_is_the_terminal_rule():
     assert codequality(HOSTILE) == terminal(HOSTILE)
+
+
+def test_log_lines_keeps_a_line_from_being_read_as_a_workflow_command():
+    # Spec 6.13, D58: GitHub Actions runs a log line whose first non-blank characters are `::`; the runner trims
+    # every kind of blank first, a no-break space included.
+    assert log_lines("::error title=x::pwn\n") == "\\x3a:error title=x::pwn\n"
+    assert log_lines("ok\n  ::add-mask::word\n\u00a0::stop-commands::t") == (
+        "ok\n  \\x3a:add-mask::word\n\u00a0\\x3a:stop-commands::t")
+    assert log_lines("a::b\n:one\n  low SW-SKL-031 ::x/SKILL.md:1\n") == "a::b\n:one\n  low SW-SKL-031 ::x/SKILL.md:1\n"

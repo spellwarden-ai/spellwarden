@@ -1,0 +1,5 @@
+# SSH keys allowed to sign the wrapper release tags (spec 7.5, 11.2 point 2).
+# Format: one line per key, `<principal> namespaces="git" <key type> <public key>`, where <principal> is the
+# tagger email of the owner's signed tags. The owner adds the public half of the tag signing key before the 1.0.0
+# release (Task 21, prerequisite 2). manifest.yml refuses to run while this file holds no key line.
+marius.mitrofan@netbears.ro namespaces="git" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJjM3LFEhkL4UdaENLYT+ZE0GHihQAIZjLlavkF80sLY

@@ -1,0 +1,5 @@
+{
+  "mcpServers": {
+    "jira": {"type": "http", "url": "http://jira.internal.example/mcp"}
+  }
+}

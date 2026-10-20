@@ -1,0 +1,53 @@
+name: e2e setup
+description: >-
+  Prepares the pre-release test of the Action candidate (spec 7.4): this run's wheel, a hash-checked PyYAML
+  wheelhouse, the requirements file that installs both with --no-index, and the candidate checked out at the commit
+  named in wrappers/scan-action.ref.
+outputs:
+  requirements-file:
+    description: The hash-pinned, offline requirements file for the Action's requirements-file input.
+    value: ${{ steps.reqs.outputs.file }}
+runs:
+  using: composite
+  steps:
+    - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+      with:
+        name: dist
+        path: dist/
+    - id: py
+      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+      with:
+        python-version: "3.13"
+    - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5.4.2
+      with:
+        python-version: "3.13"
+    - name: Dev environment (jsonschema for the SARIF check)
+      shell: bash
+      run: uv sync --locked
+    - id: ref
+      shell: bash
+      run: |
+        ref="$(tr -d '[:space:]' < wrappers/scan-action.ref)"
+        if [[ ! "$ref" =~ ^[0-9a-f]{40}$ ]]; then
+          echo "::error::wrappers/scan-action.ref must hold one 40-hex commit"
+          exit 1
+        fi
+        echo "sha=$ref" >> "$GITHUB_OUTPUT"
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      with:
+        repository: spellwarden-ai/scan
+        ref: ${{ steps.ref.outputs.sha }}
+        path: .spellwarden-action
+        persist-credentials: false
+    - id: reqs
+      shell: bash
+      env:
+        # setup-uv's python-version activates a uv virtual environment, which has no pip: pip is setup-python's.
+        SETUP_PYTHON: ${{ steps.py.outputs.python-path }}
+      run: |
+        set -euo pipefail
+        "$SETUP_PYTHON" -m pip download --only-binary :all: --require-hashes --no-deps \
+          -r docker/requirements.deps.txt -d "$RUNNER_TEMP/wheelhouse"
+        python scripts/e2e.py requirements --dist dist --wheelhouse "$RUNNER_TEMP/wheelhouse" \
+          --deps docker/requirements.deps.txt --out "$RUNNER_TEMP/requirements.txt"
+        echo "file=$RUNNER_TEMP/requirements.txt" >> "$GITHUB_OUTPUT"

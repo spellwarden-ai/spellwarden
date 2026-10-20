@@ -1,0 +1,9 @@
+{
+  "repo_from": "findings",
+  "inputs": {"sarif-upload": "true", "token": "not-a-token"},
+  "exit_code": 1,
+  "findings": 1,
+  "report": "required",
+  "annotations": ["sarif_upload_failed"],
+  "on_fork_request": {"annotations": ["sarif_permission"]}
+}

@@ -1,0 +1,12 @@
+{
+  "repo_from": "findings",
+  "files": {
+    ".spellwarden/baseline.yml": "version: 1\naccepted:\n  - fingerprint: 211277803f7d64e150e85a720acf89327067b34fd78fcca20e6189bf7a07a0d7\n    rule: SW-CFG-001\n    path: .mcp.json\n    reason: The tickets server only listens on the build network.\n    added: __ADDED__\n    expires: __EXPIRES__\n"
+  },
+  "baseline_dates": true,
+  "exit_code": 0,
+  "findings": 0,
+  "accepted": 1,
+  "report": "required",
+  "on_request": {"exit_code": 1, "findings": 1, "accepted": 0, "notices": ["base_unavailable"]}
+}

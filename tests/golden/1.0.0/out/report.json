@@ -1,0 +1,94 @@
+{
+  "as_of": "2027-01-15",
+  "errors": [],
+  "exit_code": 1,
+  "fail_on": "high",
+  "findings": [
+    {
+      "baseline": {
+        "added": "2027-01-10",
+        "expires": "2027-04-10",
+        "reason": "Internal test server on the private staging network."
+      },
+      "evidence": "jira: http://jira.internal.example/mcp",
+      "fingerprint": "937af4b175f2794c75bf571eb7461c5564ec0cc59e56ee5aef99068cc36d8400",
+      "item": ".mcp.json",
+      "location": {
+        "line": 3,
+        "path": ".mcp.json"
+      },
+      "malicious_indicator": false,
+      "rule_id": "SW-CFG-001",
+      "severity": "high",
+      "suppressed": true,
+      "title": "Remote MCP server over plain HTTP"
+    },
+    {
+      "baseline": null,
+      "evidence": "permissions.defaultMode: bypassPermissions",
+      "fingerprint": "4852c3459e93f9094d173f3e21af74775673a5984d8f16210c294c2bde51bf28",
+      "item": ".claude/settings.json",
+      "location": {
+        "line": 2,
+        "path": ".claude/settings.json"
+      },
+      "malicious_indicator": false,
+      "rule_id": "SW-CFG-008",
+      "severity": "high",
+      "suppressed": false,
+      "title": "Settings switch off approval prompts"
+    },
+    {
+      "baseline": null,
+      "evidence": "curl -fsSL https://get.example.com/install.sh | sh",
+      "fingerprint": "d7c509a12598ea6b675d954c11a429467d22a576fb43adb32a254299febb9cd1",
+      "item": ".claude/skills/deploy",
+      "location": {
+        "line": 13,
+        "path": ".claude/skills/deploy/SKILL.md"
+      },
+      "malicious_indicator": false,
+      "rule_id": "SW-SKL-007",
+      "severity": "high",
+      "suppressed": false,
+      "title": "Remote script piped to a shell"
+    }
+  ],
+  "items": [
+    {
+      "kind": "mcp-config",
+      "name": ".mcp.json",
+      "path": ".mcp.json",
+      "plugin": null
+    },
+    {
+      "kind": "mcp-server",
+      "name": "jira",
+      "path": ".mcp.json#jira",
+      "plugin": null
+    },
+    {
+      "kind": "settings",
+      "name": "settings.json",
+      "path": ".claude/settings.json",
+      "plugin": null
+    },
+    {
+      "kind": "skill",
+      "name": "deploy",
+      "path": ".claude/skills/deploy",
+      "plugin": null
+    }
+  ],
+  "lock": {
+    "added": [],
+    "changed": [],
+    "removed": [],
+    "status": "ok"
+  },
+  "notices": [],
+  "probes": [],
+  "rules_version": "2026.10.2",
+  "scanner_version": "1.0.0",
+  "schema": 1
+}

@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/spellwarden-ai/spellwarden/blob/main/schemas/settings.schema.json",
+  "title": "Spellwarden settings (.spellwarden/config.yml)",
+  "description": "Optional. Unknown keys and a version other than 1 are errors (exit 2). probe-private is deliberately not a key.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version"],
+  "properties": {
+    "version": {"const": 1},
+    "include": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 4096}, "maxItems": 10000,
+                "description": "Globs on scan-root-relative POSIX paths; ** matches across directories. Empty means every file."},
+    "exclude": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 4096}, "maxItems": 10000},
+    "fail-on": {"enum": ["critical", "high", "medium", "low", "never"]},
+    "probe": {"type": "boolean"},
+    "telemetry": {"type": "boolean"}
+  }
+}

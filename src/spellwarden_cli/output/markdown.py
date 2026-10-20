@@ -128,7 +128,7 @@ def render(report: Report) -> str:
                   f"{'is' if accepted == 1 else 'are'} listed in the baseline file.", ""]
     lines.append(f"Spellwarden {_text(report.scanner_version)}, rules {_text(report.rules_version)}. "
                  f"[What each rule checks]({RULES_URL})")
-    text = "\n".join(lines) + "\n"
+    text = escape.log_lines("\n".join(lines) + "\n")
     if len(text) > MAX_CHARS:
         text = text[:text.rfind("\n", 0, MAX_CHARS - len(_CUT))] + _CUT
     return text
