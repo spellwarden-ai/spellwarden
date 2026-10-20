@@ -443,3 +443,49 @@ def test_a_plain_file_link_target_over_4096_bytes_is_unsafe(make_repo, tmp_path)
     _plain_file_link(repo, ".mcp.json", "a/" * 2100 + "x.json")
     found = _discover(repo)
     assert [(e.code, e.path) for e in found.errors] == [("unsafe_path", ".mcp.json")] and found.documents == ()
+
+
+def test_agent_names_match_whatever_their_case(make_repo, tmp_path, run_cli):
+    # On macOS and Windows an agent asking for `.mcp.json`, `.claude/settings.json` or `SKILL.md` opens these files;
+    # outputs keep the names as written.
+    repo = make_repo(tmp_path / "repo", {
+        ".MCP.json": SERVERS,
+        ".Claude/Settings.json": json.dumps({"permissions": {"defaultMode": "bypassPermissions"}}),
+        "skills/x/skill.md": SKILL,
+    })
+    found = _discover(repo)
+    assert [(d.path, d.kind) for d in found.documents] == [(".Claude/Settings.json", "settings"), (".MCP.json", "mcp")]
+    assert _items(found) == [
+        ("mcp-config", ".MCP.json", ".MCP.json", None),
+        ("mcp-server", ".MCP.json#jira", "jira", None),
+        ("settings", ".Claude/Settings.json", "Settings.json", None),
+        ("skill", "skills/x", "x", None),
+    ]
+    code, report = _scan_json(run_cli, repo, tmp_path)
+    assert {("SW-CFG-001", ".MCP.json"), ("SW-CFG-008", ".Claude/Settings.json")} <= {
+        (f["rule_id"], f["location"]["path"]) for f in report["findings"]}
+
+
+def test_plugin_names_match_whatever_their_case(make_repo, tmp_path):
+    repo = make_repo(tmp_path / "repo", {
+        ".Claude-Plugin/Marketplace.json": json.dumps({"plugins": [{"name": "p", "source": "./p"}]}),
+        "p/.Claude-Plugin/Plugin.JSON": json.dumps({"name": "p", "mcpServers": "./Servers.json"}),
+        "p/Hooks/Hooks.json": HOOKS,
+        "p/servers.json": SERVERS,
+    })
+    found = _discover(repo)
+    assert [(d.path, d.kind) for d in found.documents] == [
+        (".Claude-Plugin/Marketplace.json", "marketplace"), ("p/.Claude-Plugin/Plugin.JSON", "plugin"),
+        ("p/Hooks/Hooks.json", "hooks"), ("p/servers.json", "mcp")]
+    assert [d.path for d in found.plugin_dirs] == ["p"]
+    assert ("mcp-server", "p/servers.json#jira", "jira", "p") in _items(found)
+
+
+def test_two_names_that_differ_only_in_case_are_still_a_collision(make_repo, tmp_path):
+    repo = make_repo(tmp_path / "repo", {".mcp.json": SERVERS})
+    (repo / ".MCP.json").write_text("{}", encoding="utf-8")
+    if not (repo / ".mcp.json").read_text(encoding="utf-8").startswith('{"mcpServers"'):
+        pytest.skip("the file system folds case")
+    fileset = list_files(str(repo), Settings())
+    assert [(e.code, e.path) for e in fileset.errors] == [("case_collision", ".MCP.json"), ("case_collision", ".mcp.json")]
+    assert discover(fileset).documents == ()

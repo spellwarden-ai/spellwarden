@@ -5,6 +5,7 @@ file). Only skill packages and configuration documents are read (plan P12)."""
 from __future__ import annotations
 
 import posixpath
+import unicodedata
 from dataclasses import dataclass, field, replace
 
 from spellwarden_scan.agentconfig import ConfigDocument, parse_document, reference_kind
@@ -56,12 +57,23 @@ class Discovery:
     errors: tuple[Notice, ...]
 
 
+def _fold(path: str) -> str:
+    """The form names are matched in: NFC, then case folding, as macOS and Windows open them and as the
+    `case_collision` check of the file set compares paths (6.4). Outputs keep each path as it is written."""
+    return unicodedata.normalize("NFC", path).casefold()
+
+
 def _named(path: str, suffix: str) -> bool:
     return path == suffix or path.endswith("/" + suffix)
 
 
+def _is_skill_file(path: str) -> bool:
+    return _fold(posixpath.basename(path)) == _fold(SKILL_FILE)
+
+
 def _global_kind(path: str) -> str | None:
-    """The document kind a file has by its name alone, wherever it sits (spec 6.5)."""
+    """The document kind a file has by its name alone, wherever it sits (spec 6.5), whatever its case."""
+    path = _fold(path)
     if posixpath.basename(path) == ".mcp.json" or _named(path, ".vscode/mcp.json") or _named(path, ".cursor/mcp.json"):
         return "mcp"
     if _named(path, ".claude/settings.json") or _named(path, ".claude/settings.local.json"):
@@ -81,6 +93,8 @@ class _Builder:
         self.paths = set(fileset.paths())  # grows by the symbolic links followed (`follow`)
         self.entries = {entry.path: entry for entry in fileset.entries}
         self.links = {link.path: link for link in fileset.links}
+        # colliding names were dropped from the file set (6.4), so one folded name is one path
+        self.folded = {_fold(p): p for p in (*self.paths, *self.links)}
         self.followed: set[str] = set()
         self.documents: dict[str, ConfigDocument] = {}
         self.owners: dict[str, str] = {}  # document path -> plugin name
@@ -106,6 +120,12 @@ class _Builder:
         self.contents[path] = content
         return content
 
+    def find(self, path: str) -> str:
+        """The listed path an agent opening `path` reads on a case-insensitive file system, else `path`."""
+        if path in self.paths or path in self.links:
+            return path
+        return self.folded.get(_fold(path), path)
+
     def follow(self, path: str) -> bool:
         """Whether `path` is a file of the set, following it first when it is a listed symbolic link at an
         agent-content path (owner decision, 2026-10-20). A link is followed when its target, resolved against the
@@ -119,7 +139,7 @@ class _Builder:
         self.followed.add(path)
         try:
             text = self.fileset.link_target(path).decode("utf-8")
-            target = contain(posixpath.dirname(path), text)
+            target = self.find(contain(posixpath.dirname(path), text))
         except (UnsafePath, UnicodeDecodeError, paths.TooLarge) as exc:
             reason = "target is not UTF-8" if isinstance(exc, UnicodeDecodeError) else str(exc)
             self.errors.append(Notice("unsafe_path", path, f"symbolic link: {reason}"))
@@ -148,6 +168,7 @@ class _Builder:
         path, a manifest reference read by its JSON shape) stays one document of its first kind, but is also
         parsed in the new role and keeps what that role finds (r1:F1): what an agent loads in either role is
         judged, listed and locked."""
+        path = self.find(path)
         if path in self.documents:
             if plugin is not None:
                 self.owners.setdefault(path, plugin)
@@ -155,14 +176,14 @@ class _Builder:
                 self.roles[path].add(kind)
                 content = self.contents.get(path)
                 if content is not None:
-                    self.documents[path] = self._merge(self.documents[path], parse_document(kind, path, content))
+                    self.documents[path] = self._merge(self.documents[path], _parse(kind, path, content))
             return self.documents[path]
         if not self.follow(path):
             return None
         content = self.read(path)
         if content is None:
             return None
-        parsed = parse_document(kind, path, content)
+        parsed = _parse(kind, path, content)
         if drop_references:
             parsed = replace(parsed, references=())
         self.documents[path] = parsed
@@ -198,6 +219,16 @@ class _Builder:
                        hooks=hooks, truncated=truncated, error="truncated" if truncated else None)
 
 
+def _parse(kind: str, path: str, content: bytes) -> ConfigDocument:
+    """`parse_document`, with a marketplace parsed under its name in lower case so that its root (the parent of
+    `.claude-plugin`, 5.6) does not depend on the case it is written in; the document keeps its real path."""
+    if kind != "marketplace":
+        return parse_document(kind, path, content)
+    parent = posixpath.dirname(posixpath.dirname(path))
+    parsed = parse_document(kind, posixpath.join(parent, ".claude-plugin", "marketplace.json"), content)
+    return replace(parsed, path=path)
+
+
 _DOCUMENT_MESSAGES = {
     "too_large": "configuration document over 1 MiB; not judged",
     "not_utf8": "configuration document is not UTF-8; not judged",
@@ -218,7 +249,7 @@ def _follow_references(builder: _Builder, manifest: ConfigDocument, directory: s
     is also judged in the role its shape gives it here (`_Builder.document`, r1:F1)."""
     for reference in manifest.references:
         try:
-            target = contain(directory, reference)
+            target = builder.find(contain(directory, reference))
         except UnsafePath as exc:
             builder.errors.append(Notice("unsafe_path", manifest.path, f"reference {reference!r}: {exc}"))
             continue
@@ -244,7 +275,7 @@ def discover(fileset: FileSet) -> Discovery:
     plugin_dirs: dict[str, str] = {}  # directory -> plugin name
     plugin_items: list[Item] = []
     for path in sorted(builder.links):  # links at a global name; plugin paths and references follow theirs below
-        if _global_kind(path) is not None or posixpath.basename(path) == SKILL_FILE:
+        if _global_kind(path) is not None or _is_skill_file(path):
             builder.follow(path)
     for path in sorted(p for p in builder.paths if _global_kind(p) == "marketplace"):
         marketplace = builder.document("marketplace", path)
@@ -268,7 +299,7 @@ def discover(fileset: FileSet) -> Discovery:
         builder.document("hooks", f"{directory}/hooks/hooks.json", name)
         builder.document("plugin", f"{directory}/.claude-plugin/plugin.json", name)
     for directory, name in plugin_dirs.items():
-        manifest = builder.documents.get(f"{directory}/.claude-plugin/plugin.json")
+        manifest = builder.documents.get(builder.find(f"{directory}/.claude-plugin/plugin.json"))
         if manifest is not None:
             _follow_references(builder, manifest, directory, name)
     skills = _skills(builder, plugin_dirs)
@@ -310,7 +341,7 @@ def _read_all(builder: _Builder, files: list[str]) -> dict[str, bytes]:
 
 def _skills(builder: _Builder, plugin_of_dir: dict[str, str]) -> list[SkillPackage]:
     entries = builder.entries
-    directories = sorted({posixpath.dirname(p) or "." for p in builder.paths if posixpath.basename(p) == SKILL_FILE})
+    directories = sorted({posixpath.dirname(p) or "." for p in builder.paths if _is_skill_file(p)})
     packages: list[SkillPackage] = []
     for directory in directories:
         nested = [d for d in directories if d != directory and _under(d, directory)]
