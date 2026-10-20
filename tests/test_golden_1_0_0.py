@@ -11,6 +11,7 @@ from pathlib import Path
 import jsonschema
 import pytest
 import yaml
+from conftest import _RUNNER_VARIABLES
 
 from spellwarden_scan import __version__
 
@@ -53,10 +54,16 @@ def _validate(document, schema) -> None:
 
 @pytest.fixture(scope="module")
 def fresh(tmp_path_factory):
+    # A module-scoped fixture runs before the function-scoped autouse one that removes the CI variables, so it
+    # removes them itself: on a pull request in CI the scan would read the settings and the baseline from the base
+    # revision (spec 6.3) instead of the golden repository's own.
     base = tmp_path_factory.mktemp("golden")
     out = base / "out"
     out.mkdir()
-    code = record.scan(record.build_repo(base / "repo"), out)
+    with pytest.MonkeyPatch.context() as patch:
+        for name in _RUNNER_VARIABLES:
+            patch.delenv(name, raising=False)
+        code = record.scan(record.build_repo(base / "repo"), out)
     return code, out
 
 
