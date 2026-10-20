@@ -356,7 +356,12 @@ class _Repository:
             return
         if not fetch:
             raise RevisionUnavailable(f"the base commit {sha[:12]} is not in the clone")
-        with tempfile.TemporaryDirectory(prefix="spellwarden-hooks-") as no_hooks:
+        try:
+            hooks = tempfile.TemporaryDirectory(prefix="spellwarden-hooks-", ignore_cleanup_errors=True)
+        except OSError as exc:  # spec 6.2: never a crash; the base is then unavailable
+            raise RevisionUnavailable(f"the base commit {sha[:12]} is not in the clone and the empty hooks directory "
+                                      f"for fetching it cannot be created ({type(exc).__name__})") from exc
+        with hooks as no_hooks:
             try:
                 self._git("-c", "protocol.version=2", "-c", f"core.hooksPath={no_hooks}", "fetch", "--no-tags",
                           "--no-recurse-submodules", "--depth=1", "origin", sha, timeout=FETCH_TIMEOUT)

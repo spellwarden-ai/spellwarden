@@ -280,6 +280,32 @@ def _has(repo: Path, sha: str) -> bool:
     return subprocess.run([*GIT, "-C", str(repo), "cat-file", "-e", f"{sha}^{{commit}}"], capture_output=True).returncode == 0
 
 
+def test_a_temporary_directory_that_cannot_be_made_gives_the_defaults(make_repo, run_cli, tmp_path, monkeypatch):
+    """Review r2 F4: the empty hooks directory of the fetch could not be created (`tempfile.tempdir` missing), the
+    `OSError` escaped outside the crash guard and no output was written (spec 6.2)."""
+    import tempfile
+
+    upstream, base = two_commits(make_repo, tmp_path, {".spellwarden/config.yml": 'version: 1\nexclude: ["vendor/**"]\n'},
+                                 {"vendor/.mcp.json": MCP})
+    clone = tmp_path / "clone"
+    git(tmp_path, "clone", "-q", "--depth", "1", upstream.as_uri(), str(clone))
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path / "missing"))
+    code, report = scan(run_cli, clone, pull_request(tmp_path, base))
+    assert code == 1 and rules(report) == ["SW-CFG-001"] and "base_unavailable" in codes(report["notices"])
+
+
+def test_a_crash_while_choosing_the_revision_still_writes_every_output(make_repo, run_cli, tmp_path, monkeypatch):
+    """Spec 6.2: a crash writes what it can and exits 2, also when it happens before the settings are read."""
+    repo = make_repo(tmp_path / "repo", README)
+
+    def crash(*_args, **_kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(ci, "revision_source", crash)
+    code, report = scan(run_cli, repo, pull_request(tmp_path, "ab" * 20))
+    assert code == 2 and codes(report["errors"]) == ["crash"] and "boom" in report["errors"][0]["message"]
+
+
 def test_a_failed_fetch_is_attempted_once_and_gives_the_defaults(make_repo, tmp_path, monkeypatch):
     repo, _ = _guarded(make_repo, tmp_path)
     git(repo, "remote", "add", "origin", (tmp_path / "nowhere").as_uri())

@@ -129,7 +129,10 @@ def _scan_report(args: argparse.Namespace, context) -> tuple[Report, bool]:
         return _error_report(fail_on, as_of, "path_not_directory", args.path, "the scan path must be a directory"), False
     flags = Flags(fail_on=args.fail_on, probe=args.probe, probe_private=args.probe_private,
                   telemetry=False if args.no_telemetry else None)
-    source = ci.revision_source(root, context, config=args.config is None, baseline=args.baseline is None)
+    try:
+        source = ci.revision_source(root, context, config=args.config is None, baseline=args.baseline is None)
+    except Exception as exc:  # a crash before the settings are read still writes every output (spec 6.2); no ping
+        return _error_report(fail_on, as_of, "crash", "", f"internal error: {type(exc).__name__}: {exc}"), False
     try:
         settings = load_settings(root, config=args.config, flags=flags, env=os.environ, read=source.read)
     except SettingsError as exc:
