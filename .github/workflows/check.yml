@@ -27,6 +27,7 @@ jobs:
   # (spec 7.1). The Makefile's `check` target is spelled out: GNU make is not on every Windows image.
   check-os:
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -44,7 +45,8 @@ jobs:
       - run: uv python pin 3.13
       - run: uv sync --locked
       - run: uv run --locked ruff check src tests
-      - run: uv run --locked pytest -q
+      # A test that runs past 120 s prints every thread's stack, so a hang shows where it waits.
+      - run: uv run --locked pytest -q -o faulthandler_timeout=120
       - run: uv build
 
   actionlint:
