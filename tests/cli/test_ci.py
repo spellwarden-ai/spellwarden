@@ -185,7 +185,7 @@ def test_other_ci_identity_comes_from_the_origin_remote(remote, identity):
 
 
 CI_MARKERS = {
-    "Jenkins": {"JENKINS_URL": "https://jenkins.acme.example/"}, "Jenkins build id": {"BUILD_ID": "42"},
+    "Jenkins": {"JENKINS_URL": "https://jenkins.acme.example/"},
     "Azure Pipelines": {"TF_BUILD": "True"}, "TeamCity": {"TEAMCITY_VERSION": "2025.03"},
     "Buildkite": {"BUILDKITE": "true"}, "CircleCI": {"CIRCLECI": "true"},
     "Bitbucket Pipelines": {"BITBUCKET_BUILD_NUMBER": "17"}, "AWS CodeBuild": {"CODEBUILD_BUILD_ID": "proj:1234"},
@@ -203,6 +203,15 @@ def test_a_ci_that_does_not_set_ci_true_is_still_ci_and_never_trusted(marker):
         assert (ctx.provider, ctx.is_request, ctx.fork, ctx.dependabot) == ("other", False, False, False)
         assert ctx.identity == "other:bitbucket.org/acme"
         assert ci.private_probe_trusted(ctx) is False
+
+
+def test_the_markers_are_the_ones_the_tests_cover():
+    assert sorted(ci.CI_MARKERS) == sorted(name for marker in CI_MARKERS.values() for name in marker)
+
+
+def test_a_generic_build_id_alone_is_no_ci():
+    """`BUILD_ID` is set by local tools too; Jenkins always sets `JENKINS_URL`, so a local shell stays local."""
+    assert ci.detect({"BUILD_ID": "42"}) == ci.LOCAL
 
 
 def test_an_empty_marker_is_no_ci():

@@ -27,7 +27,7 @@ GIT = ["git", "-c", "user.name=t", "-c", "user.email=t@example.invalid", "-c", "
        "-c", "commit.gpgsign=false", "-c", "core.autocrlf=false"]
 # Variables that would make the command think it runs in CI (and ping) or change its settings.
 _SCRUBBED_PREFIXES = ("GITHUB_", "GITLAB_", "CI_", "SPELLWARDEN_", "RUNNER_")
-_SCRUBBED = ("CI", "DO_NOT_TRACK", "GITLAB_CI", "GITHUB_ACTIONS", "JENKINS_URL", "BUILD_ID", "TF_BUILD",
+_SCRUBBED = ("CI", "DO_NOT_TRACK", "GITLAB_CI", "GITHUB_ACTIONS", "JENKINS_URL", "TF_BUILD",
              "TEAMCITY_VERSION", "BUILDKITE", "CIRCLECI", "BITBUCKET_BUILD_NUMBER", "CODEBUILD_BUILD_ID", "DRONE",
              "TRAVIS")
 

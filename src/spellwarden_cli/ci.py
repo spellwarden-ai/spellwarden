@@ -36,8 +36,9 @@ _TRUE = ("1", "true", "yes", "on")
 # The outputs of `ci-run gitlab`, in the job's working directory, as templates/scan.yml lists them (spec 10.2).
 # Spec 6.11: variables a CI system sets whether or not it sets `CI=true`. Any of them, non-empty, makes the run CI
 # (`other` unless it is GitHub or GitLab): detection fails closed, so a CI job is never mistaken for a trusted
-# local run.
-CI_MARKERS = ("JENKINS_URL", "BUILD_ID", "TF_BUILD", "TEAMCITY_VERSION", "BUILDKITE", "CIRCLECI",
+# local run. A generic name such as `BUILD_ID` is not one: local tools set it too, and Jenkins always sets
+# `JENKINS_URL`.
+CI_MARKERS = ("JENKINS_URL", "TF_BUILD", "TEAMCITY_VERSION", "BUILDKITE", "CIRCLECI",
               "BITBUCKET_BUILD_NUMBER", "CODEBUILD_BUILD_ID", "DRONE", "TRAVIS")
 GITLAB_OUTPUTS = (("gitlab-codequality", "gl-code-quality-report.json"), ("sarif", "spellwarden.sarif"),
                   ("markdown", "spellwarden.md"), ("json", "spellwarden.json"))
