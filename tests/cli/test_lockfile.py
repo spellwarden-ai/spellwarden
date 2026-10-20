@@ -340,3 +340,19 @@ def test_own_files_are_excluded_by_exact_path():
     package = {**own, "SKILL.md": b"d"}
     assert lockfile._package_hash(".", package) == lockfile._package_hash(".", {"SKILL.md": b"d"})
     assert lockfile._package_hash(".", {**package, ".spellwarden/setup.sh": b"e"}) != lockfile._package_hash(".", package)
+
+
+def test_unfollowed_member_links_enter_the_package_hash_without_colliding_with_files():
+    # r2:F6: the hash of a package without such links is the bare canonical hash, unchanged; a link's target text
+    # changes the hash, and a regular file holding the same text at the link's path gives another hash.
+    from spellwarden_scan import canonical_sha256
+
+    package = {"skills/x/SKILL.md": b"d"}
+    assert lockfile._package_hash("skills/x", package) == canonical_sha256({"SKILL.md": b"d"})
+    assert lockfile._package_hash("skills/x", package, {}) == canonical_sha256({"SKILL.md": b"d"})
+    linked = lockfile._package_hash("skills/x", package, {"skills/x/run.sh": b"../../../a.sh"})
+    assert linked != lockfile._package_hash("skills/x", package)
+    assert linked != lockfile._package_hash("skills/x", package, {"skills/x/run.sh": b"../../../b.sh"})
+    assert linked != lockfile._package_hash("skills/x", {**package, "skills/x/run.sh": b"../../../a.sh"})
+    assert lockfile._package_hash("skills/moved", {"skills/moved/SKILL.md": b"d"},
+                                  {"skills/moved/run.sh": b"../../../a.sh"}) == linked

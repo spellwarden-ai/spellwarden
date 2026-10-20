@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import posixpath
 import unicodedata
+from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 
 from spellwarden_scan.agentconfig import ConfigDocument, parse_document, reference_kind
@@ -39,12 +40,15 @@ class SkillPackage:
     files: dict[str, bytes] = field(hash=False)
     executable: frozenset[str] = frozenset()
     plugin: str | None = None
+    # member links that could not be followed (r2:F6): link path -> target text, hashed into the lock, never scanned
+    links: dict[str, bytes] = field(default_factory=dict, hash=False)
 
 
 @dataclass(frozen=True)
 class PluginDir:
     path: str  # the plugin directory; files keyed by scan-root-relative paths, like SkillPackage.files
     files: dict[str, bytes] = field(hash=False)
+    links: dict[str, bytes] = field(default_factory=dict, hash=False)  # as SkillPackage.links
 
 
 @dataclass(frozen=True)
@@ -103,7 +107,8 @@ class _Builder:
         self.links = {link.path: link for link in fileset.links}
         # colliding names were dropped from the file set (6.4), so one folded name is one path
         self.folded = {_fold(p): p for p in (*self.paths, *self.links)}
-        self.followed: set[str] = set()
+        self.followed: set[str] = set()  # every link discovery tried to follow
+        self.skipped: dict[str, tuple[bytes, str]] = {}  # package member link -> (target text, why not followed)
         self.documents: dict[str, ConfigDocument] = {}
         self.owners: dict[str, str] = {}  # document path -> plugin name
         self.roles: dict[str, set[str]] = {}  # document path -> every kind it was parsed as
@@ -145,22 +150,54 @@ class _Builder:
         if path in self.followed:
             return path in self.paths
         self.followed.add(path)
+        target, _text, refusal = self._resolve(path)
+        if refusal is not None:
+            self.errors.append(refusal)
+            return False
+        return self.adopt(path, target)  # type: ignore[arg-type]
+
+    def member_target(self, path: str) -> str | None:
+        """The file of the set a link inside a skill package or local plugin directory names, by the rules of
+        `follow` (r2:F6), or None. A member link those rules refuse is not an error (a skill may link outside the
+        repository): it keeps the `symlink_skipped` notice and its target text is kept in `skipped`, for the
+        package's lock hash. A link whose target text cannot be read at all is an error, like an unreadable member.
+        Only the link's target text is read here; `adopt` reads the target."""
+        if path not in self.links or path in self.followed:
+            return None
+        self.followed.add(path)
+        target, text, refusal = self._resolve(path)
+        if refusal is None:
+            return target
+        if text is None:
+            self.errors.append(refusal)
+        else:
+            self.skipped[path] = (text, refusal.message)
+        return None
+
+    def _resolve(self, path: str) -> tuple[str | None, bytes | None, Notice | None]:
+        """`(target, text, refusal)` of the listed link `path`: the file of the set it names, its target text (None
+        when that could not be read), and the `unsafe_path` or `unreadable` notice when it is not followed."""
         try:
-            text = self.fileset.link_target(path).decode("utf-8")
-            target = self.find(self._link_target(path, text))
-        except (UnsafePath, UnicodeDecodeError, paths.TooLarge) as exc:
-            reason = "target is not UTF-8" if isinstance(exc, UnicodeDecodeError) else str(exc)
-            self.errors.append(Notice("unsafe_path", path, f"symbolic link: {reason}"))
-            return False
+            raw = self.fileset.link_target(path)
+        except (UnsafePath, paths.TooLarge) as exc:
+            return None, None, Notice("unsafe_path", path, f"symbolic link: {exc}")
         except OSError as exc:
-            self.errors.append(Notice("unreadable", path, f"symbolic link cannot be read ({exc.strerror or type(exc).__name__})"))
-            return False
+            return None, None, Notice("unreadable", path,
+                                      f"symbolic link cannot be read ({exc.strerror or type(exc).__name__})")
+        try:
+            target = self.find(self._link_target(path, raw.decode("utf-8")))
+        except UnicodeDecodeError:
+            return None, raw, Notice("unsafe_path", path, "symbolic link: target is not UTF-8")
+        except UnsafePath as exc:
+            return None, raw, Notice("unsafe_path", path, f"symbolic link: {exc}")
         if target in self.links:
-            self.errors.append(Notice("unsafe_path", path, f"symbolic link to {target!r}, itself a symbolic link"))
-            return False
+            return None, raw, Notice("unsafe_path", path, f"symbolic link to {target!r}, itself a symbolic link")
         if target not in self.entries:
-            self.errors.append(Notice("unsafe_path", path, f"symbolic link to {target!r}, not a file of the file set"))
-            return False
+            return None, raw, Notice("unsafe_path", path, f"symbolic link to {target!r}, not a file of the file set")
+        return target, raw, None
+
+    def adopt(self, path: str, target: str) -> bool:
+        """The followed link `path` becomes a file of the set holding `target`'s bytes, named by the link."""
         content = self.read(target)
         if content is None:
             return False
@@ -337,27 +374,57 @@ def discover(fileset: FileSet) -> Discovery:
     skills = _skills(builder, plugin_dirs)
     # A local plugin whose directory holds no file of the set is listed and locked by its source only; one over the
     # package limits is an item error and is not read whole, like a skill (r0:F8).
-    members = {d: sorted(p for p in builder.paths if _under(p, d)) for d in plugin_dirs}
-    dirs = tuple(PluginDir(d, _read_all(builder, members[d])) for d in sorted(plugin_dirs)
-                 if members[d] and not _too_large(builder, d, members[d], "plugin directory"))
-    builder.notices.extend(Notice("symlink_skipped", path, "symbolic link; skipped")
-                           for path in sorted(builder.links) if path not in builder.followed)
+    dirs: list[PluginDir] = []
+    for directory in sorted(plugin_dirs):
+        package = _package(builder, directory, _inside(directory, []), "plugin directory")
+        if package is not None and (package[0] or package[1]):
+            dirs.append(PluginDir(directory, _read_all(builder, package[0]), package[1]))
+    for path in sorted(builder.links):
+        if path not in builder.followed:
+            builder.notices.append(Notice("symlink_skipped", path, "symbolic link; skipped"))
+        elif path in builder.skipped:
+            builder.notices.append(Notice("symlink_skipped", path, f"{builder.skipped[path][1]}; not followed, and its "
+                                                                   "target text is in the package's lock hash"))
     items = _items(builder, skills, plugin_items)
     if not items:
         builder.notices.append(Notice("no_agent_content", "", "No agent content found"))
     return Discovery(tuple(items), tuple(skills), tuple(builder.documents[p] for p in sorted(builder.documents)),
-                     dirs, tuple(builder.notices), tuple(builder.errors))
+                     tuple(dirs), tuple(builder.notices), tuple(builder.errors))
 
 
-def _too_large(builder: _Builder, directory: str, members: list[str], what: str) -> bool:
+def _inside(directory: str, nested: list[str]) -> Callable[[str], bool]:
+    return lambda path: _under(path, directory) and not any(_under(path, inner) for inner in nested)
+
+
+def _package(builder: _Builder, directory: str, inside: Callable[[str], bool],
+             what: str) -> tuple[list[str], dict[str, bytes]] | None:
+    """`(members, links)` of a skill package or local plugin directory: its files of the set, with every member link
+    the rules of `_Builder.follow` accept followed (its target's bytes are the member's content under the link's
+    path, r2:F6), and the target text of each member link they refuse. None, with the item error recorded, when the
+    package is over the limits, judged before any member or link target is read: the count with every link, the
+    bytes with the listed size of each target followed."""
+    regular = sorted(p for p in builder.paths if inside(p))
+    pending = sorted(p for p in builder.links if inside(p) and p not in builder.paths)
+    count = len(regular) + len(pending)
+    size = sum(builder.entries[p].size for p in regular)
+    if _too_large(builder, directory, count, size, what):
+        return None
+    targets = {link: target for link in pending if (target := builder.member_target(link)) is not None}
+    if _too_large(builder, directory, count, size + sum(builder.entries[t].size for t in targets.values()), what):
+        return None
+    for link, target in targets.items():
+        builder.adopt(link, target)
+    members = sorted(p for p in builder.paths if inside(p))
+    return members, {p: builder.skipped[p][0] for p in pending if p in builder.skipped}
+
+
+def _too_large(builder: _Builder, directory: str, count: int, size: int, what: str) -> bool:
     """A package over the `ArchiveLimits` totals (spec 6.5) is the item error `package_too_large`, judged from
     the listing's sizes before any member is read."""
-    entries = builder.entries
-    size = sum(entries[p].size for p in members)
-    if len(members) <= DEFAULT_LIMITS.max_files and size <= DEFAULT_LIMITS.max_uncompressed:
+    if count <= DEFAULT_LIMITS.max_files and size <= DEFAULT_LIMITS.max_uncompressed:
         return False
     builder.errors.append(Notice("package_too_large", directory,
-                                 f"{what} of {len(members)} files and {size} bytes is over the limits "
+                                 f"{what} of {count} files and {size} bytes is over the limits "
                                  f"({DEFAULT_LIMITS.max_files} files, {DEFAULT_LIMITS.max_uncompressed // 2**20} MiB)"))
     return True
 
@@ -377,11 +444,11 @@ def _skills(builder: _Builder, plugin_of_dir: dict[str, str]) -> list[SkillPacka
     packages: list[SkillPackage] = []
     for directory in directories:
         nested = [d for d in directories if d != directory and _under(d, directory)]
-        members = sorted(p for p in builder.paths
-                         if _under(p, directory) and not any(_under(p, inner) for inner in nested))
-        if _too_large(builder, directory, members, "skill package"):
-            continue
         before = len(builder.errors)
+        package = _package(builder, directory, _inside(directory, nested), "skill package")
+        if package is None:
+            continue
+        members, links = package
         files = _read_all(builder, members)
         if len(builder.errors) != before:
             continue  # an unreadable member makes the skill an item error, not a partial scan
@@ -390,7 +457,8 @@ def _skills(builder: _Builder, plugin_of_dir: dict[str, str]) -> list[SkillPacka
         # the root skill is "." and never the checkout directory's name: a lock and a report must not depend on where
         # the repository sits on disk (r0:F4)
         name = posixpath.basename(directory) if directory != "." else "."
-        packages.append(SkillPackage(directory, name, files, frozenset(p for p in members if entries[p].executable), plugin))
+        packages.append(SkillPackage(directory, name, files, frozenset(p for p in members if entries[p].executable), plugin,
+                                     links))
     return packages
 
 

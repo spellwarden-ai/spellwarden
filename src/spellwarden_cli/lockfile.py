@@ -4,6 +4,7 @@ plugin, local plugin directory and skill, each pinned by hash or declared source
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -57,11 +58,20 @@ def _own_file(path: str) -> bool:
     return path in OWN_FILES
 
 
-def _package_hash(directory: str, package: Mapping[str, bytes]) -> str:
+def _package_hash(directory: str, package: Mapping[str, bytes], links: Mapping[str, bytes] | None = None) -> str:
     """The lock's move-stable hash: `canonical_sha256` over the files with paths relative to the directory (D8),
-    without the scanner's own files (`OWN_FILES`)."""
-    return canonical_sha256({_relative_to(directory, path): content for path, content in package.items()
-                             if not _own_file(path)})
+    without the scanner's own files (`OWN_FILES`). A package with member links that discovery could not follow
+    (r2:F6) also hashes each link's target text, so pointing such a link elsewhere makes the lock stale: SHA-256 of
+    `spellwarden-package-links` NUL, then the compact sorted JSON `{"files": <that hash>, "links": {<relative link
+    path>: <target text in hex>}}`. That input ends with `}`; every `canonical_sha256` input is empty or ends with
+    NUL, so no package without such links (whose hash is unchanged) shares an input with one that has them."""
+    files_hash = canonical_sha256({_relative_to(directory, path): content for path, content in package.items()
+                                   if not _own_file(path)})
+    kept = {_relative_to(directory, path): text.hex() for path, text in (links or {}).items() if not _own_file(path)}
+    if not kept:
+        return files_hash
+    text = json.dumps({"files": files_hash, "links": kept}, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(b"spellwarden-package-links\x00" + text.encode("ascii")).hexdigest()
 
 
 def declared_pin(source: PluginSource) -> str | None:
@@ -86,10 +96,11 @@ def compute_lock(found: Discovery) -> dict:
             items.append({"kind": "plugin", "path": f"{document.path}#{plugin.name}", "source": plugin.source.canonical,
                           "pin": declared_pin(plugin.source), "ref": plugin.source.ref})
     for directory in found.plugin_dirs:
-        items.append({"kind": "plugin-dir", "path": directory.path, "sha256": _package_hash(directory.path, directory.files)})
+        items.append({"kind": "plugin-dir", "path": directory.path, "sha256": _package_hash(directory.path, directory.files,
+                                                                                     directory.links)})
     for skill in found.skills:
         items.append({"kind": "skill", "path": skill.path, "name": skill.name,
-                      "sha256": _package_hash(skill.path, skill.files)})
+                      "sha256": _package_hash(skill.path, skill.files, skill.links)})
     items.sort(key=_item_key)
     return {"lock_version": LOCK_VERSION, "items": items}
 
