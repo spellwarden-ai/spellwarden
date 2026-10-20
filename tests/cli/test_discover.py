@@ -532,12 +532,49 @@ def test_a_lowercase_skill_md_is_prose_with_a_notice(make_repo, tmp_path, run_cl
     assert ("skill_name_case", "docs/skill.md") in {(n["code"], n["path"]) for n in report["notices"]}
 
 
-def test_a_skill_written_as_skill_md_gets_the_notice_and_no_sw_skl_015(make_repo, tmp_path, run_cli):
-    repo = make_repo(tmp_path / "repo", {"skills/x/Skill.MD": SKILL, "skills/x/run.sh": "echo hi\n"})
+def test_a_skill_md_outside_a_skills_directory_gets_the_notice_and_no_sw_skl_015(make_repo, tmp_path, run_cli):
+    repo = make_repo(tmp_path / "repo", {"tools/x/Skill.MD": SKILL, "tools/x/run.sh": "echo hi\n"})
     found = _discover(repo)
-    assert found.skills == () and _skill_name_case(found) == ["skills/x/Skill.MD"]
+    assert found.skills == () and _skill_name_case(found) == ["tools/x/Skill.MD"]
     code, report = _scan_json(run_cli, repo, tmp_path)
     assert "SW-SKL-015" not in {f["rule_id"] for f in report["findings"]} and code == 0
+
+
+@pytest.mark.parametrize("variant", ["skills/x/skill.md", ".claude/Skills/x/Skill.MD", "p/SKILLS/x/skill.md"])
+def test_a_case_variant_where_agents_load_skills_is_a_skill_read_as_skill_md(variant, make_repo, tmp_path, run_cli):
+    # Orchestrator decision (r2:F2 follow-up): an agent on macOS or Windows loads `skills/<name>/skill.md` as its
+    # SKILL.md, so there the variant is a skill; the engine reads it under `<dir>/SKILL.md` (its frontmatter is
+    # judged, no bogus SW-SKL-015), and outputs, items and the lock keep the name as written.
+    directory = variant.rsplit("/", 1)[0]
+    repo = make_repo(tmp_path / "repo", {variant: SKILL, f"{directory}/run.sh": "echo hi\n"})
+    found = _discover(repo)
+    assert [(s.path, sorted(s.files), s.variant) for s in found.skills] == [
+        (directory, sorted([variant, f"{directory}/run.sh"]), variant)]
+    assert _skill_name_case(found) == [variant]
+    code, report = _scan_json(run_cli, repo, tmp_path)
+    assert "SW-SKL-015" not in {f["rule_id"] for f in report["findings"]} and code == 0
+    assert ("skill", directory) in {(i["kind"], i["path"]) for i in report["items"]}
+    assert run_cli(["lock", str(repo)])[0] == 0
+    lock = json.loads((repo / ".spellwarden" / "lock.json").read_text(encoding="utf-8"))
+    from spellwarden_scan import canonical_sha256
+    expected = canonical_sha256({variant.rsplit("/", 1)[1]: SKILL.encode(), "run.sh": b"echo hi\n"})
+    assert [i["sha256"] for i in lock["items"] if i["kind"] == "skill"] == [expected]
+
+
+def test_a_case_variant_skill_finding_names_the_file_as_written_with_the_skill_md_fingerprint(make_repo, tmp_path, run_cli):
+    # The fingerprint includes the path (rule id, path, matched text); it is the engine's, computed on
+    # `<dir>/SKILL.md`, so it equals the fingerprint the same content gives as SKILL.md and survives the rename.
+    body = "No frontmatter here.\n"
+    variant = make_repo(tmp_path / "variant", {"skills/x/skill.md": body})
+    exact = make_repo(tmp_path / "exact", {"skills/x/SKILL.md": body})
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
+    _code, got = _scan_json(run_cli, variant, tmp_path / "a")
+    _code, want = _scan_json(run_cli, exact, tmp_path / "b")
+    assert [(f["rule_id"], f["location"]["path"]) for f in got["findings"]] == [("SW-SKL-015", "skills/x/skill.md")]
+    assert [(f["rule_id"], f["fingerprint"]) for f in got["findings"]] == [
+        (f["rule_id"], f["fingerprint"]) for f in want["findings"]]
+    assert [f["location"]["path"] for f in want["findings"]] == ["skills/x/SKILL.md"]
 
 
 def test_an_exact_skill_md_has_no_name_notice(make_repo, tmp_path):

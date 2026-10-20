@@ -42,6 +42,27 @@ class SkillPackage:
     plugin: str | None = None
     # member links that could not be followed (r2:F6): link path -> target text, hashed into the lock, never scanned
     links: dict[str, bytes] = field(default_factory=dict, hash=False)
+    # a case variant of SKILL.md where agents load skills (`skills/<name>/skill.md`), as written; None for SKILL.md
+    variant: str | None = None
+
+    def engine_key(self) -> str:
+        """The key the engine reads the skill file under (`frontmatter.skill_md_path`)."""
+        return SKILL_FILE if self.path == "." else f"{self.path}/{SKILL_FILE}"
+
+    def engine_files(self) -> dict[str, bytes]:
+        """`files` as the engine reads them: a case variant under `engine_key()`, every other path as written."""
+        if self.variant is None:
+            return self.files
+        return {self.engine_key() if path == self.variant else path: content for path, content in self.files.items()}
+
+    def engine_executable(self) -> frozenset[str]:
+        if self.variant is None or self.variant not in self.executable:
+            return self.executable
+        return (self.executable - {self.variant}) | {self.engine_key()}
+
+    def as_written(self, path: str) -> str:
+        """A path the engine reported, as the package writes it: `engine_key()` back to the variant."""
+        return self.variant if self.variant is not None and path == self.engine_key() else path
 
 
 @dataclass(frozen=True)
@@ -73,8 +94,17 @@ def _named(path: str, suffix: str) -> bool:
 
 def _is_skill_file(path: str) -> bool:
     """A skill is a directory holding a file named exactly `SKILL.md` (spec 6.5): the engine reads that one name
-    (`frontmatter.skill_md_path`), and an agent on a case-sensitive file system loads no other (r2:F2)."""
-    return posixpath.basename(path) == SKILL_FILE
+    (`frontmatter.skill_md_path`), and an agent on a case-sensitive file system loads no other (r2:F2). A case
+    variant is a skill file too where agents load skills, `skills/<name>/<variant>` (`_is_loaded_variant`)."""
+    return posixpath.basename(path) == SKILL_FILE or _is_loaded_variant(path)
+
+
+def _is_loaded_variant(path: str) -> bool:
+    """A case variant of `SKILL.md` whose directory's parent is named `skills` in any case (`.claude/skills/x/`, a
+    plugin's or a skill repository's `skills/x/`): an agent on macOS or Windows loads it as that skill's SKILL.md,
+    so it is judged as one (orchestrator decision after r2:F2). Elsewhere a variant is ordinary content."""
+    parts = path.split("/")
+    return len(parts) >= 3 and _fold(parts[-3]) == "skills" and _is_skill_name_variant(path)
 
 
 def _is_skill_name_variant(path: str) -> bool:
@@ -457,8 +487,10 @@ def _skills(builder: _Builder, plugin_of_dir: dict[str, str]) -> list[SkillPacka
         # the root skill is "." and never the checkout directory's name: a lock and a report must not depend on where
         # the repository sits on disk (r0:F4)
         name = posixpath.basename(directory) if directory != "." else "."
+        # one skill file per directory: two names that fold alike are a `case_collision` and left out of the set
+        variant = next((p for p in members if posixpath.dirname(p) == directory and _is_loaded_variant(p)), None)
         packages.append(SkillPackage(directory, name, files, frozenset(p for p in members if entries[p].executable), plugin,
-                                     links))
+                                     links, variant))
     return packages
 
 

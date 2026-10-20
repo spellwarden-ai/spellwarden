@@ -5,14 +5,15 @@ at the end are filled by Task 8 (baseline, lock) and Task 11 (probe)."""
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
+import dataclasses
 from dataclasses import dataclass, field
 from datetime import date
 from typing import TYPE_CHECKING
 
-from spellwarden_scan import RULES_VERSION, RuleSet, __version__, scan_agent_config, scan_skill_package
+from spellwarden_scan import RULES_VERSION, Finding, RuleSet, __version__, scan_agent_config, scan_skill_package
 
 from spellwarden_cli import discover, files
-from spellwarden_cli.discover import Discovery
+from spellwarden_cli.discover import Discovery, SkillPackage
 from spellwarden_cli.report import LockState, Notice, ProbeReport, Report, ReportFinding
 from spellwarden_cli.settings import Settings
 
@@ -60,9 +61,10 @@ def engine_findings(found: Discovery, rules: RuleSet, notices: list[Notice]) -> 
     paths) and once for every configuration document that parsed or was truncated (spec 5.5, 6.5)."""
     findings: list[ReportFinding] = []
     for skill in found.skills:
-        result = scan_skill_package(skill.files, rules, root="" if skill.path == "." else skill.path,
-                                    executable_paths=skill.executable)
-        findings.extend(ReportFinding(finding, skill.path) for finding in result.findings)
+        # a case variant of SKILL.md is read under the engine's SKILL.md key and reported as written (spec 6.5)
+        result = scan_skill_package(skill.engine_files(), rules, root="" if skill.path == "." else skill.path,
+                                    executable_paths=skill.engine_executable())
+        findings.extend(ReportFinding(_as_written(skill, finding), skill.path) for finding in result.findings)
         if result.truncated:
             notices.append(Notice("findings_truncated", skill.path, f"{result.truncated} more findings were not kept"))
     judged = [document for document in found.documents if document.error in (None, "truncated")]
@@ -72,6 +74,13 @@ def engine_findings(found: Discovery, rules: RuleSet, notices: list[Notice]) -> 
         if result.truncated:
             notices.append(Notice("findings_truncated", "", f"{result.truncated} more configuration findings were not kept"))
     return findings
+
+
+def _as_written(skill: SkillPackage, finding: Finding) -> Finding:
+    path = skill.as_written(finding.location.path)
+    if path == finding.location.path:
+        return finding
+    return dataclasses.replace(finding, location=dataclasses.replace(finding.location, path=path))
 
 
 def apply_baseline(options: ScanOptions, findings: list[ReportFinding], notices: list[Notice], errors: list[Notice]) -> list[ReportFinding]:  # noqa: E501
