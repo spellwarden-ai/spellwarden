@@ -9,6 +9,8 @@ import sys
 from spellwarden_scan import Rule, RuleSet
 from spellwarden_scan.rules import AREAS
 
+from spellwarden_cli.output import write_stdout
+
 MALICIOUS_SUFFIX = " (malicious indicator)"
 
 
@@ -48,7 +50,5 @@ def add_parser(commands_: argparse._SubParsersAction) -> None:
 
 
 def cmd_rules(args: argparse.Namespace) -> int:
-    from spellwarden_cli.main import write_stdout  # main imports this module
-
     write_stdout(_RENDER[args.format](RuleSet.baseline()), sys.stdout)
     return 0

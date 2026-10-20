@@ -15,7 +15,7 @@ from typing import TextIO
 from spellwarden_scan import RULES_VERSION, RuleSet, __version__
 
 from spellwarden_cli import run
-from spellwarden_cli.output import FORMATS
+from spellwarden_cli.output import FORMATS, write_stdout
 from spellwarden_cli.report import LockState, Notice, Report
 from spellwarden_cli.settings import FAIL_ON, Flags, SettingsError, load_settings
 
@@ -164,17 +164,6 @@ def _request_opts_out(root: str) -> bool:
     except Exception:  # noqa: BLE001 -- the request's file is untrusted input; any failure means no ping
         return True
     return not own.telemetry
-
-
-def write_stdout(text: str, stdout: TextIO) -> None:
-    """`text` as UTF-8 with `\n` line ends on every OS: the console's code page and Windows' `\r\n` stay out."""
-    buffer = getattr(stdout, "buffer", None)
-    if buffer is not None:
-        stdout.flush()
-        buffer.write(text.encode("utf-8"))
-        buffer.flush()
-    else:
-        stdout.write(text)
 
 
 def write_outputs(report: Report, outputs: list[tuple[str, str | None]], *, stdout: TextIO) -> None:
