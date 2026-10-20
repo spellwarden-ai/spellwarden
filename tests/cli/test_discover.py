@@ -717,3 +717,33 @@ def test_a_package_rejected_after_resolving_its_links_leaves_them_for_the_next_p
     members, links = discover_module._package(builder, "skills/x", inside, "skill package")
     assert members == ["skills/x/SKILL.md", "skills/x/big.txt"]
     assert links == {"skills/x/out.sh": b"../../../outside.sh"}
+
+
+
+@pytest.mark.parametrize("text, followed", [("..\\.mcp.json", True), ("C:\\x\\.mcp.json", False),
+                                            ("\\\\server\\share\\.mcp.json", False)])
+def test_a_windows_link_with_a_backslash_target_is_followed_like_on_linux(text, followed, make_repo, tmp_path, monkeypatch):
+    # r2:F9: Git for Windows creates real links with backslash targets; the drive and UNC forms stay refused.
+    from spellwarden_cli import paths as paths_module
+
+    repo = make_repo(tmp_path / "repo", {".mcp.json": SERVERS})
+    (repo / ".cursor").mkdir()
+    _symlink("../.mcp.json", repo / ".cursor" / "mcp.json")
+    fileset = list_files(str(repo), Settings())
+    monkeypatch.setattr(paths_module, "_WINDOWS", True)
+    monkeypatch.setattr(os, "readlink", lambda *_args, **_kwargs: text)
+    found = discover(fileset)
+    if followed:
+        assert found.errors == () and ".cursor/mcp.json" in {d.path for d in found.documents}
+    else:
+        assert [(e.code, e.path) for e in found.errors] == [("unsafe_path", ".cursor/mcp.json")]
+
+
+def test_a_plain_file_link_with_a_backslash_target_stays_unsafe_on_windows(make_repo, tmp_path, monkeypatch):
+    from spellwarden_cli import paths as paths_module
+
+    repo = make_repo(tmp_path / "repo", {"config/servers.json": SERVERS})
+    _plain_file_link(repo, ".mcp.json", "config\\servers.json")
+    monkeypatch.setattr(paths_module, "_WINDOWS", True)
+    found = _discover(repo)
+    assert [(e.code, e.path) for e in found.errors] == [("unsafe_path", ".mcp.json")]

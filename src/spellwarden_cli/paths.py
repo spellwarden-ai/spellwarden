@@ -6,11 +6,13 @@ from __future__ import annotations
 
 import os
 import stat
+import sys
 from collections.abc import Callable
 
 from spellwarden_scan.relpath import UnsafePath, contain
 
 _HAS_DIR_FD: bool = os.open in os.supports_dir_fd
+_WINDOWS: bool = sys.platform == "win32"
 _BEFORE_OPEN: Callable[[str], None] | None = None  # test hook: called with the relative path just before opening
 _NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
 _DIRECTORY = getattr(os, "O_DIRECTORY", 0)
@@ -51,7 +53,10 @@ def read_link(root: str, relative: str, *, max_bytes: int) -> bytes:
     """The target text of the symbolic link `relative` under `root`: `os.readlink` when the working tree holds a
     link, else the bytes of the regular file there (a checkout without symlink support, `core.symlinks=false`,
     writes the target as a plain file). The parent directories are opened as `read_contained` opens them, so a
-    symlinked component is refused; over `max_bytes` raises `TooLarge`."""
+    symlinked component is refused; over `max_bytes` raises `TooLarge`. On Windows a real link's backslashes are
+    separators (Git for Windows writes the target `..\\.mcp.json`) and become `/`, so the link reads as on Linux;
+    drive and UNC forms stay refused by containment. A plain-file target, the text git stored, is never converted
+    (r2:F9)."""
     contained = contain("", relative)
     parent, _, name = contained.rpartition("/")
     target: str | None = None
@@ -71,6 +76,8 @@ def read_link(root: str, relative: str, *, max_bytes: int) -> bytes:
             target = os.readlink(os.path.join(directory, name))
     if target is None:
         return read_contained(root, contained, max_bytes=max_bytes)[0]
+    if _WINDOWS:
+        target = target.replace("\\", "/")
     raw = os.fsencode(target)
     if len(raw) > max_bytes:
         raise TooLarge(f"{contained}: more than {max_bytes} bytes")

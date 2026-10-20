@@ -104,3 +104,27 @@ def test_a_scan_below_the_repository_root_reads_relative_to_it(tmp_path):
     assert read_contained(str(tmp_path / "services" / "agent"), "x", max_bytes=1)[0] == b"1"
     with pytest.raises(UnsafePath):
         read_contained(str(tmp_path / "services" / "agent"), "../../top", max_bytes=1)
+
+
+def _windows_link(monkeypatch, target_text):
+    """Git for Windows writes a real link with a backslash target: `os.readlink` returns `..\\.mcp.json`."""
+    monkeypatch.setattr(os, "readlink", lambda *_args, **_kwargs: target_text)
+
+
+@pytest.mark.parametrize("windows, expected", [(True, b"../.mcp.json"), (False, b"..\\.mcp.json")])
+@pytest.mark.usefixtures("branch")
+def test_a_real_link_target_on_windows_reads_with_forward_slashes(tmp_path, monkeypatch, windows, expected):
+    # r2:F9: on win32 only, a real link's backslashes are separators; elsewhere a backslash stays a name character
+    (tmp_path / ".cursor").mkdir()
+    _symlink("../.mcp.json", tmp_path / ".cursor" / "mcp.json")
+    monkeypatch.setattr(paths, "_WINDOWS", windows)
+    _windows_link(monkeypatch, "..\\.mcp.json")
+    assert paths.read_link(str(tmp_path), ".cursor/mcp.json", max_bytes=4096) == expected
+
+
+@pytest.mark.usefixtures("branch")
+def test_a_plain_file_link_target_keeps_its_backslashes_on_windows(tmp_path, monkeypatch):
+    # a checkout without symlink support holds the target text from the index, as git stored it: not converted
+    (tmp_path / "link.json").write_bytes(b"..\\.mcp.json")
+    monkeypatch.setattr(paths, "_WINDOWS", True)
+    assert paths.read_link(str(tmp_path), "link.json", max_bytes=4096) == b"..\\.mcp.json"
