@@ -1,9 +1,10 @@
 """The terminal report (spec 6.9): one block per item with findings, then the
 lock changes, the probes, the notices, the errors and a summary line. Every
-string from the scanned revision is escaped with `escape.terminal`."""
+string from the scanned revision is escaped with `escape.terminal`, and no line can be read as a CI workflow
+command (`escape.log_lines`)."""
 from __future__ import annotations
 
-from spellwarden_cli.escape import terminal
+from spellwarden_cli.escape import log_lines, terminal
 from spellwarden_cli.report import Report
 
 _VERDICT = {0: "passed", 2: "incomplete: see the errors above"}
@@ -54,4 +55,4 @@ def render(report: Report) -> str:
     for error in report.errors:
         lines.append(f"error {error.code} {terminal(error.path)}: {terminal(error.message)}")
     lines.append(_summary(report))
-    return "\n".join(lines) + "\n"
+    return log_lines("\n".join(lines) + "\n")

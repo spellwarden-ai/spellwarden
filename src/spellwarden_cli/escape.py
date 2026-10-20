@@ -13,6 +13,8 @@ _INVISIBLE = re.compile("[͏ᅟ᠋-᠏​-‏  ‪-‮⁠-⁤⁦-⁩"
 _MARKDOWN_BACKSLASH = frozenset("\\`*_[]|#")
 _MARKDOWN_ENTITY = {"<": "&lt;", ">": "&gt;", "&": "&amp;"}
 _BACKTICKS = re.compile(r"`+")
+# A line whose first non-blank characters are `::` (blank: any whitespace but a line break, as a CI runner trims it).
+_WORKFLOW_COMMAND = re.compile(r"^([^\S\n]*):(?=:)", re.MULTILINE)
 
 
 def _hidden(char: str) -> bool:
@@ -38,6 +40,13 @@ def terminal(text: str, *, single_line: bool = True) -> str:
         else:
             out.append(char)
     return "".join(out)
+
+
+def log_lines(text: str) -> str:
+    """A CI log reads a line whose first non-blank characters are `::` as a workflow command (GitHub Actions'
+    `::error::`, `::add-mask::`, `::stop-commands::`), so in a report that may be printed to a log such a line has
+    its first colon written as \\x3a. Only a line that starts with text from the scanned revision can match."""
+    return _WORKFLOW_COMMAND.sub(r"\1\\x3a", text)
 
 
 def markdown(text: str) -> str:

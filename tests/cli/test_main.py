@@ -155,6 +155,20 @@ def test_json_and_text_are_byte_identical_across_shuffled_listings(make_repo, ru
     assert str(tmp_path) not in text and "2026-12-01" in text
 
 
+@pytest.mark.skipif(os.name == "nt", reason="Windows file names cannot hold a colon")
+@pytest.mark.parametrize("fmt", ["text", "markdown"])
+def test_a_name_cannot_become_a_ci_workflow_command(fmt, make_repo, run_cli, tmp_path):
+    # Spec 6.13, D58: a skill directory named `::error title=...::` heads its block in the text report; printed to a
+    # GitHub Actions log, an unescaped line would run as a workflow command.
+    name = "::error title=Spoof::pwn"
+    repo = make_repo(tmp_path / "repo", {f"{name}/SKILL.md": SKILL, f"{name}/run.sh": PIPE})
+    code, out, _ = run_cli(["scan", str(repo), "--format", fmt])
+    assert code == 1
+    assert not [line for line in out.splitlines() if line.lstrip().startswith("::")]
+    if fmt == "text":
+        assert out.splitlines()[0] == "\\x3a:error title=Spoof::pwn"
+
+
 @pytest.mark.skipif(os.name == "nt", reason="Windows file names cannot hold control characters")
 def test_hostile_names_are_escaped_in_text_and_json(make_repo, run_cli, tmp_path):
     name = "evil‮\x1b[31m"
