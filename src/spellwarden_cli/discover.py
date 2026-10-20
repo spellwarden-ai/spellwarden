@@ -573,6 +573,16 @@ def discover(fileset: FileSet) -> Discovery:
                      tuple(dirs), tuple(builder.notices), tuple(builder.errors))
 
 
+def _owns(plugin: str, skill: str) -> bool:
+    """Whether the local plugin directory `plugin` owns the skill directory `skill`. A plugin at the marketplace root
+    (`"."`, r2:F12) owns only the skills of its conventional `skills/` directory, whatever its case: the rest of the
+    repository (`.claude/skills/<x>` above all) holds project skills, not the plugin's (r3 nit). A plugin in a
+    subdirectory owns every skill under it."""
+    if plugin == ".":
+        return _fold(skill).startswith("skills/")
+    return _under(skill, plugin)
+
+
 def _inside(directory: str, nested: list[str]) -> Callable[[str], bool]:
     return lambda path: _under(path, directory) and not any(_under(path, inner) for inner in nested)
 
@@ -639,7 +649,7 @@ def _skills(builder: _Builder, plugin_of_dir: dict[str, str]) -> list[SkillPacka
         files = _read_all(builder, members)
         if len(builder.errors) != before:
             continue  # an unreadable member makes the skill an item error, not a partial scan
-        owners = [d for d in plugin_of_dir if _under(directory, d)]  # "." is a plugin at the scan root (r2:F12)
+        owners = [d for d in plugin_of_dir if _owns(d, directory)]
         plugin = plugin_of_dir[max(owners, key=lambda d: 0 if d == "." else len(d))] if owners else None
         # the root skill is "." and never the checkout directory's name: a lock and a report must not depend on where
         # the repository sits on disk (r0:F4)

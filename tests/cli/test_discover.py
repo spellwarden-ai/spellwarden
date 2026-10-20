@@ -1016,3 +1016,22 @@ def test_a_genuine_relative_outside_target_is_skipped_and_hashed(make_repo, tmp_
     assert found.errors == () and found.skills[0].links == {"skills/x/run.sh": b"../../../tools/run.sh"}
     notice = next(n for n in found.notices if n.code == "symlink_skipped")
     assert notice.path == "skills/x/run.sh" and "leaves the scan root" in notice.message
+
+
+def test_a_root_plugin_owns_only_the_skills_under_its_skills_directory(make_repo, tmp_path):
+    # r3 nit: a plugin with the source "./" claimed `.claude/skills/c`, a project skill, as its own. A plugin at the
+    # marketplace root owns the skills of its conventional `skills/` directory (and the files its manifest names);
+    # every other skill of the repository stays unowned. A plugin in a subdirectory still owns every skill under it.
+    repo = make_repo(tmp_path / "repo", {
+        ".claude-plugin/marketplace.json": json.dumps({"plugins": [{"name": "root", "source": "./"},
+                                                                   {"name": "a", "source": "./a"}]}),
+        ".claude-plugin/plugin.json": json.dumps({"name": "root"}),
+        "skills/x/SKILL.md": SKILL, "Skills/y/SKILL.md": SKILL, ".claude/skills/c/SKILL.md": SKILL,
+        "docs/tools/d/SKILL.md": SKILL, "a/.claude/skills/e/SKILL.md": SKILL,
+    })
+    found = _discover(repo)
+    assert found.errors == ()
+    assert sorted((s.path, s.plugin) for s in found.skills) == [
+        (".claude/skills/c", None), ("Skills/y", "root"), ("a/.claude/skills/e", "a"), ("docs/tools/d", None),
+        ("skills/x", "root")]
+    assert ("skill", ".claude/skills/c", "c", None) in _items(found)
