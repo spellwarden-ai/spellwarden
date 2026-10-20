@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -197,13 +198,17 @@ def prepare(ctx: Context) -> list[str]:
     ]
 
 
-def _require_signing(ctx: Context, repo: Path) -> None:
-    code, value = ctx.runner(["git", "config", "--get", "gpg.format"], repo)
-    if code != 0 or value.strip() != "ssh":
-        raise ReleaseError("git config gpg.format must be ssh (spec 11.2 point 2)")
-    code, value = ctx.runner(["git", "config", "--get", "user.signingkey"], repo)
+TAG_KEY_SETTING = "spellwarden.tagSigningKey"
+
+
+def _tag_key(ctx: Context, repo: Path) -> str:
+    """The SSH key the release tags are signed with (spec 11.2 point 2): its own setting, so that the repository's
+    commits keep whatever signing the owner chose for them, and only `git tag -s` here uses SSH."""
+    code, value = ctx.runner(["git", "config", "--get", TAG_KEY_SETTING], repo)
     if code != 0 or not value.strip():
-        raise ReleaseError("git config user.signingkey is not set (spec 11.2 point 2)")
+        raise ReleaseError(f"git config {TAG_KEY_SETTING} is not set in {repo}: "
+                           f"git -C {repo} config {TAG_KEY_SETTING} ~/.ssh/spellwarden_tags.pub (spec 11.2 point 2)")
+    return os.path.expanduser(value.strip())
 
 
 def _main_head(ctx: Context, repo: Path, path: str, needle: str) -> str:
@@ -241,8 +246,8 @@ def _pipeline_passed(ctx: Context, sha: str) -> None:
         raise ReleaseError(f"the latest main pipeline of {GITLAB_PROJECT}@{sha} is {status}, not success")
 
 
-def _sign(ctx: Context, repo: Path, args: list[str], name: str) -> None:
-    ctx.out(["git", "tag", *args], repo)
+def _sign(ctx: Context, repo: Path, key: str, args: list[str], name: str) -> None:
+    ctx.out(["git", "-c", "gpg.format=ssh", "-c", f"user.signingkey={key}", "tag", *args], repo)
     signers = ctx.engine / "allowed_signers"
     # Only a key of allowed_signers is trusted fully; minTrustLevel refuses any other valid signature (D59).
     ctx.out(["git", "-c", f"gpg.ssh.allowedSignersFile={signers}", "-c", "gpg.minTrustLevel=fully", "tag", "-v", name],
@@ -252,18 +257,17 @@ def _sign(ctx: Context, repo: Path, args: list[str], name: str) -> None:
 def tag(ctx: Context) -> list[str]:
     manifest = fetch_manifest(ctx)
     version = ctx.version
-    for repo in (ctx.action, ctx.gitlab):
-        _require_signing(ctx, repo)
+    action_key, gitlab_key = _tag_key(ctx, ctx.action), _tag_key(ctx, ctx.gitlab)
     action_sha = _main_head(ctx, ctx.action, "requirements.txt", f"--hash=sha256:{manifest['wheel_sha256']}")
     gitlab_sha = _main_head(ctx, ctx.gitlab, "templates/scan.yml", f"{IMAGE}:{version}@{manifest['image_digest']}")
     _require_absent(ctx, ctx.action, f"v{version}")
     _require_absent(ctx, ctx.gitlab, version)
     _check_runs_passed(ctx, action_sha)
     _pipeline_passed(ctx, gitlab_sha)
-    _sign(ctx, ctx.action, ["-s", f"v{version}", "-m", f"spellwarden {version}", action_sha], f"v{version}")
-    _sign(ctx, ctx.action, ["-f", "-s", ctx.major, "-m", f"spellwarden {ctx.major}, currently {version}", action_sha],
-          ctx.major)
-    _sign(ctx, ctx.gitlab, ["-s", version, "-m", f"spellwarden {version}", gitlab_sha], version)
+    _sign(ctx, ctx.action, action_key, ["-s", f"v{version}", "-m", f"spellwarden {version}", action_sha], f"v{version}")
+    _sign(ctx, ctx.action, action_key,
+          ["-f", "-s", ctx.major, "-m", f"spellwarden {ctx.major}, currently {version}", action_sha], ctx.major)
+    _sign(ctx, ctx.gitlab, gitlab_key, ["-s", version, "-m", f"spellwarden {version}", gitlab_sha], version)
     return [
         f"git -C {ctx.action} push origin v{version}",
         f"git -C {ctx.action} push --force origin {ctx.major}",

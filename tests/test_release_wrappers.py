@@ -172,8 +172,7 @@ def test_prepare_refuses_a_dirty_wrapper_checkout(tmp_path):
 def _tag_answers(overrides: dict | None = None):
     answers = {
         ("gh", "release", "download"): (0, _manifest()),
-        ("git", "config", "--get", "gpg.format"): (0, "ssh\n"),
-        ("git", "config", "--get", "user.signingkey"): (0, "~/.ssh/tag_ed25519.pub\n"),
+        ("git", "config", "--get", "spellwarden.tagSigningKey"): (0, "/keys/spellwarden_tags.pub\n"),
         ("git", "fetch"): (0, ""),
         ("git", "rev-parse", "origin/main"): (0, ACTION_SHA + "\n"),
         ("git", "show", "origin/main:requirements.txt"): (0, f"spellwarden=={V} \\\n    --hash=sha256:{WHEEL}\n"),
@@ -193,8 +192,10 @@ def _gitlab_http(status="success"):
 def test_tag_creates_signed_tags_on_passed_commits_and_pushes_nothing(tmp_path):
     runner = Fake(_tag_answers())
     printed = rw.tag(_ctx(tmp_path, runner, _gitlab_http()))
-    tags = [c for c in runner.calls if c[:2] == ["git", "tag"] and "-s" in c]
-    assert [c[2:] for c in tags] == [
+    # Only the tag commands use SSH, with the dedicated key; the repositories' own commit signing is left alone.
+    ssh = ["git", "-c", "gpg.format=ssh", "-c", "user.signingkey=/keys/spellwarden_tags.pub", "tag"]
+    tags = [c for c in runner.calls if c[:6] == ssh and "-s" in c]
+    assert [c[6:] for c in tags] == [
         ["-s", f"v{V}", "-m", f"spellwarden {V}", ACTION_SHA],
         ["-f", "-s", "v1", "-m", f"spellwarden v1, currently {V}", ACTION_SHA],
         ["-s", V, "-m", f"spellwarden {V}", ACTION_SHA],
@@ -231,8 +232,8 @@ def test_tag_refuses_a_gitlab_pipeline_that_did_not_pass(tmp_path):
 
 
 def test_tag_refuses_without_an_ssh_signing_key(tmp_path):
-    runner = Fake(_tag_answers({("git", "config", "--get", "gpg.format"): (1, "")}))
-    with pytest.raises(rw.ReleaseError, match="gpg.format"):
+    runner = Fake(_tag_answers({("git", "config", "--get", "spellwarden.tagSigningKey"): (1, "")}))
+    with pytest.raises(rw.ReleaseError, match="spellwarden.tagSigningKey"):
         rw.tag(_ctx(tmp_path, runner, _gitlab_http()))
 
 
