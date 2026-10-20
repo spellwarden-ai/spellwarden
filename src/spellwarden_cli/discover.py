@@ -456,6 +456,9 @@ def _parse(kind: str, path: str, content: bytes) -> ConfigDocument:
 
 _SKILL_NAME_CASE = ("an agent on a case-insensitive file system may load this as SKILL.md; rename it to SKILL.md to "
                     "have it scanned as a skill, or rename it away")
+# a variant under `skills/<name>/` is scanned as the skill's SKILL.md (`_is_loaded_variant`), so it says so (r3:N5)
+_SKILL_NAME_CASE_LOADED = ("scanned as a skill because agents on case-insensitive file systems load it as SKILL.md; "
+                           "rename it to SKILL.md so every agent loads it the same way")
 
 _DOCUMENT_MESSAGES = {
     "too_large": "configuration document over 1 MiB; not judged",
@@ -500,7 +503,8 @@ def _follow_references(builder: _Builder, manifest: ConfigDocument, directory: s
 
 def discover(fileset: FileSet) -> Discovery:
     builder = _Builder(fileset)
-    builder.notices.extend(Notice("skill_name_case", path, _SKILL_NAME_CASE)
+    builder.notices.extend(Notice("skill_name_case", path,
+                                  _SKILL_NAME_CASE_LOADED if _is_loaded_variant(path) else _SKILL_NAME_CASE)
                            for path in sorted({*builder.paths, *builder.links}) if _is_skill_name_variant(path))
     plugin_dirs: dict[str, str] = {}  # directory -> plugin name
     plugin_items: list[Item] = []

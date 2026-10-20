@@ -529,7 +529,8 @@ def test_a_lowercase_skill_md_is_prose_with_a_notice(make_repo, tmp_path, run_cl
     assert found.skills == () and found.errors == ()
     assert _skill_name_case(found) == ["docs/skill.md"]
     notice = next(n for n in found.notices if n.code == "skill_name_case")
-    assert "rename it to SKILL.md" in notice.message
+    assert notice.message == ("an agent on a case-insensitive file system may load this as SKILL.md; rename it to "
+                              "SKILL.md to have it scanned as a skill, or rename it away")
     code, report = _scan_json(run_cli, repo, tmp_path)
     assert report["findings"] == [] and code == 0
     assert ("skill_name_case", "docs/skill.md") in {(n["code"], n["path"]) for n in report["notices"]}
@@ -554,6 +555,10 @@ def test_a_case_variant_where_agents_load_skills_is_a_skill_read_as_skill_md(var
     assert [(s.path, sorted(s.files), s.variant) for s in found.skills] == [
         (directory, sorted([variant, f"{directory}/run.sh"]), variant)]
     assert _skill_name_case(found) == [variant]
+    # r3:N5: the variant IS scanned, so its notice must not say it is not
+    message = next(n.message for n in found.notices if n.code == "skill_name_case")
+    assert message == ("scanned as a skill because agents on case-insensitive file systems load it as SKILL.md; rename "
+                       "it to SKILL.md so every agent loads it the same way")
     code, report = _scan_json(run_cli, repo, tmp_path)
     assert "SW-SKL-015" not in {f["rule_id"] for f in report["findings"]} and code == 0
     assert ("skill", directory) in {(i["kind"], i["path"]) for i in report["items"]}
