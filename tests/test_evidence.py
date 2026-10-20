@@ -294,3 +294,53 @@ def test_masking_adversarial_lines_is_linear_and_idempotent(text):
     once = mask_credentials(text)
     assert time.perf_counter() - started < 1.0
     assert mask_credentials(once) == once
+
+
+def test_a_bare_masked_value_never_joins_two_commands():
+    """r3:N3 (spec 5.7, masking is idempotent): `ASSIGNED_VALUE` masked a bare `;` after an empty `NAME=`, so a second
+    pass saw one command and masked `serve -p`. A value that is nothing but a command separator is no value; a value
+    masked whole that swallows a separator is judged again as the commands it leaves."""
+    secret = "hun" + "ter2x"
+    for written, expected in (
+        ("docker login --password= ; serve -p 8080", "docker login --password= ; serve -p 8080"),
+        ("redis-cli -h h TOKEN= ; tool -a fast", "redis-cli -h h TOKEN= ; tool -a fast"),
+        ("redis-cli -h h --token ; tool -a fast", "redis-cli -h h --token ; tool -a fast"),
+        ("redis-cli -h h TOKEN= && tool -a fast | x", "redis-cli -h h TOKEN= && tool -a fast | x"),
+        (f"redis-cli -h h TOKEN={secret}; tool -a fast", "redis-cli -h h TOKEN=*** tool -a ***"),
+        (f"mysql -u root TOKEN={secret}; foo -pbar", "mysql -u root TOKEN=*** foo -p***"),
+        (f"password: p@ss;{secret}", "password: ***"),
+        (f"DB_PASS=Xy7&{secret}|q", "DB_PASS=***"),
+        # a command name swallowed by an earlier value still has its own secret masked (r3:N3 follow-up)
+        (f"tool --token x;docker login -p {secret}", "tool --token *** login -p ***"),
+        (f"curl -u bob:x;docker login -p {secret}", "curl -u bob:*** login -p ***"),
+        # an option is no value of the option before it (found by the generated lines below)
+        (f"curl -u -u bob:{secret}", "curl -u -u bob:***"),
+        (f"redis-cli --token= -u -u bob:{secret} -a DB_PASS=", "redis-cli --token= *** -u bob:*** -a ***"),
+    ):
+        masked = mask_credentials(written)
+        assert secret not in masked, written
+        assert masked == expected, written
+        assert mask_credentials(masked) == masked, written
+
+
+_FUZZ_WORDS = ["--token", "--token=", "hunter2x", "'hunter2x'", '"hunter2x"', "sshpass", "-p", "curl", "-b", "-sb",
+               "smbclient", "-U", "bob%hunter2x", "docker", "login", "podman", "redis-cli", "-a", "DB_PASS=",
+               "MYSQL_PWD=hunter2x", "authorization", "=", "cookie=", "|", ";", "&&", "&", "$TOKEN", "***", "<k>", "--",
+               "-x", "--pass", "bob:hunter2x", "-u", "Bearer", "--password-stdin", "ssh", "22", "--api-key",
+               "--user=bob%hunter2x", "-phunter2x", "-bhunter2x", "-ahunter2x", "echo", "mysql", "TOKEN=", "TOKEN=x;",
+               "x;docker", "x;mysql", "a&b", "--password=", "password:", "'open", "-pbar"]
+
+
+def test_masking_is_idempotent_on_generated_command_lines():
+    """r3:N3: 16 of 150,000 random lines were not a fixed point (the reviewer's fuzz2.py); a fixed seed keeps it
+    reproducible."""
+    import random
+
+    generator = random.Random(20261020)
+    failures = []
+    for _ in range(20_000):
+        line = " ".join(generator.choice(_FUZZ_WORDS) for _ in range(generator.randint(1, 9)))
+        once = mask_credentials(line)
+        if mask_credentials(once) != once:
+            failures.append(line)
+    assert failures == []

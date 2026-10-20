@@ -33,10 +33,11 @@ _SHELL_WORD = r"""(?:[^\s"']++|"(?:[^"\\\n]|\\.)*+"?|'[^'\n]*+'?)++"""
 # A credential given as a command option (r0:F2, r1:F2): `-u user:pass`, `-uuser:pass`, a short-option cluster that ends
 # in `u` (`-fsu user:pass`), `--user`, `--proxy-user` (and `-U`) keep the user name and mask the password to the end of
 # its shell word; `--password`, `--http-password` and `--proxy-password` mask their whole word. A short option never
-# starts inside a longer word or option (`--user-agent`, `sudo -u www-data` carry no `user:pass` and stay).
+# starts inside a longer word or option (`--user-agent`, `sudo -u www-data` carry no `user:pass` and stay), and a next
+# word that is itself an option is no value (`-u -u bob:pw` masks the second; r3:N3).
 _USER_OPTION = re.compile(
     r"""(?<![\w-])(?:(?P<user>-(?:[A-Za-z]*[uU][ \t]+|[uU])|--(?:proxy-)?user(?:[ \t]+|=))"""
-    r"""|(?P<password>--(?:http-|proxy-)?password(?:[ \t]+|=)))(?P<word>""" + _SHELL_WORD + ")")
+    r"""|(?P<password>--(?:http-|proxy-)?password(?:[ \t]+|=)))(?!-)(?P<word>""" + _SHELL_WORD + ")")
 # mysql's `-p<password>` (attached, no space) is masked only inside a mysql, mysqldump or mariadb command, up to the
 # command's end (`|`, `;`, `&` or the end of the line outside quotes): elsewhere `-p` is too generic.
 _MYSQL_COMMAND = re.compile(
@@ -77,6 +78,9 @@ _AUTH_HEADER = re.compile(
     r"""(?<![A-Za-z0-9_-])(?:(?P<auth>(?:proxy-)?authorization)|(?:set-)?cookie)["']?[ \t]*:[ \t]*(?P<quote>["']?)""", re.I)
 _AUTH_SCHEME = re.compile(r"(?:bearer|basic|token|negotiate|digest|ntlm|aws4-hmac-sha256)[ \t]+", re.I)
 _HEADER_VALUE = {'"': re.compile(r"""(?:[^"\\\n]|\\.)*+"""), "'": re.compile(r"[^'\n]*+"), "": re.compile(r"[^\n]*+")}
+# A word that is nothing but command separators (`;`, `&&`, `|`) is no value: masking it would join two commands, and
+# a second pass would judge the program-scoped options of the joined command differently (r3:N3).
+_SEPARATORS_ONLY = re.compile(r"[;&|]+")
 _HAS_LETTER = re.compile(r"[A-Za-z]")
 _HAS_DIGIT = re.compile(r"[0-9]")
 
@@ -195,12 +199,18 @@ def _mask_secret_options(text: str) -> str:
         if not separator or not _secret_option(match.group("name")):
             continue
         word = _WORD.match(text, match.end())
-        if word is None or (separator != "=" and word.group().startswith("-")):
+        if word is None or (separator != "=" and word.group().startswith("-")) or _SEPARATORS_ONLY.fullmatch(word.group()):
             continue
         out.append(text[done:word.start()] + _mask_secret_word(word.group()))
         done = position = word.end()
     out.append(text[done:])
     return "".join(out)
+
+
+def _mask_commands(text: str) -> str:
+    """The options that carry a password only inside one program, judged per command (`|`, `;`, `&`): mysql's `-p`
+    and `_SCOPED_OPTIONS`."""
+    return _mask_scoped_options(_MYSQL_COMMAND.sub(_mask_mysql_command, text))
 
 
 def _mask_scoped_options(text: str) -> str:
@@ -243,6 +253,8 @@ def _mask_value(match: re.Match) -> str:
     inner = value[len(quote):len(value) - len(quote)] if closed else value[len(quote):]
     if inner in ("", "***") or PLACEHOLDER_VALUE.fullmatch(inner):  # only this function's own output counts as masked
         return match.group(0)
+    if not quote and _SEPARATORS_ONLY.fullmatch(value):  # `NAME= ;`: an empty value, then the next command (r3:N3)
+        return match.group(0)
     # A quoted value is masked to its closing quote; one never closed, to the end of the line.
     return match.group(1) + match.group(2) + quote + "***" + (quote if closed else "")
 
@@ -254,20 +266,25 @@ def mask_credentials(text: str) -> str:
     such as `-fsu`), of `--password` and of mysql's `-p` to the end of its shell word (r1:F2),
     and the value of an Authorization, Proxy-Authorization or Cookie header are
     masked to its closing quote, keeping only a known scheme word (r0:F2); whatever is left after a secret-like name and `=`
-    or `:` becomes `***`. Idempotent."""
+    or `:` becomes `***`. Idempotent: the program-scoped options are judged on the commands as written and again on
+    the commands the masking leaves, and a value that is only a command separator is no value (r3:N3)."""
     masked = _SCHEME.sub(lambda m: m.group(1) + " ***", text)
     masked = _mask_auth_headers(masked)
+    # Program-scoped options first, on the commands as written: a value masked whole below may swallow a separator
+    # and the next command's name (`--token x;docker login -p pw`), and must not hide that command's password.
+    masked = _mask_commands(masked)
     masked = _USER_OPTION.sub(_mask_user_option, masked)
-    masked = _MYSQL_COMMAND.sub(_mask_mysql_command, masked)
     masked = _mask_secret_options(masked)
-    masked = _mask_scoped_options(masked)
     masked = ASSIGNED_SECRET.sub(_mask_assigned, masked)
     for pattern in CREDENTIAL_PATTERNS:
         masked = pattern.sub(_mask_match, masked)
     masked = _MIXED_RUN.sub(_mask_run, masked)
     masked = _URL_PASSWORD.sub(r"\1***@", masked)
     masked = _URL_USERINFO.sub(_mask_userinfo, masked)
-    return ASSIGNED_VALUE.sub(_mask_value, masked)
+    masked = ASSIGNED_VALUE.sub(_mask_value, masked)
+    # And last, on the commands as they now read: a value masked whole that swallowed a separator (`TOKEN=x; tool`)
+    # joined two commands, which a second pass would judge as one (r3:N3). This makes one pass the fixed point.
+    return _mask_commands(masked)
 
 
 def bounded_evidence(text: str) -> str:
