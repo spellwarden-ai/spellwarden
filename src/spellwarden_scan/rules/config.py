@@ -528,7 +528,8 @@ def _dispatch(words: Sequence[tuple[str, str]]) -> list[tuple[str, str, str, str
 _SHELLS = frozenset({"sh", "bash", "zsh"})
 _SHELL_PREFIXES = frozenset({"exec", "command", "builtin", "time", "nohup", "nice", "if", "then", "do", "else", "elif",
                              "while", "until", "!", "{"})
-_NICE_ADJUSTMENT = re.compile(r"-n.+|-\d+|--adjustment=.*")
+# The prefixes that take options: every `-...` word after them, up to the first operand or `--`, is skipped.
+_OPTION_PREFIXES = frozenset({"exec", "command", "builtin", "time", "nohup", "nice"})
 _SHELL_LONG_VALUE = frozenset({"--rcfile", "--init-file"})
 _SHELL_ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
 _ENV_SHORT_VALUE = frozenset("uCSP")
@@ -620,8 +621,10 @@ def _cmd_tokens(text: str) -> list[str | None]:
 
 def _shell_command(words: Sequence[tuple[str, str]]) -> list[tuple[str, str]]:
     """A shell simple command without its leading `NAME=VALUE` words (the shell sets them in the environment) and
-    leading `exec`, `command`, `builtin`, `time [-p]`, `nohup`, `nice [-n N]`, `if`, `then`, `do`, `else`, `elif`,
-    `while`, `until`, `!` and `{` (r2:F8), in any order."""
+    leading `exec`, `command`, `builtin`, `time`, `nohup`, `nice`, `if`, `then`, `do`, `else`, `elif`, `while`,
+    `until`, `!` and `{` (r2:F8), in any order. After `exec`, `command`, `builtin`, `time`, `nohup` and `nice`, every
+    option word up to the first operand is skipped, `--` included, with the values of exec's `-a NAME` and nice's
+    `-n N` and `--adjustment N`; `command -v`/`-V` only describes the command, so nothing is run (empty)."""
     index = 0
     while index < len(words):
         word = words[index][1]
@@ -631,13 +634,16 @@ def _shell_command(words: Sequence[tuple[str, str]]) -> list[tuple[str, str]]:
         if word not in _SHELL_PREFIXES:
             break
         index += 1
-        following = words[index][1] if index < len(words) else ""
-        if word == "time" and following == "-p":
+        while word in _OPTION_PREFIXES and index < len(words) and words[index][1].startswith("-"):
+            option = words[index][1]
             index += 1
-        elif word == "nice" and following in ("-n", "--adjustment"):
-            index += 2
-        elif word == "nice" and _NICE_ADJUSTMENT.fullmatch(following):
-            index += 1
+            if option == "--":
+                break
+            short = not option.startswith("--")
+            if word == "command" and short and ("v" in option or "V" in option):
+                return []
+            if (word == "exec" and short and option.endswith("a")) or (word == "nice" and option in ("-n", "--adjustment")):
+                index += 1
     return list(words[index:])
 
 
