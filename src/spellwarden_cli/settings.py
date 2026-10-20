@@ -50,17 +50,25 @@ def env_bool(value: str | None) -> bool | None:
 
 
 def glob_match(path: str, pattern: str) -> bool:
-    """`fnmatch` per path segment (`*` never crosses `/`); a `**` segment matches zero or more segments."""
+    """`fnmatch` per path segment (`*` never crosses `/`); a `**` segment matches zero or more segments.
+    Patterns come from the scanned revision, so matching is bounded (spec 6.3): no recursion, and at most one
+    segment comparison per (path segment, pattern segment) pair."""
     return _match(path.split("/"), pattern.strip("/").split("/"))
 
 
 def _match(parts: list[str], pattern: list[str]) -> bool:
-    if not pattern:
-        return not parts
-    head, rest = pattern[0], pattern[1:]
-    if head == "**":
-        return any(_match(parts[index:], rest) for index in range(len(parts) + 1))
-    return bool(parts) and fnmatch.fnmatchcase(parts[0], head) and _match(parts[1:], rest)
+    # `reached` holds every count of path segments that the pattern segments read so far can consume.
+    # A run of `**` collapses for free: `**` maps the set to everything from its smallest member up.
+    reached = {0}
+    for segment in pattern:
+        if segment == "**":
+            reached = set(range(min(reached), len(parts) + 1))
+        else:
+            reached = {index + 1 for index in reached
+                       if index < len(parts) and fnmatch.fnmatchcase(parts[index], segment)}
+        if not reached:
+            return False
+    return len(parts) in reached
 
 
 def load_settings(root: str, *, config: str | None, flags: Flags, env: Mapping[str, str]) -> Settings:

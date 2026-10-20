@@ -2,9 +2,15 @@
 never a settings key, flag over environment over file over default."""
 from __future__ import annotations
 
+import fnmatch
+import itertools
+import time
+import types
+
 import pytest
 from conftest import write_tree
 
+from spellwarden_cli import settings as settings_module
 from spellwarden_cli.settings import Flags, Settings, SettingsError, env_bool, glob_match, load_settings
 
 CONFIG = ".spellwarden/config.yml"
@@ -106,3 +112,68 @@ def test_env_bool():
 ])
 def test_glob_match(path, pattern, expected):
     assert glob_match(path, pattern) is expected
+
+
+def _reference_glob_match(path, pattern):
+    """The matcher of c709be0, kept as the oracle: exponential on runs of `**`, so only fed small cases."""
+    def match(parts, segments):
+        if not segments:
+            return not parts
+        head, rest = segments[0], segments[1:]
+        if head == "**":
+            return any(match(parts[index:], rest) for index in range(len(parts) + 1))
+        return bool(parts) and fnmatch.fnmatchcase(parts[0], head) and match(parts[1:], rest)
+    return match(path.split("/"), pattern.strip("/").split("/"))
+
+
+def _joined(alphabet, longest):
+    for size in range(1, longest + 1):
+        yield from ("/".join(word) for word in itertools.product(alphabet, repeat=size))
+
+
+def test_glob_match_agrees_with_the_previous_matcher():
+    patterns = list(_joined(("a", "*", "?", "[!a]", "**"), 4))
+    patterns += ["/" + p for p in patterns[:30]] + [p + "/" for p in patterns[:30]] + ["", "/", "a//b", "**//a"]
+    paths = list(_joined(("a", "b", "ab", ""), 4))
+    differences = [(path, pattern) for pattern in patterns for path in paths
+                   if glob_match(path, pattern) is not _reference_glob_match(path, pattern)]
+    assert differences == []
+
+
+def _counting_fnmatch(monkeypatch, budget):
+    calls = []
+
+    def fnmatchcase(name, pattern):
+        calls.append(1)
+        if len(calls) > budget:
+            raise AssertionError(f"more than {budget} segment comparisons")
+        return fnmatch.fnmatchcase(name, pattern)
+    monkeypatch.setattr(settings_module, "fnmatch", types.SimpleNamespace(fnmatchcase=fnmatchcase))
+    return calls
+
+
+@pytest.mark.parametrize("pattern", [
+    "/".join(["**"] * 60 + ["nomatch"]), "/".join(["**", "a"] * 30 + ["nomatch"]), "/".join(["**", "*"] * 30 + ["b"]),
+])
+def test_glob_match_does_at_most_one_comparison_per_path_and_pattern_segment(monkeypatch, pattern):
+    path = "/".join(["a"] * 200)
+    calls = _counting_fnmatch(monkeypatch, budget=200 * len(pattern.split("/")))
+    assert glob_match(path, pattern) is False
+    assert calls
+
+
+def test_glob_match_with_many_double_stars_is_fast():
+    path = "/".join(["a"] * 200)
+    started = time.perf_counter()
+    assert glob_match(path, "/".join(["**"] * 60 + ["nomatch"])) is False
+    assert glob_match(path, "/".join(["**", "a"] * 30 + ["nomatch"])) is False
+    assert glob_match(path, "/".join(["**", "a"] * 30 + ["**"])) is True
+    assert time.perf_counter() - started < 1.0
+
+
+def test_glob_match_on_the_longest_pattern_a_config_scalar_allows():
+    """A 4,096-character scalar (spec 6.3) holds about 2,000 segments; no recursion limit may be reached."""
+    deep = "/".join(["a"] * 2048)
+    assert glob_match(deep, "/".join(["**"] * 2048)) is True
+    assert glob_match(deep, "/".join(["a"] * 2048)) is True
+    assert glob_match(deep, "/".join(["**"] * 2047 + ["b"])) is False
