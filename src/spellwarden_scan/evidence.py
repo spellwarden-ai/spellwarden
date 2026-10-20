@@ -33,11 +33,15 @@ _SHELL_WORD = r"""(?:[^\s"']++|"(?:[^"\\\n]|\\.)*+"?|'[^'\n]*+'?)++"""
 # A credential given as a command option (r0:F2, r1:F2): `-u user:pass`, `-uuser:pass`, a short-option cluster that ends
 # in `u` (`-fsu user:pass`), `--user`, `--proxy-user` (and `-U`) keep the user name and mask the password to the end of
 # its shell word; `--password`, `--http-password` and `--proxy-password` mask their whole word. A short option never
-# starts inside a longer word or option (`--user-agent`, `sudo -u www-data` carry no `user:pass` and stay), and a next
-# word that is itself an option is no value (`-u -u bob:pw` masks the second; r3:N3).
+# starts inside a longer word or option (`--user-agent`, `sudo -u www-data` carry no `user:pass` and stay). A spaced
+# user option's next word that is itself one of these options is no value (`-u -u bob:pw` masks the second, r3:N3;
+# `-u --password pw` masks `pw`); any other next word is the value, a dash-led one included (`-u -bob:pw`). A password
+# option's next word is always its value, as getopt reads it, so `--password -Xy9z` is masked (r4:R4-1).
+_NEXT_USER_OPTION = r"""(?!-[A-Za-z]*[uU][ \t]|-[uU]|--(?:proxy-)?user(?:[ \t]|=)|--(?:http-|proxy-)?password(?:[ \t]|=))"""
 _USER_OPTION = re.compile(
-    r"""(?<![\w-])(?:(?P<user>-(?:[A-Za-z]*[uU][ \t]+|[uU])|--(?:proxy-)?user(?:[ \t]+|=))"""
-    r"""|(?P<password>--(?:http-|proxy-)?password(?:[ \t]+|=)))(?!-)(?P<word>""" + _SHELL_WORD + ")")
+    r"""(?<![\w-])(?:(?P<user>-(?:[A-Za-z]*[uU][ \t]+""" + _NEXT_USER_OPTION + r"""|[uU])"""
+    r"""|--(?:proxy-)?user(?:[ \t]+""" + _NEXT_USER_OPTION + r"""|=))"""
+    r"""|(?P<password>--(?:http-|proxy-)?password(?:[ \t]+|=)))(?P<word>""" + _SHELL_WORD + ")")
 # mysql's `-p<password>` (attached, no space) is masked only inside a mysql, mysqldump or mariadb command, up to the
 # command's end (`|`, `;`, `&` or the end of the line outside quotes): elsewhere `-p` is too generic.
 _MYSQL_COMMAND = re.compile(

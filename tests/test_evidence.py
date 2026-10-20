@@ -285,6 +285,8 @@ _ADVERSARIAL = [
     "redis-cli -a " * _REPEATS, "curl -" + "a" * _REPEATS, "curl -b" * _REPEATS, "smbclient -U a%" * _REPEATS,
     "smbclient -U " + "a" * _REPEATS, "a_pwd" * _REPEATS, "a" * _REPEATS + "_pass", "a_" * _REPEATS + "pwd =",
     "authorization " * _REPEATS, "cookie" + " " * _REPEATS, "-a-pass " * _REPEATS,
+    # a user option before another credential option, a dash-led password (r4:R4-1)
+    "-u --password " * _REPEATS, "-u -" * _REPEATS, "--password -" * _REPEATS, "-u -" + "a" * _REPEATS,
 ]
 
 
@@ -343,4 +345,69 @@ def test_masking_is_idempotent_on_generated_command_lines():
         once = mask_credentials(line)
         if mask_credentials(once) != once:
             failures.append(line)
+    assert failures == []
+
+
+def test_a_password_option_masks_a_password_that_starts_with_a_dash():
+    """r4:R4-1 (spec 5.10): getopt and pflag take the next argument as the value of `--password`, so a password that
+    begins with `-` is still masked; only a user option skips a next word that is itself a credential option."""
+    secret = "-Xy9" + "zQ2pL"
+    for written, expected in (
+        (f"docker login -u bob --password {secret}", "docker login -u bob --password ***"),
+        (f"wget --password {secret} https://x", "wget --password *** https://x"),
+        (f"wget --http-password {secret} https://x", "wget --http-password *** https://x"),
+        (f"curl --proxy-password {secret} x", "curl --proxy-password *** x"),
+        (f"wget --password={secret} https://x", "wget --password=*** https://x"),
+        (f"curl -u bob:{secret} x", "curl -u bob:*** x"),
+        (f"lftp -u -bob:{secret} x", "lftp -u -bob:*** x"),
+        # a user option's next word that is itself a credential option is no value: that option masks its own
+        (f"curl -u -u bob:{secret}", "curl -u -u bob:***"),
+        (f"curl -u --password {secret}", "curl -u --password ***"),
+        (f"curl --user --proxy-password {secret}", "curl --user --proxy-password ***"),
+        (f"curl -- -u -u --http-password {secret} -U", "curl -- -u -u --http-password *** -U"),
+    ):
+        masked = mask_credentials(written)
+        assert secret[1:] not in masked, written
+        assert masked == expected, written
+        assert mask_credentials(masked) == masked, written
+
+
+# The reviewer's differential vocabulary (dfz.py): option words, values, separators and assignments mixed at random.
+_DIFFERENTIAL_WORDS = [
+    "--token", "--token=", "S3cr", "'S3cr'", "-S3cr", "sshpass", "-p", "curl", "-b", "-sb", "smbclient", "-U", "bob%S3cr",
+    "docker", "login", "redis-cli", "-a", "DB_PASS=", "MYSQL_PWD=S3cr", "authorization:", "=", "cookie=", "|", ";", "&&",
+    "$TOKEN", "***", "--", "-x", "--pass", "bob:S3cr", "-u", "Bearer", "--password", "--password=", "--proxy-password",
+    "--user", "mysql", "-pS3cr", "-bS3cr", "-aS3cr", "echo", "TOKEN=", "PASSWORD=", "-u", "--api-key", "bob:-S3cr", "wget",
+    "--http-password"]
+_PASSWORD_OPTIONS = frozenset({"--password", "--http-password", "--proxy-password"})
+_USER_OPTIONS = frozenset({"-u", "-U", "--user"})
+
+
+def _must_hide(words: list[str]) -> int:
+    """How many secret words the masking before r3:N3 hid by option (and so must still hide): the word after a spaced
+    password option, and a `user:pass` word after a user option, unless that option was itself the value of the word
+    before it (a password or user option, or `Bearer`)."""
+    hidden = 0
+    for index in range(1, len(words)):
+        word, option, before = words[index], words[index - 1], words[index - 2] if index >= 2 else ""
+        if "S3cr" not in word or before in _PASSWORD_OPTIONS | _USER_OPTIONS | {"Bearer"}:
+            continue
+        if option in _PASSWORD_OPTIONS or (option in _USER_OPTIONS and ":" in word):
+            hidden += 1
+    return hidden
+
+
+def test_masking_never_shows_a_secret_an_earlier_masking_hid():
+    """r4:R4-1: the reviewer's differential fuzz (dfz.py) found 944 of 100,000 lines where the masking before r3:N3
+    hid a secret that r3:N3's showed (`--password -S3cr`). The expectation is encoded directly: on a fixed seed, no
+    line shows more secret words than it has, less those `_must_hide` counts."""
+    import random
+
+    generator = random.Random(1)
+    failures = []
+    for _ in range(30_000):
+        words = [generator.choice(_DIFFERENTIAL_WORDS) for _ in range(generator.randint(2, 8))]
+        masked = mask_credentials(" ".join(words))
+        if masked.count("S3cr") > sum("S3cr" in word for word in words) - _must_hide(words):
+            failures.append((" ".join(words), masked))
     assert failures == []
