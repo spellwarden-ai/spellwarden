@@ -66,7 +66,7 @@ The score is `12 x (0.6 S + 0.2 M + 0.2 E)`: `S = max(0, 1 - (6 critical + 3 hig
 
 ## The rules
 
-Ids are `SW-SKL-NNN` (skill packages) and `SW-MCP-NNN` (MCP servers). Mappings use the OWASP Agentic Top 10 (ASI) and OWASP MCP Top 10 (MCP) identifiers and NIST SP 800-53 base controls, labelled as a provisional mapping to SP 800-53 base controls. Two rules are malicious indicators: an open finding from one of them quarantines the package.
+Ids are `SW-SKL-NNN` (skill packages), `SW-MCP-NNN` (probed MCP servers) and `SW-CFG-NNN` (agent configuration files: MCP client configurations, Claude Code settings and hooks, plugin marketplaces). Mappings use the OWASP Agentic Top 10 (ASI) and OWASP MCP Top 10 (MCP) identifiers and NIST SP 800-53 base controls, labelled as a provisional mapping to SP 800-53 base controls. Four rules are malicious indicators: an open finding from one of them quarantines the package.
 
 | Id | Title | Severity | OWASP | NIST |
 |---|---|---|---|---|
@@ -98,6 +98,16 @@ Ids are `SW-SKL-NNN` (skill packages) and `SW-MCP-NNN` (MCP servers). Mappings u
 | SW-MCP-009 | Endpoint not served over HTTPS | high | MCP01 | SC-7 |
 | SW-MCP-010 | No protected resource metadata, or issuer not validated | medium | MCP01 | IA-5 |
 | SW-MCP-011 | Tool description contains instruction-like text | high | ASI01, MCP10 | SI-10 |
+| SW-CFG-001 | Remote MCP server over plain HTTP | high | MCP01 | SC-7 |
+| SW-CFG-002 | Credential written into an MCP server configuration | critical | MCP01 | IA-5 |
+| SW-CFG-003 | MCP server launched from an unpinned package | medium | ASI04 | SR-3 |
+| SW-CFG-004 | MCP server at a raw IP address or behind a URL shortener | medium | ASI10 | SC-7 |
+| SW-CFG-005 | Hook pipes remote content to a shell | high | ASI04 | SR-3 |
+| SW-CFG-006 | Hook sends local file contents to an external host (malicious indicator) | critical | ASI10 | SC-7 |
+| SW-CFG-007 | Hook decodes and runs an encoded payload (malicious indicator) | critical | ASI04 | SR-3 |
+| SW-CFG-008 | Settings switch off approval prompts | high | ASI10 | AC-6 |
+| SW-CFG-009 | Marketplace plugin source not pinned to a commit | medium | ASI04 | SR-3 |
+| SW-CFG-010 | Literal value under a secret name in an MCP server configuration | high | MCP01 | IA-5 |
 
 Ids 016 to 018 and 020 to 030 are reserved. `RuleSet.baseline()` returns these rules; `ruleset.with_rules(extra)` adds your own `Rule` objects built with `spellwarden_scan.rules.make_rule`.
 

@@ -1,0 +1,6 @@
+{
+  "mcpServers": {
+    "jira": {"type": "http", "url": "http://jira.example.com/mcp"},
+    "local": {"type": "http", "url": "http://localhost:8080/mcp"}
+  }
+}

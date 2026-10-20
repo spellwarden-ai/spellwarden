@@ -1,0 +1,22 @@
+{
+ "findings": [
+  {
+   "rule_id": "SW-CFG-008",
+   "severity": "high",
+   "path": ".claude/settings.json",
+   "line": 3
+  },
+  {
+   "rule_id": "SW-CFG-008",
+   "severity": "high",
+   "path": ".claude/settings.json",
+   "line": 4
+  },
+  {
+   "rule_id": "SW-CFG-008",
+   "severity": "high",
+   "path": ".claude/settings.json",
+   "line": 6
+  }
+ ]
+}

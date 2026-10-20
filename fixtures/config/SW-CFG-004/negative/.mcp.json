@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "metrics": {"type": "http", "url": "https://metrics.example.com/mcp"},
+    "dev": {"type": "http", "url": "http://127.0.0.1:3000/mcp"},
+    "ipv6": {"type": "http", "url": "https://[::1]:8443/mcp"},
+    "bitly-lookalike": {"type": "http", "url": "https://bit.ly.example.com/mcp"}
+  }
+}

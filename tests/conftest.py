@@ -8,11 +8,13 @@ from pathlib import Path
 
 import pytest
 
-from spellwarden_scan.model import ProbeResult
+from spellwarden_scan.agentconfig import parse_document
+from spellwarden_scan.model import ConfigDocument, ProbeResult
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 SKILL_FIXTURES = FIXTURES / "skills"
 PROBE_FIXTURES = FIXTURES / "probes"
+CONFIG_FIXTURES = FIXTURES / "config"
 
 
 def make_package(files: dict[str, str | bytes]) -> dict[str, bytes]:
@@ -95,6 +97,61 @@ def load_skill_fixture(rule_id: str, side: str) -> tuple[dict[str, bytes], dict]
     directory = SKILL_FIXTURES / rule_id / side
     expected = json.loads((directory / "expected.json").read_text())
     generator = GENERATED.get(f"{rule_id}/{side}")
+    files = generator() if generator is not None else _read_dir(directory)
+    return files, expected
+
+
+def _generated_cfg_002_positive() -> dict[str, bytes]:
+    servers = {"mcpServers": {
+        "github": {"command": "docker", "args": ["run", "-i", "--rm", "-e", "GITHUB_TOKEN", "ghcr.io/github/github-mcp-server:v1.2.0"],
+                   "env": {"GITHUB_TOKEN": credential("github")}},
+        "search": {"type": "http", "url": "https://search.example.com/mcp", "headers": {"Authorization": "Bearer " + "q7" * 8}},
+        "cloud": {"command": "node", "args": ["server.js", "--key", credential("aws")]},
+    }}
+    return {".mcp.json": json.dumps(servers, indent=2).encode()}
+
+
+def _generated_cfg_010_positive() -> dict[str, bytes]:
+    servers = {"mcpServers": {
+        "crm": {"command": "node", "args": ["server.js", "--api-key=" + "plain" + "value1"],
+                "env": {"CRM_API_TOKEN": "plain" + "value2", "apiKey": "plain" + "value3"}},
+        "wiki": {"type": "http", "url": "https://wiki.example.com/mcp", "headers": {"X-API-Key": "plain" + "value4"}},
+    }}
+    return {".cursor/mcp.json": json.dumps(servers, indent=2).encode()}
+
+
+CONFIG_GENERATED: dict[str, object] = {
+    "SW-CFG-002/positive": _generated_cfg_002_positive,
+    "SW-CFG-010/positive": _generated_cfg_010_positive,
+}
+
+
+def config_kind(path: str) -> str | None:
+    """The document kind of a configuration file path, as discovery (spec 6.5) names them; None for any other file."""
+    name = path.rsplit("/", 1)[-1]
+    if path.endswith(".claude-plugin/marketplace.json"):
+        return "marketplace"
+    if path.endswith(".claude-plugin/plugin.json"):
+        return "plugin"
+    if path == "hooks/hooks.json" or path.endswith("/hooks/hooks.json"):
+        return "hooks"
+    if path.endswith((".claude/settings.json", ".claude/settings.local.json")):
+        return "settings"
+    if name == ".mcp.json" or path.endswith((".vscode/mcp.json", ".cursor/mcp.json")):
+        return "mcp"
+    return None
+
+
+def config_documents(files: dict[str, bytes]) -> list[ConfigDocument]:
+    return [parse_document(config_kind(path), path, content) for path, content in sorted(files.items()) if config_kind(path)]
+
+
+def load_config_fixture(rule_id: str, side: str) -> tuple[dict[str, bytes], dict]:
+    """The files of `fixtures/config/<rule-id>/<side>/` and its `expected.json` (the complete finding set of the
+    `config` rules over the fixture's documents, same shape as the skill fixtures)."""
+    directory = CONFIG_FIXTURES / rule_id / side
+    expected = json.loads((directory / "expected.json").read_text())
+    generator = CONFIG_GENERATED.get(f"{rule_id}/{side}")
     files = generator() if generator is not None else _read_dir(directory)
     return files, expected
 

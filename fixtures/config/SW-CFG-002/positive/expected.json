@@ -1,0 +1,22 @@
+{
+ "findings": [
+  {
+   "rule_id": "SW-CFG-002",
+   "severity": "critical",
+   "path": ".mcp.json",
+   "line": 3
+  },
+  {
+   "rule_id": "SW-CFG-002",
+   "severity": "critical",
+   "path": ".mcp.json",
+   "line": 17
+  },
+  {
+   "rule_id": "SW-CFG-002",
+   "severity": "critical",
+   "path": ".mcp.json",
+   "line": 24
+  }
+ ]
+}

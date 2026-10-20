@@ -14,6 +14,11 @@ _MIXED_RUN = re.compile(r"(?<![A-Za-z0-9_\-+/=])[A-Za-z0-9_\-+/=]{20,}")
 _SCHEME = re.compile(r"(?i)\b(bearer|basic)\s+[A-Za-z0-9._~+/=\-]+")  # any length: the scheme word is the tell (spec 5.10)
 # `scheme://user:password@host`: the password, whatever its shape, before the last `@` of the authority (spec 5.10)
 _URL_PASSWORD = re.compile(r"(://[^/\s@:]*:)(?!\*\*\*@)[^/\s]+@")
+# Any other userinfo of a URL, token-only included (`git+https://tok@github.com/x`) and the backslash forms the
+# password rule above does not read (`http:\\u:p@h`): from the scheme's `:` and its run of `/` or `\` to the `@`,
+# masked whole as `<scheme>://***@`. A `user:***@` the password rule already wrote is left as it is. Bounded and
+# anchored at a scheme's start, so a long line reads in linear time (test_linear_time).
+_URL_USERINFO = re.compile(r"(?<![A-Za-z0-9+.-])([A-Za-z][A-Za-z0-9+.-]{0,31}):[/\\]{0,8}([^/\\@\s]{1,256})@")
 _HAS_LETTER = re.compile(r"[A-Za-z]")
 _HAS_DIGIT = re.compile(r"[0-9]")
 
@@ -37,6 +42,12 @@ def _mask_assigned(match: re.Match) -> str:
     whole, value = match.group(0), match.group(2)
     start = match.start(2) - match.start(0)
     return whole[:start] + value[:4] + "***" + whole[start + len(value):]
+
+
+def _mask_userinfo(match: re.Match) -> str:
+    if match.group(2).endswith(":***"):  # the password rule's own output keeps its user name
+        return match.group(0)
+    return match.group(1) + "://***@"
 
 
 def _mask_value(match: re.Match) -> str:
@@ -63,6 +74,7 @@ def mask_credentials(text: str) -> str:
         masked = pattern.sub(_mask_match, masked)
     masked = _MIXED_RUN.sub(_mask_run, masked)
     masked = _URL_PASSWORD.sub(r"\1***@", masked)
+    masked = _URL_USERINFO.sub(_mask_userinfo, masked)
     return ASSIGNED_VALUE.sub(_mask_value, masked)
 
 

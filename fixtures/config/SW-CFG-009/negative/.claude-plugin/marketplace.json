@@ -1,0 +1,9 @@
+{
+  "name": "acme-tools",
+  "plugins": [
+    {"name": "infra", "source": {"source": "github", "repo": "acme/infra-plugin", "sha": "1111111111111111111111111111111111111111"}},
+    {"name": "docs", "source": {"source": "url", "url": "https://git.example.com/acme/docs-plugin.git", "ref": "ABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCD"}},
+    {"name": "local", "source": "./plugins/local"},
+    {"name": "npm", "source": {"source": "npm", "package": "@acme/plugin"}}
+  ]
+}

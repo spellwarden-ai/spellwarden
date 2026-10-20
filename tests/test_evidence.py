@@ -85,3 +85,15 @@ def test_a_password_in_a_url_and_text_after_a_placeholder_are_masked():
     for written in (f"token=${{A}}{secret}", f"token=<a>{secret}", f"token=$(a){secret}"):
         masked = mask_credentials(written)
         assert secret not in masked and mask_credentials(masked) == masked, written
+
+
+def test_any_url_userinfo_is_masked_and_the_password_form_keeps_its_user():
+    """Phase O Task 4: token-only userinfo and backslash forms are masked whole; idempotent; linear."""
+    from spellwarden_scan.evidence import mask_credentials as mask
+
+    assert mask("git+https://tok@github.com/x/y") == "git+https://***@github.com/x/y"
+    assert mask("http:\\\\u:p@h.example/x") == "http://***@h.example/x"
+    assert mask("see https://user:pw@h.example/") == "see https://user:***@h.example/"
+    assert mask("mail me: a@b.example") == "mail me: a@b.example"
+    for text in ("git+https://tok@github.com/x/y", "http:\\\\u:p@h"):
+        assert mask(mask(text)) == mask(text)

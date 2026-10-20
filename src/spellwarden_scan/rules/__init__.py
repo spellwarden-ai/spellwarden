@@ -77,9 +77,9 @@ class RuleSet:
 
     @classmethod
     def baseline(cls) -> RuleSet:
-        from spellwarden_scan.rules import mcp, skill
+        from spellwarden_scan.rules import config, mcp, skill
 
-        return cls(skill.RULES + mcp.RULES)
+        return cls(skill.RULES + mcp.RULES + config.RULES)
 
     def with_rules(self, extra: Iterable[Rule]) -> RuleSet:
         return RuleSet(self._rules + tuple(extra))

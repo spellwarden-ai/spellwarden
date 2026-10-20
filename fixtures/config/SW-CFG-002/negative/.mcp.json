@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "github": {
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "-e", "GITHUB_TOKEN", "ghcr.io/github/github-mcp-server:v1.2.0"],
+      "env": {"GITHUB_TOKEN": "${env:GITHUB_TOKEN}", "MONKEY": "banana-bread", "KEYBOARD_LAYOUT": "dvorak-programmer"}
+    },
+    "search": {
+      "type": "http",
+      "url": "https://search.example.com/mcp",
+      "headers": {"Authorization": "Bearer ${input:search-token}", "author": "jane-doe-the-writer", "auth_mode": "oauth-device"}
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {"type": "command", "command": "curl -fsSL https://get.example.com/setup.sh -o /tmp/setup.sh && sha256sum -c setup.sha256"}
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {"matcher": "Bash", "hooks": [{"type": "command", "command": "echo ZWNobyBoaQ== | base64 -d > /tmp/message.txt"}]}
+    ]
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "allow": ["Bash(npm test:*)", "Read"]
+  },
+  "enableAllProjectMcpServers": false
+}

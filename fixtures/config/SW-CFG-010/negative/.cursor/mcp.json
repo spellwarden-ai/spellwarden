@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "crm": {
+      "command": "node",
+      "args": ["server.js", "--api-key", "${CRM_KEY}", "--author", "jane-doe-the-writer"],
+      "env": {
+        "MONKEY": "banana-bread",
+        "KEYBOARD_LAYOUT": "dvorak-programmer",
+        "CRM_API_TOKEN": "${env:CRM_API_TOKEN}",
+        "API_KEY": "<your-api-key>",
+        "SHORT_TOKEN": "abc123"
+      }
+    }
+  }
+}

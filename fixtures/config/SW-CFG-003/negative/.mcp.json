@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "fetch": {"command": "uvx", "args": ["mcp-server-fetch==2025.4.7"]},
+    "files": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem@2025.8.21", "/srv/docs"]},
+    "db": {"command": "docker", "args": ["run", "-i", "--rm", "-e", "DB_HOST", "acme/db-mcp:1.4.2"]},
+    "pinned": {"command": "podman", "args": ["run", "-i", "acme/tool@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"]},
+    "local": {"command": "node", "args": ["./server/index.js"]}
+  }
+}
