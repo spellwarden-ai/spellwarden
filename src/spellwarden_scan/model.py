@@ -7,7 +7,7 @@ from dataclasses import dataclass, field, fields
 from typing import Any, Literal
 
 Severity = Literal["critical", "high", "medium", "low"]
-Area = Literal["skill", "mcp"]
+Area = Literal["skill", "mcp", "config"]
 SEVERITY_RANK: dict[str, int] = {"critical": 0, "high": 1, "medium": 2, "low": 3}
 
 

@@ -10,10 +10,10 @@ from typing import Any
 
 from spellwarden_scan.model import SEVERITY_RANK, Finding
 
-RULE_ID_RE = re.compile(r"^SW-(SKL|MCP)-\d{3}$")
+RULE_ID_RE = re.compile(r"^SW-(SKL|MCP|CFG)-\d{3}$")
 ALLOWED_OWASP = ("ASI01", "ASI04", "ASI10", "MCP01", "MCP10")
 ALLOWED_NIST = ("AC-3", "AC-6", "AU-2", "IA-5", "SC-7", "SI-10", "SR-3")
-AREAS = ("skill", "mcp")
+AREAS = ("skill", "mcp", "config")
 
 
 @dataclass(frozen=True)
