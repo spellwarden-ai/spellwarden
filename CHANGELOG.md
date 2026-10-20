@@ -26,10 +26,11 @@ Rules version `2026.10.2`: ten rules added; no existing rule changed what it det
   as command options (`-u user:pass`, `--password`), credential header values, and URL userinfo through its last
   `@`; fingerprints are unchanged.
 - A symbolic link at an agent-content path, or inside a skill or local plugin directory, is followed when its
-  target is a file of the repository inside the scan root; a skill or plugin link whose target is outside the
-  scan root is skipped and its target text locked. Configuration file names match whatever their case; a skill
-  is a directory holding exactly `SKILL.md` (another spelling gets a notice, and is judged as `SKILL.md` under a
-  `skills/` directory). A marketplace plugin with the source `./` is the marketplace's own directory.
+  target is a file of the repository inside the scan root; a skill or plugin link whose relative target leaves
+  the scan root is skipped and its target text locked, and an absolute target is an error. Configuration file
+  names match whatever their case; a skill is a directory holding exactly `SKILL.md` (another spelling gets a
+  notice, and is judged as `SKILL.md` under a `skills/` directory). A marketplace plugin with the source `./` is
+  the marketplace's own directory.
 - `--probe` runs the unauthenticated MCP probe of the hosted product from your machine or runner, with its SSRF rules
   and a budget of 50 servers, 300 requests and 120 seconds; the configured servers' private addresses only with
   `--probe-private` on a local run or a push, schedule or manual run of a protected ref, never a link-local address

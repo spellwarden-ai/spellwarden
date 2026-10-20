@@ -635,12 +635,12 @@ def test_a_link_inside_a_local_plugin_directory_is_followed(make_repo, tmp_path)
         ".claude-plugin/marketplace.json": json.dumps({"plugins": [{"name": "p", "source": "./p"}]}),
         "p/.claude-plugin/plugin.json": json.dumps({"name": "p"}), "shared/run.sh": SAFE_SCRIPT})
     _symlink("../../shared/run.sh", repo / "p" / "bin" / "run.sh")
-    _symlink("/etc/hostname", repo / "p" / "bin" / "abs.sh")
+    _symlink("../../../outside.sh", repo / "p" / "bin" / "out.sh")
     found = _discover(repo)
     assert found.errors == ()
     assert found.plugin_dirs[0].files["p/bin/run.sh"] == SAFE_SCRIPT.encode()
-    assert found.plugin_dirs[0].links == {"p/bin/abs.sh": b"/etc/hostname"}
-    assert [n.path for n in found.notices if n.code == "symlink_skipped"] == ["p/bin/abs.sh"]
+    assert found.plugin_dirs[0].links == {"p/bin/out.sh": b"../../../outside.sh"}
+    assert [n.path for n in found.notices if n.code == "symlink_skipped"] == ["p/bin/out.sh"]
 
 
 def test_member_links_count_toward_the_package_limits_before_any_target_is_read(make_repo, tmp_path, monkeypatch):
@@ -797,21 +797,28 @@ def test_a_skill_belongs_to_its_innermost_plugin_not_the_root_plugin(make_repo, 
     assert [(s.path, s.plugin) for s in found.skills] == [("a/skills/x", "a"), ("skills/y", "root")]
 
 
-@pytest.mark.parametrize("case", ["climbs out and back in", "absolute through an alias", "relative through an alias"])
-def test_a_member_link_that_reaches_the_scan_root_another_way_is_an_error(case, make_repo, tmp_path):
-    # Security review of r2:F6 (HIGH): "outside" is decided from where the target really resolves, never from the
-    # first `..` past the root or a string comparison; repository content reached by a detour is not skipped.
+def test_a_member_link_that_reaches_the_scan_root_through_an_absolute_alias_is_an_error(make_repo, tmp_path):
+    # An absolute target is `unsafe_path` whatever it names (r3:N1), so an alias of the root cannot hide content.
     repo = make_repo(tmp_path / "real" / "repo", {"skills/x/SKILL.md": SKILL, "shared/run.sh": SAFE_SCRIPT})
     alias = tmp_path / "alias"
     _symlink(str(tmp_path / "real"), alias)
-    target = {"climbs out and back in": "../../../repo/shared/run.sh",
-              "absolute through an alias": str(alias / "repo" / "shared" / "run.sh"),
-              "relative through an alias": "../../../../alias/repo/shared/run.sh"}[case]
-    _symlink(target, repo / "skills" / "x" / "run.sh")
+    _symlink(str(alias / "repo" / "shared" / "run.sh"), repo / "skills" / "x" / "run.sh")
     found = _discover(repo)
     assert ("unsafe_path", "skills/x/run.sh") in {(e.code, e.path) for e in found.errors}
     assert found.skills == ()
     assert "skills/x/run.sh" not in [n.path for n in found.notices if n.code == "symlink_skipped"]
+
+
+def test_a_relative_target_through_an_alias_outside_the_root_is_decided_by_its_spelling(make_repo, tmp_path):
+    # Orchestrator decision after r3:N1/N2: "outside" is lexical. An alias of the root that sits outside it is the
+    # operator's machine, not the repository, and no file-system call may test it; the link is skipped and its
+    # target text locked, so retargeting it makes the lock stale.
+    repo = make_repo(tmp_path / "real" / "repo", {"skills/x/SKILL.md": SKILL, "shared/run.sh": SAFE_SCRIPT})
+    _symlink(str(tmp_path / "real"), tmp_path / "alias")
+    _symlink("../../../../alias/repo/shared/run.sh", repo / "skills" / "x" / "run.sh")
+    found = _discover(repo)
+    assert found.errors == ()
+    assert found.skills[0].links == {"skills/x/run.sh": b"../../../../alias/repo/shared/run.sh"}
 
 
 def test_a_member_link_through_an_outside_alias_to_outside_content_is_skipped(make_repo, tmp_path):
@@ -854,33 +861,127 @@ def test_a_refusal_that_is_no_escape_is_an_error_even_when_the_target_is_outside
     assert found.skills == ()
 
 
-def test_inside_is_decided_by_file_identity_not_by_the_spelling_of_the_root(make_repo, tmp_path, monkeypatch):
-    # A case-insensitive file system spells the root two ways; an alias does the same on Linux. The real root as
-    # `realpath` gives it is made to differ in spelling from the target's resolution: identity still says inside.
-    repo = make_repo(tmp_path / "real" / "repo", {"skills/x/SKILL.md": SKILL, "shared/run.sh": SAFE_SCRIPT})
-    _symlink(str(tmp_path / "real"), tmp_path / "alias")
-    _symlink("../../../repo/shared/run.sh", repo / "skills" / "x" / "run.sh")
-    fileset = list_files(str(repo), Settings())
-    real = os.path.realpath
-    spelled = str(tmp_path / "alias" / "repo")
-    monkeypatch.setattr(discover_module.os.path, "realpath",
-                        lambda p, *a, **k: spelled if os.path.normpath(p) == os.path.normpath(str(repo)) else real(p, *a, **k))
-    found = discover(fileset)
-    assert ("unsafe_path", "skills/x/run.sh") in {(e.code, e.path) for e in found.errors}
+# --- r3:N1, N2: link target text never reaches the file system; "outside" is decided lexically ------------------
+
+ABSOLUTE_TARGETS = ["//attacker.example/share/x.sh", "\\\\attacker.example\\share\\x.sh", "C:/x.sh", "C:x.sh",
+                    "c:\\x.sh", "\\\\?\\C:\\x.sh", "\\\\.\\pipe\\x", "//?/C:/x.sh", "\\x.sh", "/etc/hostname",
+                    "/proc/self/cwd/../payload.sh"]
 
 
-def test_an_outside_answer_that_cannot_be_proven_fails_closed(make_repo, tmp_path, monkeypatch):
+@pytest.mark.parametrize("where", ["member", "agent content"])
+@pytest.mark.parametrize("text", ABSOLUTE_TARGETS)
+def test_a_target_absolute_in_any_os_sense_is_unsafe_for_every_link(text, where, make_repo, tmp_path):
+    # r3:N1: a UNC, drive or device target reached `os.path.realpath` and `os.stat` (an SMB connection on Windows).
+    # Absolute in the sense of any OS, on every OS, since the text comes from the repository: `unsafe_path`.
+    repo = make_repo(tmp_path / "repo", {"skills/x/SKILL.md": SKILL, "payload.sh": EVIL_SCRIPT})
+    path = "skills/x/run.sh" if where == "member" else ".mcp.json"
+    _plain_file_link(repo, path, text)
+    found = _discover(repo)
+    errors = [(e.code, e.path, e.message) for e in found.errors if e.path == path]
+    assert [(code, p) for code, p, _ in errors] == [("unsafe_path", path)]
+    assert "absolute target" in errors[0][2] and "use a relative link or a real file" in errors[0][2]
+    assert path not in [n.path for n in found.notices if n.code == "symlink_skipped"]
+    if where == "member":
+        assert found.skills == ()
+
+
+@pytest.mark.parametrize("text", ["//attacker.example/share/x.sh", "\\\\attacker.example\\share\\x.sh",
+                                  "/attacker.example/x.sh", "../../../attacker.example/x.sh",
+                                  "../../../attacker.example/../x.sh"])
+def test_no_file_system_call_receives_the_link_target_text(text, make_repo, tmp_path, monkeypatch):
+    # r3:N1 (the reviewer's spyfs.py): the scanner never passes link-target text from the repository to realpath,
+    # stat, lstat or open; an absolute target is refused and a relative one is resolved lexically.
     repo = make_repo(tmp_path / "repo", {"skills/x/SKILL.md": SKILL})
-    (tmp_path / "outside.sh").write_text(SAFE_SCRIPT, encoding="utf-8")
-    _symlink("../../../outside.sh", repo / "skills" / "x" / "run.sh")
+    _symlink(text, repo / "skills" / "x" / "run.sh")
+    _symlink(text, repo / ".mcp.json")
     fileset = list_files(str(repo), Settings())
-    real_stat = os.stat
+    calls: list[str] = []
 
-    def stat(p, *args, **kwargs):
-        if os.path.normpath(str(p)) == os.path.normpath(str(tmp_path)):
-            raise PermissionError("denied")
-        return real_stat(p, *args, **kwargs)
+    def spy(module, attribute):
+        real = getattr(module, attribute)
 
-    monkeypatch.setattr(discover_module.os, "stat", stat)
+        def call(*args, **kwargs):
+            calls.extend(str(arg) for arg in args[:1])
+            return real(*args, **kwargs)
+        monkeypatch.setattr(module, attribute, call)
+
+    for module, attribute in ((os.path, "realpath"), (os, "stat"), (os, "lstat"), (os, "open")):
+        spy(module, attribute)
     found = discover(fileset)
+    assert ("unsafe_path", ".mcp.json") in {(e.code, e.path) for e in found.errors}
+    assert [call for call in calls if "attacker" in call] == []
+
+
+def test_a_proc_self_cwd_link_cannot_hide_repository_content(make_repo, tmp_path, run_cli):
+    # r3:N2: `/proc/self/cwd/../payload.sh` resolved in the scanner's context looked outside, so the link was skipped
+    # and `payload.sh`, which an agent working in a subdirectory reads, was neither scanned nor locked.
+    repo = make_repo(tmp_path / "repo", {"skills/x/SKILL.md": SKILL, "payload.sh": EVIL_SCRIPT, "app/README.md": "x\n"})
+    _symlink("/proc/self/cwd/../payload.sh", repo / "skills" / "x" / "run.sh")
+    assert run_cli(["lock", str(repo)])[0] == 0
+    out = tmp_path / "report.json"
+    code, _out, _err = run_cli(["scan", str(repo), "--no-telemetry", "--locked", "--format", "json", "--output", str(out)])
+    report = json.loads(out.read_text(encoding="utf-8"))
+    assert ("unsafe_path", "skills/x/run.sh") in {(e["code"], e["path"]) for e in report["errors"]}
+    assert code == 2
+
+
+@pytest.mark.parametrize("magic", ["proc/self/cwd/payload.sh", "proc/self/cwd/../payload.sh", "proc/self/root/x.sh",
+                                   "dev/fd/3/payload.sh", "proc/self/cwd/../../../elsewhere/payload.sh"])
+def test_a_relative_target_that_climbs_into_proc_or_dev_is_unsafe(magic, make_repo, tmp_path):
+    # r3:N2 written relatively: enough `..` reach `/` from any checkout depth, and a path through /proc or /dev means
+    # something else to every process that reads it, so it is never "outside", even where `..` climbs back out of
+    # /proc lexically (`/proc/self/cwd/../../..` is no ancestor of /proc for the agent) (POSIX only).
+    if os.name == "nt":
+        pytest.skip("no /proc or /dev on Windows")
+    repo = make_repo(tmp_path / "repo", {"skills/x/SKILL.md": SKILL, "payload.sh": EVIL_SCRIPT})
+    _symlink("../" * 64 + magic, repo / "skills" / "x" / "run.sh")
+    found = _discover(repo)
     assert ("unsafe_path", "skills/x/run.sh") in {(e.code, e.path) for e in found.errors}
+    assert found.skills == ()
+
+
+def test_a_relative_target_that_climbs_out_and_back_in_follows_the_inside_rules(make_repo, tmp_path):
+    # Orchestrator decision after r3:N1/N2: a relative target is resolved lexically against the real scan root; one
+    # that climbs out and back in by the root's own name is inside, followed when it names a regular file of the set.
+    repo = make_repo(tmp_path / "repo", {"skills/x/SKILL.md": SKILL, "shared/run.sh": SAFE_SCRIPT})
+    _symlink("../../../repo/shared/run.sh", repo / "skills" / "x" / "run.sh")
+    found = _discover(repo)
+    assert found.errors == ()
+    assert found.skills[0].files["skills/x/run.sh"] == SAFE_SCRIPT.encode() and found.skills[0].links == {}
+
+
+@pytest.mark.parametrize("target", ["../../../repo/linkdir/run.sh", "../../../repo/shared/missing.sh",
+                                    "../../nowhere/../shared/run.sh", "../../shared/run.sh/../run.sh"])
+def test_a_relative_target_inside_that_cannot_be_followed_is_unsafe(target, make_repo, tmp_path):
+    # Inside, lexically: a path through a link, through a name that is no directory of the file set, or to a missing
+    # file is `unsafe_path` (the repository's own content is never skipped).
+    repo = make_repo(tmp_path / "repo", {"skills/x/SKILL.md": SKILL, "shared/run.sh": SAFE_SCRIPT})
+    _symlink("shared", repo / "linkdir")
+    _symlink(target, repo / "skills" / "x" / "run.sh")
+    found = _discover(repo)
+    assert ("unsafe_path", "skills/x/run.sh") in {(e.code, e.path) for e in found.errors}
+    assert found.skills == ()
+
+
+@pytest.mark.parametrize("insensitive, followed", [(True, True), (False, False)])
+def test_the_root_is_matched_in_the_platform_case(insensitive, followed, make_repo, tmp_path, monkeypatch):
+    # The real root and the target are compared after `normcase`, and folded on a case-insensitive platform (macOS,
+    # Windows), where `../../../REPO/...` reaches the scan root.
+    repo = make_repo(tmp_path / "repo", {"skills/x/SKILL.md": SKILL, "shared/run.sh": SAFE_SCRIPT})
+    _symlink("../../../REPO/shared/run.sh", repo / "skills" / "x" / "run.sh")
+    monkeypatch.setattr(discover_module, "_CASE_INSENSITIVE", insensitive, raising=False)
+    found = _discover(repo)
+    assert found.errors == ()
+    if followed:
+        assert found.skills[0].files["skills/x/run.sh"] == SAFE_SCRIPT.encode()
+    else:
+        assert found.skills[0].links == {"skills/x/run.sh": b"../../../REPO/shared/run.sh"}
+
+
+def test_a_genuine_relative_outside_target_is_skipped_and_hashed(make_repo, tmp_path):
+    repo = make_repo(tmp_path / "repo", {"skills/x/SKILL.md": SKILL})
+    _symlink("../../../tools/run.sh", repo / "skills" / "x" / "run.sh")
+    found = _discover(repo)
+    assert found.errors == () and found.skills[0].links == {"skills/x/run.sh": b"../../../tools/run.sh"}
+    notice = next(n for n in found.notices if n.code == "symlink_skipped")
+    assert notice.path == "skills/x/run.sh" and "leaves the scan root" in notice.message

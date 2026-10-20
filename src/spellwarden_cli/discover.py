@@ -4,8 +4,10 @@ rules and through a plugin is parsed once and listed once (one owner per
 file). Only skill packages and configuration documents are read (plan P12)."""
 from __future__ import annotations
 
+import ntpath
 import os
 import posixpath
+import sys
 import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
@@ -137,15 +139,41 @@ def _join(directory: str, name: str) -> str:
 
 
 class _Escape(UnsafePath):
-    """A link target refused because it escapes the scan root as written: absolute, or climbing past the root. Only
-    such a target may be outside (`_Builder._outside`); every other refusal is an error wherever it leads."""
+    """A relative link target refused because it resolves, lexically, outside the scan root (`_Builder._link_target`).
+    Only such a target may be skipped (a member link); every other refusal is an error wherever it leads."""
+
+
+# Case-insensitive by default: there the real scan root and a target that climbs out and back in are compared folded.
+_CASE_INSENSITIVE = sys.platform in ("win32", "darwin")
+# POSIX directories whose paths mean something different to every process that reads them (`/proc/self/cwd`,
+# `/dev/fd`): a target that enters one outside the scan root is never "outside", wherever it ends (r3:N2).
+_PROCESS_RELATIVE = ("proc", "dev")
+
+
+def _absolute(text: str) -> bool:
+    """Whether a link target is absolute in the sense of ANY operating system, whichever one runs the scan (r3:N1): a
+    leading `/` or `\\` (POSIX, UNC `//host` and `\\\\host`, device `\\\\?\\` and `\\\\.\\`), or a drive (`C:`, `C:x`)."""
+    return posixpath.isabs(text) or text.startswith("\\") or ntpath.isabs(text) or bool(ntpath.splitdrive(text)[0])
+
+
+def _parts(path: str) -> list[str]:
+    """The components of the operator's real scan root below its anchor (drive and root)."""
+    rest = os.path.splitdrive(path)[1]
+    for separator in filter(None, (os.altsep,)):
+        rest = rest.replace(separator, os.sep)
+    return [part for part in rest.split(os.sep) if part]
+
+
+def _same(a: str, b: str) -> bool:
+    a, b = os.path.normcase(a), os.path.normcase(b)
+    return _fold(a) == _fold(b) if _CASE_INSENSITIVE else a == b
 
 
 class _Resolution(NamedTuple):
     target: str | None  # the file of the set the link names, when it can be followed
     text: bytes | None  # the target text, None when it could not be read
     refusal: Notice | None  # why the link is not followed
-    outside: bool  # an escaping target proven to resolve outside the scan root (`_Builder._outside`)
+    outside: bool  # a relative target that resolves, lexically, outside the scan root (`_Builder._link_target`)
 
 
 class _Builder:
@@ -164,6 +192,8 @@ class _Builder:
             while directory:
                 directory = posixpath.dirname(directory)
                 self.directories.add(directory)
+        self.folded_directories = {_fold(d) for d in self.directories}
+        self.real_root: list[str] | None = None  # `_root_parts`: computed once, from the operator's scan root only
         self.documents: dict[str, ConfigDocument] = {}
         self.owners: dict[str, str] = {}  # document path -> plugin name
         self.roles: dict[str, set[str]] = {}  # document path -> every kind it was parsed as
@@ -247,7 +277,7 @@ class _Builder:
         except UnicodeDecodeError:
             return _Resolution(None, raw, Notice("unsafe_path", path, "symbolic link: target is not UTF-8"), False)
         except _Escape as exc:
-            return _Resolution(None, raw, Notice("unsafe_path", path, f"symbolic link: {exc}"), self._outside(path, text))
+            return _Resolution(None, raw, Notice("unsafe_path", path, f"symbolic link: {exc}"), True)
         except UnsafePath as exc:
             return _Resolution(None, raw, Notice("unsafe_path", path, f"symbolic link: {exc}"), False)
         if target in self.links:
@@ -275,54 +305,59 @@ class _Builder:
         return True
 
     def _link_target(self, link: str, text: str) -> str:
-        """The scan-root path a link's target names. Every refusal of the containment rule (6.13) applies except
-        the parent segment: a link may climb with `..` (`.cursor/mcp.json -> ../.mcp.json` is common) as long as it
-        stays inside the scan root and climbs through no directory that is itself a link (an agent's file system
-        would resolve that link, the scanner reads paths as written). An absolute target is refused."""
-        if os.path.isabs(text):
-            raise _Escape("absolute target")
+        """The scan-root path a link's target names, decided from the text alone: no file-system call ever receives
+        link-target text from the repository (r3:N1). A target absolute in the sense of any OS is refused first. Every
+        other refusal of the containment rule (6.13) applies except the parent segment: the target is resolved
+        lexically, `os.path.normpath(os.path.join(REALROOT, link_dir, text))` with REALROOT the real path of the
+        operator's scan root, and compared lexically with REALROOT (`_same`). Inside, it may climb with `..`, out and
+        back in by the root's own name included, through directories of the file set that are not links (an agent's
+        file system would resolve a link, the scanner reads paths as written). Outside, it is `_Escape`, except when it
+        enters `/proc` or `/dev` on the way, whose paths depend on the process reading them (r3:N2)."""
+        if _absolute(text):
+            raise UnsafePath("absolute target; use a relative link or a real file")
         contain("", "/".join("_" if segment == ".." else segment for segment in text.split("/")))
         segments = (text[2:] if text.startswith("./") else text).rstrip("/").split("/")
-        parts = posixpath.dirname(link).split("/") if posixpath.dirname(link) else []
+        root = self._root_parts()
+        directory = posixpath.dirname(link)
+        stack = [*root, *(directory.split("/") if directory else [])]
         for index, segment in enumerate(segments):
-            if segment == "..":
-                if not parts:
-                    raise _Escape("target leaves the scan root")
-                parts.pop()
-            else:
-                parts.append(segment)
-            if index < len(segments) - 1 and "/".join(parts) in self.links:
+            if segment != "..":
+                stack.append(segment)
+            elif stack:  # `..` at the anchor stays there, as `normpath` and every file system do
+                stack.pop()
+            inside = self._inside_root(stack, root)
+            if inside is None:
+                if segment != ".." and os.name != "nt" and stack[0] in _PROCESS_RELATIVE:
+                    raise UnsafePath(f"target passes through /{stack[0]}, where a path depends on the process "
+                                     "reading it")
+                continue
+            if index == len(segments) - 1:
+                continue
+            if self.find(inside) in self.links:
                 raise UnsafePath("target passes through a symbolic link")
-        return "/".join(parts)
+            if _fold(inside) not in self.folded_directories:
+                raise UnsafePath(f"target passes through {inside!r}, not a directory of the file set")
+        inside = self._inside_root(stack, root)
+        if inside is None:
+            raise _Escape("target leaves the scan root")
+        return inside
 
-    def _outside(self, link: str, text: str) -> bool:
-        """Whether the escaping target `text` of the link `link` is proven to resolve outside the scan root. The link's
-        directory under the real scan root is joined with `text` and resolved by the file system (`os.path.realpath`
-        follows every link on the way and applies `..` where the system does); the result and each of its parents
-        is compared by file identity (device and inode, `os.path.samestat`) with the scan root, never by spelling,
-        which a case-insensitive file system or an alias makes ambiguous. Outside only when no ancestor is the root
-        and every existing ancestor could be examined; any doubt (a failed resolution, an ancestor that cannot be
-        examined) answers False, so the link is `unsafe_path` (fail closed)."""
-        try:
-            root = os.path.realpath(self.fileset.root)
-            root_stat = os.stat(root)
-            directory = posixpath.dirname(link)
-            base = os.path.join(root, *directory.split("/")) if directory else root
-            current = os.path.realpath(os.path.join(base, text))
-        except (OSError, ValueError):
-            return False
-        while True:
+    def _root_parts(self) -> list[str]:
+        """The components of the real path of the operator's scan root, computed once (never from repository text);
+        a root that cannot be resolved refuses every link target (fail closed)."""
+        if self.real_root is None:
             try:
-                if os.path.samestat(os.stat(current), root_stat):
-                    return False
-            except (FileNotFoundError, NotADirectoryError):
-                pass  # a missing component is not the root; its parents still may be
-            except (OSError, ValueError):
-                return False
-            parent = os.path.dirname(current)
-            if parent == current:
-                return True
-            current = parent
+                self.real_root = _parts(os.path.realpath(self.fileset.root))
+            except (OSError, ValueError) as exc:
+                raise UnsafePath(f"the scan root cannot be resolved ({type(exc).__name__})") from exc
+        return self.real_root
+
+    @staticmethod
+    def _inside_root(stack: list[str], root: list[str]) -> str | None:
+        """The scan-root path of the absolute components `stack`, or None when they are not under the real root."""
+        if len(stack) < len(root) or not all(_same(a, b) for a, b in zip(stack, root, strict=False)):
+            return None
+        return "/".join(stack[len(root):])
 
     def document(self, kind: str, path: str, plugin: str | None = None, *,
                  drop_references: bool = False) -> ConfigDocument | None:
