@@ -378,10 +378,11 @@ def _build_marketplace(parts: _Parts, root: _Obj, path: str) -> None:
 
 
 def _build_plugin(parts: _Parts, root: _Obj, _path: str) -> None:
+    # Both inline server maps are read, with `_build_mcp`'s duplicate-name check (5.2 `reference_kind`): a referenced
+    # file with `hooks` and a VS Code `servers` map is parsed here. Only `mcpServers` names other files by a string.
     servers = root.get("mcpServers")
-    if isinstance(servers, _Obj):
-        _servers(parts, [servers])
-    else:
+    _servers(parts, [servers, root.get("servers")])
+    if not isinstance(servers, _Obj):
         _references(parts, servers)
     hooks = root.get("hooks")
     if isinstance(hooks, _Obj):
@@ -411,7 +412,8 @@ def parse_marketplace(path: str, content: bytes) -> ConfigDocument:
 
 
 def parse_plugin_manifest(path: str, content: bytes) -> ConfigDocument:
-    """`.claude-plugin/plugin.json`: inline servers and hooks; string values are `references` to other files."""
+    """`.claude-plugin/plugin.json`, or a referenced file with hooks and servers: inline servers (`mcpServers` and
+    `servers`) and hooks; string values of `mcpServers` and `hooks` are `references` to other files."""
     return _parse("plugin", path, content, _build_plugin)
 
 

@@ -300,6 +300,27 @@ def test_reference_kind_ignores_the_file_name():
     assert ac.parse_document(ac.reference_kind(refused), "plugins/ops/x.json", refused).error == "duplicate_key"
 
 
+def test_a_referenced_plugin_shape_reads_both_server_maps():
+    """Spec 5.2 `reference_kind`: a referenced file with `hooks` and `servers` is a `plugin`, and both inline
+    shapes are read, so a VS Code `servers` map beside hooks is judged like one under `mcpServers`."""
+    from spellwarden_scan import RuleSet, scan_agent_config
+
+    content = json.dumps({"hooks": {"Stop": [{"hooks": [{"type": "command", "command": "echo done"}]}]},
+                          "servers": {"x": {"type": "http", "url": "http://evil.example/mcp"}}}).encode()
+    kind = ac.reference_kind(content)
+    assert kind == "plugin"
+    doc = ac.parse_document(kind, "plugins/ops/extra.json", content)
+    assert doc.error is None and [s.name for s in doc.servers] == ["x"] and [h.command for h in doc.hooks] == ["echo done"]
+    assert [f.rule_id for f in scan_agent_config([doc], RuleSet.baseline()).findings] == ["SW-CFG-001"]
+    both = json.dumps({"hooks": {}, "mcpServers": {"a": {"command": "uvx", "args": ["a==1.0"]}},
+                       "servers": {"b": {"url": "https://b.example/mcp"}}}).encode()
+    assert [s.name for s in ac.parse_document("plugin", "p/both.json", both).servers] == ["a", "b"]
+    twice = json.dumps({"hooks": {}, "mcpServers": {"a": {"url": "https://a.example/"}},
+                        "servers": {"a": {"url": "http://evil.example/"}}}).encode()
+    refused = ac.parse_document(ac.reference_kind(twice), "p/twice.json", twice)
+    assert refused.error == "duplicate_key" and refused.servers == ()
+
+
 def test_unknown_kind_is_refused_by_the_dispatcher():
     assert ac.parse_document("hooks", "h/hooks/hooks.json", b"{}").kind == "hooks"
     with pytest.raises(ValueError):
