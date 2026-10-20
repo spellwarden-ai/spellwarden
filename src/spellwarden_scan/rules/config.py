@@ -528,8 +528,22 @@ def _dispatch(words: Sequence[tuple[str, str]]) -> list[tuple[str, str, str, str
 _SHELLS = frozenset({"sh", "bash", "zsh"})
 _SHELL_PREFIXES = frozenset({"exec", "command", "builtin", "time", "nohup", "nice", "if", "then", "do", "else", "elif",
                              "while", "until", "!", "{"})
-# The prefixes that take options: every `-...` word after them, up to the first operand or `--`, is skipped.
-_OPTION_PREFIXES = frozenset({"exec", "command", "builtin", "time", "nohup", "nice"})
+# The prefixes that take options, with what they know: (short flags, short options taking a value, long options and
+# whether each takes a value). bash's `exec -c -l -a NAME`, `command -p` (`-v`/`-V` run nothing), GNU time's
+# `-o FILE -f FMT -a -v -p -q -V` and long forms, GNU nice's `-n N`, `-N` and `--adjustment N`. A long option may be
+# any unambiguous prefix (`--adj`); an option a prefix does not know is read both ways (security review).
+_PREFIX_OPTIONS: dict[str, tuple[str, str, dict[str, bool]]] = {
+    "exec": ("cl", "a", {}),
+    "command": ("p", "", {}),
+    "builtin": ("", "", {}),
+    "time": ("pavqV", "of", {"output": True, "format": True, "append": False, "verbose": False, "portability": False,
+                             "quiet": False, "help": False, "version": False}),
+    "nohup": ("", "", {"help": False, "version": False}),
+    "nice": ("0123456789", "n", {"adjustment": True, "help": False, "version": False}),
+}
+# At most this many unknown options of one simple command are read both ways; later ones are read as flags. Each
+# reading both ways adds one candidate command, so a line of thousands of unknown options stays linear.
+_MAX_BOTH_READINGS = 4
 _SHELL_LONG_VALUE = frozenset({"--rcfile", "--init-file"})
 _SHELL_ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
 _ENV_SHORT_VALUE = frozenset("uCSP")
@@ -619,37 +633,74 @@ def _cmd_tokens(text: str) -> list[str | None]:
     return tokens
 
 
-def _shell_command(words: Sequence[tuple[str, str]]) -> list[tuple[str, str]]:
-    """A shell simple command without its leading `NAME=VALUE` words (the shell sets them in the environment) and
-    leading `exec`, `command`, `builtin`, `time`, `nohup`, `nice`, `if`, `then`, `do`, `else`, `elif`, `while`,
-    `until`, `!` and `{` (r2:F8), in any order. After `exec`, `command`, `builtin`, `time`, `nohup` and `nice`, every
-    option word up to the first operand is skipped, `--` included, with the values of exec's `-a NAME` and nice's
-    `-n N` and `--adjustment N`; `command -v`/`-V` only describes the command, so nothing is run (empty)."""
-    index = 0
-    while index < len(words):
-        word = words[index][1]
-        if _SHELL_ASSIGNMENT.match(word):
-            index += 1
+def _prefix_option(prefix: str, option: str) -> str:
+    """How `prefix` reads `option`: `flag` (no value), `value` (takes the next word), `stop` (`command -v`: nothing is
+    run) or `unknown` (judged both ways)."""
+    flags, values, longs = _PREFIX_OPTIONS[prefix]
+    if option.startswith("--"):
+        name, equals, _value = option[2:].partition("=")
+        matches = [name] if name in longs else [long for long in longs if long.startswith(name)]
+        if len(matches) != 1:
+            return "flag" if equals else "unknown"
+        return "value" if longs[matches[0]] and not equals else "flag"
+    for position, letter in enumerate(option[1:], start=1):
+        if prefix == "command" and letter in "vV":
+            return "stop"
+        if letter in values:
+            return "flag" if option[position + 1:] else "value"
+        if letter not in flags:
+            return "unknown"
+    return "flag"
+
+
+def _shell_commands(words: Sequence[tuple[str, str]]) -> list[list[tuple[str, str]]]:
+    """The candidate commands of one shell simple command: without its leading `NAME=VALUE` words (the shell sets them
+    in the environment) and leading `exec`, `command`, `builtin`, `time`, `nohup`, `nice`, `if`, `then`, `do`,
+    `else`, `elif`, `while`, `until`, `!` and `{` (r2:F8), in any order, with the options of the prefixes that take
+    some (`_PREFIX_OPTIONS`, `--` ending them). An option a prefix does not know gives two candidates, one where it
+    takes the next word and one where it does not, as for unknown docker options (5.3b), for the first
+    `_MAX_BOTH_READINGS` such options; `command -v` gives none. Each `(prefix, word index)` and each command start is
+    explored once, so the work stays linear."""
+    starts: set[int] = set()
+    both_readings = 0
+    explored: set[tuple[str, int]] = set()
+    pending = [("", 0)]
+    while pending:
+        prefix, index = pending.pop()
+        if (prefix, index) in explored:
             continue
-        if word not in _SHELL_PREFIXES:
-            break
-        index += 1
-        while word in _OPTION_PREFIXES and index < len(words) and words[index][1].startswith("-"):
-            option = words[index][1]
+        explored.add((prefix, index))
+        if prefix:  # reading the options of `prefix` at `index`
+            option = words[index][1] if index < len(words) else ""
+            if len(option) < 2 or not option.startswith("-"):
+                pending.append(("", index))
+                continue
+            kind = "end" if option == "--" else _prefix_option(prefix, option)
+            if kind == "unknown":
+                both_readings += 1
+                kind = "unknown" if both_readings <= _MAX_BOTH_READINGS else "flag"
+            if kind == "end":
+                pending.append(("", index + 1))
+            if kind in ("value", "unknown"):
+                pending.append((prefix, index + 2))
+            if kind in ("flag", "unknown"):
+                pending.append((prefix, index + 1))
+            continue
+        while index < len(words) and _SHELL_ASSIGNMENT.match(words[index][1]):
             index += 1
-            if option == "--":
-                break
-            short = not option.startswith("--")
-            if word == "command" and short and ("v" in option or "V" in option):
-                return []
-            if (word == "exec" and short and option.endswith("a")) or (word == "nice" and option in ("-n", "--adjustment")):
-                index += 1
-    return list(words[index:])
+        if index >= len(words):
+            continue
+        word = words[index][1]
+        if word not in _SHELL_PREFIXES:
+            starts.add(index)
+        else:
+            pending.append((word if word in _PREFIX_OPTIONS else "", index + 1))
+    return [list(words[start:]) for start in sorted(starts)]
 
 
 def _commands(tokens: Sequence[tuple[str, str | None]], *, assignments: bool) -> list[list[tuple[str, str]]]:
     """`(field, token)` items split at `_SEPARATOR` into simple commands; with `assignments` (a shell script), each
-    command's leading assignments, builtins and keywords are dropped (`_shell_command`)."""
+    command's leading assignments, builtins and keywords are dropped (`_shell_commands`, which may give two readings)."""
     commands: list[list[tuple[str, str]]] = [[]]
     for field, token in tokens:
         if token is _SEPARATOR:
@@ -657,7 +708,7 @@ def _commands(tokens: Sequence[tuple[str, str | None]], *, assignments: bool) ->
         else:
             commands[-1].append((field, token))
     if assignments:
-        commands = [_shell_command(command) for command in commands]
+        commands = [candidate for command in commands for candidate in _shell_commands(command)]
     return [command for command in commands if command]
 
 

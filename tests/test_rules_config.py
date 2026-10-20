@@ -455,6 +455,53 @@ def test_003_a_shell_builtin_or_keyword_before_a_launch_is_skipped(script, evide
     assert [f.evidence for f in found] == evidence
 
 
+@pytest.mark.parametrize("script, evidence", [
+    # GNU time's value-taking options, short, long, `=` and unambiguous long prefixes
+    ("time -o out.txt npx evil-pkg", ["s: npx evil-pkg (via bash -c)"]),
+    ("time -oout.txt npx evil-pkg", ["s: npx evil-pkg (via bash -c)"]),
+    ("time -f '%e' npx evil-pkg", ["s: npx evil-pkg (via bash -c)"]),
+    ("time -vo out.txt npx evil-pkg", ["s: npx evil-pkg (via bash -c)"]),
+    ("time --output out.txt npx evil-pkg", ["s: npx evil-pkg (via bash -c)"]),
+    ("time --output=out.txt npx evil-pkg", ["s: npx evil-pkg (via bash -c)"]),
+    ("time --format '%e' npx evil-pkg", ["s: npx evil-pkg (via bash -c)"]),
+    ("time --format=%e npx evil-pkg", ["s: npx evil-pkg (via bash -c)"]),
+    ("time --out out.txt npx evil-pkg", ["s: npx evil-pkg (via bash -c)"]),
+    ("time --fo '%e' --verbose npx evil-pkg", ["s: npx evil-pkg (via bash -c)"]),
+    ("time -o npx evil-pkg", []),  # `npx` is the output file: the command is `evil-pkg`
+    # nice's abbreviated --adjustment
+    ("nice --adj 5 npx evil-pkg", ["s: npx evil-pkg (via bash -c)"]),
+    ("nice --adjust 5 npx evil-pkg", ["s: npx evil-pkg (via bash -c)"]),
+    ("nice --adj=5 npx evil-pkg", ["s: npx evil-pkg (via bash -c)"]),
+    # an option the prefix does not know: both readings are judged
+    ("exec -x name npx evil-pkg", ["s: npx evil-pkg (via bash -c)"]),
+    ("exec -x npx evil-pkg", ["s: npx evil-pkg (via bash -c)"]),
+    ("nohup --weird value npx evil-pkg", ["s: npx evil-pkg (via bash -c)"]),
+    ("time --o out.txt npx evil-pkg", ["s: npx evil-pkg (via bash -c)"]),  # `--o` is ambiguous (output, ...)
+    ("builtin -q -q -q npx evil-pkg", ["s: npx evil-pkg (via bash -c)"]),
+    ("exec -x npx pkg@1.2.3", []),
+    ("nohup " + "-x " * 3000 + "npx evil-pkg", ["s: npx evil-pkg (via bash -c)"]),
+], ids=lambda value: value[:40] if isinstance(value, str) else None)
+def test_003_a_builtins_value_taking_options_are_read_and_unknown_ones_both_ways(script, evidence):
+    """r2:F8 follow-up (security review, spec 5.3b): each skipped builtin knows its value-taking options (GNU time
+    `-o`, `-f`, `--output`, `--format` and their unambiguous prefixes; exec `-a`; nice `-n` and `--adjustment`
+    prefixes); for an option a builtin does not know, both readings (it takes a value, it does not) are judged, as
+    for unknown docker options, and the rule fires when either candidate launch is unpinned."""
+    found = fired(servers({"s": {"command": "bash", "args": ["-c", script]}}), rule_id="SW-CFG-003")
+    assert [f.evidence for f in found] == evidence
+
+
+def test_003_reading_unknown_builtin_options_both_ways_stays_linear():
+    """Each unknown option read both ways adds a candidate command; only the first four are (a line of thousands of
+    `-x npx` took 50 s at 8,000 repetitions when every one was)."""
+    import time
+    for script, evidence in (("exec " + "-x exec " * 20_000 + "npx evil-pkg", ["s: npx evil-pkg (via bash -c)"]),
+                             ("nohup " + "-x npx " * 20_000 + "evil-pkg", ["s: npx evil-pkg (via bash -c)"])):
+        started = time.perf_counter()
+        found = fired(servers({"s": {"command": "bash", "args": ["-c", script]}}), rule_id="SW-CFG-003")
+        assert time.perf_counter() - started < 2.0
+        assert [f.evidence for f in found] == evidence
+
+
 def test_003_a_launch_behind_a_builtin_has_the_fingerprint_of_the_bare_launch():
     """The skipped words are not part of the identity: the finding keeps `[server, name, field, word]`."""
     bare = fired(servers({"s": {"command": "bash", "args": ["-c", "npx -y evil-pkg"]}}), rule_id="SW-CFG-003")
