@@ -68,7 +68,15 @@ def _named(path: str, suffix: str) -> bool:
 
 
 def _is_skill_file(path: str) -> bool:
-    return _fold(posixpath.basename(path)) == _fold(SKILL_FILE)
+    """A skill is a directory holding a file named exactly `SKILL.md` (spec 6.5): the engine reads that one name
+    (`frontmatter.skill_md_path`), and an agent on a case-sensitive file system loads no other (r2:F2)."""
+    return posixpath.basename(path) == SKILL_FILE
+
+
+def _is_skill_name_variant(path: str) -> bool:
+    """A file whose name folds to `skill.md` but is not exactly `SKILL.md`: notice `skill_name_case`, else content."""
+    name = posixpath.basename(path)
+    return name != SKILL_FILE and _fold(name) == _fold(SKILL_FILE)
 
 
 def _global_kind(path: str) -> str | None:
@@ -248,6 +256,9 @@ def _parse(kind: str, path: str, content: bytes) -> ConfigDocument:
     return replace(parsed, path=path)
 
 
+_SKILL_NAME_CASE = ("an agent on a case-insensitive file system may load this as SKILL.md; rename it to SKILL.md to "
+                    "have it scanned as a skill, or rename it away")
+
 _DOCUMENT_MESSAGES = {
     "too_large": "configuration document over 1 MiB; not judged",
     "not_utf8": "configuration document is not UTF-8; not judged",
@@ -291,6 +302,8 @@ def _follow_references(builder: _Builder, manifest: ConfigDocument, directory: s
 
 def discover(fileset: FileSet) -> Discovery:
     builder = _Builder(fileset)
+    builder.notices.extend(Notice("skill_name_case", path, _SKILL_NAME_CASE)
+                           for path in sorted({*builder.paths, *builder.links}) if _is_skill_name_variant(path))
     plugin_dirs: dict[str, str] = {}  # directory -> plugin name
     plugin_items: list[Item] = []
     for path in sorted(builder.links):  # links at a global name; plugin paths and references follow theirs below

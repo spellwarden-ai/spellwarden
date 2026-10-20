@@ -470,12 +470,11 @@ def test_a_plain_file_link_target_over_4096_bytes_is_unsafe(make_repo, tmp_path)
 
 
 def test_agent_names_match_whatever_their_case(make_repo, tmp_path, run_cli):
-    # On macOS and Windows an agent asking for `.mcp.json`, `.claude/settings.json` or `SKILL.md` opens these files;
-    # outputs keep the names as written.
+    # On macOS and Windows an agent asking for `.mcp.json` or `.claude/settings.json` opens these files; outputs keep
+    # the names as written. A skill is the exception (F2): see the `skill_name_case` tests below.
     repo = make_repo(tmp_path / "repo", {
         ".MCP.json": SERVERS,
         ".Claude/Settings.json": json.dumps({"permissions": {"defaultMode": "bypassPermissions"}}),
-        "skills/x/skill.md": SKILL,
     })
     found = _discover(repo)
     assert [(d.path, d.kind) for d in found.documents] == [(".Claude/Settings.json", "settings"), (".MCP.json", "mcp")]
@@ -483,7 +482,6 @@ def test_agent_names_match_whatever_their_case(make_repo, tmp_path, run_cli):
         ("mcp-config", ".MCP.json", ".MCP.json", None),
         ("mcp-server", ".MCP.json#jira", "jira", None),
         ("settings", ".Claude/Settings.json", "Settings.json", None),
-        ("skill", "skills/x", "x", None),
     ]
     code, report = _scan_json(run_cli, repo, tmp_path)
     assert {("SW-CFG-001", ".MCP.json"), ("SW-CFG-008", ".Claude/Settings.json")} <= {
@@ -513,3 +511,35 @@ def test_two_names_that_differ_only_in_case_are_still_a_collision(make_repo, tmp
     fileset = list_files(str(repo), Settings())
     assert [(e.code, e.path) for e in fileset.errors] == [("case_collision", ".MCP.json"), ("case_collision", ".mcp.json")]
     assert discover(fileset).documents == ()
+
+
+def _skill_name_case(found):
+    return [n.path for n in found.notices if n.code == "skill_name_case"]
+
+
+def test_a_lowercase_skill_md_is_prose_with_a_notice(make_repo, tmp_path, run_cli):
+    # F2 (r2): the engine reads exactly `SKILL.md`; `docs/skill.md` must not turn `docs/` into a skill package (a
+    # bogus SW-SKL-015 at a missing `docs/SKILL.md`, and every file under it judged by the skill rules).
+    repo = make_repo(tmp_path / "repo", {"docs/skill.md": "# Skills\n\nHow we write skills.\n",
+                                         "docs/install.md": "# Install\n\n```sh\ncurl https://x.example/i.sh | bash\n```\n"})
+    found = _discover(repo)
+    assert found.skills == () and found.errors == ()
+    assert _skill_name_case(found) == ["docs/skill.md"]
+    notice = next(n for n in found.notices if n.code == "skill_name_case")
+    assert "rename it to SKILL.md" in notice.message
+    code, report = _scan_json(run_cli, repo, tmp_path)
+    assert report["findings"] == [] and code == 0
+    assert ("skill_name_case", "docs/skill.md") in {(n["code"], n["path"]) for n in report["notices"]}
+
+
+def test_a_skill_written_as_skill_md_gets_the_notice_and_no_sw_skl_015(make_repo, tmp_path, run_cli):
+    repo = make_repo(tmp_path / "repo", {"skills/x/Skill.MD": SKILL, "skills/x/run.sh": "echo hi\n"})
+    found = _discover(repo)
+    assert found.skills == () and _skill_name_case(found) == ["skills/x/Skill.MD"]
+    code, report = _scan_json(run_cli, repo, tmp_path)
+    assert "SW-SKL-015" not in {f["rule_id"] for f in report["findings"]} and code == 0
+
+
+def test_an_exact_skill_md_has_no_name_notice(make_repo, tmp_path):
+    found = _discover(make_repo(tmp_path / "repo", {"skills/x/SKILL.md": SKILL}))
+    assert [s.path for s in found.skills] == ["skills/x"] and _skill_name_case(found) == []
