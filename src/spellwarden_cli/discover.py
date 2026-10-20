@@ -90,8 +90,9 @@ class Discovery:
 
 
 def _fold(path: str) -> str:
-    """The form names are matched in: NFC, then case folding, as macOS and Windows open them and as the
-    `case_collision` check of the file set compares paths (6.4). Outputs keep each path as it is written."""
+    """The form agent-content names are recognised in (global configuration names, the `skills/` variant rule): NFC,
+    then case folding, as macOS and Windows open them and as the `case_collision` check of the file set compares paths
+    (6.4). Targets and references are never resolved through it (`_Builder.twin`). Outputs keep each path as written."""
     return unicodedata.normalize("NFC", path).casefold()
 
 
@@ -195,7 +196,8 @@ class _Builder:
         self.paths = set(fileset.paths())  # grows by the symbolic links followed (`follow`)
         self.entries = {entry.path: entry for entry in fileset.entries}
         self.links = {link.path: link for link in fileset.links}
-        # colliding names were dropped from the file set (6.4), so one folded name is one path
+        # colliding names were dropped from the file set (6.4), so one folded name is one path; used only to name the
+        # listed spelling when a target or reference matches one only after folding (`twin`, r4:R4-2)
         self.folded = {_fold(p): p for p in (*self.paths, *self.links)}
         self.followed: set[str] = set()  # every link followed, or refused with an error
         self.resolved: dict[str, _Resolution] = {}  # package member links, resolved once, adopted only when accepted
@@ -206,7 +208,8 @@ class _Builder:
             while directory:
                 directory = posixpath.dirname(directory)
                 self.directories.add(directory)
-        self.folded_directories = {_fold(d) for d in self.directories}
+        self.folded_directories = {_fold(d): d for d in self.directories}
+        self.twins: set[str] = set()  # document paths already reported as naming a listed path in another spelling
         self.real_root: list[str] | None = None  # `_root_parts`: computed once, from the operator's scan root only
         self.documents: dict[str, ConfigDocument] = {}
         self.owners: dict[str, str] = {}  # document path -> plugin name
@@ -232,11 +235,24 @@ class _Builder:
         self.contents[path] = content
         return content
 
-    def find(self, path: str) -> str:
-        """The listed path an agent opening `path` reads on a case-insensitive file system, else `path`."""
-        if path in self.paths or path in self.links:
-            return path
-        return self.folded.get(_fold(path), path)
+    def twin(self, path: str) -> str | None:
+        """The listed file, link or directory that `path`, or the first of its directories the file set does not hold,
+        names only after NFC normalisation and case folding; None when `path` is listed exactly or nothing folds alike.
+        A link target, its directories, a manifest reference and a plugin's conventional path resolve by exact match
+        only: on a case-sensitive file system the other spelling is another file, which may be one the file set does
+        not list (inside a submodule, under `node_modules`), so a folded match is `unsafe_path`, never a fallback
+        (orchestrator decision after r4:R4-2)."""
+        if path in self.paths or path in self.links or path in self.directories:
+            return None
+        listed = self.folded.get(_fold(path)) or self.folded_directories.get(_fold(path))
+        if listed is not None:
+            return listed
+        parts = path.split("/")
+        for depth in range(1, len(parts)):
+            directory = "/".join(parts[:depth])
+            if directory not in self.directories:
+                return self.folded_directories.get(_fold(directory))
+        return None
 
     def follow(self, path: str) -> bool:
         """Whether `path` is a file of the set, following it first when it is a listed symbolic link at an
@@ -287,7 +303,7 @@ class _Builder:
                                                   f"({exc.strerror or type(exc).__name__})"), False)
         try:
             text = raw.decode("utf-8")
-            target = self.find(self._link_target(path, text))
+            target = self._link_target(path, text)
         except UnicodeDecodeError:
             return _Resolution(None, raw, Notice("unsafe_path", path, "symbolic link: target is not UTF-8"), False)
         except _Escape as exc:
@@ -301,6 +317,10 @@ class _Builder:
             return _Resolution(None, raw, Notice("unsafe_path", path, f"symbolic link to {target!r}, a directory inside "
                                                  "the scan root; a link to a directory is not followed: replace it with "
                                                  "the files it should hold"), False)
+        if target not in self.entries and (twin := self.twin(target)) is not None:
+            return _Resolution(None, raw, Notice("unsafe_path", path, f"symbolic link to {target!r}, which names "
+                                                 f"{twin!r} only in another case or Unicode form; use the exact name"),
+                               False)
         if target not in self.entries:
             return _Resolution(None, raw, Notice("unsafe_path", path, f"symbolic link to {target!r}, not a file of the "
                                                  "file set"), False)
@@ -358,10 +378,13 @@ class _Builder:
                 continue
             if index == len(segments) - 1:
                 continue
-            if self.find(inside) in self.links:
+            if inside in self.links:
                 raise UnsafePath("target passes through a symbolic link")
-            if _fold(inside) not in self.folded_directories:
-                raise UnsafePath(f"target passes through {inside!r}, not a directory of the file set")
+            if inside not in self.directories:
+                twin = self.twin(inside)
+                raise UnsafePath(f"target passes through {inside!r}, " + (
+                    f"which names {twin!r} only in another case or Unicode form; use the exact name" if twin
+                    else "not a directory of the file set"))
         inside = self._inside_root(stack, root)
         if inside is not None:
             return inside
@@ -396,8 +419,7 @@ class _Builder:
         """The one document of `path`. A file reached in a second role (a global name, a plugin's conventional
         path, a manifest reference read by its JSON shape) stays one document of its first kind, but is also
         parsed in the new role and keeps what that role finds (r1:F1): what an agent loads in either role is
-        judged, listed and locked."""
-        path = self.find(path)
+        judged, listed and locked. A path the file set holds only in another spelling is `unsafe_path` (`twin`)."""
         if path in self.documents:
             if plugin is not None:
                 self.owners.setdefault(path, plugin)
@@ -407,6 +429,12 @@ class _Builder:
                 if content is not None:
                     self.documents[path] = self._merge(self.documents[path], _parse(kind, path, content))
             return self.documents[path]
+        if (twin := self.twin(path)) is not None:
+            if path not in self.twins:  # reported once, whichever role asks again
+                self.twins.add(path)
+                self.errors.append(Notice("unsafe_path", path, f"names {twin!r} only in another case or Unicode form; "
+                                          "use the exact name"))
+            return None
         if not self.follow(path):
             return None
         content = self.read(path)
@@ -484,9 +512,13 @@ def _follow_references(builder: _Builder, manifest: ConfigDocument, directory: s
     is also judged in the role its shape gives it here (`_Builder.document`, r1:F1)."""
     for reference in manifest.references:
         try:
-            target = builder.find(contain(directory, reference))
+            target = contain(directory, reference)
         except UnsafePath as exc:
             builder.errors.append(Notice("unsafe_path", manifest.path, f"reference {reference!r}: {exc}"))
+            continue
+        if (twin := builder.twin(target)) is not None:
+            builder.errors.append(Notice("unsafe_path", manifest.path, f"reference {reference!r} names {twin!r} only in "
+                                         "another case or Unicode form; use the exact name"))
             continue
         if not builder.follow(target):
             if target not in builder.links:  # a link that could not be followed is already an error
@@ -542,7 +574,7 @@ def discover(fileset: FileSet) -> Discovery:
         builder.document("hooks", _join(directory, "hooks/hooks.json"), name)
         builder.document("plugin", _join(directory, ".claude-plugin/plugin.json"), name)
     for directory, name in plugin_dirs.items():
-        manifest = builder.documents.get(builder.find(_join(directory, ".claude-plugin/plugin.json")))
+        manifest = builder.documents.get(_join(directory, ".claude-plugin/plugin.json"))
         if manifest is not None:
             _follow_references(builder, manifest, "" if directory == "." else directory, name)
     skills = _skills(builder, plugin_dirs)

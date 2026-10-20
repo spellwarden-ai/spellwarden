@@ -491,19 +491,35 @@ def test_agent_names_match_whatever_their_case(make_repo, tmp_path, run_cli):
         (f["rule_id"], f["location"]["path"]) for f in report["findings"]}
 
 
-def test_plugin_names_match_whatever_their_case(make_repo, tmp_path):
+def test_a_plugin_path_or_reference_in_another_case_is_unsafe(make_repo, tmp_path):
+    # r4:R4-2: a marketplace is recognised by its name in any case (a global name), but a plugin's conventional paths
+    # and its manifest's references resolve by exact match only: on a case-sensitive file system the other spelling
+    # is another file. A match found only after folding is `unsafe_path` naming the listed spelling, never followed;
+    # an exact reference is still followed.
     repo = make_repo(tmp_path / "repo", {
-        ".Claude-Plugin/Marketplace.json": json.dumps({"plugins": [{"name": "p", "source": "./p"}]}),
-        "p/.Claude-Plugin/Plugin.JSON": json.dumps({"name": "p", "mcpServers": "./Servers.json"}),
+        ".Claude-Plugin/Marketplace.json": json.dumps({"plugins": [{"name": "p", "source": "./p"},
+                                                                   {"name": "q", "source": "./q"}]}),
+        "p/.Claude-Plugin/Plugin.JSON": json.dumps({"name": "p"}),
         "p/Hooks/Hooks.json": HOOKS,
-        "p/servers.json": SERVERS,
+        "q/.claude-plugin/plugin.json": json.dumps({"name": "q", "mcpServers": "./Servers.json",
+                                                    "hooks": ["./h.json", "./Lib/x.json"]}),
+        "q/servers.json": SERVERS,
+        "q/h.json": HOOKS,
+        "q/lib/y.json": SERVERS,
     })
     found = _discover(repo)
     assert [(d.path, d.kind) for d in found.documents] == [
-        (".Claude-Plugin/Marketplace.json", "marketplace"), ("p/.Claude-Plugin/Plugin.JSON", "plugin"),
-        ("p/Hooks/Hooks.json", "hooks"), ("p/servers.json", "mcp")]
-    assert [d.path for d in found.plugin_dirs] == ["p"]
-    assert ("mcp-server", "p/servers.json#jira", "jira", "p") in _items(found)
+        (".Claude-Plugin/Marketplace.json", "marketplace"), ("q/.claude-plugin/plugin.json", "plugin"),
+        ("q/h.json", "hooks")]
+    errors = {(e.code, e.path): e.message for e in found.errors}
+    assert set(errors) == {("unsafe_path", "p/.claude-plugin/plugin.json"), ("unsafe_path", "p/hooks/hooks.json"),
+                           ("unsafe_path", "q/.claude-plugin/plugin.json")}
+    assert errors[("unsafe_path", "p/hooks/hooks.json")] == (
+        "names 'p/Hooks/Hooks.json' only in another case or Unicode form; use the exact name")
+    messages = [e.message for e in found.errors if e.path == "q/.claude-plugin/plugin.json"]
+    assert messages == [
+        "reference './Servers.json' names 'q/servers.json' only in another case or Unicode form; use the exact name",
+        "reference './Lib/x.json' names 'q/lib' only in another case or Unicode form; use the exact name"]
 
 
 def test_two_names_that_differ_only_in_case_are_still_a_collision(make_repo, tmp_path):
@@ -1035,3 +1051,92 @@ def test_a_root_plugin_owns_only_the_skills_under_its_skills_directory(make_repo
         (".claude/skills/c", None), ("Skills/y", "root"), ("a/.claude/skills/e", "a"), ("docs/tools/d", None),
         ("skills/x", "root")]
     assert ("skill", ".claude/skills/c", "c", None) in _items(found)
+
+
+def _case_sensitive(directory) -> bool:
+    probe = directory / "case-probe"
+    probe.write_text("a", encoding="utf-8")
+    try:
+        return not (directory / "CASE-PROBE").exists()
+    finally:
+        probe.unlink()
+
+
+def _scan_report(run_cli, repo, tmp_path, *args):
+    out = tmp_path / "report.json"
+    code, _out, _err = run_cli(["scan", str(repo), "--no-telemetry", *args, "--format", "json", "--output", str(out)])
+    return code, json.loads(out.read_text(encoding="utf-8"))
+
+
+def test_a_link_into_a_submodule_with_a_listed_case_twin_is_unsafe(make_repo, tmp_path, run_cli):
+    # r4:R4-2, the reviewer's git-mode case: `vendor/lib` is a submodule (never listed) whose `run.sh` is malicious;
+    # the tracked `Vendor/lib/run.sh` is benign. The link names `vendor/...`, which an agent on a case-sensitive file
+    # system opens; folding mapped it to the benign twin, so the lock was `ok` over unscanned bytes. Now the target's
+    # directory matches a listed one only after folding: `unsafe_path`, naming the listed spelling, exit 2.
+    repo = make_repo(tmp_path / "repo", {"skills/x/SKILL.md": SKILL, "Vendor/lib/run.sh": SAFE_SCRIPT})
+    if not _case_sensitive(repo):
+        pytest.skip("the file system folds case")
+    blob = git(repo, "rev-parse", "HEAD").strip()
+    git(repo, "update-index", "--add", "--cacheinfo", f"160000,{blob},vendor/lib")
+    write_tree(repo, {"vendor/lib/run.sh": EVIL_SCRIPT})
+    _symlink("../../vendor/lib/run.sh", repo / "skills" / "x" / "run.sh")
+    git(repo, "add", "skills/x/run.sh")
+    git(repo, "commit", "-q", "-m", "link")
+    run_cli(["lock", str(repo)])
+    code, report = _scan_report(run_cli, repo, tmp_path, "--locked")
+    errors = {(e["code"], e["path"]): e["message"] for e in report["errors"]}
+    assert errors[("unsafe_path", "skills/x/run.sh")] == (
+        "symbolic link: target passes through 'vendor', which names 'Vendor' only in another case or Unicode form; "
+        "use the exact name")
+    assert code == 2
+
+
+def test_a_link_into_a_skipped_directory_with_a_listed_case_twin_is_unsafe(tmp_path, run_cli):
+    # r4:R4-2, the reviewer's walk-mode case: `node_modules` is never walked; its malicious `run.sh` hid behind the
+    # listed `Node_modules/run.sh`.
+    repo = write_tree(tmp_path / "w", {"skills/x/SKILL.md": SKILL, "Node_modules/run.sh": SAFE_SCRIPT,
+                                       "node_modules/run.sh": EVIL_SCRIPT})
+    if not _case_sensitive(repo):
+        pytest.skip("the file system folds case")
+    _symlink("../../node_modules/run.sh", repo / "skills" / "x" / "run.sh")
+    code, report = _scan_report(run_cli, repo, tmp_path)
+    assert ("unsafe_path", "skills/x/run.sh") in {(e["code"], e["path"]) for e in report["errors"]}
+    assert "'Node_modules' only in another case or Unicode form" in report["errors"][0]["message"]
+    assert code == 2
+
+
+def test_a_link_target_in_another_unicode_form_is_unsafe(make_repo, tmp_path):
+    # r4:R4-2: an NFD spelling of a listed NFC name looks identical in a diff; it is another file to Linux.
+    nfc, nfd = "café", "café"
+    repo = make_repo(tmp_path / "repo", {"skills/x/SKILL.md": SKILL, f"shared/{nfc}.sh": SAFE_SCRIPT,
+                                         f"{nfc}/run.sh": SAFE_SCRIPT})
+    _symlink(f"../../shared/{nfd}.sh", repo / "skills" / "x" / "a.sh")
+    _symlink(f"../../{nfd}/run.sh", repo / "skills" / "x" / "b.sh")
+    found = _discover(repo)
+    errors = {(e.code, e.path): e.message for e in found.errors}
+    assert errors[("unsafe_path", "skills/x/a.sh")] == (
+        f"symbolic link to 'shared/{nfd}.sh', which names 'shared/{nfc}.sh' only in another case or Unicode form; "
+        "use the exact name")
+    assert f"names '{nfc}' only in another case or Unicode form" in errors[("unsafe_path", "skills/x/b.sh")]
+    assert found.skills == ()
+
+
+def test_a_link_target_in_another_case_is_unsafe_and_an_exact_one_is_followed(make_repo, tmp_path):
+    # r4:R4-2: the same file named exactly is followed; named in another case it is `unsafe_path`.
+    repo = make_repo(tmp_path / "repo", {"skills/x/SKILL.md": SKILL, "skills/y/SKILL.md": SKILL,
+                                         "Shared/Run.sh": SAFE_SCRIPT})
+    _symlink("../../Shared/Run.sh", repo / "skills" / "x" / "run.sh")
+    _symlink("../../Shared/run.sh", repo / "skills" / "y" / "run.sh")
+    found = _discover(repo)
+    assert [(e.code, e.path) for e in found.errors] == [("unsafe_path", "skills/y/run.sh")]
+    assert [s.path for s in found.skills] == ["skills/x"]
+    assert found.skills[0].files["skills/x/run.sh"] == SAFE_SCRIPT.encode()
+
+
+def test_a_global_name_link_in_another_case_is_unsafe(make_repo, tmp_path):
+    # r4:R4-2: a link at an agent-content path follows the same rule.
+    repo = make_repo(tmp_path / "repo", {"config/Servers.json": SERVERS})
+    _symlink("config/servers.json", repo / ".mcp.json")
+    found = _discover(repo)
+    assert [(e.code, e.path) for e in found.errors] == [("unsafe_path", ".mcp.json")]
+    assert "names 'config/Servers.json' only in another case" in found.errors[0].message
