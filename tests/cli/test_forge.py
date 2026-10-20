@@ -134,7 +134,7 @@ def test_the_command_never_reads_the_body_through_a_symlink_or_from_a_non_file(t
     posted: list[str] = []
     monkeypatch.setattr(forge, "post_comment", lambda _provider, body, **_kwargs: posted.append(body))
     secret = tmp_path / "environ"
-    secret.write_text(BODY + "\nGITHUB_TOKEN=secret\n", encoding="utf-8")
+    secret.write_bytes((BODY + "\nGITHUB_TOKEN=secret\n").encode("utf-8"))
     link = tmp_path / "report.md"
     try:
         link.symlink_to(secret)
@@ -154,6 +154,6 @@ def test_the_command_never_reads_the_body_through_a_symlink_or_from_a_non_file(t
     assert ci.cmd_comment(_comment_args(big)) == 0
     assert posted == []
     regular = tmp_path / "ok.md"
-    regular.write_text(BODY, encoding="utf-8")
+    regular.write_bytes(BODY.encode("utf-8"))  # no `\r\n` on Windows
     assert ci.cmd_comment(_comment_args(regular)) == 0
     assert posted == [BODY]

@@ -15,7 +15,7 @@ OPEN_ALLOWED_IN = {"archive.py"}
 
 def modules():
     for path in sorted(SRC.rglob("*.py")):
-        yield path.relative_to(SRC).as_posix(), ast.parse(path.read_text(), filename=str(path))
+        yield path.relative_to(SRC).as_posix(), ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
 
 
 def imported_roots(tree) -> set[str]:

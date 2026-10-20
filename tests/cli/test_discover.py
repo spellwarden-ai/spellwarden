@@ -863,10 +863,15 @@ def test_realpath_failure_fails_closed(make_repo, tmp_path, monkeypatch):
     fileset = list_files(str(repo), Settings())
     monkeypatch.setattr(discover_module.os.path, "realpath", broken)
     found = discover(fileset)
-    assert ("unsafe_path", "skills/x/run.sh") in {(e.code, e.path) for e in found.errors}
+    # On Windows the opener checks each handle's real path too, so the files are `unreadable` before the link is judged.
+    expected = "unreadable" if os.name == "nt" else "unsafe_path"
+    assert (expected, "skills/x/run.sh") in {(e.code, e.path) for e in found.errors}
 
 
-@pytest.mark.parametrize("target", ["../../../outside\\x.sh", "../../..//outside.sh", "../../linkout/run.sh"])
+@pytest.mark.parametrize("target", [
+    pytest.param("../../../outside\\x.sh", marks=pytest.mark.skipif(
+        os.name == "nt", reason="Windows reads a real link's backslash as `/` (spec 6.4): an ordinary escape there")),
+    "../../..//outside.sh", "../../linkout/run.sh"])
 def test_a_refusal_that_is_no_escape_is_an_error_even_when_the_target_is_outside(target, make_repo, tmp_path):
     # Security review of r2:F6: only an escape (an absolute target, climbing past the root) may be skipped and
     # hashed; a backslash, an empty segment or a path through a link is an error wherever it leads.
@@ -985,7 +990,8 @@ def test_a_relative_target_inside_that_cannot_be_followed_is_unsafe(target, make
     assert found.skills == ()
 
 
-@pytest.mark.parametrize("insensitive", [True, False])
+@pytest.mark.parametrize("insensitive", [True, pytest.param(False, marks=pytest.mark.skipif(
+    os.name == "nt", reason="normcase folds case on Windows, so REPO is the root there"))])
 def test_the_root_is_matched_in_the_platform_case(insensitive, make_repo, tmp_path, monkeypatch):
     # The real root and the target are compared after `normcase`, and folded on a case-insensitive platform (macOS,
     # Windows), where `../../../REPO/...` reaches the scan root and is followed. Elsewhere the volume may still be
@@ -1000,7 +1006,9 @@ def test_the_root_is_matched_in_the_platform_case(insensitive, make_repo, tmp_pa
         assert ("unsafe_path", "skills/x/run.sh") in {(e.code, e.path) for e in found.errors} and found.skills == ()
 
 
-@pytest.mark.parametrize("target", ["../../../REPO/shared/run.sh", "../../../repo./shared/run.sh",
+@pytest.mark.parametrize("target", [pytest.param("../../../REPO/shared/run.sh", marks=pytest.mark.skipif(
+                                        os.name == "nt", reason="normcase folds case on Windows, so REPO is the root")),
+                                    "../../../repo./shared/run.sh",
                                     "../../../repo /shared/run.sh", "../../../REPO~1/shared/run.sh",
                                     "../../../repo::$INDEX_ALLOCATION/shared/run.sh", "../../../rEpO. ./x.sh",
                                     "../../..", "../../../..", "../../../../", "../../.../shared/run.sh",
