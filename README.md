@@ -237,15 +237,6 @@ Switch it off with any of: `--no-telemetry`, `SPELLWARDEN_TELEMETRY=off` (or `0`
 
 `schemas/` holds JSON Schemas (draft 2020-12) for the settings, the baseline, the lock file and the JSON report, including every closed list of values. Readers of the report must ignore fields they do not know; the settings and the baseline refuse them. From 1.0.0, removing or renaming a field or a value, or changing an exit code, is a major version; adding an optional field, a notice code or a rule is a minor one.
 
-### Verifying a release
-
-Every file on PyPI carries a PEP 740 attestation from trusted publishing, which names this repository and the release workflow:
-
-```
-pip download --no-deps spellwarden==0.3.0 -d dist/
-pipx run pypi-attestations verify pypi --repository https://github.com/spellwarden-ai/spellwarden pypi:spellwarden-0.3.0-py3-none-any.whl
-```
-
 ## Versions
 
 `spellwarden_scan.__version__` is the package version and `spellwarden_scan.RULES_VERSION` (`YYYY.MM.N`) the rule set's. A change to what any rule detects bumps both the rules version and the package minor version; a fix anywhere else bumps the patch. Every scan result carries both, so a stored finding always says which rules produced it.
@@ -261,6 +252,69 @@ make check     # ruff, pytest, uv build
 ```
 
 `tests/test_pure.py` fails the build if any module of `spellwarden_scan` reaches for the network, the file system or the environment; `tests/test_network_boundary.py` fails it if any module of `spellwarden_cli` other than the prober's fetcher (`net.py`), the usage ping (`ping.py`) and the comment poster (`forge.py`) can reach the network; `tests/test_fixture_coverage.py` fails it if a rule lacks a positive or a negative fixture. Every test runs offline: HTTP exchanges are recorded under `tests/recorded/` and git repositories are made by the tests.
+
+## Use it in CI
+
+The same scanner runs in three wrappers, released with one version number.
+
+**GitHub Actions.** Pin the Action by commit and keep the version in a comment. The workflow, not the Action, grants the permissions:
+
+```yaml
+on: [pull_request]
+permissions:
+  contents: read
+  security-events: write   # code scanning alerts
+  pull-requests: write     # the pull request comment
+jobs:
+  spellwarden:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@<commit>
+      - uses: spellwarden-ai/scan@<commit of v1.0.0>  # v1.0.0
+```
+
+Inputs, outputs and the behaviour on forks and Dependabot pull requests: [github.com/spellwarden-ai/scan](https://github.com/spellwarden-ai/scan). On a pull request the settings file and the baseline are read from the base commit (see "Settings"): keep `actions/checkout`'s default persisted credentials, or set `fetch-depth: 0`.
+
+**GitLab CI/CD.**
+
+```yaml
+include:
+  - component: gitlab.com/spellwarden-ai/scan/scan@1.0.0
+```
+
+Inputs, the comment token and the merge request comparison: [gitlab.com/spellwarden-ai/scan](https://gitlab.com/spellwarden-ai/scan). The merge request job clones with `GIT_DEPTH: "0"`, so the settings file and the baseline can be read from the merge base.
+
+**Anywhere else.** `pipx run spellwarden==1.0.0 scan`, or the image `ghcr.io/spellwarden-ai/spellwarden:1.0.0`.
+
+### Verifying what you run
+
+Every surface of a release is signed, and one manifest ties them together.
+
+```sh
+# The PyPI files: PEP 740 attestations from trusted publishing
+pip download spellwarden==1.0.0 --no-deps -d .
+uvx pypi-attestations verify pypi --repository https://github.com/spellwarden-ai/spellwarden \
+  pypi:spellwarden-1.0.0-py3-none-any.whl
+
+# The image: keyless cosign signature and build provenance (the provenance also names the wheel inside it)
+cosign verify ghcr.io/spellwarden-ai/spellwarden:1.0.0 \
+  --certificate-identity https://github.com/spellwarden-ai/spellwarden/.github/workflows/release.yml@refs/tags/v1.0.0 \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+gh attestation verify oci://ghcr.io/spellwarden-ai/spellwarden:1.0.0 --repo spellwarden-ai/spellwarden
+
+# The Action and component tags: SSH-signed by the key in this repository's allowed_signers file
+curl -fsSLO https://raw.githubusercontent.com/spellwarden-ai/spellwarden/main/allowed_signers
+git clone https://github.com/spellwarden-ai/scan.git && \
+  git -C scan -c gpg.ssh.allowedSignersFile="$PWD/allowed_signers" tag -v v1.0.0
+git clone https://gitlab.com/spellwarden-ai/scan.git scan-gitlab && \
+  git -C scan-gitlab -c gpg.ssh.allowedSignersFile="$PWD/allowed_signers" tag -v 1.0.0
+
+# The release manifest: the wheel hash, the image digest and both tag commits, attested
+gh release download v1.0.0 --repo spellwarden-ai/spellwarden --pattern release-manifest.json
+gh attestation verify release-manifest.json --repo spellwarden-ai/spellwarden
+```
+
+The manifest's `wheel_sha256` equals the hash pinned in the Action's `requirements.txt`, its `image_digest` the digest in the component's `templates/scan.yml`, and its `action_commit` and `component_commit` the commits of the two tags.
 
 ## License
 

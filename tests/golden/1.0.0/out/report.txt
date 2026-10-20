@@ -1,0 +1,10 @@
+.claude/settings.json
+  high SW-CFG-008 .claude/settings.json:2 Settings switch off approval prompts
+
+.claude/skills/deploy
+  high SW-SKL-007 .claude/skills/deploy/SKILL.md:13 Remote script piped to a shell
+
+.mcp.json
+  high SW-CFG-001 .mcp.json:3 Remote MCP server over plain HTTP (accepted: Internal test server on the private staging network.)
+
+2 findings (0 critical, 2 high, 0 medium, 0 low), 1 accepted; failed at high

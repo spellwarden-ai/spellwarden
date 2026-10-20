@@ -1,0 +1,8 @@
+version: 1
+accepted:
+  - fingerprint: "937af4b175f2794c75bf571eb7461c5564ec0cc59e56ee5aef99068cc36d8400"
+    rule: "SW-CFG-001"
+    path: ".mcp.json"
+    reason: "Internal test server on the private staging network."
+    added: 2027-01-10
+    expires: 2027-04-10

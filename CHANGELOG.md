@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.0.0 (2026-10-20)
+
+The scanner, its files and its report are now a stable public contract (`schemas/`, kept compatible from this
+release on: a field, an enumeration value or an exit code is only removed or changed in a major version). The rules
+version is unchanged.
+
+- Released together with the same version number: the PyPI package, the container image
+  `ghcr.io/spellwarden-ai/spellwarden:1.0.0` (cosign-signed, with build provenance for the image and the wheel inside
+  it), the GitHub Action `spellwarden-ai/scan@v1.0.0` and the GitLab CI/CD component
+  `gitlab.com/spellwarden-ai/scan/scan@1.0.0`, whose tags are SSH-signed. A release manifest attached to the GitHub
+  release names all four and is itself attested.
+- Golden files of this release under `tests/golden/1.0.0/`: later releases must read its lock, baseline and
+  settings files and produce reports that validate against its schemas.
+
 ## 0.3.0 (2026-10-20)
 
 Rules version `2026.10.2`: ten rules added; no existing rule changed what it detects (every fingerprint of

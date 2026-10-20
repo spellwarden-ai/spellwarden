@@ -1,6 +1,6 @@
 [project]
 name = "spellwarden"
-version = "0.3.0"
+version = "1.0.0"
 description = "Spellwarden: the scan engine for agent skills, MCP servers and Claude Code configuration (spellwarden_scan, pure code, no I/O) and the spellwarden command that does the I/O (spellwarden_cli)."
 readme = "README.md"
 license = "Apache-2.0"
@@ -8,7 +8,7 @@ requires-python = ">=3.11"
 authors = [{ name = "Spellwarden" }]
 keywords = ["mcp", "agent-skills", "security", "scanner"]
 classifiers = [
-  "Development Status :: 3 - Alpha",
+  "Development Status :: 5 - Production/Stable",
   "License :: OSI Approved :: Apache Software License",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.11",

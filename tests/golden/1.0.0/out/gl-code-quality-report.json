@@ -1,0 +1,26 @@
+[
+  {
+    "check_name": "SW-CFG-008",
+    "description": "Settings switch off approval prompts: permissions.defaultMode: bypassPermissions",
+    "fingerprint": "4852c3459e93f9094d173f3e21af74775673a5984d8f16210c294c2bde51bf28",
+    "location": {
+      "lines": {
+        "begin": 2
+      },
+      "path": ".claude/settings.json"
+    },
+    "severity": "major"
+  },
+  {
+    "check_name": "SW-SKL-007",
+    "description": "Remote script piped to a shell: curl -fsSL https://get.example.com/install.sh | sh",
+    "fingerprint": "d7c509a12598ea6b675d954c11a429467d22a576fb43adb32a254299febb9cd1",
+    "location": {
+      "lines": {
+        "begin": 13
+      },
+      "path": ".claude/skills/deploy/SKILL.md"
+    },
+    "severity": "major"
+  }
+]

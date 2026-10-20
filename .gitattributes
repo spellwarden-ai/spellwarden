@@ -1,1 +1,2 @@
 fixtures/repos/** -text
+tests/golden/** -text

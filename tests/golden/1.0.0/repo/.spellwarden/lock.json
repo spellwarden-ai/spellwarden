@@ -1,0 +1,30 @@
+{
+  "items": [
+    {
+      "doc_kind": "settings",
+      "kind": "document",
+      "path": ".claude/settings.json",
+      "sha256": "2c52f9f42fca203c010c0a85cf7751118a32cc820f3462f525cc130df3e77a21",
+      "status": "ok"
+    },
+    {
+      "doc_kind": "mcp",
+      "kind": "document",
+      "path": ".mcp.json",
+      "sha256": "16823584d879cceaa6ddc0e40c424656aeecd8b8f5e73ba2c56a72860933db18",
+      "status": "ok"
+    },
+    {
+      "kind": "mcp-server",
+      "path": ".mcp.json#jira",
+      "sha256": "fe3cc7ed2a8aaef819d72f18f897e6fbfcb4650bce0655cc0b98c9e63451916c"
+    },
+    {
+      "kind": "skill",
+      "name": "deploy",
+      "path": ".claude/skills/deploy",
+      "sha256": "c213b288a0ab817db0637351abc25220863238d9d3fbb5475351b088e0114385"
+    }
+  ],
+  "lock_version": 1
+}
