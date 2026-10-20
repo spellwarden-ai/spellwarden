@@ -133,7 +133,7 @@ spellwarden version
 
 ### What a scan reads
 
-`PATH` (default `.`) is the scan root. Inside a git work tree the file set is what git tracks plus untracked files that are not ignored, under the scan root only (submodules are not entered); elsewhere it is a walk that skips `.git`, `node_modules`, `.venv`, `venv` and `__pycache__`. Symbolic links are never followed and files over 10 MiB are skipped, each with a notice. `include` and `exclude` in the settings narrow the set further.
+`PATH` (default `.`) is the scan root. Inside a git work tree the file set is what git tracks plus untracked files that are not ignored, under the scan root only (submodules are not entered); elsewhere it is a walk that skips `.git`, `node_modules`, `.venv`, `venv` and `__pycache__`. A symbolic link is never read as a file: one at an agent-content path (a configuration file, `SKILL.md`, a plugin manifest or hooks file, a manifest reference) is followed when its target is a regular file of the file set inside the scan root, and named by the link in every output; one that leaves the scan root, passes through a linked directory or points at another link is the error `unsafe_path`; any other link is skipped with a notice. Files over 10 MiB are skipped with a notice. Agent-content names match whatever their case (`.MCP.json`, `skill.md`), as macOS and Windows open them. `include` and `exclude` in the settings narrow the set further.
 
 In that set the scanner finds:
 
@@ -213,7 +213,7 @@ Paths are relative to the scan root, except in SARIF and Code Quality, where the
 
 Off by default. With `--probe`, the scanner sends the unauthenticated MCP probe of the hosted product to every remote server of an MCP configuration whose URL is `https://`, from your machine or runner, and adds the `SW-MCP` findings and the 2026-07-28 migration checklist to the report. It sends the URL and the protocol's own requests only: never a header, environment value or argument from the configuration, never an `Authorization` header or a cookie. Addresses must be public; at most 50 servers, 4 at a time, 300 requests and 120 seconds for the whole run. A URL holding a `${...}` reference is not probed. `--probe` is switched off on a pull or merge request from a fork or from Dependabot.
 
-`--probe-private` (or `SPELLWARDEN_PROBE_PRIVATE=true`) also allows private addresses, but only on a local run or on a CI run of a protected branch or tag that is not a pull or merge request; anywhere else it is ignored with the notice `probe_private_untrusted`, because whoever can push a revision controls the endpoints it names. It cannot be set in `.spellwarden/config.yml`.
+`--probe-private` (or `SPELLWARDEN_PROBE_PRIVATE=true`) also allows the private addresses of the configured servers themselves (never a link-local address such as the cloud metadata service, and never an address that a server's answer or redirect points to), but only on a local run or on a push, schedule or manual run of a protected branch or tag in GitHub Actions or GitLab CI; anywhere else it is ignored with the notice `probe_private_untrusted`, because whoever can push a revision controls the endpoints it names. It cannot be set in `.spellwarden/config.yml`.
 
 ### The usage ping
 

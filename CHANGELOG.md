@@ -16,16 +16,22 @@ Rules version `2026.10.2`: ten rules added; no existing rule changed what it det
   On a pull or merge request, `.spellwarden/config.yml` and the baseline are read from the base revision, so a
   request cannot exclude or accept its own finding.
 - Rules SW-CFG-001 to SW-CFG-010 judge agent configuration files: plain-HTTP and raw-IP servers, credentials and
-  literal secrets in server configurations, unpinned launchers, hooks that pipe remote scripts to a shell, send local
+  literal secrets in server configurations, unpinned launchers (also behind one `env`, `sh -c` or `cmd /c`, and
+  through `npm exec`, `pnpx`, `bun x` and `uv tool run`), hooks that pipe remote scripts to a shell, send local
   files out or run encoded payloads, settings that switch off approval prompts, and marketplace plugins without a
   declared commit pin. SW-CFG-006 and SW-CFG-007 are malicious indicators.
 - The engine: `parse_mcp_config`, `parse_settings`, `parse_hooks`, `parse_marketplace`, `parse_plugin_manifest`
   (JSON with comments, duplicate keys refused, every document bounded) and `scan_agent_config`;
-  `logical_commands` and the shell detectors are shared by skills and hooks.
+  `logical_commands` and the shell detectors are shared by skills and hooks. Evidence masks more: passwords given
+  as command options (`-u user:pass`, `--password`), credential header values, and URL userinfo through its last
+  `@`; fingerprints are unchanged.
+- A symbolic link at an agent-content path is followed when its target is a file of the repository inside the scan
+  root; agent-content names match whatever their case.
 - `--probe` runs the unauthenticated MCP probe of the hosted product from your machine or runner, with its SSRF rules
-  and a budget of 50 servers, 300 requests and 120 seconds; private addresses only with `--probe-private` on a
-  local run or a protected ref outside pull and merge requests. The prober moved here from the hosted backend,
-  which now uses this copy.
+  and a budget of 50 servers, 300 requests and 120 seconds; the configured servers' private addresses only with
+  `--probe-private` on a local run or a push, schedule or manual run of a protected ref, never a link-local address
+  and never an address a server's answer points to. The prober moved here from the hosted backend, which now uses
+  this copy.
 - In CI, a pseudonymous usage ping with five fields (README "The usage ping"); off with `--no-telemetry`,
   `SPELLWARDEN_TELEMETRY=off`, `DO_NOT_TRACK=1` or `telemetry: false`.
 

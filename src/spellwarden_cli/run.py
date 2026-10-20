@@ -129,7 +129,8 @@ def run_probes(options: ScanOptions, found: Discovery, rules: RuleSet, findings:
     allow_private = options.settings.probe_private
     if allow_private and not ci.private_probe_trusted(context):
         notices.append(Notice("probe_private_untrusted", "", "--probe-private is ignored: it takes effect only on a "
-                                                             "local run or on a protected ref outside pull and merge requests"))
+                                                             "local run or on a push, schedule or manual run of a "
+                                                             "protected ref"))
         allow_private = False
     private_origins = frozenset(target.url for target in targets) if allow_private else frozenset()
     on_event = probing.event_logger(options.log)
