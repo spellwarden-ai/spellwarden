@@ -176,9 +176,11 @@ def _same(a: str, b: str) -> bool:
 def _may_name(segment: str, component: str) -> bool:
     """Whether a file system might open `segment` as the directory `component`, on any OS and any volume: NFC and case
     folding everywhere (APFS, a case-insensitive Linux volume), trailing dots and spaces stripped (Windows), and any
-    `~` (an 8.3 short name such as `REPO~1`) or `:` (an NTFS stream) taken as possibly equal. Liberal on purpose: a
-    yes fails closed (orchestrator decision after r3:N1)."""
-    if "~" in segment or ":" in segment:
+    `~` (an 8.3 short name such as `REPO~1`), `:` (an NTFS stream) or non-ASCII character taken as possibly equal: HFS+
+    and older Linux casefold directories ignore default-ignorable code points (`n\u200c4` opens `n4`), and other
+    look-alikes are a file system's own business (r4:R4-4). Liberal on purpose: a yes fails closed (orchestrator
+    decision after r3:N1)."""
+    if "~" in segment or ":" in segment or not segment.isascii():
         return True
     return _fold(segment).rstrip(". ") == _fold(component).rstrip(". ")
 

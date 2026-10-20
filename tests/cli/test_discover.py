@@ -1140,3 +1140,28 @@ def test_a_global_name_link_in_another_case_is_unsafe(make_repo, tmp_path):
     found = _discover(repo)
     assert [(e.code, e.path) for e in found.errors] == [("unsafe_path", ".mcp.json")]
     assert "names 'config/Servers.json' only in another case" in found.errors[0].message
+
+
+@pytest.mark.parametrize("segment", ["n‌4", "n­4", "n４", "n4　", "ñ4"])
+def test_a_non_ascii_name_descending_from_above_the_root_fails_closed(segment, make_repo, tmp_path, monkeypatch):
+    # r4:R4-4: HFS+ and older Linux casefold directories ignore default-ignorable code points (U+200C, U+00AD), so
+    # `n‌4` may open the scan root `n4`; other look-alikes may too. Any non-ASCII segment that descends from an
+    # ancestor of the root, other than the root's own name, may name it: `unsafe_path`, never skipped.
+    monkeypatch.setattr(discover_module, "_CASE_INSENSITIVE", False)
+    repo = make_repo(tmp_path / "n4", {"skills/x/SKILL.md": SKILL, "payload.sh": EVIL_SCRIPT})
+    _symlink(f"../../../{segment}/payload.sh", repo / "skills" / "x" / "run.sh")
+    found = _discover(repo)
+    assert ("unsafe_path", "skills/x/run.sh") in {(e.code, e.path) for e in found.errors}
+    assert "may lead back into it under another spelling" in found.errors[0].message
+    assert found.skills == ()
+
+
+def test_an_ascii_sibling_of_the_root_is_still_skipped_and_a_non_ascii_root_still_re_entered(make_repo, tmp_path):
+    # r4:R4-4: the rule is for other spellings only; the root's own name, ASCII or not, re-enters as before.
+    repo = make_repo(tmp_path / "café", {"skills/x/SKILL.md": SKILL, "shared/run.sh": SAFE_SCRIPT})
+    _symlink("../../../n5/x.sh", repo / "skills" / "x" / "a.sh")
+    _symlink("../../../café/shared/run.sh", repo / "skills" / "x" / "b.sh")
+    found = _discover(repo)
+    assert found.errors == ()
+    assert found.skills[0].links == {"skills/x/a.sh": b"../../../n5/x.sh"}
+    assert found.skills[0].files["skills/x/b.sh"] == SAFE_SCRIPT.encode()
