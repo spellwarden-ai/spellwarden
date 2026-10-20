@@ -322,10 +322,15 @@ class Fetcher:
         started = time.monotonic()
         connection = None
         watchdog = None
+        fired = threading.Event()  # set by the watchdog: the error that follows is the deadline's, whatever the clock says
         try:
             connection = self._opener(host, ip, port, self._left(deadline, self._timeout))
             if deadline is not None:  # the connection connects inside `request`: the watchdog covers it all
-                watchdog = threading.Timer(max(0.0, deadline - self._clock()), _abort, (connection,))
+                def _fire(target=connection) -> None:
+                    fired.set()
+                    _abort(target)
+
+                watchdog = threading.Timer(max(0.0, deadline - self._clock()), _fire)
                 watchdog.daemon = True
                 watchdog.start()
             connection.request(method, path, body, sent)
@@ -339,7 +344,9 @@ class Fetcher:
         except FetchError:
             raise
         except (OSError, http.client.HTTPException, ssl.SSLError, ValueError) as exc:
-            late = deadline is not None and self._clock() >= deadline  # the watchdog shut the socket
+            # The watchdog shut the socket. A timer may wake a little before the clock reaches the deadline (Windows'
+            # monotonic clock moves in steps of about 15 ms), so its own flag decides, not only the clock.
+            late = fired.is_set() or (deadline is not None and self._clock() >= deadline)
             raise FetchError("fetch_failed", "deadline" if late else type(exc).__name__) from None
         finally:
             if watchdog is not None:

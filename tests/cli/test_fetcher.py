@@ -366,6 +366,42 @@ def test_the_watchdog_ends_a_read_that_blocks_inside_one_call():
     assert (caught.value.code, caught.value.detail) == ("fetch_failed", "deadline") and time.monotonic() - started < 2
 
 
+def test_a_watchdog_that_fires_before_the_clock_reaches_the_deadline_is_still_the_deadline():
+    """The engine's first Windows run on main: the timer woke a few milliseconds before the monotonic clock reached
+    the deadline, so the shut socket's error was reported as `OSError`. A frozen clock makes that certain."""
+    import threading as _threading
+
+    shut = _threading.Event()
+
+    class Sock:
+        def settimeout(self, seconds):
+            pass
+
+        def shutdown(self, how):
+            shut.set()
+
+    class Blocking(ScriptedResponse):
+        def read(self, amt=None):
+            if not shut.wait(5):
+                raise AssertionError("the watchdog never fired")
+            raise OSError("socket shut down")
+
+    net_ = Net(answers={("slow.example", "/mcp"): (200, {"Content-Type": "application/json"}, b"")},
+               response_class=Blocking, clock=lambda: 0.0)
+    original = net_.fetcher._opener
+
+    def opener(host, ip, port, timeout):
+        connection = original(host, ip, port, timeout)
+        connection.sock = Sock()
+        return connection
+
+    net_.fetcher._opener = opener
+    net_.fetcher._timeout = 0.2
+    with pytest.raises(net.FetchError) as caught:
+        net_.fetcher.get("https://slow.example/mcp", max_bytes=1000)
+    assert (caught.value.code, caught.value.detail) == ("fetch_failed", "deadline")
+
+
 def test_a_transport_failure_is_fetch_failed():
     def opener(host, ip, port, timeout):  # noqa: ARG001
         raise OSError("connection refused")
