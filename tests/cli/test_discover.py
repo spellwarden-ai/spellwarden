@@ -795,3 +795,44 @@ def test_a_skill_belongs_to_its_innermost_plugin_not_the_root_plugin(make_repo, 
     })
     found = _discover(repo)
     assert [(s.path, s.plugin) for s in found.skills] == [("a/skills/x", "a"), ("skills/y", "root")]
+
+
+@pytest.mark.parametrize("case", ["climbs out and back in", "absolute through an alias", "relative through an alias"])
+def test_a_member_link_that_reaches_the_scan_root_another_way_is_an_error(case, make_repo, tmp_path):
+    # Security review of r2:F6 (HIGH): "outside" is decided from where the target really resolves, never from the
+    # first `..` past the root or a string comparison; repository content reached by a detour is not skipped.
+    repo = make_repo(tmp_path / "real" / "repo", {"skills/x/SKILL.md": SKILL, "shared/run.sh": SAFE_SCRIPT})
+    alias = tmp_path / "alias"
+    _symlink(str(tmp_path / "real"), alias)
+    target = {"climbs out and back in": "../../../repo/shared/run.sh",
+              "absolute through an alias": str(alias / "repo" / "shared" / "run.sh"),
+              "relative through an alias": "../../../../alias/repo/shared/run.sh"}[case]
+    _symlink(target, repo / "skills" / "x" / "run.sh")
+    found = _discover(repo)
+    assert ("unsafe_path", "skills/x/run.sh") in {(e.code, e.path) for e in found.errors}
+    assert found.skills == ()
+    assert "skills/x/run.sh" not in [n.path for n in found.notices if n.code == "symlink_skipped"]
+
+
+def test_a_member_link_through_an_outside_alias_to_outside_content_is_skipped(make_repo, tmp_path):
+    repo = make_repo(tmp_path / "real" / "repo", {"skills/x/SKILL.md": SKILL})
+    (tmp_path / "elsewhere").mkdir()
+    (tmp_path / "elsewhere" / "run.sh").write_text(SAFE_SCRIPT, encoding="utf-8")
+    _symlink(str(tmp_path / "elsewhere"), tmp_path / "alias")
+    _symlink("../../../../alias/run.sh", repo / "skills" / "x" / "run.sh")
+    found = _discover(repo)
+    assert found.errors == ()
+    assert found.skills[0].links == {"skills/x/run.sh": b"../../../../alias/run.sh"}
+
+
+def test_realpath_failure_fails_closed(make_repo, tmp_path, monkeypatch):
+    repo = make_repo(tmp_path / "repo", {"skills/x/SKILL.md": SKILL})
+    _symlink("../../../outside.sh", repo / "skills" / "x" / "run.sh")
+
+    def broken(*_args, **_kwargs):
+        raise OSError("realpath failed")
+
+    fileset = list_files(str(repo), Settings())
+    monkeypatch.setattr(discover_module.os.path, "realpath", broken)
+    found = discover(fileset)
+    assert ("unsafe_path", "skills/x/run.sh") in {(e.code, e.path) for e in found.errors}

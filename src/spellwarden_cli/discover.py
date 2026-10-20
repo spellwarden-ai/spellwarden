@@ -136,15 +136,11 @@ def _join(directory: str, name: str) -> str:
     return name if directory == "." else f"{directory}/{name}"
 
 
-class _Outside(UnsafePath):
-    """A link target outside the scan root: not repository content."""
-
-
 class _Resolution(NamedTuple):
     target: str | None  # the file of the set the link names, when it can be followed
     text: bytes | None  # the target text, None when it could not be read
     refusal: Notice | None  # why the link is not followed
-    outside: bool  # the target is outside the scan root (absolute there, or climbing out of it)
+    outside: bool  # the target really resolves outside the scan root (`_Builder._outside`)
 
 
 class _Builder:
@@ -241,11 +237,12 @@ class _Builder:
             return _Resolution(None, None, Notice("unreadable", path, "symbolic link cannot be read "
                                                   f"({exc.strerror or type(exc).__name__})"), False)
         try:
-            target = self.find(self._link_target(path, raw.decode("utf-8")))
+            text = raw.decode("utf-8")
+            target = self.find(self._link_target(path, text))
         except UnicodeDecodeError:
             return _Resolution(None, raw, Notice("unsafe_path", path, "symbolic link: target is not UTF-8"), False)
         except UnsafePath as exc:
-            return _Resolution(None, raw, Notice("unsafe_path", path, f"symbolic link: {exc}"), isinstance(exc, _Outside))
+            return _Resolution(None, raw, Notice("unsafe_path", path, f"symbolic link: {exc}"), self._outside(path, text))
         if target in self.links:
             return _Resolution(None, raw, Notice("unsafe_path", path, f"symbolic link to {target!r}, itself a symbolic "
                                                  "link"), False)
@@ -274,19 +271,16 @@ class _Builder:
         """The scan-root path a link's target names. Every refusal of the containment rule (6.13) applies except
         the parent segment: a link may climb with `..` (`.cursor/mcp.json -> ../.mcp.json` is common) as long as it
         stays inside the scan root and climbs through no directory that is itself a link (an agent's file system
-        would resolve that link, the scanner reads paths as written). An absolute target, or one that climbs out
-        of the scan root, raises `_Outside` unless it names a place inside the scan root."""
+        would resolve that link, the scanner reads paths as written). An absolute target is refused."""
         if os.path.isabs(text):
-            if self._inside_root(text):
-                raise UnsafePath("absolute target inside the scan root; use a relative link")
-            raise _Outside("absolute target outside the scan root")
+            raise UnsafePath("absolute target")
         contain("", "/".join("_" if segment == ".." else segment for segment in text.split("/")))
         segments = (text[2:] if text.startswith("./") else text).rstrip("/").split("/")
         parts = posixpath.dirname(link).split("/") if posixpath.dirname(link) else []
         for index, segment in enumerate(segments):
             if segment == "..":
                 if not parts:
-                    raise _Outside("target leaves the scan root")
+                    raise UnsafePath("target leaves the scan root")
                 parts.pop()
             else:
                 parts.append(segment)
@@ -294,13 +288,22 @@ class _Builder:
                 raise UnsafePath("target passes through a symbolic link")
         return "/".join(parts)
 
-    def _inside_root(self, target: str) -> bool:
-        full = os.path.normcase(os.path.normpath(target))
-        for base in {os.path.normpath(self.fileset.root), os.path.realpath(self.fileset.root)}:
-            base = os.path.normcase(base)
-            if full == base or full.startswith(base.rstrip(os.sep) + os.sep):
-                return True
-        return False
+    def _outside(self, link: str, text: str) -> bool:
+        """Whether the target of the refused link `link` really resolves outside the scan root: the link's
+        directory under the real scan root joined with `text`, resolved by the file system (`os.path.realpath`,
+        which follows every link on the way and applies `..` where the system does), is neither the real root nor
+        under it. Only then is it not repository content, and a member link is skipped with its target text locked
+        (r2:F6). A target that climbs out and comes back, or reaches the root through an alias, resolves inside. When
+        the real path cannot be computed the answer is False: the link is then `unsafe_path` (fail closed)."""
+        try:
+            root = os.path.realpath(self.fileset.root)
+            directory = posixpath.dirname(link)
+            base = os.path.join(root, *directory.split("/")) if directory else root
+            resolved = os.path.normcase(os.path.realpath(os.path.join(base, text)))
+        except (OSError, ValueError):
+            return False
+        root = os.path.normcase(root)
+        return resolved != root and not resolved.startswith(root.rstrip(os.sep) + os.sep)
 
     def document(self, kind: str, path: str, plugin: str | None = None, *,
                  drop_references: bool = False) -> ConfigDocument | None:
