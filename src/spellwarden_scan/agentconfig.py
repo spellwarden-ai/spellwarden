@@ -311,6 +311,8 @@ def _hooks(parts: _Parts, events: Any) -> None:
                 if not isinstance(hook, _Obj) or not isinstance(hook.get("command"), str):
                     continue
                 if hook.get("type", "command") != "command":
+                    # Not a shell command (a `prompt` hook, say): the shell rules have nothing to read. It is still
+                    # inventoried and locked: the document's canonical `sha256` covers every byte of it (5.2, 6.6).
                     continue
                 if len(parts.hooks) >= MAX_HOOKS:
                     parts.truncated = True
