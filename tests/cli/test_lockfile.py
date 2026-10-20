@@ -358,12 +358,13 @@ def test_unfollowed_member_links_enter_the_package_hash_without_colliding_with_f
                                   {"skills/moved/run.sh": b"../../../a.sh"}) == linked
 
 
-@pytest.mark.parametrize("own", [".spellwarden/lock.json", ".spellwarden/config.yml"])
-def test_a_member_link_to_the_scanners_own_file_keeps_the_lock_satisfiable(own, tmp_path, make_repo, run_cli):
+def test_a_member_link_to_the_lock_keeps_the_lock_satisfiable(tmp_path, make_repo, run_cli):
     # r3 nit: `skills/x/state.json -> ../../.spellwarden/lock.json` hashed the lock into itself, so the lock was stale
-    # forever. A member link whose target is one of the scanner's own files is still scanned, but left out of the
-    # package's lock hash like that file, with a notice.
+    # forever. A member link whose target is the lock is still scanned, but left out of the package's lock hash like
+    # the lock itself, with a notice. Only the lock: a link to the settings or the baseline is hashed (r4:R4-3).
     import os
+
+    own = ".spellwarden/lock.json"
 
     repo = make_repo(tmp_path / "repo", {"skills/x/SKILL.md": "---\nname: x\ndescription: A demo.\n---\n\nRead.\n",
                                          ".spellwarden/config.yml": "version: 1\n"})
@@ -381,3 +382,34 @@ def test_a_member_link_to_the_scanners_own_file_keeps_the_lock_satisfiable(own, 
     assert own in notice["message"] and "lock hash" in notice["message"]
     found = discover.discover(files.list_files(str(repo), Settings()))
     assert "skills/x/state.json" in found.skills[0].files  # still scanned
+
+
+@pytest.mark.parametrize("own", [".spellwarden/config.yml", ".spellwarden/baseline.yml"])
+def test_a_member_link_to_the_settings_or_the_baseline_is_locked(own, tmp_path, make_repo, run_cli):
+    # r4:R4-3: `skills/x/run.sh -> ../../.spellwarden/config.yml` was left out of the lock like the lock itself, so a
+    # YAML and shell polyglot could change what the skill runs without the lock going stale. Only the lock needs
+    # leaving out (it would hash itself); the settings and the baseline reached by a member link are package content.
+    import os
+
+    repo = make_repo(tmp_path / "repo", {"skills/x/SKILL.md": "---\nname: x\ndescription: A demo.\n---\n\nRun run.sh.\n",
+                                         ".spellwarden/config.yml": "version: 1\n",
+                                         ".spellwarden/baseline.yml": "version: 1\naccepted: []\n"})
+    try:
+        os.symlink("../../" + own, repo / "skills" / "x" / "run.sh")
+    except (OSError, NotImplementedError):
+        pytest.skip("symbolic links cannot be created here")
+    assert run_cli(["lock", str(repo)])[0] == 0
+    out = tmp_path / "report.json"
+    code, _out, _err = run_cli(["scan", str(repo), "--no-telemetry", "--locked", "--format", "json", "--output", str(out)])
+    report = json.loads(out.read_text(encoding="utf-8"))
+    assert report["lock"]["status"] == "ok" and code == 0
+    assert "skills/x/run.sh" not in {n["path"] for n in report["notices"]}
+    # the reviewer's polyglot: still valid settings (or a valid baseline), and `sh skills/x/run.sh` now runs a command
+    target = repo / own
+    target.write_text("version: 1\naccepted: []\n# zz; echo changed-behaviour\n" if own.endswith("baseline.yml") else
+                      "version: 1\nexclude:\n  - |\n    zz; echo changed-behaviour\n", encoding="utf-8")
+    code, _out, _err = run_cli(["scan", str(repo), "--no-telemetry", "--locked", "--format", "json", "--output", str(out)])
+    report = json.loads(out.read_text(encoding="utf-8"))
+    assert report["lock"]["status"] == "stale"
+    assert {"kind": "skill", "path": "skills/x"} in report["lock"]["changed"]
+    assert code == 3

@@ -61,8 +61,9 @@ def _own_file(path: str) -> bool:
 def _package_hash(directory: str, package: Mapping[str, bytes], links: Mapping[str, bytes] | None = None,
                   own: frozenset[str] = frozenset()) -> str:
     """The lock's move-stable hash: `canonical_sha256` over the files with paths relative to the directory (D8),
-    without the scanner's own files (`OWN_FILES`) and without the member links `own` that discovery followed to one of
-    them (r3 nit: a link to the lock would hash the lock into itself, stale the moment it is written). A package with
+    without the scanner's own files (`OWN_FILES`) and without the member links `own` that discovery followed to the
+    lock (r3 nit: a link to the lock would hash the lock into itself, stale the moment it is written; a link to the
+    settings or the baseline is hashed, r4:R4-3). A package with
     member links that discovery could not follow (r2:F6) also hashes each link's target text, so pointing such a link
     elsewhere makes the lock stale: SHA-256 of
     `spellwarden-package-links` NUL, then the compact sorted JSON `{"files": <that hash>, "links": {<relative link

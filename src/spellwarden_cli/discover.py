@@ -48,7 +48,7 @@ class SkillPackage:
     links: dict[str, bytes] = field(default_factory=dict, hash=False)
     # a case variant of SKILL.md where agents load skills (`skills/<name>/skill.md`), as written; None for SKILL.md
     variant: str | None = None
-    # member links followed to one of the scanner's own files (`lockfile.OWN_FILES`): scanned, left out of the lock hash
+    # member links followed to the lock itself (`lockfile.LOCK_PATH`): scanned, left out of the lock hash
     own: frozenset[str] = frozenset()
 
     def engine_key(self) -> str:
@@ -202,7 +202,7 @@ class _Builder:
         self.followed: set[str] = set()  # every link followed, or refused with an error
         self.resolved: dict[str, _Resolution] = {}  # package member links, resolved once, adopted only when accepted
         self.skipped: set[str] = set()  # member links of an accepted package whose target is outside the scan root
-        self.own: dict[str, str] = {}  # member links followed to one of the scanner's own files -> that file
+        self.own: dict[str, str] = {}  # member links followed to the lock itself -> the lock's path
         self.directories = {posixpath.dirname(p) for p in (*self.paths, *self.links)}
         for directory in list(self.directories):
             while directory:
@@ -636,10 +636,12 @@ def _package(builder: _Builder, directory: str, inside: Callable[[str], bool],
     targets = {link: r.target for link, r in resolved.items() if r.target is not None}
     if _too_large(builder, directory, count, size + sum(builder.entries[t].size for t in targets.values()), what):
         return None
-    from spellwarden_cli.lockfile import OWN_FILES  # lockfile imports this module
+    from spellwarden_cli.lockfile import LOCK_PATH  # lockfile imports this module
 
+    # Only a link to the lock is left out of the lock hash (it would hash the lock into itself); a link to the settings
+    # or the baseline is package content like any other file it reaches (r4:R4-3).
     for link, target in targets.items():
-        if builder.adopt(link, target) and target in OWN_FILES:
+        if builder.adopt(link, target) and target == LOCK_PATH:
             builder.own[link] = target
     skipped = {link: r.text for link, r in resolved.items() if r.target is None and r.text is not None}
     builder.skipped.update(skipped)
