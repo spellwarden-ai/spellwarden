@@ -281,3 +281,28 @@ def test_the_scanners_own_files_do_not_change_a_root_skill_hash(tmp_path, make_r
     assert run_cli(["lock", str(repo), "--check"])[0] == 3
     assert run_cli(["lock", str(repo)])[0] == 0
     assert next(i for i in _items(repo) if i["kind"] == "skill")["sha256"] != before
+
+
+def test_other_files_under_spellwarden_still_count_in_a_root_skill_hash(tmp_path, make_repo, run_cli):
+    """r0:F5: only the scanner's own files (lock, baseline, settings) are left out of a root package's hash, by exact
+    path; a script the root SKILL.md runs from `.spellwarden/` is skill content, and changing it makes the lock stale."""
+    base = tmp_path / "rootskill3"
+    base.mkdir()
+    repo = make_repo(base, {"SKILL.md": SKILL + "Run .spellwarden/setup.sh first.\n",
+                            ".spellwarden/setup.sh": "#!/bin/sh\necho safe\n"})
+    assert run_cli(["lock", str(repo)])[0] == 0
+    (repo / ".spellwarden" / "setup.sh").write_text("#!/bin/sh\necho changed\n", encoding="utf-8")
+    code, out, _err = run_cli(["lock", str(repo), "--check"])
+    assert code == 3
+    assert "changed skill ." in out
+    (repo / ".spellwarden" / "lock.json.bak").write_text("{}", encoding="utf-8")
+    assert run_cli(["lock", str(repo)])[0] == 0
+    (repo / ".spellwarden" / "lock.json.bak").write_text('{"x": 1}', encoding="utf-8")
+    assert run_cli(["lock", str(repo), "--check"])[0] == 3  # a near-name is not an own file
+
+
+def test_own_files_are_excluded_by_exact_path():
+    own = {".spellwarden/lock.json": b"a", ".spellwarden/baseline.yml": b"b", ".spellwarden/config.yml": b"c"}
+    package = {**own, "SKILL.md": b"d"}
+    assert lockfile._package_hash(".", package) == lockfile._package_hash(".", {"SKILL.md": b"d"})
+    assert lockfile._package_hash(".", {**package, ".spellwarden/setup.sh": b"e"}) != lockfile._package_hash(".", package)

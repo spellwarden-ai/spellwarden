@@ -14,12 +14,16 @@ from spellwarden_scan.agentconfig import has_declared_pin
 from spellwarden_scan.model import PluginSource
 
 from spellwarden_cli import commands, discover, escape, files, paths
+from spellwarden_cli.baseline import BASELINE_PATH
 from spellwarden_cli.discover import Discovery
 from spellwarden_cli.report import LockState
+from spellwarden_cli.settings import CONFIG_PATH
 
 LOCK_PATH = ".spellwarden/lock.json"
 LOCK_VERSION = 1
-OWN_DIRECTORY = ".spellwarden/"
+# The scanner's own files, by exact scan-root path. Nothing else under `.spellwarden/` is left out of a hash: a root
+# SKILL.md may run `.spellwarden/setup.sh`, and that script is skill content (r0:F5).
+OWN_FILES = frozenset({LOCK_PATH, BASELINE_PATH, CONFIG_PATH})
 
 
 class LockUnreadable(ValueError):
@@ -44,15 +48,16 @@ def _relative_to(directory: str, path: str) -> str:
 
 
 def _own_file(path: str) -> bool:
-    """The scanner's own files at the scan root (the lock, the baseline, the settings). A package rooted at the scan
-    root (a `SKILL.md` there, a plugin source `.`) holds them, and hashing the lock into itself would make every lock
-    stale the moment it is written."""
-    return path.startswith(OWN_DIRECTORY)
+    """The scanner's own files at the scan root (the lock, the baseline, the settings), by exact scan-root path. A
+    package rooted at the scan root (a `SKILL.md` there, a plugin source `.`) holds them, and hashing the lock into
+    itself would make every lock stale the moment it is written. A `--baseline FILE` elsewhere is not left out: the
+    `lock` command, which writes the lock, does not know it, and the lock must not depend on a flag."""
+    return path in OWN_FILES
 
 
 def _package_hash(directory: str, package: Mapping[str, bytes]) -> str:
     """The lock's move-stable hash: `canonical_sha256` over the files with paths relative to the directory (D8),
-    without the scanner's own `.spellwarden/` files."""
+    without the scanner's own files (`OWN_FILES`)."""
     return canonical_sha256({_relative_to(directory, path): content for path, content in package.items()
                              if not _own_file(path)})
 
