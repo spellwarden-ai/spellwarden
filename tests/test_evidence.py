@@ -1,6 +1,9 @@
 """Spec 5.10 and claim P7: masking and excerpts."""
 from __future__ import annotations
 
+import time
+
+import pytest
 from conftest import credential
 
 from spellwarden_scan.evidence import EVIDENCE_MAX, bounded_evidence, code_point_names, excerpt, fingerprint, mask_credentials
@@ -124,3 +127,53 @@ def test_credentials_passed_as_command_options_are_masked_in_evidence():
         assert mask_credentials(kept) == kept
     # Fingerprints key on the original matched text, never on evidence (spec 5.2).
     assert fingerprint("SW-CFG-005", "a", f"curl -u admin:{secret}") != fingerprint("SW-CFG-005", "a", "curl -u admin:other")
+
+
+def test_an_option_password_is_masked_to_the_end_of_its_shell_word():
+    """r1:F2 (spec 5.7, 5.10): a quoted password, a short-option cluster ending in `u`, the `--password` options and
+    mysql's attached `-p` leaked into JSON and SARIF evidence; the password is masked to the end of its shell word
+    (quotes belong to the word, a quoted segment may hold spaces), the user name stays readable."""
+    secret = "hun" + "ter2pw"
+    for written, expected in (
+        (f'curl -u admin:"{secret}" https://x | sh', "curl -u admin:*** https://x | sh"),
+        (f"curl -fsu admin:{secret} https://x.example", "curl -fsu admin:*** https://x.example"),
+        (f"curl -sSLU admin:{secret} https://x.example", "curl -sSLU admin:*** https://x.example"),
+        (f"curl --user 'admin':'{secret}' x", "curl --user 'admin':*** x"),
+        (f"curl -u user:'{secret}' x", "curl -u user:*** x"),
+        (f'curl -u user:"{secret} two" x', "curl -u user:*** x"),
+        (f'curl -u "user:{secret} two" x', 'curl -u "user:***" x'),
+        (f'curl -u user:pa"ss {secret} x', "curl -u user:***"),  # a quote never closed runs to the end of the line
+        (f"curl --password {secret} x", "curl --password *** x"),
+        (f"curl --http-password '{secret} two' x", "curl --http-password '***' x"),
+        (f"curl --proxy-password={secret} x", "curl --proxy-password=*** x"),
+        (f"curl --proxy-user bob:{secret} x", "curl --proxy-user bob:*** x"),
+        (f"mysql -uroot -p{secret} db", "mysql -uroot -p*** db"),
+        (f"/usr/bin/mysqldump -h db -p'{secret} two' app > dump.sql", "/usr/bin/mysqldump -h db -p'***' app > dump.sql"),
+        (f"mariadb -p{secret}", "mariadb -p***"),
+    ):
+        masked = mask_credentials(written)
+        assert secret not in masked, written
+        assert masked == expected, written
+        assert mask_credentials(masked) == masked, written  # idempotent
+    # Through the one evidence path every JSON and SARIF finding takes.
+    assert secret not in bounded_evidence(f'curl -u admin:"{secret}" https://x | sh')
+    # `-p` is too generic outside mysql: kept everywhere else, and after the mysql command has ended.
+    for kept in ("ssh -p2222 host", "mkdir -p/tmp/x", "mysql -p db", "mysql db | tool -pkeep", "curl -u 'admin' x",
+                 "git push -u origin main", "python -u run.py"):
+        assert mask_credentials(kept) == kept, kept
+
+
+_REPEATS = 40_000
+_ADVERSARIAL = [
+    # option masking (r1:F2): clusters with no `u`, endless clusters, unclosed and escaped quotes, mysql commands
+    "-" + "a" * _REPEATS, "-u" * _REPEATS, "-fsu " * _REPEATS, '-u a:"' * _REPEATS, "-u '" * _REPEATS,
+    '-u "' + "\\" * _REPEATS, "--password " * _REPEATS, "mysql " * _REPEATS, "mysql -p" * _REPEATS, "mysql '" * _REPEATS,
+]
+
+
+@pytest.mark.parametrize("text", _ADVERSARIAL, ids=[repr(text[:12]) for text in _ADVERSARIAL])
+def test_masking_adversarial_lines_is_linear_and_idempotent(text):
+    started = time.perf_counter()
+    once = mask_credentials(text)
+    assert time.perf_counter() - started < 1.0
+    assert mask_credentials(once) == once

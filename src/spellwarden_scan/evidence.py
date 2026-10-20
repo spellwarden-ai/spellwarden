@@ -19,12 +19,21 @@ _URL_PASSWORD = re.compile(r"(://[^/\s@:]*:)(?!\*\*\*@)[^/\s]+@")
 # masked whole as `<scheme>://***@`. A `user:***@` the password rule already wrote is left as it is. Bounded and
 # anchored at a scheme's start, so a long line reads in linear time (test_linear_time).
 _URL_USERINFO = re.compile(r"(?<![A-Za-z0-9+.-])([A-Za-z][A-Za-z0-9+.-]{0,31}):[/\\]{0,8}([^/\\@\s]{1,256})@")
-# A credential given as a command option (r0:F2): the password of `-u user:pass`, `--user`, `--proxy-user` (and the
-# `--user=` and `-uuser:pass` spellings), quoted or not; the user name stays readable. Bounded, and a short option
-# never starts inside a longer word or option (`--user-agent`, `sudo -u www-data` carry no `user:pass` and stay).
+# One shell word: unquoted characters, and `"..."` (backslash escapes) or `'...'` segments that may hold spaces; a quote
+# never closed runs to the end of the line. Possessive throughout, so a word is read once (Python 3.11+).
+_SHELL_WORD = r"""(?:[^\s"']++|"(?:[^"\\\n]|\\.)*+"?|'[^'\n]*+'?)++"""
+# A credential given as a command option (r0:F2, r1:F2): `-u user:pass`, `-uuser:pass`, a short-option cluster that ends
+# in `u` (`-fsu user:pass`), `--user`, `--proxy-user` (and `-U`) keep the user name and mask the password to the end of
+# its shell word; `--password`, `--http-password` and `--proxy-password` mask their whole word. A short option never
+# starts inside a longer word or option (`--user-agent`, `sudo -u www-data` carry no `user:pass` and stay).
 _USER_OPTION = re.compile(
-    r"""(?<![\w-])(-[uU][ \t]*|--(?:proxy-)?user(?:[ \t]+|=))"""
-    r"""(?:"([^\s"':]{0,128}):([^"\n]+)|'([^\s"':]{0,128}):([^'\n]+)|([^\s"':]{0,128}):([^\s"']+))""")
+    r"""(?<![\w-])(?:(?P<user>-(?:[A-Za-z]*[uU][ \t]+|[uU])|--(?:proxy-)?user(?:[ \t]+|=))"""
+    r"""|(?P<password>--(?:http-|proxy-)?password(?:[ \t]+|=)))(?P<word>""" + _SHELL_WORD + ")")
+# mysql's `-p<password>` (attached, no space) is masked only inside a mysql, mysqldump or mariadb command, up to the
+# command's end (`|`, `;`, `&` or the end of the line outside quotes): elsewhere `-p` is too generic.
+_MYSQL_COMMAND = re.compile(
+    r"""(?<![\w.-])(?:mysql|mysqldump|mariadb)(?![\w.-])(?P<rest>(?:[ \t]++|[^\s"'|;&]++|"(?:[^"\\\n]|\\.)*+"?|'[^'\n]*+'?)*+)""")
+_ATTACHED_P = re.compile(r"""(?<![\w-])-p(?P<word>""" + _SHELL_WORD + ")")
 # A header that carries a credential, whatever its scheme word (`Authorization: Token x`, `Proxy-Authorization:
 # Negotiate x`, a `Cookie:` pair list): the value, to the closing quote or the end of the line, becomes `***` and
 # only a scheme word stays. Idempotent: an already masked value is left as it is.
@@ -62,14 +71,54 @@ def _mask_userinfo(match: re.Match) -> str:
     return match.group(1) + "://***@"
 
 
+def _closes(word: str, start: int, quote: str) -> bool:
+    """Whether the `quote` open at `word[start]` closes later in the word (a backslash escapes inside `"`)."""
+    index = start
+    while index < len(word):
+        if quote == '"' and word[index] == "\\":
+            index += 2
+            continue
+        if word[index] == quote:
+            return True
+        index += 1
+    return False
+
+
+def _mask_word(word: str, keep_user: bool) -> str:
+    """The shell word with its secret masked: after the first `:` when `keep_user` (`user:***`, quotes and all; a word
+    with no `:` names a user only and stays), otherwise whole. A quote open where the mask starts keeps its closing
+    quote, so `'bob:pw two'` reads `'bob:***'`. Idempotent: the output masks to itself."""
+    quote, index, split = "", 0, 0
+    if keep_user:
+        while index < len(word):
+            char = word[index]
+            if quote == '"' and char == "\\":
+                index += 2
+                continue
+            if char == quote:
+                quote = ""
+            elif not quote and char in "\"'":
+                quote = char
+            elif char == ":":
+                break
+            index += 1
+        if index >= len(word):
+            return word
+        split = index + 1
+    elif word[:1] in ("'", '"'):
+        quote, split = word[0], 1
+    return word[:split] + "***" + (quote if quote and _closes(word, split, quote) else "")
+
+
 def _mask_user_option(match: re.Match) -> str:
-    """`-u user:pass` keeps the option and the user name; the password, quoted to its closing quote or bare, becomes `***`."""
-    groups = match.groups()
-    quote, at = next((quote, at) for quote, at in (('"', 1), ("'", 3), ("", 5)) if groups[at + 1] is not None)
-    user, password = groups[at], groups[at + 1]
-    if password == "***":
-        return match.group(0)
-    return match.group(1) + quote + user + ":***"
+    """`-u user:pass` keeps the option and the user name; `--password pass` keeps the option; the secret becomes `***`."""
+    keep_user = match.group("user") is not None
+    return match.group("user" if keep_user else "password") + _mask_word(match.group("word"), keep_user)
+
+
+def _mask_mysql_command(match: re.Match) -> str:
+    rest = _ATTACHED_P.sub(lambda m: "-p" + _mask_word(m.group("word"), keep_user=False), match.group("rest"))
+    return match.group(0)[:match.start("rest") - match.start(0)] + rest
 
 
 def _mask_auth_header(match: re.Match) -> str:
@@ -95,13 +144,15 @@ def _mask_value(match: re.Match) -> str:
 def mask_credentials(text: str) -> str:
     """Every SW-SKL-011 pattern and every 20+ character mixed run becomes its
     first four characters and `***`; `Bearer` and `Basic` tokens are masked
-    after the scheme word; the password of `-u user:pass` (`--user`, `--proxy-user`)
+    after the scheme word; the password of `-u user:pass` (`--user`, `--proxy-user`, a cluster
+    such as `-fsu`), of `--password` and of mysql's `-p` to the end of its shell word (r1:F2),
     and the value of an Authorization, Proxy-Authorization or Cookie header are
     masked whatever the scheme word (r0:F2); whatever is left after a secret-like name and `=`
     or `:` becomes `***`. Idempotent."""
     masked = _SCHEME.sub(lambda m: m.group(1) + " ***", text)
     masked = _AUTH_HEADER.sub(_mask_auth_header, masked)
     masked = _USER_OPTION.sub(_mask_user_option, masked)
+    masked = _MYSQL_COMMAND.sub(_mask_mysql_command, masked)
     masked = ASSIGNED_SECRET.sub(_mask_assigned, masked)
     for pattern in CREDENTIAL_PATTERNS:
         masked = pattern.sub(_mask_match, masked)
