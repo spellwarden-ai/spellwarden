@@ -296,7 +296,8 @@ pip download spellwarden==1.0.0 --no-deps -d .
 uvx pypi-attestations verify pypi --repository https://github.com/spellwarden-ai/spellwarden \
   pypi:spellwarden-1.0.0-py3-none-any.whl
 
-# The image: keyless cosign signature and build provenance (the provenance also names the wheel inside it)
+# The image: keyless cosign signature and build provenance (the provenance also names the wheel inside it).
+# The signature is in cosign 3's format: use cosign 3.0 or later (cosign 2 reports "no signatures found").
 cosign verify ghcr.io/spellwarden-ai/spellwarden:1.0.0 \
   --certificate-identity https://github.com/spellwarden-ai/spellwarden/.github/workflows/release.yml@refs/tags/v1.0.0 \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
