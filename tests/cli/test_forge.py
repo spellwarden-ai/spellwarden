@@ -2,6 +2,8 @@
 created or updated; a refused permission or any failure is a notice, never a failed check."""
 from __future__ import annotations
 
+import os
+
 import pytest
 from fake_http import RecordedOpener, load
 
@@ -122,3 +124,33 @@ def test_the_command_always_exits_zero(tmp_path, monkeypatch, capsys):
     missing = type("Args", (), {"provider": "github", "body": str(tmp_path / "absent.md")})()
     assert ci.cmd_comment(missing) == 0
     assert "comment_failed" in capsys.readouterr().err
+
+
+def _comment_args(path) -> object:
+    return type("Args", (), {"provider": "github", "body": str(path)})()
+
+
+def test_the_command_never_reads_the_body_through_a_symlink_or_from_a_non_file(tmp_path, monkeypatch, capsys):
+    posted: list[str] = []
+    monkeypatch.setattr(forge, "post_comment", lambda _provider, body, **_kwargs: posted.append(body))
+    secret = tmp_path / "environ"
+    secret.write_text(BODY + "\nGITHUB_TOKEN=secret\n", encoding="utf-8")
+    link = tmp_path / "report.md"
+    link.symlink_to(secret)
+    assert ci.cmd_comment(_comment_args(link)) == 0
+    assert posted == [] and "comment_failed" in capsys.readouterr().err
+    assert ci.cmd_comment(_comment_args(tmp_path)) == 0  # a directory
+    assert posted == [] and "comment_failed" in capsys.readouterr().err
+    if hasattr(os, "mkfifo"):
+        fifo = tmp_path / "fifo.md"
+        os.mkfifo(fifo)
+        assert ci.cmd_comment(_comment_args(fifo)) == 0  # neither blocks nor reads
+        assert posted == [] and "comment_failed" in capsys.readouterr().err
+    big = tmp_path / "big.md"
+    big.write_bytes(b"x" * (ci.BODY_MAX + 1))
+    assert ci.cmd_comment(_comment_args(big)) == 0
+    assert posted == []
+    regular = tmp_path / "ok.md"
+    regular.write_text(BODY, encoding="utf-8")
+    assert ci.cmd_comment(_comment_args(regular)) == 0
+    assert posted == [BODY]

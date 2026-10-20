@@ -72,3 +72,81 @@ def test_the_comment_needs_a_merge_request(tmp_path, monkeypatch, make_repo, cap
     assert ci.run_gitlab({**VALID, "SW_TELEMETRY": "false", "SW_COMMENT": "true", "GITLAB_CI": "true",
                           "CI_PIPELINE_SOURCE": "push"}) == 0
     assert "comment_no_request" in capsys.readouterr().err
+
+
+# --- The comment posts only the report this job wrote (spec 10.2a, 6.13) ----------------------------------------
+
+MR = {"GITLAB_CI": "true", "CI_PIPELINE_SOURCE": "merge_request_event", "CI_MERGE_REQUEST_IID": "5",
+      "CI_MERGE_REQUEST_SOURCE_PROJECT_ID": "42", "CI_PROJECT_ID": "42"}
+COMMENTING = {**VALID, "SW_TELEMETRY": "false", "SW_COMMENT": "true", **MR}
+
+
+@pytest.fixture
+def posted(monkeypatch):
+    from spellwarden_cli import forge
+
+    bodies: list[str] = []
+    monkeypatch.setattr(forge, "post_comment", lambda _provider, body, **_kwargs: bodies.append(body))
+    return bodies
+
+
+def _fake_scan(monkeypatch, code: int, then=None):
+    """Replace the scan with one that writes no output (as a scan that stops before writing would) and returns
+    `code`; `then` runs in its place, after the job removed the reserved output names."""
+    from spellwarden_cli import main as cli
+
+    def scan(_argv):
+        if then is not None:
+            then()
+        return code
+
+    monkeypatch.setattr(cli, "main", scan)
+
+
+def test_the_normal_path_posts_the_report_the_scan_wrote(tmp_path, monkeypatch, make_repo, posted):
+    repo = make_repo(tmp_path / "project", {"README.md": "nothing to scan\n"})
+    monkeypatch.chdir(repo)
+    assert ci.run_gitlab(COMMENTING) == 0
+    assert len(posted) == 1 and posted[0].startswith("<!-- spellwarden-scan -->") and "PLANTED" not in posted[0]
+
+
+def test_a_committed_report_is_never_posted_when_the_scan_exits_2(tmp_path, monkeypatch, make_repo, posted, capsys):
+    repo = make_repo(tmp_path / "project", {"spellwarden.md": "<!-- spellwarden-scan -->\nPLANTED\n",
+                                            ".spellwarden/config.yml": "no-such-key: 1\n"})  # D11: exit 2
+    monkeypatch.chdir(repo)
+    assert ci.run_gitlab(COMMENTING) == 2
+    assert posted == [] and "comment_failed" in capsys.readouterr().err
+
+
+def test_a_planted_report_is_removed_before_a_scan_that_writes_nothing(tmp_path, monkeypatch, posted, capsys):
+    monkeypatch.chdir(tmp_path)
+    for code in (0, 2):
+        for _, output in ci.GITLAB_OUTPUTS:
+            (tmp_path / output).write_text("<!-- spellwarden-scan -->\nPLANTED\n", encoding="utf-8")
+        _fake_scan(monkeypatch, code)
+        assert ci.run_gitlab(COMMENTING) == code
+        assert posted == [] and "comment_failed" in capsys.readouterr().err
+        assert [output for _, output in ci.GITLAB_OUTPUTS if (tmp_path / output).exists()] == []
+
+
+def test_a_planted_symlink_is_never_read(tmp_path, monkeypatch, posted, capsys):
+    secret = tmp_path / "environ"
+    secret.write_text("<!-- spellwarden-scan -->\nCI_JOB_TOKEN=secret\n", encoding="utf-8")
+    job = tmp_path / "job"
+    job.mkdir()
+    (job / "spellwarden.md").symlink_to(secret)
+    monkeypatch.chdir(job)
+    _fake_scan(monkeypatch, 0)
+    assert ci.run_gitlab(COMMENTING) == 0
+    assert posted == [] and not (job / "spellwarden.md").is_symlink() and secret.is_file()
+    # A link that appears after the job removed the reserved names is refused when the report is read.
+    _fake_scan(monkeypatch, 0, then=lambda: (job / "spellwarden.md").symlink_to(secret))
+    assert ci.run_gitlab(COMMENTING) == 0
+    assert posted == [] and "comment_failed" in capsys.readouterr().err
+
+
+def test_a_reserved_name_that_cannot_be_removed_stops_the_job(tmp_path, monkeypatch, posted, capsys):
+    (tmp_path / "spellwarden.md").mkdir()
+    monkeypatch.chdir(tmp_path)
+    assert ci.run_gitlab(COMMENTING) == 2
+    assert posted == [] and "spellwarden.md" in capsys.readouterr().err

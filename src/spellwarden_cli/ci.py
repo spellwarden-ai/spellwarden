@@ -11,6 +11,7 @@ import hashlib
 import json
 import os
 import re
+import stat
 import subprocess
 import sys
 from collections.abc import Callable, Mapping
@@ -31,6 +32,7 @@ _TRUE = ("1", "true", "yes", "on")
 # The outputs of `ci-run gitlab`, in the job's working directory, as templates/scan.yml lists them (spec 10.2).
 GITLAB_OUTPUTS = (("gitlab-codequality", "gl-code-quality-report.json"), ("sarif", "spellwarden.sarif"),
                   ("markdown", "spellwarden.md"), ("json", "spellwarden.json"))
+GITLAB_MARKDOWN = dict(GITLAB_OUTPUTS)["markdown"]
 _SCP_REMOTE = re.compile(r"^[A-Za-z0-9._-]+@([A-Za-z0-9.-]+):/?([^/]+)/")
 
 
@@ -208,17 +210,39 @@ def emit(ctx: CiContext, notice: Notice, *, stream=None) -> None:
 
 # --- `spellwarden ci comment` -----------------------------------------------------------------------------------
 
+def read_body(path: str) -> str:
+    """The comment body (spec 6.13): a regular file opened without following a symbolic link in its last component
+    (`O_NOFOLLOW`; where the platform lacks it, a link is refused before opening), never a FIFO or device (opened
+    non-blocking, then `fstat`), at most `BODY_MAX` bytes of UTF-8. Raises `OSError` or `ValueError`."""
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    if not nofollow and os.path.islink(path):
+        raise ValueError("the comment body is a symbolic link")
+    fd = os.open(path, os.O_RDONLY | nofollow | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_BINARY", 0))
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise ValueError("the comment body is not a regular file")
+        chunks: list[bytes] = []
+        size = 0
+        while size <= BODY_MAX:
+            chunk = os.read(fd, BODY_MAX + 1 - size)
+            if not chunk:
+                break
+            chunks.append(chunk)
+            size += len(chunk)
+    finally:
+        os.close(fd)
+    if size > BODY_MAX:
+        raise ValueError("the comment body is over 1 MiB")
+    return b"".join(chunks).decode("utf-8")
+
+
 def cmd_comment(args: argparse.Namespace) -> int:
     """Spec 6.11: posts or updates the one marked comment; always exits 0 (a comment never fails the check)."""
     from spellwarden_cli import forge
 
     ctx = detect(os.environ)
     try:
-        with open(args.body, "rb") as handle:
-            body = handle.read(BODY_MAX + 1)
-        if len(body) > BODY_MAX:
-            raise ValueError("the comment body is over 1 MiB")
-        text = body.decode("utf-8")
+        text = read_body(args.body)
     except (OSError, ValueError) as exc:
         emit(ctx, Notice("comment_failed", "", f"cannot read the comment body: {type(exc).__name__}"))
         return 0
@@ -270,20 +294,30 @@ def run_gitlab(env: Mapping[str, str]) -> int:
         for problem in problems:
             print(f"spellwarden: error: {problem}", file=sys.stderr)
         return 2
-    from spellwarden_cli import forge
-    from spellwarden_cli.main import main
+    # The output names are reserved: a file, or a symbolic link, of that name in the checkout is the revision's,
+    # never this job's report, so it is removed before the scan and only what the scan writes is uploaded or posted.
+    for _, output in GITLAB_OUTPUTS:
+        try:
+            if os.path.lexists(output):
+                os.unlink(output)
+        except OSError as exc:
+            print(f"spellwarden: error: cannot remove {output} from the job directory, a name the job's reports "
+                  f"use: {type(exc).__name__}", file=sys.stderr)
+            return 2
+    from spellwarden_cli import forge, main as cli
 
-    code = main(argv)
+    code = cli.main(argv)
     if comment:
         ctx = detect(env)
         if not (ctx.is_request and ctx.request_number is not None):
             emit(ctx, Notice("comment_no_request", "", "comment is true but this pipeline has no merge request"))
+        elif code == 2:
+            emit(ctx, Notice("comment_failed", "", "the scan did not complete (exit 2): no comment was posted"))
         else:
             try:
-                with open("spellwarden.md", encoding="utf-8") as handle:
-                    body = handle.read(BODY_MAX)
-            except OSError:
-                emit(ctx, Notice("comment_failed", "", "the Markdown report was not written"))
+                body = read_body(GITLAB_MARKDOWN)
+            except (OSError, ValueError) as exc:
+                emit(ctx, Notice("comment_failed", "", f"cannot read the Markdown report: {type(exc).__name__}"))
             else:
                 notice = forge.post_comment("gitlab", body, env=env, ctx=ctx)
                 if notice is not None:
