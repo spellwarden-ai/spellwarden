@@ -68,14 +68,35 @@ def engine_findings(found: Discovery, rules: RuleSet, notices: list[Notice]) -> 
     return findings
 
 
-def apply_baseline(options: ScanOptions, findings: list[ReportFinding], notices: list[Notice], errors: list[Notice]) -> list[ReportFinding]:  # noqa: E501, ARG001
-    """Seam: Task 8 replaces this body (spec 6.7)."""
-    return findings
+def apply_baseline(options: ScanOptions, findings: list[ReportFinding], notices: list[Notice], errors: list[Notice]) -> list[ReportFinding]:  # noqa: E501
+    """Spec 6.7: findings that a valid, current entry accepts are suppressed; an invalid entry or an unusable
+    file is an error (exit 2) and suppresses nothing."""
+    from spellwarden_cli import baseline  # here, not at the top: baseline's commands import this module
+
+    relative = options.baseline or baseline.BASELINE_PATH
+    try:
+        loaded = baseline.load_baseline(options.root, relative, required=options.baseline is not None)
+    except baseline.BaselineError as exc:
+        errors.append(Notice("baseline_invalid", relative, str(exc)))
+        return findings
+    kept, more_notices, more_errors = baseline.apply(loaded, findings, as_of=options.as_of, name=relative)
+    notices.extend(more_notices)
+    errors.extend(more_errors)
+    return kept
 
 
-def check_lock(options: ScanOptions, found: Discovery, errors: list[Notice]) -> LockState:  # noqa: ARG001
-    """Seam: Task 8 replaces this body (spec 6.6)."""
-    return LockState()
+def check_lock(options: ScanOptions, found: Discovery, errors: list[Notice]) -> LockState:
+    """Spec 6.6: under `--locked`, the computed lock is compared with `.spellwarden/lock.json`; an unreadable lock
+    file is an error (exit 2)."""
+    from spellwarden_cli import lockfile  # here, not at the top: lockfile's command imports this module
+
+    if not options.locked:
+        return LockState()
+    try:
+        return lockfile.compare_lock(options.root, lockfile.compute_lock(found))
+    except lockfile.LockUnreadable as exc:
+        errors.append(Notice("lock_unreadable", lockfile.LOCK_PATH, str(exc)))
+        return LockState()
 
 
 def run_probes(options: ScanOptions, found: Discovery, rules: RuleSet, findings: list[ReportFinding], notices: list[Notice]) -> list[ProbeReport]:  # noqa: E501, ARG001
