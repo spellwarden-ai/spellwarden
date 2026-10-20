@@ -15,10 +15,16 @@ _SCHEME = re.compile(r"(?i)\b(bearer|basic)\s+[A-Za-z0-9._~+/=\-]+")  # any leng
 # `scheme://user:password@host`: the password, whatever its shape, before the last `@` of the authority (spec 5.10)
 _URL_PASSWORD = re.compile(r"(://[^/\s@:]*:)(?!\*\*\*@)[^/\s]+@")
 # Any other userinfo of a URL, token-only included (`git+https://tok@github.com/x`) and the backslash forms the
-# password rule above does not read (`http:\\u:p@h`): from the scheme's `:` and its run of `/` or `\` to the `@`,
-# masked whole as `<scheme>://***@`. A `user:***@` the password rule already wrote is left as it is. Bounded and
-# anchored at a scheme's start, so a long line reads in linear time (test_linear_time).
-_URL_USERINFO = re.compile(r"(?<![A-Za-z0-9+.-])([A-Za-z][A-Za-z0-9+.-]{0,31}):[/\\]{0,8}([^/\\@\s]{1,256})@")
+# password rule above does not read (`http:\\u:p@h`): after the scheme's `:` and its run of `/` or `\`, the authority
+# runs to `/`, `\`, `?`, `#`, whitespace or a quote, and stops before a further `scheme:/` (`x:https://t@h`); its
+# userinfo, through the LAST `@` (`https://tok@en@h`), is masked whole as `<scheme>://***@` (r0:F6). A userinfo longer
+# than `_USERINFO_MAX` masks the whole authority (`<scheme>://***`). A `user:***@` the password rule already wrote is left
+# as it is. Possessive and anchored at a scheme's start, so a long line reads in linear time.
+_URL_USERINFO = re.compile(
+    r"""(?<![A-Za-z0-9+.-])([A-Za-z][A-Za-z0-9+.-]{0,31}):[/\\]{0,8}"""
+    r"""((?:(?![A-Za-z][A-Za-z0-9+.-]{0,31}:[/\\])[^/\\?#\s"'])*+)""")
+_USERINFO_MAX = 256
+_MASKED_PASSWORD_USERINFO = re.compile(r"[^/\\@\s:]*:\*\*\*")
 # One shell word: unquoted characters, and `"..."` (backslash escapes) or `'...'` segments that may hold spaces; a quote
 # never closed runs to the end of the line. Possessive throughout, so a word is read once (Python 3.11+).
 _SHELL_WORD = r"""(?:[^\s"']++|"(?:[^"\\\n]|\\.)*+"?|'[^'\n]*+'?)++"""
@@ -68,9 +74,15 @@ def _mask_assigned(match: re.Match) -> str:
 
 
 def _mask_userinfo(match: re.Match) -> str:
-    if match.group(2).endswith(":***"):  # the password rule's own output keeps its user name
+    authority = match.group(2)
+    at = authority.rfind("@")
+    if at <= 0:  # no userinfo, or an empty one: nothing to hide
         return match.group(0)
-    return match.group(1) + "://***@"
+    if at > _USERINFO_MAX:
+        return match.group(1) + "://***"
+    if _MASKED_PASSWORD_USERINFO.fullmatch(authority[:at]):  # the password rule's own output keeps its user name
+        return match.group(0)
+    return match.group(1) + "://***" + authority[at:]
 
 
 def _closes(word: str, start: int, quote: str) -> bool:

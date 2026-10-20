@@ -191,6 +191,28 @@ def test_a_header_keeps_only_a_known_scheme_and_is_masked_to_its_closing_quote()
     for kept in ('{"Authorization": "", "Accept": "a"}', "curl -H 'Accept: text/html' x", "X-Authorization-Mode: on"):
         assert mask_credentials(kept) == kept, kept
 
+
+def test_url_userinfo_is_masked_through_the_last_at_and_whole_when_too_long():
+    """r0:F6 (spec 5.7, D34): userinfo stopped at the first `@`, so `https://tok@en@host` showed `en`, and userinfo over
+    256 characters was not masked at all. It is masked through the last `@` before the authority ends (`/`, `?`, `#`,
+    a backslash, whitespace or a quote); past the cap the whole authority is masked."""
+    part = "tok" + "en"
+    for written, expected in (
+        (f"https://{part}@{part}@host.example/x", "https://***@host.example/x"),
+        (f"git+https://{part}@a@b@github.com/x/y", "git+https://***@github.com/x/y"),
+        (f'curl "https://{part}@{part}@host.example?a=b@c#d@e"', 'curl "https://***@host.example?a=b@c#d@e"'),
+        (f"http:\\\\{part}@{part}@h.example\\x", "http://***@h.example\\x"),
+        (f"git+https://{'tok' * 100}@github.com/x/y", "git+https://***/x/y"),
+        (f"https://{'ab.cd' * 60}@{part}@host.example:8443/x", "https://***/x"),
+        (f"x:https://{part}@{part}@host.example/x", "x:https://***@host.example/x"),
+        ("smtp:alice@example.com", "smtp://***@example.com"),
+    ):
+        masked = mask_credentials(written)
+        assert masked == expected, written
+        assert mask_credentials(masked) == masked, written  # idempotent
+    for kept in ("mail me: a@b.example", "https://host.example/a@b", "see https://user:***@h.example/", "https://@host.example/"):
+        assert mask_credentials(kept) == kept, kept
+
 _REPEATS = 40_000
 _ADVERSARIAL = [
     # option masking (r1:F2): clusters with no `u`, endless clusters, unclosed and escaped quotes, mysql commands
@@ -199,6 +221,9 @@ _ADVERSARIAL = [
     # header masking: names with no colon, endless separators, quotes and escapes in the value
     "authorization" + " " * _REPEATS, "Authorization: " * _REPEATS, '"Authorization":"' * _REPEATS, "'Cookie: '" * _REPEATS,
     '"Authorization: Bearer ' + "\\" * _REPEATS, "Authorization: Digest " * _REPEATS,
+    # URL userinfo (r0:F6): scheme-like words with no authority, endless userinfo, `@` runs, schemes inside an authority
+    "a:" * _REPEATS, "x:@" * _REPEATS, "https://" + "a@" * _REPEATS, "a:/" * _REPEATS, "https://" + "a" * _REPEATS + "@h",
+    "ab:" + "c:d@" * _REPEATS, "://a:" * _REPEATS, "x" + "y:" * _REPEATS + "//t@h", ("ab" * 15 + "c:") * _REPEATS,
 ]
 
 
