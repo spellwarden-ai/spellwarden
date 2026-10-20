@@ -1,0 +1,40 @@
+{
+  "create": [
+    {"method": "GET", "url": "https://api.github.com/user", "status": 403, "body": {"message": "Resource not accessible by integration"}},
+    {"method": "GET", "url": "https://api.github.com/repos/acme/agents/issues/7/comments?per_page=100&page=1", "status": 200,
+     "body": [{"id": 1, "user": {"login": "octo"}, "body": "Looks good."},
+              {"id": 2, "user": {"login": "someone"}, "body": "<!-- spellwarden-scan -->\nPasted by a person."}]},
+    {"method": "POST", "url": "https://api.github.com/repos/acme/agents/issues/7/comments", "status": 201, "body": {"id": 3}}
+  ],
+  "update": [
+    {"method": "GET", "url": "https://api.github.com/user", "status": 403, "body": {"message": "Resource not accessible by integration"}},
+    {"method": "GET", "url": "https://api.github.com/repos/acme/agents/issues/7/comments?per_page=100&page=1", "status": 200,
+     "body": [{"id": 10, "user": {"login": "someone"}, "body": "<!-- spellwarden-scan -->\nPasted by a person."},
+              {"id": 11, "user": {"login": "github-actions[bot]"}, "body": "<!-- spellwarden-scan -->\nThe last run."},
+              {"id": 12, "user": {"login": "github-actions[bot]"}, "body": "<!-- spellwarden-scan -->\nAn older duplicate."}]},
+    {"method": "PATCH", "url": "https://api.github.com/repos/acme/agents/issues/comments/11", "status": 200, "body": {"id": 11}}
+  ],
+  "personal_token": [
+    {"method": "GET", "url": "https://api.github.com/user", "status": 200, "body": {"login": "release-bot"}},
+    {"method": "GET", "url": "https://api.github.com/repos/acme/agents/issues/7/comments?per_page=100&page=1", "status": 200,
+     "body": [{"id": 21, "user": {"login": "github-actions[bot]"}, "body": "<!-- spellwarden-scan -->\nFrom the workflow token."},
+              {"id": 22, "user": {"login": "release-bot"}, "body": "<!-- spellwarden-scan -->\nFrom the personal token."}]},
+    {"method": "PATCH", "url": "https://api.github.com/repos/acme/agents/issues/comments/22", "status": 200, "body": {"id": 22}}
+  ],
+  "forbidden": [
+    {"method": "GET", "url": "https://api.github.com/user", "status": 403, "body": {"message": "Resource not accessible by integration"}},
+    {"method": "GET", "url": "https://api.github.com/repos/acme/agents/issues/7/comments?per_page=100&page=1", "status": 200, "body": []},
+    {"method": "POST", "url": "https://api.github.com/repos/acme/agents/issues/7/comments", "status": 403,
+     "body": {"message": "Resource not accessible by integration"}}
+  ],
+  "not_found": [
+    {"method": "GET", "url": "https://api.github.com/user", "status": 403, "body": {"message": "Resource not accessible by integration"}},
+    {"method": "GET", "url": "https://api.github.com/repos/acme/agents/issues/7/comments?per_page=100&page=1", "status": 404,
+     "body": {"message": "Not Found"}}
+  ],
+  "server_error": [
+    {"method": "GET", "url": "https://api.github.com/user", "status": 403, "body": {"message": "Resource not accessible by integration"}},
+    {"method": "GET", "url": "https://api.github.com/repos/acme/agents/issues/7/comments?per_page=100&page=1", "status": 200, "body": []},
+    {"method": "POST", "url": "https://api.github.com/repos/acme/agents/issues/7/comments", "status": 500, "body": {"message": "Server Error"}}
+  ]
+}

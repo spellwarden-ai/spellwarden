@@ -1,0 +1,8 @@
+// VS Code reads this file as JSONC
+{
+  "servers": {
+    "jira": {"type": "http", "url": "https://jira.example.com/mcp"},
+    "dev": {"type": "sse", "url": "http://127.0.0.1:9000/sse"},
+    "ipv6": {"type": "http", "url": "http://[::1]:9001/mcp"},
+  }
+}

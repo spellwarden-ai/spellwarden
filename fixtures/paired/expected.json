@@ -1,0 +1,7 @@
+{
+ "01-pipe-continued": {"decodes_and_runs": [], "pipes_remote_to_shell": [1], "sends_file_contents": []},
+ "02-backslash-continued": {"decodes_and_runs": [], "pipes_remote_to_shell": [2], "sends_file_contents": []},
+ "03-decode-and-run": {"decodes_and_runs": [1], "pipes_remote_to_shell": [], "sends_file_contents": []},
+ "04-send-secrets": {"decodes_and_runs": [], "pipes_remote_to_shell": [], "sends_file_contents": [1]},
+ "05-quiet": {"decodes_and_runs": [], "pipes_remote_to_shell": [], "sends_file_contents": []}
+}

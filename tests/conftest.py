@@ -8,11 +8,13 @@ from pathlib import Path
 
 import pytest
 
-from spellwarden_scan.model import ProbeResult
+from spellwarden_scan.agentconfig import parse_document
+from spellwarden_scan.model import ConfigDocument, ProbeResult
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 SKILL_FIXTURES = FIXTURES / "skills"
 PROBE_FIXTURES = FIXTURES / "probes"
+CONFIG_FIXTURES = FIXTURES / "config"
 
 
 def make_package(files: dict[str, str | bytes]) -> dict[str, bytes]:
@@ -99,6 +101,61 @@ def load_skill_fixture(rule_id: str, side: str) -> tuple[dict[str, bytes], dict]
     return files, expected
 
 
+def _generated_cfg_002_positive() -> dict[str, bytes]:
+    servers = {"mcpServers": {
+        "github": {"command": "docker", "args": ["run", "-i", "--rm", "-e", "GITHUB_TOKEN", "ghcr.io/github/github-mcp-server:v1.2.0"],
+                   "env": {"GITHUB_TOKEN": credential("github")}},
+        "search": {"type": "http", "url": "https://search.example.com/mcp", "headers": {"Authorization": "Bearer " + "q7" * 8}},
+        "cloud": {"command": "node", "args": ["server.js", "--key", credential("aws")]},
+    }}
+    return {".mcp.json": json.dumps(servers, indent=2).encode()}
+
+
+def _generated_cfg_010_positive() -> dict[str, bytes]:
+    servers = {"mcpServers": {
+        "crm": {"command": "node", "args": ["server.js", "--api-key=" + "plain" + "value1"],
+                "env": {"CRM_API_TOKEN": "plain" + "value2", "apiKey": "plain" + "value3"}},
+        "wiki": {"type": "http", "url": "https://wiki.example.com/mcp", "headers": {"X-API-Key": "plain" + "value4"}},
+    }}
+    return {".cursor/mcp.json": json.dumps(servers, indent=2).encode()}
+
+
+CONFIG_GENERATED: dict[str, object] = {
+    "SW-CFG-002/positive": _generated_cfg_002_positive,
+    "SW-CFG-010/positive": _generated_cfg_010_positive,
+}
+
+
+def config_kind(path: str) -> str | None:
+    """The document kind of a configuration file path, as discovery (spec 6.5) names them; None for any other file."""
+    name = path.rsplit("/", 1)[-1]
+    if path.endswith(".claude-plugin/marketplace.json"):
+        return "marketplace"
+    if path.endswith(".claude-plugin/plugin.json"):
+        return "plugin"
+    if path == "hooks/hooks.json" or path.endswith("/hooks/hooks.json"):
+        return "hooks"
+    if path.endswith((".claude/settings.json", ".claude/settings.local.json")):
+        return "settings"
+    if name == ".mcp.json" or path.endswith((".vscode/mcp.json", ".cursor/mcp.json")):
+        return "mcp"
+    return None
+
+
+def config_documents(files: dict[str, bytes]) -> list[ConfigDocument]:
+    return [parse_document(config_kind(path), path, content) for path, content in sorted(files.items()) if config_kind(path)]
+
+
+def load_config_fixture(rule_id: str, side: str) -> tuple[dict[str, bytes], dict]:
+    """The files of `fixtures/config/<rule-id>/<side>/` and its `expected.json` (the complete finding set of the
+    `config` rules over the fixture's documents, same shape as the skill fixtures)."""
+    directory = CONFIG_FIXTURES / rule_id / side
+    expected = json.loads((directory / "expected.json").read_text())
+    generator = CONFIG_GENERATED.get(f"{rule_id}/{side}")
+    files = generator() if generator is not None else _read_dir(directory)
+    return files, expected
+
+
 def load_probe_fixture(name: str) -> tuple[ProbeResult, dict]:
     """`fixtures/probes/<name>.json`: `{"probe": <ProbeResult.to_dict()>, "expected": {...}}`."""
     document = json.loads((PROBE_FIXTURES / f"{name}.json").read_text())
@@ -108,3 +165,47 @@ def load_probe_fixture(name: str) -> tuple[ProbeResult, dict]:
 @pytest.fixture
 def package():
     return make_package
+
+
+# Every variable that makes a run look like CI, or that the scanner reads from its environment (spec 6.3, 6.10, 6.11).
+_RUNNER_VARIABLES = (
+    "CI", "GITHUB_ACTIONS", "GITHUB_EVENT_NAME", "GITHUB_EVENT_PATH", "GITHUB_REF_PROTECTED", "GITHUB_REPOSITORY",
+    "GITHUB_REPOSITORY_OWNER_ID", "GITHUB_SERVER_URL", "GITHUB_API_URL", "GITHUB_ACTOR", "GITHUB_TOKEN", "GITLAB_CI",
+    "CI_PIPELINE_SOURCE", "CI_COMMIT_REF_PROTECTED", "CI_PROJECT_ID", "CI_MERGE_REQUEST_IID",
+    "CI_MERGE_REQUEST_SOURCE_PROJECT_ID", "CI_SERVER_HOST", "CI_PROJECT_ROOT_NAMESPACE", "CI_API_V4_URL",
+    "CI_MERGE_REQUEST_DIFF_BASE_SHA", "CI_MERGE_REQUEST_TARGET_BRANCH_SHA", "CI_EXTERNAL_PULL_REQUEST_TARGET_BRANCH_SHA",
+    "SPELLWARDEN_FAIL_ON", "SPELLWARDEN_PROBE", "SPELLWARDEN_PROBE_PRIVATE", "SPELLWARDEN_TELEMETRY",
+    "SPELLWARDEN_PING_URL", "SPELLWARDEN_GITHUB_TOKEN", "SPELLWARDEN_GITLAB_TOKEN", "DO_NOT_TRACK",
+    # the markers of CI systems that need not set CI=true (spellwarden_cli.ci.CI_MARKERS)
+    "JENKINS_URL", "TF_BUILD", "TEAMCITY_VERSION", "BUILDKITE", "CIRCLECI", "BITBUCKET_BUILD_NUMBER",
+    "CODEBUILD_BUILD_ID", "DRONE", "TRAVIS", "CI_SYSTEM_NAME",
+)
+
+
+class _Sent:
+    status = 204
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_exc):
+        return None
+
+
+@pytest.fixture(autouse=True)
+def ping_requests(monkeypatch):
+    """Spec 2 invariant 9: no test reaches the network. The CI that runs this suite sets `CI` and its provider's
+    variables, so every scan a test ran would ping: they are removed, and the ping's opener records the request
+    instead of sending it. A test that wants a CI run sets the variables itself and reads this list."""
+    from spellwarden_cli import ping
+
+    for name in _RUNNER_VARIABLES:
+        monkeypatch.delenv(name, raising=False)
+    sent: list = []
+
+    def record(request, timeout=None):  # noqa: ARG001 -- the shape of urllib.request.urlopen
+        sent.append(request)
+        return _Sent()
+
+    monkeypatch.setattr(ping, "_urlopen", record)
+    return sent

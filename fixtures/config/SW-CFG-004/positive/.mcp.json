@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "metrics": {"type": "http", "url": "https://203.0.113.10/mcp"},
+    "short": {"type": "sse", "url": "https://bit.ly/mcp-sse"},
+    "octal": {"type": "http", "url": "https://0x0a.0.0.1/mcp"}
+  }
+}

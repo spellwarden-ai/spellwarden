@@ -1,0 +1,10 @@
+{
+ "findings": [
+  {
+   "rule_id": "SW-CFG-006",
+   "severity": "critical",
+   "path": ".claude/settings.json",
+   "line": 4
+  }
+ ]
+}

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "fetch": {"command": "uvx", "args": ["mcp-server-fetch"]},
+    "files": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem@latest", "/srv/docs"]},
+    "db": {"command": "docker", "args": ["run", "-i", "--rm", "acme/db-mcp"]},
+    "notes": {"command": "pnpm", "args": ["dlx", "notes-mcp"]}
+  }
+}

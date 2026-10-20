@@ -1,0 +1,12 @@
+[
+  {"method": "POST", "url": "https://mcp.example/mcp", "status": 200, "headers": {"Content-Type": "application/json"},
+   "body": {"jsonrpc": "2.0", "id": 1, "result": {"supportedVersions": ["2025-11-25", "2026-07-28"], "capabilities": {"tools": {}},
+            "serverInfo": {"name": "k8s-readonly", "version": "3.1.0"}}}},
+  {"method": "POST", "url": "https://mcp.example/mcp#tools/list", "status": 401,
+   "headers": {"Content-Type": "application/json", "WWW-Authenticate": "Bearer resource_metadata=\"https://mcp.example/.well-known/oauth-protected-resource/mcp\""},
+   "body": {"error": "unauthorized"}},
+  {"method": "GET", "url": "https://mcp.example/.well-known/oauth-protected-resource/mcp", "status": 200, "headers": {"Content-Type": "application/json"},
+   "body": {"resource": "https://mcp.example/mcp", "authorization_servers": ["https://auth.example"]}},
+  {"method": "GET", "url": "https://auth.example/.well-known/oauth-authorization-server", "status": 200, "headers": {"Content-Type": "application/json"},
+   "body": {"issuer": "https://auth.example", "client_id_metadata_document_supported": true, "grant_types_supported": ["authorization_code", "refresh_token"]}}
+]

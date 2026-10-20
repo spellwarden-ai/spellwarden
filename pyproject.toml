@@ -1,7 +1,7 @@
 [project]
 name = "spellwarden"
-version = "0.2.0"
-description = "The Spellwarden scan engine: baseline rules for agent skills and MCP servers, probe classification, migration checklist and curation score. Pure code, no I/O."
+version = "0.3.0"
+description = "Spellwarden: the scan engine for agent skills, MCP servers and Claude Code configuration (spellwarden_scan, pure code, no I/O) and the spellwarden command that does the I/O (spellwarden_cli)."
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.11"
@@ -18,22 +18,29 @@ classifiers = [
 ]
 dependencies = ["PyYAML>=6.0"]
 
+[project.scripts]
+spellwarden = "spellwarden_cli.main:main"
+
 [project.urls]
 Homepage = "https://spellwarden.ai"
 Source = "https://github.com/spellwarden-ai/spellwarden"
 
 [dependency-groups]
-dev = ["pytest>=8.3", "ruff>=0.6"]
+dev = [
+    "jsonschema>=4.23",
+    "pytest>=8.3",
+    "ruff>=0.6",
+]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/spellwarden_scan"]
+packages = ["src/spellwarden_scan", "src/spellwarden_cli"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src/spellwarden_scan", "tests", "fixtures", "README.md", "CHANGELOG.md", "LICENSE", "pyproject.toml"]
+include = ["src/spellwarden_scan", "src/spellwarden_cli", "tests", "fixtures", "schemas", "README.md", "CHANGELOG.md", "LICENSE", "pyproject.toml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -48,4 +55,8 @@ select = ["E", "F", "W", "B", "UP", "ARG"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["E501"]
+# Moved and ported from the hosted backend verbatim (spec 6.8): its line length and its scripted test doubles stay.
+"src/spellwarden_cli/net.py" = ["E501"]
+"src/spellwarden_cli/probe.py" = ["E501"]
+"tests/cli/test_fetcher.py" = ["ARG"]
 "src/spellwarden_scan/rules/*" = ["E501"]  # the pattern tables read better on one line each

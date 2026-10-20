@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import io
+import os
 import stat
 import zipfile
 
@@ -46,7 +47,10 @@ def test_with_modes_reports_executable_entries():
     assert set(files) == {"SKILL.md", "bin/tool"} and executable == frozenset({"bin/tool"})
 
 
-@pytest.mark.parametrize("name", ["../x", "/x", "C:\\x", "a/../../x", "a\\b", "a/./x", "./x", "a//x", "a/."])
+@pytest.mark.parametrize("name", ["../x", "/x", "C:\\x", "a/../../x",
+                                  pytest.param("a\\b", marks=pytest.mark.skipif(
+                                      os.sep == "\\", reason="zipfile reads a backslash as `/` on Windows")),
+                                  "a/./x", "./x", "a//x", "a/."])
 def test_unsafe_paths_are_refused(name):
     """A NUL in a name cannot be tested through a real archive: `zipfile` cuts the name at the NUL
     on both write and read, so `_unsafe`'s NUL check is defensive only."""

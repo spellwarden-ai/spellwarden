@@ -6,7 +6,7 @@ from __future__ import annotations
 import ipaddress
 import re
 import unicodedata
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 
 from spellwarden_scan.evidence import bounded_evidence, code_point_names, excerpt, fingerprint
 from spellwarden_scan.frontmatter import FrontmatterError, parse_frontmatter
@@ -44,10 +44,12 @@ def _is_script(unit: TextFile | CodeBlock) -> bool:
     return isinstance(unit, CodeBlock) or unit.path.lower().endswith(SCRIPT_EXTENSIONS)
 
 
-def _logical_lines(unit: TextFile | CodeBlock) -> Iterator[tuple[str, int, str]]:
-    """One shell command per item, numbered by its first line: a line with a trailing backslash is joined to the
-    next, and in a script or a fenced code block so is a line ending in `|`, `&&` or `||` (the shell reads on).
-    Markdown prose is joined at backslashes only (a table row ends in `|`)."""
+def logical_commands(unit: TextFile | CodeBlock) -> Iterator[tuple[str, int, str]]:
+    """One shell command per item, `(path, first line, command text)`: a line with a trailing backslash is joined
+    to the next, and in a script or a fenced code block so is a line ending in `|`, `&&` or `||` (the shell reads
+    on). Markdown prose is joined at backslashes only (a table row ends in `|`). The one normalisation step of the
+    skill rules and the hook rules (spec 5.4): a hook command is passed as `CodeBlock(path, "sh", command, line)`,
+    so it is joined exactly like the same text in a script."""
     pending: list[str] = []
     start = 0
     path = unit.path
@@ -214,11 +216,18 @@ _EXECUTOR = re.compile(
     r"new Function\(|\bsh -c\b)", _I)
 
 
+def decodes_and_runs(commands: Iterable[tuple[str, int, str]]) -> Iterator[tuple[str, int, str]]:
+    """The SW-SKL-004 test over `logical_commands` output: a decoder and an executor in one command."""
+    for path, number, text in commands:
+        if _DECODER.search(text) and _EXECUTOR.search(text):
+            yield path, number, text
+
+
 def _skl_004(package: Package) -> Iterator[Finding]:
     for unit in package.scripts():
-        for path, number, line in _logical_lines(unit):  # `... | base64 -d \` then `| sh`: one command
-            if _DECODER.search(line) and _EXECUTOR.search(line):
-                yield _finding("SW-SKL-004", "critical", TITLES["SW-SKL-004"], path, number, line, malicious=True)
+        # `... | base64 -d \` then `| sh`: one command
+        for path, number, line in decodes_and_runs(logical_commands(unit)):
+            yield _finding("SW-SKL-004", "critical", TITLES["SW-SKL-004"], path, number, line, malicious=True)
 
 
 # --- SW-SKL-005 ------------------------------------------------------------------------------
@@ -252,7 +261,7 @@ _CONFIRMED = re.compile(r"(confirm|\bask\b|approval|approve|only if the user|aft
 
 def _skl_006(package: Package) -> Iterator[Finding]:
     for unit in package.scripts():
-        entries = list(_logical_lines(unit))
+        entries = list(logical_commands(unit))
         for index, (path, number, line) in enumerate(entries):
             if not _DESTRUCTIVE.search(line):
                 continue
@@ -271,6 +280,13 @@ _PIPED = P.AnyOf(
     P.Then(r"iex ?\(", r"(iwr|Invoke-WebRequest|DownloadString)"))
 
 
+def pipes_remote_to_shell(commands: Iterable[tuple[str, int, str]]) -> Iterator[tuple[str, int, str]]:
+    """The SW-SKL-007 test over `logical_commands` output: remote content piped to an interpreter."""
+    for path, number, text in commands:
+        if _PIPED.search(text):
+            yield path, number, text
+
+
 def _skl_007(package: Package) -> Iterator[Finding]:
     # A fenced block is read as a script (joined at `|`, `&&` and `||`); the prose of its Markdown file skips the
     # block's lines, so a command is reported once, at its first line, by whichever view holds it.
@@ -278,11 +294,10 @@ def _skl_007(package: Package) -> Iterator[Finding]:
                                     for block in package.code_blocks for offset in range(len(block.lines))}
     for unit in (*package.text_files, *package.code_blocks):
         prose = not isinstance(unit, CodeBlock)
-        for path, number, line in _logical_lines(unit):  # `curl ... |` then `sh` on the next line is one pipe
-            if prose and (path, number) in fenced:
-                continue
-            if _PIPED.search(line):
-                yield _finding("SW-SKL-007", "high", TITLES["SW-SKL-007"], path, number, line)
+        # `curl ... |` then `sh` on the next line is one pipe
+        commands = (entry for entry in logical_commands(unit) if not (prose and (entry[0], entry[1]) in fenced))
+        for path, number, line in pipes_remote_to_shell(commands):
+            yield _finding("SW-SKL-007", "high", TITLES["SW-SKL-007"], path, number, line)
 
 
 # --- SW-SKL-008 ------------------------------------------------------------------------------
@@ -294,21 +309,26 @@ _SEND = P.AnyOf(
     P.Then(r"Invoke-RestMethod ", r"-Method (Post|Put)"))
 
 
+def sends_file_contents(commands: Iterable[tuple[str, int, str]]) -> Iterator[tuple[str, int, str]]:
+    """The SW-SKL-008 test over `logical_commands` output: a secret path and a sending command in one command."""
+    for path, number, text in commands:
+        if P.SECRET_PATHS.search(text) and _SEND.search(text):
+            yield path, number, text
+
+
 def skl_008_lines(package: Package) -> set[tuple[str, int]]:
     """`(path, line)` of every SW-SKL-008 match, shared with SW-SKL-012."""
     hits: set[tuple[str, int]] = set()
     for unit in package.text_files:
-        for path, number, text in _logical_lines(unit):
-            if P.SECRET_PATHS.search(text) and _SEND.search(text):
-                hits.add((path, number))
+        for path, number, _text in sends_file_contents(logical_commands(unit)):
+            hits.add((path, number))
     return hits
 
 
 def _skl_008(package: Package) -> Iterator[Finding]:
     for unit in package.text_files:
-        for path, number, text in _logical_lines(unit):
-            if P.SECRET_PATHS.search(text) and _SEND.search(text):
-                yield _finding("SW-SKL-008", "critical", TITLES["SW-SKL-008"], path, number, text, malicious=True)
+        for path, number, text in sends_file_contents(logical_commands(unit)):
+            yield _finding("SW-SKL-008", "critical", TITLES["SW-SKL-008"], path, number, text, malicious=True)
 
 
 # --- SW-SKL-009 ------------------------------------------------------------------------------
@@ -374,7 +394,7 @@ def _unpinned_npx(rest: str) -> bool:
 
 def _skl_009(package: Package) -> Iterator[Finding]:
     for unit in package.scripts():
-        for path, number, line in _logical_lines(unit):
+        for path, number, line in logical_commands(unit):
             fires = False
             if (m := _PIP.search(line)) and _unpinned_pip(m.group(2)):
                 fires = True

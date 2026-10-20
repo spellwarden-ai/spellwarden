@@ -1,0 +1,27 @@
+{
+  "create": [
+    {"method": "GET", "url": "https://gitlab.example/api/v4/user", "status": 200, "body": {"id": 900, "username": "project_42_bot"}},
+    {"method": "GET", "url": "https://gitlab.example/api/v4/projects/42/merge_requests/5/notes?per_page=100&page=1&sort=asc&order_by=created_at",
+     "status": 200,
+     "body": [{"id": 1, "author": {"username": "alice"}, "body": "Please look.", "system": false},
+              {"id": 2, "author": {"username": "project_42_bot"}, "body": "<!-- spellwarden-scan -->\nA system note.", "system": true}]},
+    {"method": "POST", "url": "https://gitlab.example/api/v4/projects/42/merge_requests/5/notes", "status": 201, "body": {"id": 3}}
+  ],
+  "update": [
+    {"method": "GET", "url": "https://gitlab.example/api/v4/user", "status": 200, "body": {"id": 900, "username": "project_42_bot"}},
+    {"method": "GET", "url": "https://gitlab.example/api/v4/projects/42/merge_requests/5/notes?per_page=100&page=1&sort=asc&order_by=created_at",
+     "status": 200,
+     "body": [{"id": 8, "author": {"username": "alice"}, "body": "<!-- spellwarden-scan -->\nQuoted by a person.", "system": false},
+              {"id": 9, "author": {"username": "project_42_bot"}, "body": "<!-- spellwarden-scan -->\nThe last run.", "system": false}]},
+    {"method": "PUT", "url": "https://gitlab.example/api/v4/projects/42/merge_requests/5/notes/9", "status": 200, "body": {"id": 9}}
+  ],
+  "forbidden": [
+    {"method": "GET", "url": "https://gitlab.example/api/v4/user", "status": 200, "body": {"id": 900, "username": "project_42_bot"}},
+    {"method": "GET", "url": "https://gitlab.example/api/v4/projects/42/merge_requests/5/notes?per_page=100&page=1&sort=asc&order_by=created_at",
+     "status": 200, "body": []},
+    {"method": "POST", "url": "https://gitlab.example/api/v4/projects/42/merge_requests/5/notes", "status": 403, "body": {"message": "403 Forbidden"}}
+  ],
+  "server_error": [
+    {"method": "GET", "url": "https://gitlab.example/api/v4/user", "status": 502, "body": {"message": "Bad Gateway"}}
+  ]
+}

@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/spellwarden-ai/spellwarden/blob/main/schemas/report.schema.json",
+  "title": "Spellwarden scan report (spellwarden scan --format json)",
+  "description": "Readers ignore unknown fields (forward compatible). Closed enumerations: item kinds, severities, probe statuses and skip reasons, lock statuses and change kinds, error codes. Notice codes are an open list.",
+  "type": "object",
+  "required": ["schema", "scanner_version", "rules_version", "as_of", "items", "findings", "probes", "lock", "notices",
+               "errors", "fail_on", "exit_code"],
+  "properties": {
+    "schema": {"const": 1},
+    "scanner_version": {"type": "string"},
+    "rules_version": {"type": "string", "pattern": "^[0-9]{4}\\.[0-9]{2}\\.[0-9]+$"},
+    "as_of": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},
+    "items": {"type": "array", "items": {"$ref": "#/$defs/item"}},
+    "findings": {"type": "array", "items": {"$ref": "#/$defs/finding"}},
+    "probes": {"type": "array", "items": {"$ref": "#/$defs/probe"}},
+    "lock": {"$ref": "#/$defs/lock"},
+    "notices": {"type": "array", "items": {"$ref": "#/$defs/notice"}},
+    "errors": {"type": "array", "items": {"$ref": "#/$defs/error"}},
+    "fail_on": {"enum": ["critical", "high", "medium", "low", "never"]},
+    "exit_code": {"enum": [0, 1, 2, 3]}
+  },
+  "$defs": {
+    "item": {
+      "type": "object",
+      "required": ["kind", "path", "name", "plugin"],
+      "properties": {
+        "kind": {"enum": ["skill", "marketplace", "plugin", "mcp-config", "mcp-server", "settings", "hooks", "plugin-manifest"]},
+        "path": {"type": "string", "minLength": 1},
+        "name": {"type": "string"},
+        "plugin": {"type": ["string", "null"]}
+      }
+    },
+    "finding": {
+      "type": "object",
+      "required": ["rule_id", "severity", "title", "location", "evidence", "fingerprint", "malicious_indicator", "item",
+                   "suppressed", "baseline"],
+      "properties": {
+        "rule_id": {"type": "string", "pattern": "^SW-(SKL|MCP|CFG)-[0-9]{3}$"},
+        "severity": {"enum": ["critical", "high", "medium", "low"]},
+        "title": {"type": "string"},
+        "location": {"type": "object", "required": ["path", "line"],
+                     "properties": {"path": {"type": "string"}, "line": {"type": ["integer", "null"], "minimum": 1}}},
+        "evidence": {"type": "string"},
+        "fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "malicious_indicator": {"type": "boolean"},
+        "item": {"type": "string"},
+        "suppressed": {"type": "boolean"},
+        "baseline": {"oneOf": [
+          {"type": "null"},
+          {"type": "object", "required": ["reason", "added", "expires"],
+           "properties": {"reason": {"type": "string"}, "added": {"type": "string", "format": "date"},
+                          "expires": {"type": "string", "format": "date"}}}
+        ]}
+      }
+    },
+    "probe": {
+      "type": "object",
+      "required": ["item", "status", "skip_reason"],
+      "properties": {
+        "item": {"type": "string"},
+        "status": {"enum": ["probed", "skipped"]},
+        "skip_reason": {"enum": [null, "unresolved", "limit", "budget", "fork", "refused"]}
+      }
+    },
+    "change": {
+      "type": "object",
+      "required": ["kind", "path"],
+      "properties": {"kind": {"enum": ["document", "mcp-server", "plugin", "plugin-dir", "skill"]}, "path": {"type": "string"}}
+    },
+    "lock": {
+      "type": "object",
+      "required": ["status", "added", "removed", "changed"],
+      "properties": {
+        "status": {"enum": ["ok", "stale", "absent", "not_checked"]},
+        "added": {"type": "array", "items": {"$ref": "#/$defs/change"}},
+        "removed": {"type": "array", "items": {"$ref": "#/$defs/change"}},
+        "changed": {"type": "array", "items": {"$ref": "#/$defs/change"}}
+      }
+    },
+    "notice": {
+      "type": "object",
+      "required": ["code", "path", "message"],
+      "properties": {"code": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"}, "path": {"type": "string"},
+                     "message": {"type": "string"}}
+    },
+    "error": {
+      "type": "object",
+      "required": ["code", "path", "message"],
+      "properties": {
+        "code": {"enum": ["too_large", "not_utf8", "not_json", "duplicate_key", "too_deep", "not_an_object", "truncated",
+                          "unsafe_path", "case_collision", "unreadable", "package_too_large", "path_not_directory",
+                          "settings_invalid", "baseline_invalid", "lock_unreadable", "invalid_input", "crash"]},
+        "path": {"type": "string"},
+        "message": {"type": "string"}
+      }
+    }
+  }
+}

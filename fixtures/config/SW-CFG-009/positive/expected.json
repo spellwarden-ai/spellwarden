@@ -1,0 +1,22 @@
+{
+ "findings": [
+  {
+   "rule_id": "SW-CFG-009",
+   "severity": "medium",
+   "path": ".claude-plugin/marketplace.json",
+   "line": 4
+  },
+  {
+   "rule_id": "SW-CFG-009",
+   "severity": "medium",
+   "path": ".claude-plugin/marketplace.json",
+   "line": 5
+  },
+  {
+   "rule_id": "SW-CFG-009",
+   "severity": "medium",
+   "path": ".claude-plugin/marketplace.json",
+   "line": 6
+  }
+ ]
+}

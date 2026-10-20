@@ -7,13 +7,14 @@ from __future__ import annotations
 import json
 
 import pytest
-from conftest import PROBE_FIXTURES, SKILL_FIXTURES, load_probe_fixture, load_skill_fixture
+from conftest import CONFIG_FIXTURES, PROBE_FIXTURES, SKILL_FIXTURES, config_documents, load_config_fixture, load_probe_fixture, load_skill_fixture
 
 from spellwarden_scan.rules import RuleSet
 
 RULES = RuleSet.baseline()
 SKILL_IDS = [rule.id for rule in RULES.by_area("skill")]
 MCP_IDS = [rule.id for rule in RULES.by_area("mcp")]
+CONFIG_IDS = [rule.id for rule in RULES.by_area("config")]
 
 
 def _normalised(result) -> set[tuple[str, str, str, int | None]]:
@@ -62,10 +63,28 @@ def test_mcp_rule_has_both_fixtures_and_they_match(rule_id):
                 assert getattr(result, key) == value, f"{rule_id} {side}: {key}"
 
 
+@pytest.mark.parametrize("rule_id", CONFIG_IDS)
+def test_config_rule_has_both_fixtures_and_they_match(rule_id):
+    """Spec 5.3 and claim C3: the complete `config` finding set of each fixture's documents equals its
+    `expected.json`, and the rule fires on its positive fixture only."""
+    from spellwarden_scan.scan import scan_agent_config
+
+    for side in ("positive", "negative"):
+        assert (CONFIG_FIXTURES / rule_id / side / "expected.json").is_file(), f"{rule_id} lacks a {side} fixture"
+        files, expected = load_config_fixture(rule_id, side)
+        documents = config_documents(files)
+        assert documents and all(doc.error is None for doc in documents), f"{rule_id} {side}: {[d.error for d in documents]}"
+        result = scan_agent_config(documents, RULES)
+        assert _normalised(result) == _expected(expected), f"{rule_id} {side}"
+        own = {entry for entry in _expected(expected) if entry[0] == rule_id}
+        assert bool(own) == (side == "positive"), f"{rule_id} {side}"
+
+
 def test_every_fixture_directory_belongs_to_a_rule():
     # A fresh checkout has no `fixtures/skills` until a rule commits one (git keeps no empty directory): r0:F4.
     on_disk = sorted(p.name for p in SKILL_FIXTURES.iterdir() if p.is_dir()) if SKILL_FIXTURES.is_dir() else []
     assert set(on_disk) <= set(SKILL_IDS)
+    assert {p.name for p in CONFIG_FIXTURES.iterdir() if p.is_dir()} <= set(CONFIG_IDS)
     for path in (PROBE_FIXTURES / "rules").glob("*.json"):
         assert path.name.rsplit("-", 1)[0] in MCP_IDS, path.name
         json.loads(path.read_text())

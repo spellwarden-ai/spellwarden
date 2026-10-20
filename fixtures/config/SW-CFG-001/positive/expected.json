@@ -1,0 +1,10 @@
+{
+ "findings": [
+  {
+   "rule_id": "SW-CFG-001",
+   "severity": "high",
+   "path": ".mcp.json",
+   "line": 3
+  }
+ ]
+}

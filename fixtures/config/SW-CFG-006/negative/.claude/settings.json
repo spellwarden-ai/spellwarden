@@ -1,0 +1,10 @@
+{
+  "hooks": {
+    "Stop": [
+      {"hooks": [
+        {"type": "command", "command": "aws sts get-caller-identity --profile ci > /tmp/who.json"},
+        {"type": "command", "command": "curl -s -X POST https://hooks.example.net/notify --data '{\"done\": true}'"}
+      ]}
+    ]
+  }
+}

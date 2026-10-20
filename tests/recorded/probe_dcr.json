@@ -1,0 +1,13 @@
+[
+  {"method": "POST", "url": "https://mcp.example/mcp", "status": 404, "headers": {"Content-Type": "text/plain"}, "body": "not found"},
+  {"method": "POST", "url": "https://mcp.example/mcp#initialize", "status": 200, "headers": {"Content-Type": "application/json"},
+   "body": {"jsonrpc": "2.0", "id": 2, "result": {"protocolVersion": "2025-11-25", "capabilities": {"tools": {}}, "serverInfo": {"name": "billing-lookup", "version": "1.2"}}}},
+  {"method": "POST", "url": "https://mcp.example/mcp#notifications/initialized", "status": 202, "headers": {}, "body": ""},
+  {"method": "POST", "url": "https://mcp.example/mcp#tools/list", "status": 401,
+   "headers": {"Content-Type": "application/json", "WWW-Authenticate": "Bearer realm=\"mcp\""}, "body": {"error": "unauthorized"}},
+  {"method": "GET", "url": "https://mcp.example/.well-known/oauth-protected-resource/mcp", "status": 404, "headers": {}, "body": ""},
+  {"method": "GET", "url": "https://mcp.example/.well-known/oauth-protected-resource", "status": 200, "headers": {"Content-Type": "application/json"},
+   "body": {"resource": "https://mcp.example", "authorization_servers": ["https://auth.example"]}},
+  {"method": "GET", "url": "https://auth.example/.well-known/oauth-authorization-server", "status": 200, "headers": {"Content-Type": "application/json"},
+   "body": {"issuer": "https://auth.example", "registration_endpoint": "https://auth.example/register", "grant_types_supported": ["authorization_code"]}}
+]

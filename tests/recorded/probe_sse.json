@@ -1,0 +1,7 @@
+[
+  {"method": "POST", "url": "https://mcp.example/mcp", "status": 405, "headers": {"Allow": "GET"}, "body": ""},
+  {"method": "POST", "url": "https://mcp.example/mcp#initialize", "status": 405, "headers": {"Allow": "GET"}, "body": ""},
+  {"method": "GET", "url": "https://mcp.example/mcp#stream", "status": 200, "headers": {"Content-Type": "text/event-stream"},
+   "body": "event: endpoint\ndata: /messages?session=abc\n\n"},
+  {"method": "POST", "url": "https://mcp.example/mcp#tools/list", "status": 405, "headers": {"Allow": "GET"}, "body": ""}
+]

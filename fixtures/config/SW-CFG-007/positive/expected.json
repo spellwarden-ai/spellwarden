@@ -1,0 +1,10 @@
+{
+ "findings": [
+  {
+   "rule_id": "SW-CFG-007",
+   "severity": "critical",
+   "path": "plugins/ops/hooks/hooks.json",
+   "line": 4
+  }
+ ]
+}

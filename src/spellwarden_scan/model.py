@@ -7,7 +7,7 @@ from dataclasses import dataclass, field, fields
 from typing import Any, Literal
 
 Severity = Literal["critical", "high", "medium", "low"]
-Area = Literal["skill", "mcp"]
+Area = Literal["skill", "mcp", "config"]
 SEVERITY_RANK: dict[str, int] = {"critical": 0, "high": 1, "medium": 2, "low": 3}
 
 
@@ -178,6 +178,90 @@ class CurationInputs(_Model):
     quarantined: bool = False
 
 
+@dataclass(frozen=True, slots=True)
+class McpServerEntry(_Model):
+    """One server of an MCP client configuration (spec 5.2). `transport` is `stdio`, `http`, `sse` or `unknown`
+    (neither `command` nor `url`: listed and locked, judged by no rule; plan decision P4). `args`, `env` and
+    `headers` keep string values only; `raw_sha256` hashes the entry's canonical JSON."""
+    name: str
+    line: int
+    transport: str
+    url: str | None
+    command: str | None
+    args: tuple[str, ...]
+    env: dict
+    headers: dict
+    raw_sha256: str
+
+
+@dataclass(frozen=True, slots=True)
+class HookCommand(_Model):
+    """One `{"type": "command", "command": ...}` hook; `index` is its position in the document's flattened hook
+    list and serves ordering only (its identity is event, matcher and command; spec 5.3)."""
+    event: str
+    matcher: str | None
+    index: int
+    command: str
+    line: int
+
+
+@dataclass(frozen=True, slots=True)
+class SettingFlag(_Model):
+    """A Claude Code settings flag SW-CFG-008 reads (plan decision P5): `permissions.defaultMode`, one
+    `permissions.allow` item, or `enableAllProjectMcpServers`."""
+    key: str
+    value: str | bool
+    line: int
+
+
+@dataclass(frozen=True, slots=True)
+class PluginSource(_Model):
+    """A marketplace plugin's source (spec 5.6). `kind` is `local`, `github`, `url` or `other`; `canonical` is its
+    one deterministic string; `error` is `unsafe_path` for a local source that leaves the marketplace root."""
+    kind: str
+    local_path: str | None
+    repo: str | None
+    url: str | None
+    ref: str | None
+    sha: str | None
+    canonical: str
+    error: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class MarketplacePlugin(_Model):
+    name: str
+    line: int
+    source: PluginSource
+
+
+@dataclass(frozen=True, slots=True)
+class ConfigDocument(_Model):
+    """One parsed agent-configuration file (spec 5.2). `kind` is `mcp`, `hooks`, `settings`, `marketplace` or
+    `plugin`; `error` is None or one of `agentconfig.DOCUMENT_ERRORS`, and only `truncated` keeps entries.
+    `sha256` hashes the canonical JSON of the whole document when it parsed, else its raw bytes."""
+    path: str
+    kind: str
+    error: str | None
+    servers: tuple[McpServerEntry, ...]
+    hooks: tuple[HookCommand, ...]
+    settings: tuple[SettingFlag, ...]
+    plugins: tuple[MarketplacePlugin, ...]
+    references: tuple[str, ...]
+    truncated: bool
+    sha256: str
+
+
+@dataclass(frozen=True, slots=True)
+class ConfigScanResult(_Model):
+    """`scan_agent_config`'s result (spec 5.5); `documents` are the judged documents' paths, sorted (plan P6)."""
+    findings: tuple[Finding, ...]
+    truncated: int
+    documents: tuple[str, ...]
+    rules_version: str
+    scanner_version: str
+
+
 # (class, field) -> ("one" | "many", nested class)
 _NESTED: dict[tuple[str, str], tuple[str, type]] = {
     ("Finding", "location"): ("one", Location),
@@ -189,5 +273,12 @@ _NESTED: dict[tuple[str, str], tuple[str, type]] = {
     ("McpScanResult", "checklist"): ("many", ChecklistItem),
     ("CurationInputs", "open_findings"): ("many", Finding),
     ("CurationInputs", "accepted_findings"): ("many", Finding),
+    ("MarketplacePlugin", "source"): ("one", PluginSource),
+    ("ConfigDocument", "servers"): ("many", McpServerEntry),
+    ("ConfigDocument", "hooks"): ("many", HookCommand),
+    ("ConfigDocument", "settings"): ("many", SettingFlag),
+    ("ConfigDocument", "plugins"): ("many", MarketplacePlugin),
+    ("ConfigScanResult", "findings"): ("many", Finding),
 }
-_TUPLE_FIELDS = frozenset({"problems", "grant_types_supported", "deprecated_features", "long_running_tools"})
+_TUPLE_FIELDS = frozenset({"problems", "grant_types_supported", "deprecated_features", "long_running_tools", "args",
+                           "references", "documents"})
