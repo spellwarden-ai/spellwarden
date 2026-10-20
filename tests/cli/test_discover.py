@@ -836,3 +836,51 @@ def test_realpath_failure_fails_closed(make_repo, tmp_path, monkeypatch):
     monkeypatch.setattr(discover_module.os.path, "realpath", broken)
     found = discover(fileset)
     assert ("unsafe_path", "skills/x/run.sh") in {(e.code, e.path) for e in found.errors}
+
+
+@pytest.mark.parametrize("target", ["../../../outside\\x.sh", "../../..//outside.sh", "../../linkout/run.sh"])
+def test_a_refusal_that_is_no_escape_is_an_error_even_when_the_target_is_outside(target, make_repo, tmp_path):
+    # Security review of r2:F6: only an escape (an absolute target, climbing past the root) may be skipped and
+    # hashed; a backslash, an empty segment or a path through a link is an error wherever it leads.
+    repo = make_repo(tmp_path / "repo", {"skills/x/SKILL.md": SKILL})
+    (tmp_path / "outside.sh").write_text(SAFE_SCRIPT, encoding="utf-8")
+    (tmp_path / "outside\\x.sh").write_text(SAFE_SCRIPT, encoding="utf-8")
+    (tmp_path / "elsewhere").mkdir()
+    (tmp_path / "elsewhere" / "run.sh").write_text(SAFE_SCRIPT, encoding="utf-8")
+    _symlink(str(tmp_path / "elsewhere"), repo / "linkout")
+    _symlink(target, repo / "skills" / "x" / "run.sh")
+    found = _discover(repo)
+    assert ("unsafe_path", "skills/x/run.sh") in {(e.code, e.path) for e in found.errors}
+    assert found.skills == ()
+
+
+def test_inside_is_decided_by_file_identity_not_by_the_spelling_of_the_root(make_repo, tmp_path, monkeypatch):
+    # A case-insensitive file system spells the root two ways; an alias does the same on Linux. The real root as
+    # `realpath` gives it is made to differ in spelling from the target's resolution: identity still says inside.
+    repo = make_repo(tmp_path / "real" / "repo", {"skills/x/SKILL.md": SKILL, "shared/run.sh": SAFE_SCRIPT})
+    _symlink(str(tmp_path / "real"), tmp_path / "alias")
+    _symlink("../../../repo/shared/run.sh", repo / "skills" / "x" / "run.sh")
+    fileset = list_files(str(repo), Settings())
+    real = os.path.realpath
+    spelled = str(tmp_path / "alias" / "repo")
+    monkeypatch.setattr(discover_module.os.path, "realpath",
+                        lambda p, *a, **k: spelled if os.path.normpath(p) == os.path.normpath(str(repo)) else real(p, *a, **k))
+    found = discover(fileset)
+    assert ("unsafe_path", "skills/x/run.sh") in {(e.code, e.path) for e in found.errors}
+
+
+def test_an_outside_answer_that_cannot_be_proven_fails_closed(make_repo, tmp_path, monkeypatch):
+    repo = make_repo(tmp_path / "repo", {"skills/x/SKILL.md": SKILL})
+    (tmp_path / "outside.sh").write_text(SAFE_SCRIPT, encoding="utf-8")
+    _symlink("../../../outside.sh", repo / "skills" / "x" / "run.sh")
+    fileset = list_files(str(repo), Settings())
+    real_stat = os.stat
+
+    def stat(p, *args, **kwargs):
+        if os.path.normpath(str(p)) == os.path.normpath(str(tmp_path)):
+            raise PermissionError("denied")
+        return real_stat(p, *args, **kwargs)
+
+    monkeypatch.setattr(discover_module.os, "stat", stat)
+    found = discover(fileset)
+    assert ("unsafe_path", "skills/x/run.sh") in {(e.code, e.path) for e in found.errors}

@@ -136,11 +136,16 @@ def _join(directory: str, name: str) -> str:
     return name if directory == "." else f"{directory}/{name}"
 
 
+class _Escape(UnsafePath):
+    """A link target refused because it escapes the scan root as written: absolute, or climbing past the root. Only
+    such a target may be outside (`_Builder._outside`); every other refusal is an error wherever it leads."""
+
+
 class _Resolution(NamedTuple):
     target: str | None  # the file of the set the link names, when it can be followed
     text: bytes | None  # the target text, None when it could not be read
     refusal: Notice | None  # why the link is not followed
-    outside: bool  # the target really resolves outside the scan root (`_Builder._outside`)
+    outside: bool  # an escaping target proven to resolve outside the scan root (`_Builder._outside`)
 
 
 class _Builder:
@@ -241,8 +246,10 @@ class _Builder:
             target = self.find(self._link_target(path, text))
         except UnicodeDecodeError:
             return _Resolution(None, raw, Notice("unsafe_path", path, "symbolic link: target is not UTF-8"), False)
-        except UnsafePath as exc:
+        except _Escape as exc:
             return _Resolution(None, raw, Notice("unsafe_path", path, f"symbolic link: {exc}"), self._outside(path, text))
+        except UnsafePath as exc:
+            return _Resolution(None, raw, Notice("unsafe_path", path, f"symbolic link: {exc}"), False)
         if target in self.links:
             return _Resolution(None, raw, Notice("unsafe_path", path, f"symbolic link to {target!r}, itself a symbolic "
                                                  "link"), False)
@@ -273,14 +280,14 @@ class _Builder:
         stays inside the scan root and climbs through no directory that is itself a link (an agent's file system
         would resolve that link, the scanner reads paths as written). An absolute target is refused."""
         if os.path.isabs(text):
-            raise UnsafePath("absolute target")
+            raise _Escape("absolute target")
         contain("", "/".join("_" if segment == ".." else segment for segment in text.split("/")))
         segments = (text[2:] if text.startswith("./") else text).rstrip("/").split("/")
         parts = posixpath.dirname(link).split("/") if posixpath.dirname(link) else []
         for index, segment in enumerate(segments):
             if segment == "..":
                 if not parts:
-                    raise UnsafePath("target leaves the scan root")
+                    raise _Escape("target leaves the scan root")
                 parts.pop()
             else:
                 parts.append(segment)
@@ -289,21 +296,33 @@ class _Builder:
         return "/".join(parts)
 
     def _outside(self, link: str, text: str) -> bool:
-        """Whether the target of the refused link `link` really resolves outside the scan root: the link's
-        directory under the real scan root joined with `text`, resolved by the file system (`os.path.realpath`,
-        which follows every link on the way and applies `..` where the system does), is neither the real root nor
-        under it. Only then is it not repository content, and a member link is skipped with its target text locked
-        (r2:F6). A target that climbs out and comes back, or reaches the root through an alias, resolves inside. When
-        the real path cannot be computed the answer is False: the link is then `unsafe_path` (fail closed)."""
+        """Whether the escaping target `text` of the link `link` is proven to resolve outside the scan root. The link's
+        directory under the real scan root is joined with `text` and resolved by the file system (`os.path.realpath`
+        follows every link on the way and applies `..` where the system does); the result and each of its parents
+        is compared by file identity (device and inode, `os.path.samestat`) with the scan root, never by spelling,
+        which a case-insensitive file system or an alias makes ambiguous. Outside only when no ancestor is the root
+        and every existing ancestor could be examined; any doubt (a failed resolution, an ancestor that cannot be
+        examined) answers False, so the link is `unsafe_path` (fail closed)."""
         try:
             root = os.path.realpath(self.fileset.root)
+            root_stat = os.stat(root)
             directory = posixpath.dirname(link)
             base = os.path.join(root, *directory.split("/")) if directory else root
-            resolved = os.path.normcase(os.path.realpath(os.path.join(base, text)))
+            current = os.path.realpath(os.path.join(base, text))
         except (OSError, ValueError):
             return False
-        root = os.path.normcase(root)
-        return resolved != root and not resolved.startswith(root.rstrip(os.sep) + os.sep)
+        while True:
+            try:
+                if os.path.samestat(os.stat(current), root_stat):
+                    return False
+            except (FileNotFoundError, NotADirectoryError):
+                pass  # a missing component is not the root; its parents still may be
+            except (OSError, ValueError):
+                return False
+            parent = os.path.dirname(current)
+            if parent == current:
+                return True
+            current = parent
 
     def document(self, kind: str, path: str, plugin: str | None = None, *,
                  drop_references: bool = False) -> ConfigDocument | None:
