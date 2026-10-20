@@ -5,6 +5,8 @@
     "tickets": {"command": "env", "args": ["LOG_LEVEL=debug", "npx", "acme-tickets-mcp@next"]},
     "wiki": {"command": "npm", "args": ["exec", "acme-wiki-mcp"]},
     "search": {"command": "uv", "args": ["tool", "run", "acme-search-mcp"]},
-    "calendar": {"command": "bun", "args": ["x", "acme-calendar-mcp@^2"]}
+    "calendar": {"command": "bun", "args": ["x", "acme-calendar-mcp@^2"]},
+    "vault": {"command": "bash", "args": ["-c", "source .env && exec npx -y acme-vault-mcp"]},
+    "jobs": {"command": "sh", "args": ["-c", "if true; then time -p nohup nice -n 5 uvx acme-jobs-mcp@latest; fi"]}
   }
 }

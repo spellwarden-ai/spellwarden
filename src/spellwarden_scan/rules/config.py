@@ -522,8 +522,13 @@ def _dispatch(words: Sequence[tuple[str, str]]) -> list[tuple[str, str, str, str
 # above; a wrapper inside a wrapper is not followed. Every word found inside a wrapper keeps the field it was read
 # from (the `-c` script's `args[N]`, or `command`), so its fingerprint is `[server, name, field, word]` as for any
 # other launch. A shell script and a `cmd` line are split into their simple commands (`;`, `&`, `|`, `(`, `)`, newline)
-# and every command is judged; a shell command's leading `NAME=VALUE` assignments are skipped.
+# and every command is judged; a shell command's leading `NAME=VALUE` assignments are skipped, and so are its leading
+# builtins and keywords that run the rest of the command (r2:F8): they take no script string, so skipping them is no
+# second wrapper level.
 _SHELLS = frozenset({"sh", "bash", "zsh"})
+_SHELL_PREFIXES = frozenset({"exec", "command", "builtin", "time", "nohup", "nice", "if", "then", "do", "else", "elif",
+                             "while", "until", "!", "{"})
+_NICE_ADJUSTMENT = re.compile(r"-n.+|-\d+|--adjustment=.*")
 _SHELL_LONG_VALUE = frozenset({"--rcfile", "--init-file"})
 _SHELL_ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
 _ENV_SHORT_VALUE = frozenset("uCSP")
@@ -613,15 +618,40 @@ def _cmd_tokens(text: str) -> list[str | None]:
     return tokens
 
 
+def _shell_command(words: Sequence[tuple[str, str]]) -> list[tuple[str, str]]:
+    """A shell simple command without its leading `NAME=VALUE` words (the shell sets them in the environment) and
+    leading `exec`, `command`, `builtin`, `time [-p]`, `nohup`, `nice [-n N]`, `if`, `then`, `do`, `else`, `elif`,
+    `while`, `until`, `!` and `{` (r2:F8), in any order."""
+    index = 0
+    while index < len(words):
+        word = words[index][1]
+        if _SHELL_ASSIGNMENT.match(word):
+            index += 1
+            continue
+        if word not in _SHELL_PREFIXES:
+            break
+        index += 1
+        following = words[index][1] if index < len(words) else ""
+        if word == "time" and following == "-p":
+            index += 1
+        elif word == "nice" and following in ("-n", "--adjustment"):
+            index += 2
+        elif word == "nice" and _NICE_ADJUSTMENT.fullmatch(following):
+            index += 1
+    return list(words[index:])
+
+
 def _commands(tokens: Sequence[tuple[str, str | None]], *, assignments: bool) -> list[list[tuple[str, str]]]:
-    """`(field, token)` items split at `_SEPARATOR` into simple commands; with `assignments`, each command's leading
-    `NAME=VALUE` words are dropped (the shell sets them in the environment)."""
+    """`(field, token)` items split at `_SEPARATOR` into simple commands; with `assignments` (a shell script), each
+    command's leading assignments, builtins and keywords are dropped (`_shell_command`)."""
     commands: list[list[tuple[str, str]]] = [[]]
     for field, token in tokens:
         if token is _SEPARATOR:
             commands.append([])
-        elif not (assignments and not commands[-1] and _SHELL_ASSIGNMENT.match(token)):
+        else:
             commands[-1].append((field, token))
+    if assignments:
+        commands = [_shell_command(command) for command in commands]
     return [command for command in commands if command]
 
 

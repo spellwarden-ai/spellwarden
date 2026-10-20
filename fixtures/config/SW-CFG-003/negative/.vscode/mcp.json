@@ -6,6 +6,8 @@
     "wiki": {"command": "npm", "args": ["exec", "github:acme/wiki-mcp#0123456789abcdef0123456789abcdef01234567"]},
     "search": {"command": "uv", "args": ["tool", "run", "--from", "git+https://github.com/acme/search-mcp@0123456789abcdef0123456789abcdef01234567", "acme-search"]},
     "calendar": {"command": "pnpx", "args": ["acme-calendar-mcp@3.1.0"]},
-    "script": {"command": "sh", "args": ["./scripts/start.sh", "-c", "npx acme@latest"]}
+    "script": {"command": "sh", "args": ["./scripts/start.sh", "-c", "npx acme@latest"]},
+    "vault": {"command": "bash", "args": ["-c", "source .env && exec npx -y acme-vault-mcp@1.2.0"]},
+    "probe": {"command": "sh", "args": ["-c", "command -v npx && exec nohup uvx acme-jobs-mcp==0.9.1"]}
   }
 }

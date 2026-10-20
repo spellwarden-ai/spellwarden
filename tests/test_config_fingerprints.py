@@ -91,3 +91,21 @@ def test_wrapped_and_aliased_launches_match_their_fixed_vectors():
     found = scan_agent_config([doc], RuleSet.baseline()).findings
     assert sorted(f.fingerprint for f in found) == sorted(digest for _matched, digest in expected)
     assert {f.rule_id for f in found} == {"SW-CFG-003"}
+
+
+def test_a_launch_behind_a_shell_builtin_matches_its_fixed_vector():
+    """r2:F8 (spec 5.3b): a launch behind `exec`, `time -p`, `then` or `nohup` in a `-c` script keeps the field the
+    script came from; the skipped words never enter the fingerprint."""
+    doc = parse_mcp_config(".mcp.json", json.dumps({"mcpServers": {
+        "x,1": {"command": "bash", "args": ["-c", "source .env && exec npx -y evil-pkg; if :; then time -p npx other-pkg@next; fi"]},
+        "x]2": {"command": "sh -c 'nohup uvx tool'"}}}, indent=2).encode())
+    expected = [
+        ('["server","x,1","args[1]","evil-pkg"]', "593032e24bf4ffaace60058f71bdc255e81ef1695bb4b7ae10cddc34ef5a9a82"),
+        ('["server","x,1","args[1]","other-pkg@next"]', "abe3a3ebb80d35241deb3355b262871eaefed424ec8ab87335fdae0b5e975d94"),
+        ('["server","x]2","command","tool"]', "a5244e67b506681660e896636172a1a43416e07b8eca2c0f3452050ffd5f087b"),
+    ]
+    for matched, digest in expected:
+        assert hashlib.sha256(f"SW-CFG-003\x00.mcp.json\x00{matched}".encode()).hexdigest() == digest, matched
+    found = scan_agent_config([doc], RuleSet.baseline()).findings
+    assert sorted(f.fingerprint for f in found) == sorted(digest for _matched, digest in expected)
+    assert {f.rule_id for f in found} == {"SW-CFG-003"}

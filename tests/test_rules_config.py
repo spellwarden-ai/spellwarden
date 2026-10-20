@@ -400,6 +400,50 @@ def test_003_a_wrapped_launch_has_a_stable_fingerprint_from_the_field_it_came_fr
     assert [f.fingerprint for f in fired(doc, rule_id="SW-CFG-003")] == [f.fingerprint for f in found]
 
 
+@pytest.mark.parametrize("script, evidence", [
+    ("exec npx -y evil-pkg", ["s: npx evil-pkg (via bash -c)"]),
+    ("source .env && exec npx -y evil-pkg", ["s: npx evil-pkg (via bash -c)"]),
+    ("if true; then npx evil-pkg; fi", ["s: npx evil-pkg (via bash -c)"]),
+    ("if npx evil-pkg; then :; fi", ["s: npx evil-pkg (via bash -c)"]),
+    ("time npx evil-pkg", ["s: npx evil-pkg (via bash -c)"]),
+    ("time -p npx evil-pkg", ["s: npx evil-pkg (via bash -c)"]),
+    ("nohup npx evil-pkg > log 2>&1 &", ["s: npx evil-pkg (via bash -c)"]),
+    ("nice -n 10 npx evil-pkg", ["s: npx evil-pkg (via bash -c)"]),
+    ("nice -n10 uvx evil-tool", ["s: uvx evil-tool (via bash -c)"]),
+    ("command npx evil-pkg", ["s: npx evil-pkg (via bash -c)"]),
+    ("builtin exec npx evil-pkg", ["s: npx evil-pkg (via bash -c)"]),
+    ("! npx evil-pkg", ["s: npx evil-pkg (via bash -c)"]),
+    ("{ npx evil-pkg; }", ["s: npx evil-pkg (via bash -c)"]),
+    ("while true; do npx evil-pkg; done", ["s: npx evil-pkg (via bash -c)"]),
+    ("if false; then :; elif npx evil-pkg; then :; else npx other-pkg; fi",
+     ["s: npx evil-pkg (via bash -c)", "s: npx other-pkg (via bash -c)"]),
+    ("FOO=1 exec BAR=2 nohup docker run img:latest", ["s: docker run img:latest (via bash -c)"]),
+    ("then time -p exec npx evil-pkg", ["s: npx evil-pkg (via bash -c)"]),
+    # pinned, not a launch, or a second wrapper (still not followed)
+    ("source .env && exec npx -y evil-pkg@1.2.3", []),
+    ("command -v npx && exec uvx tool==1.0", []),
+    ("exec", []), ("time -p", []), ("nice -n 5", []), ("{ }", []),
+    ("exec sh -c 'npx evil-pkg'", []),
+    ("exec env A=1 npx evil-pkg", []),
+    ("echo exec npx evil-pkg", []),
+])
+def test_003_a_shell_builtin_or_keyword_before_a_launch_is_skipped(script, evidence):
+    """r2:F8 (spec 5.3b): a `-c` script command that started with a builtin or keyword (`exec`, `command`, `builtin`,
+    `time [-p]`, `nohup`, `nice [-n N]`, `if`, `then`, `do`, `else`, `elif`, `while`, `until`, `!`, `{`) was never
+    dispatched, so `source .env && exec npx -y pkg` passed. These words are skipped like leading assignments; they
+    take no script string, so this is no second wrapper level."""
+    found = fired(servers({"s": {"command": "bash", "args": ["-c", script]}}), rule_id="SW-CFG-003")
+    assert [f.evidence for f in found] == evidence
+
+
+def test_003_a_launch_behind_a_builtin_has_the_fingerprint_of_the_bare_launch():
+    """The skipped words are not part of the identity: the finding keeps `[server, name, field, word]`."""
+    bare = fired(servers({"s": {"command": "bash", "args": ["-c", "npx -y evil-pkg"]}}), rule_id="SW-CFG-003")
+    behind = fired(servers({"s": {"command": "bash", "args": ["-c", "source .env && exec nohup npx -y evil-pkg"]}}),
+                   rule_id="SW-CFG-003")
+    assert [f.fingerprint for f in behind] == [f.fingerprint for f in bare] and len(bare) == 1
+
+
 def test_003_unwraps_one_level_only():
     """Owner decision: exactly one level. A wrapper inside a wrapper is not followed (a known limit, 5.3b)."""
     doc = servers({"s": {"command": "env", "args": ["A=1", "sh", "-c", "npx pkg@latest"]},
