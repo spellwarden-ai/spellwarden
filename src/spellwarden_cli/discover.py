@@ -169,6 +169,16 @@ def _same(a: str, b: str) -> bool:
     return _fold(a) == _fold(b) if _CASE_INSENSITIVE else a == b
 
 
+def _may_name(segment: str, component: str) -> bool:
+    """Whether a file system might open `segment` as the directory `component`, on any OS and any volume: NFC and case
+    folding everywhere (APFS, a case-insensitive Linux volume), trailing dots and spaces stripped (Windows), and any
+    `~` (an 8.3 short name such as `REPO~1`) or `:` (an NTFS stream) taken as possibly equal. Liberal on purpose: a
+    yes fails closed (orchestrator decision after r3:N1)."""
+    if "~" in segment or ":" in segment:
+        return True
+    return _fold(segment).rstrip(". ") == _fold(component).rstrip(". ")
+
+
 class _Resolution(NamedTuple):
     target: str | None  # the file of the set the link names, when it can be followed
     text: bytes | None  # the target text, None when it could not be read
@@ -312,7 +322,10 @@ class _Builder:
         operator's scan root, and compared lexically with REALROOT (`_same`). Inside, it may climb with `..`, out and
         back in by the root's own name included, through directories of the file set that are not links (an agent's
         file system would resolve a link, the scanner reads paths as written). Outside, it is `_Escape`, except when it
-        enters `/proc` or `/dev` on the way, whose paths depend on the process reading them (r3:N2)."""
+        enters `/proc` or `/dev` on the way, whose paths depend on the process reading them (r3:N2). It fails closed
+        where a file system might read the text otherwise: a target that names a directory above the root, a segment
+        of only dots and spaces, and a descent from above the root by a name that `_may_name` the root's own
+        directory at that depth without being it (`REPO`, `repo.`, `REPO~1`) are `unsafe_path`."""
         if _absolute(text):
             raise UnsafePath("absolute target; use a relative link or a real file")
         contain("", "/".join("_" if segment == ".." else segment for segment in text.split("/")))
@@ -321,10 +334,18 @@ class _Builder:
         directory = posixpath.dirname(link)
         stack = [*root, *(directory.split("/") if directory else [])]
         for index, segment in enumerate(segments):
-            if segment != "..":
+            if segment == "..":
+                if stack:  # `..` at the anchor stays there, as `normpath` and every file system do
+                    stack.pop()
+            else:
+                if not segment.rstrip(". "):  # Windows may read `...` as `.`, so the lexical walk would be wrong
+                    raise UnsafePath(f"target holds the segment {segment!r}, only dots and spaces")
+                depth = len(stack)
+                if depth < len(root) and self._ancestor(stack, root) and not _same(segment, root[depth]) \
+                        and _may_name(segment, root[depth]):
+                    raise UnsafePath(f"target climbs out of the scan root and {segment!r} may lead back into it under "
+                                     "another spelling; use a path that stays inside the scan root")
                 stack.append(segment)
-            elif stack:  # `..` at the anchor stays there, as `normpath` and every file system do
-                stack.pop()
             inside = self._inside_root(stack, root)
             if inside is None:
                 if segment != ".." and os.name != "nt" and stack[0] in _PROCESS_RELATIVE:
@@ -338,9 +359,11 @@ class _Builder:
             if _fold(inside) not in self.folded_directories:
                 raise UnsafePath(f"target passes through {inside!r}, not a directory of the file set")
         inside = self._inside_root(stack, root)
-        if inside is None:
-            raise _Escape("target leaves the scan root")
-        return inside
+        if inside is not None:
+            return inside
+        if self._ancestor(stack, root):
+            raise UnsafePath("target names a directory above the scan root")
+        raise _Escape("target leaves the scan root")
 
     def _root_parts(self) -> list[str]:
         """The components of the real path of the operator's scan root, computed once (never from repository text);
@@ -351,6 +374,11 @@ class _Builder:
             except (OSError, ValueError) as exc:
                 raise UnsafePath(f"the scan root cannot be resolved ({type(exc).__name__})") from exc
         return self.real_root
+
+    @staticmethod
+    def _ancestor(stack: list[str], root: list[str]) -> bool:
+        """Whether the absolute components `stack` name a directory above the real root (one of its ancestors)."""
+        return len(stack) < len(root) and all(_same(a, b) for a, b in zip(stack, root, strict=False))
 
     @staticmethod
     def _inside_root(stack: list[str], root: list[str]) -> str | None:

@@ -963,19 +963,45 @@ def test_a_relative_target_inside_that_cannot_be_followed_is_unsafe(target, make
     assert found.skills == ()
 
 
-@pytest.mark.parametrize("insensitive, followed", [(True, True), (False, False)])
-def test_the_root_is_matched_in_the_platform_case(insensitive, followed, make_repo, tmp_path, monkeypatch):
+@pytest.mark.parametrize("insensitive", [True, False])
+def test_the_root_is_matched_in_the_platform_case(insensitive, make_repo, tmp_path, monkeypatch):
     # The real root and the target are compared after `normcase`, and folded on a case-insensitive platform (macOS,
-    # Windows), where `../../../REPO/...` reaches the scan root.
+    # Windows), where `../../../REPO/...` reaches the scan root and is followed. Elsewhere the volume may still be
+    # case-insensitive, so the other spelling is refused, never skipped (orchestrator decision after r3:N1).
     repo = make_repo(tmp_path / "repo", {"skills/x/SKILL.md": SKILL, "shared/run.sh": SAFE_SCRIPT})
     _symlink("../../../REPO/shared/run.sh", repo / "skills" / "x" / "run.sh")
-    monkeypatch.setattr(discover_module, "_CASE_INSENSITIVE", insensitive, raising=False)
+    monkeypatch.setattr(discover_module, "_CASE_INSENSITIVE", insensitive)
     found = _discover(repo)
-    assert found.errors == ()
-    if followed:
-        assert found.skills[0].files["skills/x/run.sh"] == SAFE_SCRIPT.encode()
+    if insensitive:
+        assert found.errors == () and found.skills[0].files["skills/x/run.sh"] == SAFE_SCRIPT.encode()
     else:
-        assert found.skills[0].links == {"skills/x/run.sh": b"../../../REPO/shared/run.sh"}
+        assert ("unsafe_path", "skills/x/run.sh") in {(e.code, e.path) for e in found.errors} and found.skills == ()
+
+
+@pytest.mark.parametrize("target", ["../../../REPO/shared/run.sh", "../../../repo./shared/run.sh",
+                                    "../../../repo /shared/run.sh", "../../../REPO~1/shared/run.sh",
+                                    "../../../repo::$INDEX_ALLOCATION/shared/run.sh", "../../../rEpO. ./x.sh",
+                                    "../../..", "../../../..", "../../../../", "../../.../shared/run.sh",
+                                    "../../../other/.../../repo/shared/run.sh"])
+def test_a_target_that_may_re_enter_the_root_under_another_spelling_fails_closed(target, make_repo, tmp_path, monkeypatch):
+    # Security review of the lexical rule: a target that climbs out of the root and comes back under another spelling
+    # (case on APFS or a case-insensitive Linux volume, a trailing dot or space or an 8.3 short name on Windows) must
+    # not be judged outside and skipped; nor may a target name a directory above the root, or hold a segment of dots
+    # and spaces that Windows may read as `.`. Each is `unsafe_path`, decided without any file-system call.
+    monkeypatch.setattr(discover_module, "_CASE_INSENSITIVE", False)
+    repo = make_repo(tmp_path / "repo", {"skills/x/SKILL.md": SKILL, "shared/run.sh": SAFE_SCRIPT})
+    _symlink(target, repo / "skills" / "x" / "run.sh")
+    found = _discover(repo)
+    assert ("unsafe_path", "skills/x/run.sh") in {(e.code, e.path) for e in found.errors}
+    assert found.skills == ()
+
+
+@pytest.mark.parametrize("target", ["../../../other/x.sh", "../../../repository/x.sh", "../../../../elsewhere/repo/x.sh"])
+def test_a_genuine_sibling_outside_the_root_is_still_skipped_and_hashed(target, make_repo, tmp_path):
+    repo = make_repo(tmp_path / "repo", {"skills/x/SKILL.md": SKILL})
+    _symlink(target, repo / "skills" / "x" / "run.sh")
+    found = _discover(repo)
+    assert found.errors == () and found.skills[0].links == {"skills/x/run.sh": target.encode()}
 
 
 def test_a_genuine_relative_outside_target_is_skipped_and_hashed(make_repo, tmp_path):
