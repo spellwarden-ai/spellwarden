@@ -110,16 +110,6 @@ Ids are `SW-SKL-NNN` (skill packages), `SW-MCP-NNN` (probed MCP servers) and `SW
 | SW-CFG-009 | Marketplace plugin source not pinned to a commit | medium | ASI04 | SR-3 |
 | SW-CFG-010 | Literal value under a secret name in an MCP server configuration | high | MCP01 | IA-5 |
 <!-- rules:end -->
-| SW-CFG-001 | Remote MCP server over plain HTTP | high | MCP01 | SC-7 |
-| SW-CFG-002 | Credential written into an MCP server configuration | critical | MCP01 | IA-5 |
-| SW-CFG-003 | MCP server launched from an unpinned package | medium | ASI04 | SR-3 |
-| SW-CFG-004 | MCP server at a raw IP address or behind a URL shortener | medium | ASI10 | SC-7 |
-| SW-CFG-005 | Hook pipes remote content to a shell | high | ASI04 | SR-3 |
-| SW-CFG-006 | Hook sends local file contents to an external host (malicious indicator) | critical | ASI10 | SC-7 |
-| SW-CFG-007 | Hook decodes and runs an encoded payload (malicious indicator) | critical | ASI04 | SR-3 |
-| SW-CFG-008 | Settings switch off approval prompts | high | ASI10 | AC-6 |
-| SW-CFG-009 | Marketplace plugin source not pinned to a commit | medium | ASI04 | SR-3 |
-| SW-CFG-010 | Literal value under a secret name in an MCP server configuration | high | MCP01 | IA-5 |
 
 Ids 016 to 018 and 020 to 030 are reserved. `RuleSet.baseline()` returns these rules; `ruleset.with_rules(extra)` adds your own `Rule` objects built with `spellwarden_scan.rules.make_rule`.
 
