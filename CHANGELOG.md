@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.3.0 (2026-10-20)
+
+Rules version `2026.10.2`: ten rules added; no existing rule changed what it detects (every fingerprint of
+0.2.0 is unchanged, `tests/golden/fingerprints-0.2.0.json`).
+
+- The `spellwarden` command (`spellwarden_cli`, in the same distribution): `scan`, `lock`, `baseline add|prune|list`,
+  `rules`, `ci comment`, `ci-run gitlab` and `version`. It lists a repository's files through git, finds skills,
+  MCP client configurations (`.mcp.json`, `.vscode/mcp.json`, `.cursor/mcp.json`), Claude Code settings and hooks, and
+  plugin marketplaces with their local plugins, scans them, and reports as text, JSON, SARIF 2.1.0, Markdown or GitLab
+  Code Quality. Exit codes 0 (passed), 1 (findings), 2 (incomplete or invalid) and 3 (stale lock).
+- `.spellwarden/lock.json` pins every discovered configuration file, server, plugin source, local plugin directory and
+  skill by hash; `.spellwarden/baseline.yml` accepts findings with a reason, an addition date and an expiry date
+  (at most 365 days, 30 for a malicious-indicator rule). JSON Schemas for both, for the settings and for the report.
+- Rules SW-CFG-001 to SW-CFG-010 judge agent configuration files: plain-HTTP and raw-IP servers, credentials and
+  literal secrets in server configurations, unpinned launchers, hooks that pipe remote scripts to a shell, send local
+  files out or run encoded payloads, settings that switch off approval prompts, and marketplace plugins without a
+  declared commit pin. SW-CFG-006 and SW-CFG-007 are malicious indicators.
+- The engine: `parse_mcp_config`, `parse_settings`, `parse_hooks`, `parse_marketplace`, `parse_plugin_manifest`
+  (JSON with comments, duplicate keys refused, every document bounded) and `scan_agent_config`;
+  `logical_commands` and the shell detectors are shared by skills and hooks.
+- `--probe` runs the unauthenticated MCP probe of the hosted product from your machine or runner, with its SSRF rules
+  and a budget of 50 servers, 300 requests and 120 seconds; private addresses only with `--probe-private` on a
+  local run or a protected ref outside pull and merge requests. The prober moved here from the hosted backend,
+  which now uses this copy.
+- In CI, a pseudonymous usage ping with five fields (README "The usage ping"); off with `--no-telemetry`,
+  `SPELLWARDEN_TELEMETRY=off`, `DO_NOT_TRACK=1` or `telemetry: false`.
+
 ## 0.2.0 (2026-10-20)
 
 Rules version `2026.10.1`: one rule detects more.

@@ -4,6 +4,7 @@ from __future__ import annotations
 from spellwarden_scan.model import AuthServerMetadata, ProbeResult, ToolInfo
 from spellwarden_scan.probe import classify, evaluate_probe, is_date, migration_status_of
 from spellwarden_scan.rules import RuleSet
+from spellwarden_scan.version import RULES_VERSION, __version__
 
 RULES = RuleSet.baseline()
 ENDPOINT = "https://mcp.example/mcp"
@@ -76,7 +77,7 @@ def test_evaluate_probe_carries_classification_findings_checklist_and_versions()
     assert (result.spec_version, result.transport, result.auth_mode, result.migration_status) == ("2026-07-28", "streamable-http", "oauth-cimd", "ready")
     assert result.findings == () and result.truncated == 0
     assert [item.key for item in result.checklist] == ["rescan"]
-    assert result.rules_version == "2026.10.1" and result.scanner_version == "0.2.0"
+    assert result.rules_version == RULES_VERSION and result.scanner_version == __version__  # tests/test_version.py pins them
     assert result.to_dict()["checklist"] == [{"order": 12, "key": "rescan", "text": "Re-run the Spellwarden scan"}]
     assert (result.list_meta_missing, result.long_running_tools, result.tasks_supported, result.issuer_problem) == (False, (), False, False)
 
