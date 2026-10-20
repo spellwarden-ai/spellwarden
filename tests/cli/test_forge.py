@@ -136,7 +136,10 @@ def test_the_command_never_reads_the_body_through_a_symlink_or_from_a_non_file(t
     secret = tmp_path / "environ"
     secret.write_text(BODY + "\nGITHUB_TOKEN=secret\n", encoding="utf-8")
     link = tmp_path / "report.md"
-    link.symlink_to(secret)
+    try:
+        link.symlink_to(secret)
+    except OSError:
+        pytest.skip("symbolic links cannot be created here")
     assert ci.cmd_comment(_comment_args(link)) == 0
     assert posted == [] and "comment_failed" in capsys.readouterr().err
     assert ci.cmd_comment(_comment_args(tmp_path)) == 0  # a directory

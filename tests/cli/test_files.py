@@ -107,7 +107,9 @@ def test_outside_a_repository_there_is_no_prefix_and_a_notice(tmp_path):
         pytest.skip("the temporary directory is inside a git work tree")
     fileset = list_files(str(tmp_path / "plain"), Settings())
     assert fileset.repo_prefix is None
-    assert [(n.code, n.path) for n in fileset.notices] == [("upload_paths_scan_root", ".")]
+    # Windows records no executable bit, and outside git no index supplies it.
+    assert [(n.code, n.path) for n in fileset.notices] == [
+        ("upload_paths_scan_root", "."), *([("exec_bits_unknown", "")] if os.name == "nt" else [])]
 
 
 def test_symlinks_and_oversized_files_are_skipped_with_notices(make_repo, tmp_path):

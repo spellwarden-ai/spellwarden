@@ -872,7 +872,8 @@ def test_a_refusal_that_is_no_escape_is_an_error_even_when_the_target_is_outside
     # hashed; a backslash, an empty segment or a path through a link is an error wherever it leads.
     repo = make_repo(tmp_path / "repo", {"skills/x/SKILL.md": SKILL})
     (tmp_path / "outside.sh").write_text(SAFE_SCRIPT, encoding="utf-8")
-    (tmp_path / "outside\\x.sh").write_text(SAFE_SCRIPT, encoding="utf-8")
+    # On Windows the backslash separates, so the decoy is `outside/x.sh`; elsewhere it is one name.
+    write_tree(tmp_path, {"outside/x.sh" if os.sep == "\\" else "outside\\x.sh": SAFE_SCRIPT})
     (tmp_path / "elsewhere").mkdir()
     (tmp_path / "elsewhere" / "run.sh").write_text(SAFE_SCRIPT, encoding="utf-8")
     _symlink(str(tmp_path / "elsewhere"), repo / "linkout")
@@ -1038,18 +1039,22 @@ def test_a_root_plugin_owns_only_the_skills_under_its_skills_directory(make_repo
     # r3 nit: a plugin with the source "./" claimed `.claude/skills/c`, a project skill, as its own. A plugin at the
     # marketplace root owns the skills of its conventional `skills/` directory (and the files its manifest names);
     # every other skill of the repository stays unowned. A plugin in a subdirectory still owns every skill under it.
+    # `Skills/y` shares the directory of `skills/x` on a file system that folds case (macOS, Windows), so it is only
+    # written where the two are distinct.
+    distinct = _case_sensitive(tmp_path)
     repo = make_repo(tmp_path / "repo", {
         ".claude-plugin/marketplace.json": json.dumps({"plugins": [{"name": "root", "source": "./"},
                                                                    {"name": "a", "source": "./a"}]}),
         ".claude-plugin/plugin.json": json.dumps({"name": "root"}),
-        "skills/x/SKILL.md": SKILL, "Skills/y/SKILL.md": SKILL, ".claude/skills/c/SKILL.md": SKILL,
+        "skills/x/SKILL.md": SKILL, ".claude/skills/c/SKILL.md": SKILL,
         "docs/tools/d/SKILL.md": SKILL, "a/.claude/skills/e/SKILL.md": SKILL,
+        **({"Skills/y/SKILL.md": SKILL} if distinct else {}),
     })
     found = _discover(repo)
     assert found.errors == ()
     assert sorted((s.path, s.plugin) for s in found.skills) == [
-        (".claude/skills/c", None), ("Skills/y", "root"), ("a/.claude/skills/e", "a"), ("docs/tools/d", None),
-        ("skills/x", "root")]
+        (".claude/skills/c", None), *([("Skills/y", "root")] if distinct else []), ("a/.claude/skills/e", "a"),
+        ("docs/tools/d", None), ("skills/x", "root")]
     assert ("skill", ".claude/skills/c", "c", None) in _items(found)
 
 

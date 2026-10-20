@@ -4,6 +4,7 @@ included), claims C10 and C11 (JSON determinism)."""
 from __future__ import annotations
 
 import json
+import os
 import random
 
 import pytest
@@ -154,6 +155,7 @@ def test_json_and_text_are_byte_identical_across_shuffled_listings(make_repo, ru
     assert str(tmp_path) not in text and "2026-12-01" in text
 
 
+@pytest.mark.skipif(os.name == "nt", reason="Windows file names cannot hold control characters")
 def test_hostile_names_are_escaped_in_text_and_json(make_repo, run_cli, tmp_path):
     name = "evil‮\x1b[31m"
     repo = make_repo(tmp_path / "repo", {f"skills/{name}/SKILL.md": SKILL, f"skills/{name}/run.sh": PIPE})

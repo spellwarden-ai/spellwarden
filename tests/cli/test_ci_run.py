@@ -134,7 +134,10 @@ def test_a_planted_symlink_is_never_read(tmp_path, monkeypatch, posted, capsys):
     secret.write_text("<!-- spellwarden-scan -->\nCI_JOB_TOKEN=secret\n", encoding="utf-8")
     job = tmp_path / "job"
     job.mkdir()
-    (job / "spellwarden.md").symlink_to(secret)
+    try:
+        (job / "spellwarden.md").symlink_to(secret)
+    except OSError:
+        pytest.skip("symbolic links cannot be created here")
     monkeypatch.chdir(job)
     _fake_scan(monkeypatch, 0)
     assert ci.run_gitlab(COMMENTING) == 0

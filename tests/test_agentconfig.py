@@ -296,7 +296,7 @@ def test_declared_pins():
     (b"{", "mcp"), (b"", "mcp"), (b"[]", "mcp"), (b'"x"', "mcp"), (b"\xff\xfe{}", "mcp"),
     (b'{"a": ' * 33 + b"1" + b"}" * 33, "mcp"),
     (b'{"x": "' + b"a" * ac.MAX_DOCUMENT_BYTES + b'"}', "mcp"),
-])
+], ids=lambda value: repr(value[:40]) if isinstance(value, bytes) else None)  # pytest exports the id: Windows caps it
 def test_reference_kind_reads_the_shape(content, kind):
     """Plan review item 3: a manifest reference's parser comes from its JSON shape; a refused file is `mcp`, so its
     refusal surfaces as a document error."""
