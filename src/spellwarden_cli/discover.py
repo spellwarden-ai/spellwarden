@@ -81,6 +81,7 @@ class _Builder:
         self.paths = fileset.paths()
         self.documents: dict[str, ConfigDocument] = {}
         self.owners: dict[str, str] = {}  # document path -> plugin name
+        self.roles: dict[str, set[str]] = {}  # document path -> every kind it was parsed as
         self.notices: list[Notice] = []
         self.errors: list[Notice] = []
         self.contents: dict[str, bytes] = {}  # each file is read at most once, whoever asks
@@ -104,9 +105,18 @@ class _Builder:
 
     def document(self, kind: str, path: str, plugin: str | None = None, *,
                  drop_references: bool = False) -> ConfigDocument | None:
+        """The one document of `path`. A file reached in a second role (a global name, a plugin's conventional
+        path, a manifest reference read by its JSON shape) stays one document of its first kind, but is also
+        parsed in the new role and keeps what that role finds (r1:F1): what an agent loads in either role is
+        judged, listed and locked."""
         if path in self.documents:
             if plugin is not None:
                 self.owners.setdefault(path, plugin)
+            if kind not in self.roles[path]:
+                self.roles[path].add(kind)
+                content = self.contents.get(path)
+                if content is not None:
+                    self.documents[path] = self._merge(self.documents[path], parse_document(kind, path, content))
             return self.documents[path]
         if path not in self.paths:
             return None
@@ -117,11 +127,36 @@ class _Builder:
         if drop_references:
             parsed = replace(parsed, references=())
         self.documents[path] = parsed
+        self.roles[path] = {kind}
         if plugin is not None:
             self.owners[path] = plugin
-        if parsed.error is not None:
-            self.errors.append(Notice(parsed.error, path, _DOCUMENT_MESSAGES.get(parsed.error, parsed.error)))
+        self._report(parsed.error, path)
         return parsed
+
+    def _report(self, error: str | None, path: str) -> None:
+        if error is not None:
+            self.errors.append(Notice(error, path, _DOCUMENT_MESSAGES.get(error, error)))
+
+    def _merge(self, document: ConfigDocument, role: ConfigDocument) -> ConfigDocument:
+        """`document` plus the servers and hooks `role` (the same bytes read by another parser) adds. Its kind,
+        path and hash stay (both parses hash the same canonical JSON). A document that is already an error stays
+        as it is; a role that refuses the bytes (a server name under both `mcpServers` and `servers`, which the
+        settings parser does not read) makes the document that error, as one parser alone would."""
+        if document.error not in (None, "truncated") or role.error is None and not role.servers and not role.hooks:
+            return document
+        if role.error not in (None, "truncated"):
+            self._report(role.error, document.path)
+            return replace(document, error=role.error, servers=(), hooks=(), settings=(), plugins=(), references=(),
+                           truncated=False, sha256=role.sha256)
+        names = {server.name for server in document.servers}
+        seen = {(hook.event, hook.matcher, hook.command, hook.line) for hook in document.hooks}
+        added = [hook for hook in role.hooks if (hook.event, hook.matcher, hook.command, hook.line) not in seen]
+        hooks = document.hooks + tuple(replace(hook, index=len(document.hooks) + offset) for offset, hook in enumerate(added))
+        truncated = document.truncated or role.truncated
+        if truncated and not document.truncated:
+            self._report("truncated", document.path)
+        return replace(document, servers=document.servers + tuple(s for s in role.servers if s.name not in names),
+                       hooks=hooks, truncated=truncated, error="truncated" if truncated else None)
 
 
 _DOCUMENT_MESSAGES = {
@@ -139,7 +174,9 @@ def _follow_references(builder: _Builder, manifest: ConfigDocument, directory: s
     """Every reference of a plugin manifest that the containment rule accepts and that names a file of the set is
     followed, whatever its name; the JSON shape picks the parser (`reference_kind`). A referenced manifest's own
     references are not followed (one level). A file that is no configuration gets a notice and stays covered by
-    the plugin directory's hash in the lock."""
+    the plugin directory's hash in the lock. A file that is already a document (a global name such as
+    `.claude/settings.json`, a plugin's conventional path, an earlier reference) stays one document of its kind and
+    is also judged in the role its shape gives it here (`_Builder.document`, r1:F1)."""
     for reference in manifest.references:
         try:
             target = contain(directory, reference)
@@ -149,18 +186,17 @@ def _follow_references(builder: _Builder, manifest: ConfigDocument, directory: s
         if target not in builder.paths:
             builder.notices.append(Notice("file_missing", target, f"referenced by {manifest.path} but not in the file set"))
             continue
-        if target in builder.documents:  # one owner per file: already parsed globally or by another reference
-            builder.document(builder.documents[target].kind, target, plugin)
-            continue
         content = builder.read(target)
         if content is None:
             continue
-        kind = _global_kind(target) or reference_kind(content)  # a global name fixes the kind, as in the global pass
-        if kind is None:
+        kind = reference_kind(content)
+        if kind is not None:
+            builder.document(kind, target, plugin, drop_references=kind == "plugin")
+        elif target in builder.documents:  # one owner per file: the plugin is recorded, the document is unchanged
+            builder.document(builder.documents[target].kind, target, plugin)
+        else:
             builder.notices.append(Notice("reference_not_config", target,
                                           f"referenced by {manifest.path} but holds no hooks or MCP servers; not parsed"))
-            continue
-        builder.document(kind, target, plugin, drop_references=kind == "plugin")
 
 
 def discover(fileset: FileSet) -> Discovery:
@@ -181,15 +217,20 @@ def discover(fileset: FileSet) -> Discovery:
                 continue
             members = sorted(p for p in builder.paths if _under(p, directory))
             plugin_dirs[directory] = (plugin.name, members)
-            builder.document("mcp", f"{directory}/.mcp.json", plugin.name)
-            builder.document("hooks", f"{directory}/hooks/hooks.json", plugin.name)
-            manifest = builder.document("plugin", f"{directory}/.claude-plugin/plugin.json", plugin.name)
-            if manifest is not None:
-                _follow_references(builder, manifest, directory, plugin.name)
+    # A file's kind is the first role that reaches it: its global name, then a plugin's conventional path, then a
+    # manifest reference; every later role adds what it finds to that one document (r1:F1).
     for path in sorted(builder.paths):
         kind = _global_kind(path)
         if kind is not None and kind != "marketplace":
             builder.document(kind, path)
+    for directory, (name, _) in plugin_dirs.items():
+        builder.document("mcp", f"{directory}/.mcp.json", name)
+        builder.document("hooks", f"{directory}/hooks/hooks.json", name)
+        builder.document("plugin", f"{directory}/.claude-plugin/plugin.json", name)
+    for directory, (name, _) in plugin_dirs.items():
+        manifest = builder.documents.get(f"{directory}/.claude-plugin/plugin.json")
+        if manifest is not None:
+            _follow_references(builder, manifest, directory, name)
     skills = _skills(builder, {d: name for d, (name, _) in plugin_dirs.items()})
     # A local plugin whose directory holds no file of the set is listed and locked by its source only.
     dirs = tuple(PluginDir(d, _read_all(builder, members)) for d, (_, members) in sorted(plugin_dirs.items()) if members)
