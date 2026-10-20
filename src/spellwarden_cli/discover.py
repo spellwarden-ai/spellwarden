@@ -79,6 +79,7 @@ class _Builder:
     def __init__(self, fileset: FileSet) -> None:
         self.fileset = fileset
         self.paths = fileset.paths()
+        self.entries = {entry.path: entry for entry in fileset.entries}
         self.documents: dict[str, ConfigDocument] = {}
         self.owners: dict[str, str] = {}  # document path -> plugin name
         self.roles: dict[str, set[str]] = {}  # document path -> every kind it was parsed as
@@ -232,13 +233,28 @@ def discover(fileset: FileSet) -> Discovery:
         if manifest is not None:
             _follow_references(builder, manifest, directory, name)
     skills = _skills(builder, {d: name for d, (name, _) in plugin_dirs.items()})
-    # A local plugin whose directory holds no file of the set is listed and locked by its source only.
-    dirs = tuple(PluginDir(d, _read_all(builder, members)) for d, (_, members) in sorted(plugin_dirs.items()) if members)
+    # A local plugin whose directory holds no file of the set is listed and locked by its source only; one over the
+    # package limits is an item error and is not read whole, like a skill (r0:F8).
+    dirs = tuple(PluginDir(d, _read_all(builder, members)) for d, (_, members) in sorted(plugin_dirs.items())
+                 if members and not _too_large(builder, d, members, "plugin directory"))
     items = _items(builder, skills, plugin_items)
     if not items:
         builder.notices.append(Notice("no_agent_content", "", "No agent content found"))
     return Discovery(tuple(items), tuple(skills), tuple(builder.documents[p] for p in sorted(builder.documents)),
                      dirs, tuple(builder.notices), tuple(builder.errors))
+
+
+def _too_large(builder: _Builder, directory: str, members: list[str], what: str) -> bool:
+    """A package over the `ArchiveLimits` totals (spec 6.5) is the item error `package_too_large`, judged from
+    the listing's sizes before any member is read."""
+    entries = builder.entries
+    size = sum(entries[p].size for p in members)
+    if len(members) <= DEFAULT_LIMITS.max_files and size <= DEFAULT_LIMITS.max_uncompressed:
+        return False
+    builder.errors.append(Notice("package_too_large", directory,
+                                 f"{what} of {len(members)} files and {size} bytes is over the limits "
+                                 f"({DEFAULT_LIMITS.max_files} files, {DEFAULT_LIMITS.max_uncompressed // 2**20} MiB)"))
+    return True
 
 
 def _read_all(builder: _Builder, files: list[str]) -> dict[str, bytes]:
@@ -251,18 +267,14 @@ def _read_all(builder: _Builder, files: list[str]) -> dict[str, bytes]:
 
 
 def _skills(builder: _Builder, plugin_of_dir: dict[str, str]) -> list[SkillPackage]:
-    entries = {entry.path: entry for entry in builder.fileset.entries}
+    entries = builder.entries
     directories = sorted({posixpath.dirname(p) or "." for p in builder.paths if posixpath.basename(p) == SKILL_FILE})
     packages: list[SkillPackage] = []
     for directory in directories:
         nested = [d for d in directories if d != directory and _under(d, directory)]
         members = sorted(p for p in builder.paths
                          if _under(p, directory) and not any(_under(p, inner) for inner in nested))
-        size = sum(entries[p].size for p in members)
-        if len(members) > DEFAULT_LIMITS.max_files or size > DEFAULT_LIMITS.max_uncompressed:
-            builder.errors.append(Notice("package_too_large", directory,
-                                         f"skill package of {len(members)} files and {size} bytes is over the limits "
-                                         f"({DEFAULT_LIMITS.max_files} files, {DEFAULT_LIMITS.max_uncompressed // 2**20} MiB)"))
+        if _too_large(builder, directory, members, "skill package"):
             continue
         before = len(builder.errors)
         files = _read_all(builder, members)

@@ -8,6 +8,9 @@ import time
 
 from conftest import write_tree
 
+from spellwarden_scan.archive import ArchiveLimits
+
+from spellwarden_cli import discover as discover_module
 from spellwarden_cli import files
 from spellwarden_cli.discover import discover
 from spellwarden_cli.files import list_files
@@ -134,6 +137,33 @@ def test_a_skill_over_the_package_limits_is_an_item_error_and_is_not_read(tmp_pa
     found = _discover(tmp_path / "w", git="")
     assert [(e.code, e.path) for e in found.errors] == [("package_too_large", "big")]
     assert found.skills == () and reads == []
+
+
+def test_a_plugin_directory_over_the_package_limits_is_an_item_error_and_is_not_read(tmp_path, monkeypatch):
+    # r0:F8: a local plugin's files are read whole for its lock hash; the skill package limits bound them, with the
+    # outcome a too-large skill gets. Its configuration documents are still parsed (each is bounded on its own).
+    tree = {".claude-plugin/marketplace.json": json.dumps({"plugins": [{"name": "p", "source": "./p"}]}),
+            "p/.mcp.json": json.dumps({"mcpServers": {"a": {"url": "https://mcp.example/a"}}}),
+            **{f"p/data/f{index}.txt": "x" for index in range(2001)}}
+    write_tree(tmp_path / "w", tree)
+    reads = []
+    real = files.FileSet.read
+    monkeypatch.setattr(files.FileSet, "read", lambda self, path: reads.append(path) or real(self, path))
+    found = _discover(tmp_path / "w", git="")
+    assert [(e.code, e.path) for e in found.errors] == [("package_too_large", "p")]
+    assert "2002 files" in found.errors[0].message
+    assert found.plugin_dirs == ()
+    assert sorted(reads) == [".claude-plugin/marketplace.json", "p/.mcp.json"]
+    assert ("mcp-server", "p/.mcp.json#a", "a", "p") in _items(found)
+
+
+def test_a_plugin_directory_over_the_byte_limit_is_an_item_error(tmp_path, monkeypatch):
+    monkeypatch.setattr(discover_module, "DEFAULT_LIMITS", ArchiveLimits(max_uncompressed=100))
+    write_tree(tmp_path / "w", {".claude-plugin/marketplace.json": json.dumps({"plugins": [{"name": "p", "source": "./p"}]}),
+                                "p/a.txt": "x" * 60, "p/b.txt": "y" * 60})
+    found = _discover(tmp_path / "w", git="")
+    assert [(e.code, e.path) for e in found.errors] == [("package_too_large", "p")]
+    assert found.plugin_dirs == ()
 
 
 def test_empty_repository_has_the_no_agent_content_notice(make_repo, tmp_path):
