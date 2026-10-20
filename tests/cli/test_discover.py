@@ -43,8 +43,8 @@ def test_nested_skills_are_separate_packages(make_repo, tmp_path):
 def test_skill_at_the_scan_root(make_repo, tmp_path):
     repo = make_repo(tmp_path / "repo", {"SKILL.md": SKILL, "scripts/run.sh": "echo"})
     found = _discover(repo)
-    assert [(s.path, s.name, sorted(s.files)) for s in found.skills] == [(".", repo.name, ["SKILL.md", "scripts/run.sh"])]
-    assert _items(found) == [("skill", ".", repo.name, None)]
+    assert [(s.path, s.name, sorted(s.files)) for s in found.skills] == [(".", ".", ["SKILL.md", "scripts/run.sh"])]
+    assert _items(found) == [("skill", ".", ".", None)]
 
 
 def test_a_plugin_brings_its_skills_configuration_and_inline_hooks(make_repo, tmp_path):

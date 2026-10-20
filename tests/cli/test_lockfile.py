@@ -222,8 +222,21 @@ def test_root_skill_is_locked_as_dot(tmp_path, make_repo, run_cli):
     assert run_cli(["lock", str(repo)])[0] == 0
     skill = next(i for i in _items(repo) if i["kind"] == "skill")
     assert skill["path"] == "."
-    assert skill["name"] == repo.name
+    assert skill["name"] == "."  # never the checkout directory's name (r0:F4)
     assert run_cli(["lock", str(repo), "--check"])[0] == 0
+
+
+def test_root_skill_lock_does_not_depend_on_the_checkout_directory(tmp_path, make_repo, run_cli):
+    """r0:F4: the lock travels with the project; a copy in a differently named directory still checks clean."""
+    import shutil
+
+    base = tmp_path / "first-name"
+    base.mkdir()
+    repo = make_repo(base, {"SKILL.md": SKILL, "scripts/run.sh": "#!/bin/sh\necho hi\n"})
+    assert run_cli(["lock", str(repo)])[0] == 0
+    clone = tmp_path / "renamed-clone"
+    shutil.copytree(repo, clone)
+    assert run_cli(["lock", str(clone), "--check"])[0] == 0
 
 
 def test_the_lock_refuses_a_symlinked_spellwarden_directory(tmp_path, make_repo, run_cli):

@@ -4,7 +4,6 @@ rules and through a plugin is parsed once and listed once (one owner per
 file). Only skill packages and configuration documents are read (plan P12)."""
 from __future__ import annotations
 
-import os
 import posixpath
 from dataclasses import dataclass, field, replace
 
@@ -230,13 +229,11 @@ def _skills(builder: _Builder, plugin_of_dir: dict[str, str]) -> list[SkillPacka
             continue  # an unreadable member makes the skill an item error, not a partial scan
         owners = [d for d in plugin_of_dir if _under(directory, d) and d != "."]
         plugin = plugin_of_dir[max(owners, key=len)] if owners else None
-        name = posixpath.basename(directory) if directory != "." else _root_name(builder.fileset.root)
+        # the root skill is "." and never the checkout directory's name: a lock and a report must not depend on where
+        # the repository sits on disk (r0:F4)
+        name = posixpath.basename(directory) if directory != "." else "."
         packages.append(SkillPackage(directory, name, files, frozenset(p for p in members if entries[p].executable), plugin))
     return packages
-
-
-def _root_name(root: str) -> str:
-    return os.path.basename(os.path.normpath(root)) or "."
 
 
 def _items(builder: _Builder, skills: list[SkillPackage], plugin_items: list[Item]) -> list[Item]:
