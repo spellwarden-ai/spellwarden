@@ -1,5 +1,6 @@
 """CI detection (spec 6.11), the trust rule for private probing (6.8), the installation identity of the usage ping
-(6.10), and the two CI commands: `spellwarden ci comment` and `spellwarden ci-run gitlab` (10.2a).
+(6.10), the base revision a pull or merge request's settings file and baseline are read from (6.3, 6.7, D35), and
+the two CI commands: `spellwarden ci comment` and `spellwarden ci-run gitlab` (10.2a).
 
 Detection reads environment variables and, on GitHub, the event file; nothing else. Where it cannot tell, it gives
 the restrictive answer: an unknown event or an unreadable event file is a pull request, and a pull request whose
@@ -11,14 +12,16 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import stat
 import subprocess
 import sys
+import tempfile
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from urllib.parse import urlsplit
 
-from spellwarden_cli import escape
+from spellwarden_cli import escape, paths
 from spellwarden_cli.report import Notice
 from spellwarden_cli.settings import FAIL_ON
 
@@ -44,6 +47,11 @@ GITLAB_OUTPUTS = (("gitlab-codequality", "gl-code-quality-report.json"), ("sarif
                   ("markdown", "spellwarden.md"), ("json", "spellwarden.json"))
 GITLAB_MARKDOWN = dict(GITLAB_OUTPUTS)["markdown"]
 _SCP_REMOTE = re.compile(r"^[A-Za-z0-9._-]+@([A-Za-z0-9.-]+):/?([^/]+)/")
+_OBJECT_ID = re.compile(r"[0-9a-fA-F]{40}|[0-9a-fA-F]{64}")
+# GitLab: the merge request's merge base first (an ancestor of the source branch, so a deep enough clone holds it),
+# then the target branch's tip; an external pull request names only its target branch's tip.
+GITLAB_BASE_VARIABLES = {"merge_request_event": ("CI_MERGE_REQUEST_DIFF_BASE_SHA", "CI_MERGE_REQUEST_TARGET_BRANCH_SHA"),
+                         "external_pull_request_event": ("CI_EXTERNAL_PULL_REQUEST_TARGET_BRANCH_SHA",)}
 
 
 @dataclass(frozen=True)
@@ -56,6 +64,7 @@ class CiContext:
     dependabot: bool
     protected_ref: bool           # GITHUB_REF_PROTECTED / CI_COMMIT_REF_PROTECTED is true
     identity: str | None          # the installation identity of 6.10, before hashing
+    base_sha: str | None = None   # the request's base commit (40 or 64 lower-case hex), or None (D35)
 
 
 LOCAL = CiContext(provider=None, event=None, is_request=False, request_number=None, fork=False, dependabot=False,
@@ -64,6 +73,14 @@ LOCAL = CiContext(provider=None, event=None, is_request=False, request_number=No
 
 def _true(value: str | None) -> bool:
     return (value or "").strip().lower() in _TRUE
+
+
+def _object_id(value: object) -> str | None:
+    """A commit id as the CI gave it: exactly 40 (SHA-1) or 64 (SHA-256) hexadecimal characters, lower-cased;
+    anything else is None, so a value never reaches git as an option or a revision expression."""
+    if not isinstance(value, str) or not _OBJECT_ID.fullmatch(value):
+        return None
+    return value.lower()
 
 
 def _read_text(path: str) -> str:
@@ -146,7 +163,22 @@ def _github(env: Mapping[str, str], read_text: Callable[[str], str]) -> CiContex
     identity = f"github:{host}:{owner_id}" if host and owner_id.isdigit() else None
     return CiContext(provider="github", event=event, is_request=is_request, request_number=number, fork=fork,
                      dependabot=env.get("GITHUB_ACTOR") == DEPENDABOT, protected_ref=_true(env.get("GITHUB_REF_PROTECTED")),
-                     identity=identity)
+                     identity=identity, base_sha=_github_base(event, payload if readable else None))
+
+
+def _github_base(event: str | None, payload: dict | None) -> str | None:
+    """Every `pull_request*` event: `pull_request.base.sha`; `merge_group`: `merge_group.base_sha`; any other event
+    (`workflow_run`, `issue_comment`, ...) names no base the scanner can trust: None."""
+    if payload is None or event is None:
+        return None
+    if event == "merge_group":
+        group = payload.get("merge_group")
+        return _object_id(group.get("base_sha")) if isinstance(group, dict) else None
+    if event.startswith("pull_request"):
+        pull = payload.get("pull_request")
+        base = pull.get("base") if isinstance(pull, dict) else None
+        return _object_id(base.get("sha")) if isinstance(base, dict) else None
+    return None
 
 
 def _gitlab(env: Mapping[str, str]) -> CiContext:
@@ -160,8 +192,10 @@ def _gitlab(env: Mapping[str, str]) -> CiContext:
     host = (env.get("CI_SERVER_HOST") or "").strip().lower()
     namespace = (env.get("CI_PROJECT_ROOT_NAMESPACE") or "").strip()
     identity = f"gitlab:{host}:{namespace}" if host and namespace else None
+    candidates = (_object_id(env.get(name)) for name in GITLAB_BASE_VARIABLES.get(source or "", ()))
     return CiContext(provider="gitlab", event=source, is_request=is_request, request_number=number, fork=fork,
-                     dependabot=False, protected_ref=_true(env.get("CI_COMMIT_REF_PROTECTED")), identity=identity)
+                     dependabot=False, protected_ref=_true(env.get("CI_COMMIT_REF_PROTECTED")), identity=identity,
+                     base_sha=next((sha for sha in candidates if sha is not None), None))
 
 
 def _remote_identity(url: str | None) -> str | None:
@@ -224,6 +258,209 @@ def org_hash(identity: str | None) -> str | None:
     if not identity:
         return None
     return hashlib.sha256((IDENTITY_PREFIX + identity).encode("utf-8")).hexdigest()
+
+
+# --- the base revision of a pull or merge request (spec 6.3, 6.7, D35) ---------------------------------------------
+#
+# A request controls its own `.spellwarden/config.yml` and `.spellwarden/baseline.yml`, so it could exclude its own
+# malicious file or accept its own finding. On a request in CI both are read from the base revision with git (the
+# blob at `<base sha>:<repository prefix of the scan root><path>`), never from the working tree; everywhere else the
+# working tree is read as before. The base is fetched once from `origin` when a shallow clone lacks it.
+
+GIT_TIMEOUT = 30
+FETCH_TIMEOUT = 120
+_REGULAR_MODES = ("100644", "100755")
+
+
+class RevisionUnavailable(Exception):
+    """The base revision cannot be read: no git, not a work tree, or the commit is missing. The message says why."""
+
+
+@dataclass(frozen=True)
+class RevisionSource:
+    """Where a scan reads the settings file and the baseline. `read` is None for the working tree; otherwise
+    `read(relative, max_bytes) -> bytes` with the contract of `paths.read_contained`: `FileNotFoundError` when the file
+    is absent, `paths.TooLarge` past `max_bytes`, `paths.UnsafePath` for a link or anything but a regular file."""
+    read: Callable[[str, int], bytes] | None = None
+    notices: tuple[Notice, ...] = ()
+
+
+WORKING_TREE = RevisionSource()
+
+
+def _which_git() -> str | None:
+    return shutil.which("git")
+
+
+def _run_git(executable: str, top: str, root: str, *args: str, timeout: float = GIT_TIMEOUT,
+             env: Mapping[str, str] | None = None) -> bytes:
+    """`git -c safe.directory=<top> -c core.fsmonitor=false -C <root> <args>` (the form of `files._git`, spec 6.4), with
+    a timeout per call and no prompt; raises `OSError` naming the failure."""
+    command = [executable, "-c", f"safe.directory={top.replace(os.sep, '/')}", "-c", "core.fsmonitor=false",
+               "-C", root, *args]
+    try:
+        done = subprocess.run(command, capture_output=True, check=False, timeout=timeout, stdin=subprocess.DEVNULL,
+                              env={**(env if env is not None else os.environ), "GIT_TERMINAL_PROMPT": "0"})
+    except subprocess.TimeoutExpired as exc:
+        raise OSError(f"git {args[0] if args else ''} took longer than {timeout} s") from exc
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise OSError(f"git could not run ({type(exc).__name__})") from exc
+    if done.returncode != 0:
+        first = done.stderr.decode("utf-8", "replace").strip().splitlines()
+        raise OSError(first[0] if first else f"git exited {done.returncode}")
+    return done.stdout
+
+
+class _Repository:
+    """The work tree holding a scan root, as git sees it."""
+
+    def __init__(self, root: str, git: str | None = None) -> None:
+        from spellwarden_cli.files import work_tree_top
+
+        self.root = os.path.abspath(root)
+        self.executable = _which_git() if git is None else git
+        if not self.executable:
+            raise RevisionUnavailable("git is not available")
+        top = work_tree_top(self.root)
+        if top is None:
+            raise RevisionUnavailable("the scan root is not inside a git work tree")
+        self.top = top
+        try:
+            self.prefix = self._git("rev-parse", "--show-prefix").decode("utf-8").strip()
+        except (OSError, UnicodeDecodeError) as exc:
+            raise RevisionUnavailable(f"git cannot read the work tree ({exc})") from exc
+
+    def _git(self, *args: str, timeout: float = GIT_TIMEOUT, env: Mapping[str, str] | None = None) -> bytes:
+        return _run_git(self.executable, self.top, self.root, *args, timeout=timeout, env=env)
+
+    def has_commit(self, sha: str) -> bool:
+        try:
+            self._git("cat-file", "-e", f"{sha}^{{commit}}")
+        except OSError:
+            return False
+        return True
+
+    def ensure(self, sha: str, *, fetch: bool) -> None:
+        """The commit `sha` is present, after at most one shallow fetch of exactly that commit from `origin` (hooks
+        off, no tags, no submodules, bounded by `FETCH_TIMEOUT`); else `RevisionUnavailable`."""
+        if self.has_commit(sha):
+            return
+        if not fetch:
+            raise RevisionUnavailable(f"the base commit {sha[:12]} is not in the clone")
+        with tempfile.TemporaryDirectory(prefix="spellwarden-hooks-") as no_hooks:
+            try:
+                self._git("-c", "protocol.version=2", "-c", f"core.hooksPath={no_hooks}", "fetch", "--no-tags",
+                          "--no-recurse-submodules", "--depth=1", "origin", sha, timeout=FETCH_TIMEOUT)
+            except OSError as exc:
+                raise RevisionUnavailable(f"the base commit {sha[:12]} is not in the clone and fetching it from "
+                                          f"origin failed ({exc})") from exc
+        if not self.has_commit(sha):
+            raise RevisionUnavailable(f"the base commit {sha[:12]} is not in the clone, even after a fetch")
+
+    def _entry(self, sha: str, path: str) -> tuple[str, str] | None:
+        """`(mode, object id)` of the tree entry `path` (repository-relative) at `sha`, or None when there is none."""
+        listing = self._git("--literal-pathspecs", "ls-tree", "-z", "--full-tree", sha, "--", path)
+        for record in listing.split(b"\0"):
+            meta, _, name = record.partition(b"\t")
+            fields = meta.decode("ascii", "replace").split(" ")
+            if name.decode("utf-8", "replace") == path and len(fields) == 3 and _OBJECT_ID.fullmatch(fields[2]):
+                return fields[0], fields[2]
+        return None
+
+    def read(self, sha: str, relative: str, max_bytes: int) -> bytes | None:
+        """The blob at `sha` for the scan-root-relative `relative`, refused as the working-tree read refuses: a link
+        or anything but a regular file at the path or at a directory above it within the scan root."""
+        contained = paths.contain("", relative)
+        parts = contained.split("/")
+        for depth in range(1, len(parts) + 1):
+            entry = self._entry(sha, self.prefix + "/".join(parts[:depth]))
+            if entry is None:
+                return None
+            mode, oid = entry
+            if mode == "120000":
+                raise paths.UnsafePath(f"{contained}: symlink at the base revision {sha[:12]}")
+            if depth < len(parts) and mode != "40000" and mode != "040000":
+                raise paths.UnsafePath(f"{contained}: not a regular file at the base revision {sha[:12]}")
+        if mode not in _REGULAR_MODES:
+            raise paths.UnsafePath(f"{contained}: not a regular file at the base revision {sha[:12]}")
+        size = self._git("cat-file", "-s", oid).strip()
+        if not size.isdigit() or int(size) > max_bytes:
+            raise paths.TooLarge(f"{contained}: more than {max_bytes} bytes")
+        data = self._git("cat-file", "blob", oid)
+        if len(data) > max_bytes:
+            raise paths.TooLarge(f"{contained}: more than {max_bytes} bytes")
+        return data
+
+
+def read_at_revision(root: str, sha: str, relative: str, *, max_bytes: int, fetch: bool = False,
+                     git: str | None = None) -> bytes | None:
+    """The content of the scan-root-relative file `relative` at commit `sha`, or None when that revision holds no
+    such file. Raises `RevisionUnavailable` (no git, no work tree, `sha` not a commit id or not present after the
+    one fetch `fetch` allows), `paths.UnsafePath` (a link, a directory, a submodule), `paths.TooLarge` and `OSError`.
+    `git=None` looks git up on `PATH`; `git=""` disables it."""
+    commit = _object_id(sha)
+    if commit is None:
+        raise RevisionUnavailable("the base commit is not a commit id")
+    repository = _Repository(root, git)
+    repository.ensure(commit, fetch=fetch)
+    return repository.read(commit, relative, max_bytes)
+
+
+def _quoted(names: tuple[str, ...]) -> str:
+    return " and ".join(names)
+
+
+def _base_hint(ctx: CiContext) -> str:
+    if ctx.base_sha is None:
+        if ctx.provider == "github":
+            return "Run the scan on the pull_request event, whose payload names the base commit."
+        return "Run the scan in a merge request pipeline, which names the base commit."
+    if ctx.provider == "github":
+        return ("Check out with actions/checkout `fetch-depth: 0`, or keep its default `persist-credentials: true` so "
+                "the scanner can fetch the base commit.")
+    return ("Set `GIT_DEPTH: 0` (or a depth that reaches the merge base) in the job's variables so the clone holds "
+            "the base commit.")
+
+
+def revision_source(root: str, ctx: CiContext, *, config: bool, baseline: bool, git: str | None = None) -> RevisionSource:
+    """Spec 6.3, 6.7 and D35. On a pull or merge request in CI, the files the operator did not name (`config`: the
+    settings file, `baseline`: the baseline) are read from the base revision, with the notice `settings_from_base`;
+    when that revision cannot be read, from nowhere (the defaults and no baseline), with the notice
+    `base_unavailable`. Everywhere else, and for files named by `--config` or `--baseline`: the working tree."""
+    from spellwarden_cli import baseline as baseline_file
+    from spellwarden_cli import settings
+
+    names = tuple(name for name, wanted in ((settings.CONFIG_PATH, config), (baseline_file.BASELINE_PATH, baseline))
+                  if wanted)
+    if ctx.provider is None or not ctx.is_request or not names:
+        return WORKING_TREE
+    verb = "is" if len(names) == 1 else "are"
+    try:
+        if ctx.base_sha is None:
+            raise RevisionUnavailable(f"the {ctx.event or 'unknown'} event names no base commit")
+        repository = _Repository(root, git)
+        repository.ensure(ctx.base_sha, fetch=True)
+    except RevisionUnavailable as exc:
+        used = [text for text, wanted in (("the default settings", config), ("no baseline", baseline)) if wanted]
+        message = (f"On a pull or merge request, {_quoted(names)} {verb} read from the base revision, never from the "
+                   f"request, but {exc}; the scan used {_quoted(tuple(used))}. {_base_hint(ctx)}")
+        return RevisionSource(read=_absent, notices=(Notice("base_unavailable", "", message),))
+    sha = ctx.base_sha
+
+    def read(relative: str, max_bytes: int) -> bytes:
+        data = repository.read(sha, relative, max_bytes)
+        if data is None:
+            raise FileNotFoundError(relative)
+        return data
+
+    message = (f"On a pull or merge request, {_quoted(names)} {verb} read from the base revision {sha[:12]}, never "
+               f"from the request: a change the request makes to {'it' if len(names) == 1 else 'them'} applies once "
+               f"it is merged.")
+    return RevisionSource(read=read, notices=(Notice("settings_from_base", "", message),))
+
+
+def _absent(relative: str, _max_bytes: int) -> bytes:
+    raise FileNotFoundError(relative)
 
 
 def emit(ctx: CiContext, notice: Notice, *, stream=None) -> None:

@@ -4,7 +4,7 @@ settings key, so the scanned revision cannot grant itself private probing."""
 from __future__ import annotations
 
 import fnmatch
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 
 from spellwarden_cli import paths, safe_yaml
@@ -71,10 +71,12 @@ def _match(parts: list[str], pattern: list[str]) -> bool:
     return len(parts) in reached
 
 
-def load_settings(root: str, *, config: str | None, flags: Flags, env: Mapping[str, str]) -> Settings:
-    """`config` is the `--config` file (a path chosen by whoever runs the scanner); without it the scanned
-    revision's `.spellwarden/config.yml` is read, contained, when it exists."""
-    document, name = _read(root, config)
+def load_settings(root: str, *, config: str | None, flags: Flags, env: Mapping[str, str],
+                  read: Callable[[str, int], bytes] | None = None) -> Settings:
+    """`config` is the `--config` file (a path chosen by whoever runs the scanner); without it `.spellwarden/config.yml`
+    is read, when it exists: through `read(relative, max_bytes)` when given (on a pull or merge request, the base
+    revision's file, `ci.revision_source`; spec 6.3, D35), else from the working tree, contained."""
+    document, name = _read(root, config, read)
     values = _validate(document, name) if document is not None else {}
     fail_on = flags.fail_on or _env_choice(env, "SPELLWARDEN_FAIL_ON") or values.get("fail-on") or "high"
     probe = _first(flags.probe, _env_flag(env, "SPELLWARDEN_PROBE"), values.get("probe"), False)
@@ -109,7 +111,7 @@ def _env_choice(env: Mapping[str, str], name: str) -> str | None:
     return raw
 
 
-def _read(root: str, config: str | None) -> tuple[object | None, str]:
+def _read(root: str, config: str | None, read: Callable[[str, int], bytes] | None) -> tuple[object | None, str]:
     if config is not None:
         name = config
         try:
@@ -120,7 +122,10 @@ def _read(root: str, config: str | None) -> tuple[object | None, str]:
     else:
         name = CONFIG_PATH
         try:
-            data, _ = paths.read_contained(root, CONFIG_PATH, max_bytes=safe_yaml.CONFIG_MAX)
+            if read is not None:
+                data = read(CONFIG_PATH, safe_yaml.CONFIG_MAX)
+            else:
+                data, _ = paths.read_contained(root, CONFIG_PATH, max_bytes=safe_yaml.CONFIG_MAX)
         except FileNotFoundError:
             return None, name
         except paths.TooLarge as exc:

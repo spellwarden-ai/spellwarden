@@ -221,3 +221,59 @@ def test_an_empty_marker_is_no_ci():
 def test_missing_identity_parts_give_none():
     assert github("push", GITHUB_REPOSITORY_OWNER_ID="").identity is None
     assert gitlab("push", CI_PROJECT_ROOT_NAMESPACE="").identity is None
+
+
+# Spec 6.11 and D35: the base revision of a pull or merge request, from which its settings file and baseline are read.
+BASE = "0123456789abcdef0123456789abcdef01234567"
+BASE256 = "ab" * 32
+
+
+def pull_on(base: object) -> dict:
+    return {"pull_request": {"number": 7, "head": {"repo": {"full_name": "acme/agents"}}, "base": {"sha": base}}}
+
+
+def merge_request(**more: str):
+    return gitlab("merge_request_event", CI_MERGE_REQUEST_IID="5", CI_MERGE_REQUEST_SOURCE_PROJECT_ID="42", **more)
+
+
+@pytest.mark.parametrize(("ctx", "base_sha"), [
+    pytest.param(lambda: github("pull_request", payload=pull_on(BASE)), BASE, id="github pull_request"),
+    pytest.param(lambda: github("pull_request_target", payload=pull_on(BASE)), BASE, id="github pull_request_target"),
+    pytest.param(lambda: github("pull_request_review", payload=pull_on(BASE)), BASE, id="github pull_request_review"),
+    pytest.param(lambda: github("pull_request_review_comment", payload=pull_on(BASE)), BASE,
+                 id="github pull_request_review_comment"),
+    pytest.param(lambda: github("pull_request", payload=pull_on(BASE.upper())), BASE, id="github upper-case is lowered"),
+    pytest.param(lambda: github("pull_request", payload=pull_on(BASE256)), BASE256, id="github SHA-256 repository"),
+    pytest.param(lambda: github("merge_group", payload={"merge_group": {"base_sha": BASE}}), BASE, id="github merge queue"),
+    pytest.param(lambda: github("merge_group", payload=pull_on(BASE)), None, id="github merge queue without merge_group"),
+    pytest.param(lambda: github("workflow_run", payload={**run_of("pull_request", "acme/agents"), **pull_on(BASE)}), None,
+                 id="github workflow_run"),
+    pytest.param(lambda: github("issue_comment", payload={"issue": {"number": 7, "pull_request": {}}, **pull_on(BASE)}),
+                 None, id="github issue_comment"),
+    pytest.param(lambda: github("push", payload=pull_on(BASE)), None, id="github push"),
+    pytest.param(lambda: github("pull_request", payload=pull_on("main")), None, id="github branch name"),
+    pytest.param(lambda: github("pull_request", payload=pull_on(BASE[:-1])), None, id="github 39 characters"),
+    pytest.param(lambda: github("pull_request", payload=pull_on(BASE + "\n")), None, id="github trailing newline"),
+    pytest.param(lambda: github("pull_request", payload=pull_on("g" * 40)), None, id="github not hex"),
+    pytest.param(lambda: github("pull_request", payload=pull_on(int(BASE[:12], 16))), None, id="github a number"),
+    pytest.param(lambda: github("pull_request", payload=pull()), None, id="github no base"),
+    pytest.param(lambda: github("pull_request", payload={"pull_request": {"base": "x"}}), None, id="github base not a mapping"),
+    pytest.param(lambda: merge_request(CI_MERGE_REQUEST_DIFF_BASE_SHA=BASE), BASE, id="gitlab diff base"),
+    pytest.param(lambda: merge_request(CI_MERGE_REQUEST_TARGET_BRANCH_SHA=BASE), BASE, id="gitlab target branch sha"),
+    pytest.param(lambda: merge_request(CI_MERGE_REQUEST_DIFF_BASE_SHA=BASE, CI_MERGE_REQUEST_TARGET_BRANCH_SHA=BASE256),
+                 BASE, id="gitlab diff base first"),
+    pytest.param(lambda: merge_request(CI_MERGE_REQUEST_DIFF_BASE_SHA="main", CI_MERGE_REQUEST_TARGET_BRANCH_SHA=BASE),
+                 BASE, id="gitlab invalid diff base, valid target"),
+    pytest.param(lambda: merge_request(CI_MERGE_REQUEST_DIFF_BASE_SHA=BASE[:-1]), None, id="gitlab 39 characters"),
+    pytest.param(lambda: merge_request(), None, id="gitlab no sha"),
+    pytest.param(lambda: gitlab("external_pull_request_event", CI_EXTERNAL_PULL_REQUEST_TARGET_BRANCH_SHA=BASE), BASE,
+                 id="gitlab external pull request"),
+    pytest.param(lambda: gitlab("external_pull_request_event", CI_MERGE_REQUEST_DIFF_BASE_SHA=BASE), None,
+                 id="gitlab external pull request reads only its own variable"),
+    pytest.param(lambda: gitlab("push", CI_MERGE_REQUEST_DIFF_BASE_SHA=BASE), None, id="gitlab push"),
+    pytest.param(lambda: gitlab("", CI_MERGE_REQUEST_DIFF_BASE_SHA=BASE), None, id="gitlab unknown source"),
+    pytest.param(lambda: ci.detect({"CI": "true"}, git_remote=lambda: None), None, id="other CI"),
+    pytest.param(lambda: ci.detect({}), None, id="local run"),
+])
+def test_the_base_sha_of_each_event(ctx, base_sha):
+    assert ctx().base_sha == base_sha

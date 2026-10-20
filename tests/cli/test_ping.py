@@ -155,7 +155,11 @@ GITHUB_RUN = {"CI": "true", "GITHUB_ACTIONS": "true", "GITHUB_EVENT_NAME": "push
 def scan_in_ci(monkeypatch, repo, *args: str, env: dict | None = None) -> tuple[int, bytes]:
     from spellwarden_cli.main import main
 
-    for name, value in {**GITHUB_RUN, **(env or {})}.items():
+    # A readable push event: without one the run counts as a pull request (6.11), whose settings file is read from
+    # its base revision (D35), not from `repo`.
+    event = repo.parent / f"{repo.name}-event.json"
+    event.write_text('{"ref": "refs/heads/main"}', encoding="utf-8")
+    for name, value in {**GITHUB_RUN, "GITHUB_EVENT_PATH": str(event), **(env or {})}.items():
         monkeypatch.setenv(name, value)
     report = repo.parent / f"{repo.name}-report.json"
     code = main(["scan", str(repo), "--format", "json", "--output", str(report), *args])

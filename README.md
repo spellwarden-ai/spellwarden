@@ -170,6 +170,10 @@ telemetry: true
 
 The file is optional. An unknown key or a `version` other than 1 is an error (exit 2), so a typo never silently weakens a gate. A flag wins over the environment (`SPELLWARDEN_FAIL_ON`, `SPELLWARDEN_PROBE`, `SPELLWARDEN_TELEMETRY`), which wins over the file. Private probing is deliberately not a setting (see "Probing MCP servers").
 
+**On a pull or merge request, this file and the baseline are read from the base revision**, the commit the request targets, never from the request itself. Otherwise a request could add a malicious `.mcp.json` together with `exclude: [".mcp.json"]`, or accept its own finding in the baseline, and pass its own check. A request that changes either file therefore sees the change apply only once it is merged, and the report says so with the notice `settings_from_base`. The lock file is still read from the request: a request that changes agent content must update it, and reviewers see that change. Under `--locked` the lock is computed with the base's `include` and `exclude`, so a request that changes those patterns and the lock together is reported stale until the settings change is merged first. Local runs, pushes, schedules and manual runs read the working tree as before. A `--config` or `--baseline` file named on the command line is read as given: whoever runs the scanner chose it.
+
+The scanner reads the base revision with git. A shallow clone that lacks it is fetched once from `origin` (that one commit, depth 1, no tags, hooks off). When the base still cannot be read (the event names no base commit, git is missing, or the fetch failed) the scan uses the default settings and no baseline, and the notice `base_unavailable` says why. On GitHub, check out with `actions/checkout` `fetch-depth: 0`, or keep its default `persist-credentials: true` so the fetch can authenticate. On GitLab, set `GIT_DEPTH: 0` (or a depth that reaches the merge base) in the job, because the scanner image cannot write to a clone it does not own.
+
 ### The lock file: `.spellwarden/lock.json`
 
 `spellwarden lock` records every discovered configuration file, MCP server, plugin source, local plugin directory and skill with a hash. `spellwarden scan --locked` (and `spellwarden lock --check`) exits 3 when anything was added, removed or changed since, and names each item, so a change to agent content is a visible, reviewed change. The lock holds no scanner version: upgrading the scanner never makes it stale. A skill's hash is computed over paths relative to the skill's directory, so moving a skill changes only its path.
@@ -187,7 +191,9 @@ accepted:
     expires: 2027-01-31
 ```
 
-An entry accepts one finding, by fingerprint, from `added` to `expires`. It needs a reason, may last at most 365 days, and at most 30 days for a malicious-indicator rule (SW-SKL-004, SW-SKL-008, SW-CFG-006, SW-CFG-007). An invalid entry accepts nothing and fails the scan (exit 2); an expired one stops accepting, and the report says which entry expired on which date. Accepted findings stay in every report, marked as accepted with their reason. `spellwarden baseline add --all --reason "..."` accepts every current finding (90 days by default), `prune` removes entries that no longer match anything, `list` shows each entry's state.
+An entry accepts one finding, by fingerprint, from `added` to `expires`. It needs a reason, may last at most 365 days, and at most 30 days for a malicious-indicator rule (SW-SKL-004, SW-SKL-008, SW-CFG-006, SW-CFG-007). An invalid entry accepts nothing and fails the scan (exit 2); an expired one stops accepting, and the report says which entry expired on which date. Accepted findings stay in every report, marked as accepted with their reason. `spellwarden baseline add --all --reason "..."` accepts every current finding (90 days by default), `prune` removes entries that no longer match anything, `list` shows each entry's state. These three commands work on the files in your working tree.
+
+On a pull or merge request the scan reads the baseline from the base revision, like the settings file (see "Settings"): a request cannot accept its own finding. To accept a finding that a request introduces, merge the baseline entry first, in a request of its own; an entry that matches nothing yet is valid.
 
 ### Reports
 

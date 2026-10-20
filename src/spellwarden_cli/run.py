@@ -7,6 +7,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import date
+from typing import TYPE_CHECKING
 
 from spellwarden_scan import RULES_VERSION, RuleSet, __version__, scan_agent_config, scan_skill_package
 
@@ -14,6 +15,9 @@ from spellwarden_cli import discover, files
 from spellwarden_cli.discover import Discovery
 from spellwarden_cli.report import LockState, Notice, ProbeReport, Report, ReportFinding
 from spellwarden_cli.settings import Settings
+
+if TYPE_CHECKING:
+    from spellwarden_cli.ci import CiContext, RevisionSource
 
 
 def _silent(_line: str) -> None:
@@ -29,13 +33,15 @@ class ScanOptions:
     baseline: str | None = None  # scan-root-relative baseline file; None means .spellwarden/baseline.yml
     env: Mapping[str, str] = field(default_factory=dict)
     log: Callable[[str], None] = _silent  # --verbose lines (stderr)
+    context: CiContext | None = None  # the CI context `main` detected once; None: detected from `env` when needed
+    revision: RevisionSource | None = None  # where the default baseline is read (D35); None: the working tree
 
 
 def scan(options: ScanOptions) -> Report:
     rules = RuleSet.baseline()
     fileset = files.list_files(options.root, options.settings)
     found = discover.discover(fileset)
-    notices: list[Notice] = [*fileset.notices, *found.notices]
+    notices: list[Notice] = [*fileset.notices, *found.notices, *(options.revision.notices if options.revision else ())]
     errors: list[Notice] = [*fileset.errors, *found.errors]
     options.log(f"{len(fileset.entries)} files listed, {len(found.items)} items discovered")
     findings = engine_findings(found, rules, notices)
@@ -70,12 +76,14 @@ def engine_findings(found: Discovery, rules: RuleSet, notices: list[Notice]) -> 
 
 def apply_baseline(options: ScanOptions, findings: list[ReportFinding], notices: list[Notice], errors: list[Notice]) -> list[ReportFinding]:  # noqa: E501
     """Spec 6.7: findings that a valid, current entry accepts are suppressed; an invalid entry or an unusable
-    file is an error (exit 2) and suppresses nothing."""
+    file is an error (exit 2) and suppresses nothing. The default file is read where `options.revision` says (on a
+    pull or merge request, the base revision, D35); a `--baseline` file from the working tree, as the operator named it."""
     from spellwarden_cli import baseline  # here, not at the top: baseline's commands import this module
 
     relative = options.baseline or baseline.BASELINE_PATH
+    read = options.revision.read if options.revision is not None and options.baseline is None else None
     try:
-        loaded = baseline.load_baseline(options.root, relative, required=options.baseline is not None)
+        loaded = baseline.load_baseline(options.root, relative, required=options.baseline is not None, read=read)
     except baseline.BaselineError as exc:
         errors.append(Notice("baseline_invalid", relative, str(exc)))
         return findings
@@ -109,7 +117,7 @@ def run_probes(options: ScanOptions, found: Discovery, rules: RuleSet, findings:
 
     if not options.settings.probe:
         return []
-    context = ci.detect(options.env)
+    context = options.context if options.context is not None else ci.detect(options.env)
     targets, skipped = probing.probe_targets(found)
     for report in skipped:
         notices.append(Notice("probe_skipped", report.item, "not probed (unresolved: the URL holds a ${...} reference)"))

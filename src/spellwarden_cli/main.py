@@ -108,34 +108,44 @@ def _stderr(line: str) -> None:
     print(f"spellwarden: {line}", file=sys.stderr)
 
 
-def _error_report(fail_on: str, as_of: date, code: str, path: str, message: str) -> Report:
-    """A report that holds one error and nothing else: written in every requested format, exit 2."""
+def _error_report(fail_on: str, as_of: date, code: str, path: str, message: str,
+                  notices: tuple[Notice, ...] = ()) -> Report:
+    """A report that holds one error (and the notices that explain where its settings came from) and nothing else:
+    written in every requested format, exit 2."""
     return Report(scanner_version=__version__, rules_version=RULES_VERSION, as_of=as_of.isoformat(), fail_on=fail_on,
-                  items=(), findings=(), probes=(), lock=LockState(), notices=(),
-                  errors=(Notice(code, path, message),), repo_prefix=None, rules=RuleSet.baseline())
+                  items=(), findings=(), probes=(), lock=LockState(), notices=notices,
+                  errors=(Notice(code, path, message),), repo_prefix=None, rules=RuleSet.baseline()).sorted()
 
 
-def _scan_report(args: argparse.Namespace) -> Report:
+def _scan_report(args: argparse.Namespace, context) -> tuple[Report, bool]:
+    """The report and the effective telemetry setting (False when the settings were refused: no ping). On a pull or
+    merge request in CI the settings file and the baseline come from the base revision (`ci.revision_source`, D35)."""
+    from spellwarden_cli import ci
+
     as_of = args.as_of or datetime.now(UTC).date()
     fail_on = args.fail_on or "high"
     root = os.path.abspath(args.path)
     if not os.path.isdir(root):
-        return _error_report(fail_on, as_of, "path_not_directory", args.path, "the scan path must be a directory")
+        return _error_report(fail_on, as_of, "path_not_directory", args.path, "the scan path must be a directory"), False
     flags = Flags(fail_on=args.fail_on, probe=args.probe, probe_private=args.probe_private,
                   telemetry=False if args.no_telemetry else None)
+    source = ci.revision_source(root, context, config=args.config is None, baseline=args.baseline is None)
     try:
-        settings = load_settings(root, config=args.config, flags=flags, env=os.environ)
+        settings = load_settings(root, config=args.config, flags=flags, env=os.environ, read=source.read)
     except SettingsError as exc:
-        return _error_report(fail_on, as_of, "settings_invalid", args.config or ".spellwarden/config.yml", str(exc))
+        return _error_report(fail_on, as_of, "settings_invalid", args.config or ".spellwarden/config.yml", str(exc),
+                             source.notices), False
     options = run.ScanOptions(root=root, settings=settings, as_of=as_of, locked=args.locked, baseline=args.baseline,
-                              env=dict(os.environ), log=_stderr if args.verbose else run._silent)
+                              env=dict(os.environ), log=_stderr if args.verbose else run._silent, context=context,
+                              revision=source)
     started = time.monotonic()
     try:
         report = run.scan(options)
     except Exception as exc:  # a scanner crash still writes every output (spec 6.2)
-        return _error_report(settings.fail_on, as_of, "crash", "", f"internal error: {type(exc).__name__}: {exc}")
+        return _error_report(settings.fail_on, as_of, "crash", "", f"internal error: {type(exc).__name__}: {exc}",
+                             source.notices), settings.telemetry
     options.log(f"scan took {time.monotonic() - started:.2f} s")
-    return report
+    return report, settings.telemetry
 
 
 def write_outputs(report: Report, outputs: list[tuple[str, str | None]], *, stdout: TextIO) -> None:
@@ -171,21 +181,18 @@ def cmd_scan(args: argparse.Namespace) -> int:
     if sum(1 for _, path in outputs if path is None) > 1:
         _stderr("at most one format can go to stdout; give the others an --output")
         return 2
-    report = _scan_report(args)
+    from spellwarden_cli import ci, ping
+
+    root = os.path.abspath(args.path)
+    context = ci.detect(os.environ, git_remote=lambda: ci.git_remote_of(root))  # once, for the scan and the ping
+    report, telemetry = _scan_report(args, context)
     write_outputs(report, outputs, stdout=sys.stdout)
     if not args.quiet:
         for fmt, path in outputs:
             if path is not None:
                 _stderr(f"wrote the {fmt} report to {path}")
-    from spellwarden_cli import ci, ping  # the ping is the last thing a scan does, after every output (spec 6.10)
-
-    root = os.path.abspath(args.path)
-    try:  # the effective telemetry setting; a scan whose settings were refused sends nothing
-        telemetry = load_settings(root, config=args.config, env=os.environ,
-                                  flags=Flags(telemetry=False if args.no_telemetry else None)).telemetry
-    except Exception:  # noqa: BLE001 -- SettingsError, or a path that is not a directory: no ping
-        telemetry = False
-    context = ci.detect(os.environ, git_remote=lambda: ci.git_remote_of(root))
+    # The ping is the last thing a scan does, after every output (spec 6.10); a scan whose settings were refused
+    # sends nothing.
     ping.send_ping(context, telemetry=telemetry, env=os.environ, log=_stderr if args.verbose else run._silent)
     return report.exit_code()
 

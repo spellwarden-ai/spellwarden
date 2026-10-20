@@ -18,7 +18,8 @@ ERROR_CODES = (*DOCUMENT_ERRORS, "unsafe_path", "case_collision", "unreadable", 
 NOTICE_CODES = ("no_agent_content", "git_unavailable", "exec_bits_unknown", "symlink_skipped", "file_too_large",
                 "non_utf8_path", "upload_paths_scan_root", "findings_truncated", "baseline_mismatch", "baseline_expired",
                 "probe_private_untrusted", "probe_fork_disabled", "probe_skipped", "comment_permission", "comment_failed",
-                "comment_token_missing", "comment_no_request", "ping_url_ignored", "file_missing", "reference_not_config")
+                "comment_token_missing", "comment_no_request", "ping_url_ignored", "file_missing", "reference_not_config",
+                "settings_from_base", "base_unavailable")
 PROBE_SKIP_REASONS = ("unresolved", "limit", "budget", "fork", "refused")
 LOCK_STATUSES = ("ok", "stale", "absent", "not_checked")
 LOCK_ITEM_KINDS = ("document", "mcp-server", "plugin", "plugin-dir", "skill")

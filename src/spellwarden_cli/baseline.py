@@ -7,7 +7,7 @@ import argparse
 import json
 import os
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
 
@@ -127,13 +127,19 @@ def parse_baseline(document: object, *, name: str = BASELINE_PATH) -> Baseline:
     return Baseline(tuple(entries), tuple(invalid))
 
 
-def load_baseline(root: str, relative: str = BASELINE_PATH, *, required: bool = False) -> Baseline:
+def load_baseline(root: str, relative: str = BASELINE_PATH, *, required: bool = False,
+                  read: Callable[[str, int], bytes] | None = None) -> Baseline:
+    """`read(relative, max_bytes)`, when given, supplies the bytes (on a pull or merge request, the base revision's
+    file, `ci.revision_source`; spec 6.7, D35); else the working tree's file is read, contained."""
     try:
         relative = paths.contain("", relative)
     except paths.UnsafePath as exc:
         raise BaselineError(f"{relative}: the baseline must be a path inside the scan root") from exc
     try:
-        data, _mode = paths.read_contained(root, relative, max_bytes=safe_yaml.BASELINE_MAX)
+        if read is not None:
+            data = read(relative, safe_yaml.BASELINE_MAX)
+        else:
+            data, _mode = paths.read_contained(root, relative, max_bytes=safe_yaml.BASELINE_MAX)
     except FileNotFoundError:
         if required:
             raise BaselineError(f"{relative} does not exist") from None

@@ -13,6 +13,8 @@ Rules version `2026.10.2`: ten rules added; no existing rule changed what it det
 - `.spellwarden/lock.json` pins every discovered configuration file, server, plugin source, local plugin directory and
   skill by hash; `.spellwarden/baseline.yml` accepts findings with a reason, an addition date and an expiry date
   (at most 365 days, 30 for a malicious-indicator rule). JSON Schemas for both, for the settings and for the report.
+  On a pull or merge request, `.spellwarden/config.yml` and the baseline are read from the base revision, so a
+  request cannot exclude or accept its own finding.
 - Rules SW-CFG-001 to SW-CFG-010 judge agent configuration files: plain-HTTP and raw-IP servers, credentials and
   literal secrets in server configurations, unpinned launchers, hooks that pipe remote scripts to a shell, send local
   files out or run encoded payloads, settings that switch off approval prompts, and marketplace plugins without a
