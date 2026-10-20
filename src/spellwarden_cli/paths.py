@@ -47,13 +47,42 @@ def _is_link(name: str, dir_fd: int) -> bool:
         return False
 
 
-def _open_walk(root: str, relative: str) -> int:
-    """Linux and macOS: each directory is opened relative to its parent's descriptor with `O_NOFOLLOW`, so a
-    component swapped for a link after listing is refused, never followed (no stat-then-open)."""
-    parts = relative.split("/")
+def read_link(root: str, relative: str, *, max_bytes: int) -> bytes:
+    """The target text of the symbolic link `relative` under `root`: `os.readlink` when the working tree holds a
+    link, else the bytes of the regular file there (a checkout without symlink support, `core.symlinks=false`,
+    writes the target as a plain file). The parent directories are opened as `read_contained` opens them, so a
+    symlinked component is refused; over `max_bytes` raises `TooLarge`."""
+    contained = contain("", relative)
+    parent, _, name = contained.rpartition("/")
+    target: str | None = None
+    if _HAS_DIR_FD:
+        dir_fd = _open_dirs(root, parent.split("/") if parent else [], contained)
+        try:
+            if _is_link(name, dir_fd):
+                target = os.readlink(name, dir_fd=dir_fd)
+        finally:
+            os.close(dir_fd)
+    else:
+        base = os.path.realpath(root)
+        directory = os.path.join(base, *parent.split("/")) if parent else base
+        if os.path.normcase(os.path.realpath(directory)) != os.path.normcase(directory):
+            raise UnsafePath(f"{contained}: symlink")
+        if os.path.islink(os.path.join(directory, name)):
+            target = os.readlink(os.path.join(directory, name))
+    if target is None:
+        return read_contained(root, contained, max_bytes=max_bytes)[0]
+    raw = os.fsencode(target)
+    if len(raw) > max_bytes:
+        raise TooLarge(f"{contained}: more than {max_bytes} bytes")
+    return raw
+
+
+def _open_dirs(root: str, parts: list[str], relative: str) -> int:
+    """A descriptor of the directory `parts` under `root`, each component opened relative to its parent with
+    `O_NOFOLLOW`; a symbolic link at any component is `UnsafePath`."""
     dir_fd = os.open(root, os.O_RDONLY | _DIRECTORY)
     try:
-        for part in parts[:-1]:
+        for part in parts:
             try:
                 next_fd = os.open(part, os.O_RDONLY | _DIRECTORY | _NOFOLLOW, dir_fd=dir_fd)
             except OSError as exc:
@@ -62,6 +91,18 @@ def _open_walk(root: str, relative: str) -> int:
                 raise
             os.close(dir_fd)
             dir_fd = next_fd
+    except BaseException:
+        os.close(dir_fd)
+        raise
+    return dir_fd
+
+
+def _open_walk(root: str, relative: str) -> int:
+    """Linux and macOS: each directory is opened relative to its parent's descriptor with `O_NOFOLLOW`, so a
+    component swapped for a link after listing is refused, never followed (no stat-then-open)."""
+    parts = relative.split("/")
+    dir_fd = _open_dirs(root, parts[:-1], relative)
+    try:
         try:
             return os.open(parts[-1], os.O_RDONLY | _NOFOLLOW | _NONBLOCK | _BINARY, dir_fd=dir_fd)
         except OSError as exc:
@@ -104,4 +145,4 @@ def _read(fd: int, max_bytes: int, relative: str) -> bytes:
             raise TooLarge(f"{relative}: more than {max_bytes} bytes")
 
 
-__all__ = ["TooLarge", "UnsafePath", "contain", "read_contained"]
+__all__ = ["TooLarge", "UnsafePath", "contain", "read_contained", "read_link"]

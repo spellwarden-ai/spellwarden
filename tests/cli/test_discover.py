@@ -3,10 +3,13 @@ plugins as inventory only; plan P12 to P14 and Review Focus 1 and 2."""
 from __future__ import annotations
 
 import json
+import os
 import socket
+import subprocess
 import time
 
-from conftest import write_tree
+import pytest
+from conftest import GIT, git, write_tree
 
 from spellwarden_scan.archive import ArchiveLimits
 
@@ -353,3 +356,90 @@ def test_a_reference_role_that_refuses_the_document_makes_it_an_error(make_repo,
     document = next(d for d in found.documents if d.path == ".claude/settings.json")
     assert document.kind == "settings" and document.error == "duplicate_key" and document.servers == ()
     assert ("duplicate_key", ".claude/settings.json") in {(e.code, e.path) for e in found.errors}
+
+
+def _symlink(target: str, link):
+    link.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        os.symlink(target, link)
+    except (OSError, NotImplementedError):
+        pytest.skip("symbolic links cannot be created here")
+
+
+SERVERS = json.dumps({"mcpServers": {"jira": {"type": "http", "url": "http://jira.example.com/mcp"}}})
+
+
+def test_a_link_at_a_configuration_path_is_followed_and_named_by_the_link(make_repo, tmp_path, run_cli):
+    # Owner decision: an agent opening `.mcp.json` reads the link's target, so the scanner judges those bytes too,
+    # under the link's path.
+    repo = make_repo(tmp_path / "repo", {"config/servers.json": SERVERS})
+    _symlink("config/servers.json", repo / ".mcp.json")
+    found = _discover(repo)
+    assert [(d.path, d.kind, [s.name for s in d.servers]) for d in found.documents] == [(".mcp.json", "mcp", ["jira"])]
+    assert ("mcp-server", ".mcp.json#jira", "jira", None) in _items(found)
+    assert "symlink_skipped" not in {n.code for n in found.notices} and not found.errors
+    code, report = _scan_json(run_cli, repo, tmp_path)
+    assert ("SW-CFG-001", ".mcp.json") in {(f["rule_id"], f["location"]["path"]) for f in report["findings"]}
+    assert code == 1
+    assert run_cli(["lock", str(repo)])[0] == 0
+    lock = json.loads((repo / ".spellwarden" / "lock.json").read_text(encoding="utf-8"))
+    assert [(i["kind"], i["path"]) for i in lock["items"]] == [("document", ".mcp.json"), ("mcp-server", ".mcp.json#jira")]
+
+
+def test_a_skill_file_that_is_a_link_starts_a_skill(make_repo, tmp_path):
+    repo = make_repo(tmp_path / "repo", {"skills/x/body.md": SKILL})
+    _symlink("body.md", repo / "skills" / "x" / "SKILL.md")
+    found = _discover(repo)
+    assert [(s.path, s.files) for s in found.skills] == [
+        ("skills/x", {"skills/x/SKILL.md": SKILL.encode(), "skills/x/body.md": SKILL.encode()})]
+
+
+def test_plugin_paths_and_references_that_are_links_are_followed(make_repo, tmp_path):
+    repo = _plugin_with(make_repo, tmp_path, {"mcpServers": "./servers.json"},
+                        {"real-hooks.txt": HOOKS, "real-servers.txt": SERVERS})
+    _symlink("../real-hooks.txt", repo / "plugins" / "infra" / "hooks" / "hooks.json")  # `..` is refused (6.13)
+    _symlink("real-servers.txt", repo / "plugins" / "infra" / "servers.json")
+    found = _discover(repo)
+    document = next(d for d in found.documents if d.path == "plugins/infra/servers.json")
+    assert [s.name for s in document.servers] == ["jira"]
+    assert [(e.code, e.path) for e in found.errors] == [("unsafe_path", "plugins/infra/hooks/hooks.json")]
+    assert "plugins/infra/servers.json" in found.plugin_dirs[0].files
+
+
+@pytest.mark.parametrize("case", ["absolute", "escaping", "chain", "missing"])
+def test_a_link_at_an_agent_path_that_cannot_be_followed_is_unsafe(case, make_repo, tmp_path, run_cli):
+    repo = make_repo(tmp_path / "repo", {"config/servers.json": SERVERS})
+    target = {"absolute": str(repo / "config" / "servers.json"), "escaping": "../outside.json", "chain": "a.json",
+              "missing": "nope.json"}[case]
+    if case == "escaping":
+        (tmp_path / "outside.json").write_text(SERVERS, encoding="utf-8")
+    if case == "chain":
+        _symlink("config/servers.json", repo / "a.json")
+    _symlink(target, repo / ".mcp.json")
+    found = _discover(repo)
+    assert [(e.code, e.path) for e in found.errors] == [("unsafe_path", ".mcp.json")]
+    assert found.documents == ()
+    assert [n.path for n in found.notices if n.code == "symlink_skipped"] == (["a.json"] if case == "chain" else [])
+    assert _scan_json(run_cli, repo, tmp_path)[0] == 2
+
+
+def _plain_file_link(repo, path: str, target: str) -> None:
+    """A link as a checkout without symlink support holds it: index mode 120000, the target text as a file."""
+    blob = subprocess.run([*GIT, "-C", str(repo), "hash-object", "-w", "--stdin"], input=target, capture_output=True,
+                          text=True, check=True).stdout.strip()
+    git(repo, "update-index", "--add", "--cacheinfo", f"120000,{blob},{path}")
+    write_tree(repo, {path: target})
+
+
+def test_a_link_held_as_a_plain_file_is_followed(make_repo, tmp_path):
+    repo = make_repo(tmp_path / "repo", {"config/servers.json": SERVERS})
+    _plain_file_link(repo, ".mcp.json", "config/servers.json")
+    found = _discover(repo)
+    assert [(d.path, [s.name for s in d.servers]) for d in found.documents] == [(".mcp.json", ["jira"])]
+
+
+def test_a_plain_file_link_target_over_4096_bytes_is_unsafe(make_repo, tmp_path):
+    repo = make_repo(tmp_path / "repo", {"config/servers.json": SERVERS})
+    _plain_file_link(repo, ".mcp.json", "a/" * 2100 + "x.json")
+    found = _discover(repo)
+    assert [(e.code, e.path) for e in found.errors] == [("unsafe_path", ".mcp.json")] and found.documents == ()

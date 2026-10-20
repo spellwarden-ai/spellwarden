@@ -7,9 +7,10 @@ import subprocess
 import sys
 
 import pytest
-from conftest import git, write_tree
+from conftest import GIT, git, write_tree
 
-from spellwarden_cli import files
+from spellwarden_cli import files, paths
+from spellwarden_cli.discover import discover
 from spellwarden_cli.files import FILE_MAX, list_files, work_tree_top
 from spellwarden_cli.settings import Settings
 
@@ -116,7 +117,40 @@ def test_symlinks_and_oversized_files_are_skipped_with_notices(make_repo, tmp_pa
         handle.truncate(FILE_MAX + 1)
     fileset = list_files(str(repo), Settings())
     assert _paths(fileset) == ["a.md"]
-    assert _codes(fileset.notices) == ["file_too_large", "symlink_skipped"]
+    assert _codes(fileset.notices) == ["file_too_large"]
+    # a listed link is kept aside, never read as a file; discovery follows a link at an agent-content path only and
+    # gives every other link the notice (owner decision on symbolic links)
+    assert fileset.links == (files.LinkEntry("link.md", False),)
+    assert [(n.code, n.path) for n in discover(fileset).notices if n.code == "symlink_skipped"] == [
+        ("symlink_skipped", "link.md")]
+
+
+def test_a_link_committed_as_a_plain_file_is_a_link(make_repo, tmp_path):
+    # Windows or `core.symlinks=false`: the index says 120000, the working tree holds the target text as a file.
+    repo = make_repo(tmp_path / "repo", {"a.md": "a"})
+    blob = subprocess.run([*GIT, "-C", str(repo), "hash-object", "-w", "--stdin"], input="a.md", capture_output=True,
+                          text=True, check=True).stdout.strip()
+    git(repo, "update-index", "--add", "--cacheinfo", f"120000,{blob},link.md")
+    write_tree(repo, {"link.md": "a.md"})
+    fileset = list_files(str(repo), Settings())
+    assert _paths(fileset) == ["a.md"]
+    assert fileset.links == (files.LinkEntry("link.md", True),)
+    assert fileset.link_target("link.md") == b"a.md"
+
+
+@pytest.mark.parametrize("dir_fd", [True, False])
+def test_a_link_target_is_read_without_following_a_linked_directory(dir_fd, tmp_path, monkeypatch):
+    # `False` is the Windows branch, run on every OS as the plan's rule for `open_contained` asks.
+    monkeypatch.setattr(paths, "_HAS_DIR_FD", dir_fd and paths._HAS_DIR_FD)
+    root = write_tree(tmp_path / "root", {"d/a.json": "{}"})
+    write_tree(tmp_path / "outside", {"x.json": "{}"})
+    _symlink("a.json", root / "d" / "link.json")
+    _symlink(str(tmp_path / "outside"), root / "linked")
+    assert paths.read_link(str(root), "d/link.json", max_bytes=4096) == b"a.json"
+    with pytest.raises(paths.UnsafePath):
+        paths.read_link(str(root), "linked/x.json", max_bytes=4096)
+    with pytest.raises(paths.TooLarge):
+        paths.read_link(str(root), "d/link.json", max_bytes=3)
 
 
 @pytest.mark.skipif(sys.platform != "linux", reason="only Linux file systems accept names that are not UTF-8")

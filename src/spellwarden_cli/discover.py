@@ -12,7 +12,7 @@ from spellwarden_scan.archive import DEFAULT_LIMITS
 from spellwarden_scan.relpath import UnsafePath, contain
 
 from spellwarden_cli import paths
-from spellwarden_cli.files import FileSet
+from spellwarden_cli.files import FileEntry, FileSet
 from spellwarden_cli.report import Notice
 
 SKILL_FILE = "SKILL.md"
@@ -78,8 +78,10 @@ def _under(path: str, directory: str) -> bool:
 class _Builder:
     def __init__(self, fileset: FileSet) -> None:
         self.fileset = fileset
-        self.paths = fileset.paths()
+        self.paths = set(fileset.paths())  # grows by the symbolic links followed (`follow`)
         self.entries = {entry.path: entry for entry in fileset.entries}
+        self.links = {link.path: link for link in fileset.links}
+        self.followed: set[str] = set()
         self.documents: dict[str, ConfigDocument] = {}
         self.owners: dict[str, str] = {}  # document path -> plugin name
         self.roles: dict[str, set[str]] = {}  # document path -> every kind it was parsed as
@@ -104,6 +106,42 @@ class _Builder:
         self.contents[path] = content
         return content
 
+    def follow(self, path: str) -> bool:
+        """Whether `path` is a file of the set, following it first when it is a listed symbolic link at an
+        agent-content path (owner decision, 2026-10-20). A link is followed when its target, resolved against the
+        link's directory by the containment rule (6.13), is a regular file of the set; the target's bytes are then
+        the link path's content, and findings, items and the lock name the link. An absolute or escaping target, a
+        target that is itself a link and a target outside the file set are `unsafe_path`."""
+        if path not in self.links:
+            return path in self.paths
+        if path in self.followed:
+            return path in self.paths
+        self.followed.add(path)
+        try:
+            text = self.fileset.link_target(path).decode("utf-8")
+            target = contain(posixpath.dirname(path), text)
+        except (UnsafePath, UnicodeDecodeError, paths.TooLarge) as exc:
+            reason = "target is not UTF-8" if isinstance(exc, UnicodeDecodeError) else str(exc)
+            self.errors.append(Notice("unsafe_path", path, f"symbolic link: {reason}"))
+            return False
+        except OSError as exc:
+            self.errors.append(Notice("unreadable", path, f"symbolic link cannot be read ({exc.strerror or type(exc).__name__})"))
+            return False
+        if target in self.links:
+            self.errors.append(Notice("unsafe_path", path, f"symbolic link to {target!r}, itself a symbolic link"))
+            return False
+        if target not in self.entries:
+            self.errors.append(Notice("unsafe_path", path, f"symbolic link to {target!r}, not a file of the file set"))
+            return False
+        content = self.read(target)
+        if content is None:
+            return False
+        entry = self.entries[target]
+        self.entries[path] = FileEntry(path, entry.size, entry.executable, self.links[path].tracked)
+        self.contents[path] = content
+        self.paths.add(path)
+        return True
+
     def document(self, kind: str, path: str, plugin: str | None = None, *,
                  drop_references: bool = False) -> ConfigDocument | None:
         """The one document of `path`. A file reached in a second role (a global name, a plugin's conventional
@@ -119,7 +157,7 @@ class _Builder:
                 if content is not None:
                     self.documents[path] = self._merge(self.documents[path], parse_document(kind, path, content))
             return self.documents[path]
-        if path not in self.paths:
+        if not self.follow(path):
             return None
         content = self.read(path)
         if content is None:
@@ -184,8 +222,9 @@ def _follow_references(builder: _Builder, manifest: ConfigDocument, directory: s
         except UnsafePath as exc:
             builder.errors.append(Notice("unsafe_path", manifest.path, f"reference {reference!r}: {exc}"))
             continue
-        if target not in builder.paths:
-            builder.notices.append(Notice("file_missing", target, f"referenced by {manifest.path} but not in the file set"))
+        if not builder.follow(target):
+            if target not in builder.links:  # a link that could not be followed is already an error
+                builder.notices.append(Notice("file_missing", target, f"referenced by {manifest.path} but not in the file set"))
             continue
         content = builder.read(target)
         if content is None:
@@ -202,8 +241,11 @@ def _follow_references(builder: _Builder, manifest: ConfigDocument, directory: s
 
 def discover(fileset: FileSet) -> Discovery:
     builder = _Builder(fileset)
-    plugin_dirs: dict[str, tuple[str, list[str]]] = {}  # directory -> (plugin name, member paths)
+    plugin_dirs: dict[str, str] = {}  # directory -> plugin name
     plugin_items: list[Item] = []
+    for path in sorted(builder.links):  # links at a global name; plugin paths and references follow theirs below
+        if _global_kind(path) is not None or posixpath.basename(path) == SKILL_FILE:
+            builder.follow(path)
     for path in sorted(p for p in builder.paths if _global_kind(p) == "marketplace"):
         marketplace = builder.document("marketplace", path)
         if marketplace is None or marketplace.error not in (None, "truncated"):
@@ -214,29 +256,29 @@ def discover(fileset: FileSet) -> Discovery:
             if source.kind != "local" or source.error is not None or source.local_path is None:
                 continue  # remote plugins are inventory only: listed, locked, judged by SW-CFG-009, never fetched
             directory = source.local_path
-            if directory in plugin_dirs:
-                continue
-            members = sorted(p for p in builder.paths if _under(p, directory))
-            plugin_dirs[directory] = (plugin.name, members)
+            plugin_dirs.setdefault(directory, plugin.name)
     # A file's kind is the first role that reaches it: its global name, then a plugin's conventional path, then a
     # manifest reference; every later role adds what it finds to that one document (r1:F1).
     for path in sorted(builder.paths):
         kind = _global_kind(path)
         if kind is not None and kind != "marketplace":
             builder.document(kind, path)
-    for directory, (name, _) in plugin_dirs.items():
+    for directory, name in plugin_dirs.items():
         builder.document("mcp", f"{directory}/.mcp.json", name)
         builder.document("hooks", f"{directory}/hooks/hooks.json", name)
         builder.document("plugin", f"{directory}/.claude-plugin/plugin.json", name)
-    for directory, (name, _) in plugin_dirs.items():
+    for directory, name in plugin_dirs.items():
         manifest = builder.documents.get(f"{directory}/.claude-plugin/plugin.json")
         if manifest is not None:
             _follow_references(builder, manifest, directory, name)
-    skills = _skills(builder, {d: name for d, (name, _) in plugin_dirs.items()})
+    skills = _skills(builder, plugin_dirs)
     # A local plugin whose directory holds no file of the set is listed and locked by its source only; one over the
     # package limits is an item error and is not read whole, like a skill (r0:F8).
-    dirs = tuple(PluginDir(d, _read_all(builder, members)) for d, (_, members) in sorted(plugin_dirs.items())
-                 if members and not _too_large(builder, d, members, "plugin directory"))
+    members = {d: sorted(p for p in builder.paths if _under(p, d)) for d in plugin_dirs}
+    dirs = tuple(PluginDir(d, _read_all(builder, members[d])) for d in sorted(plugin_dirs)
+                 if members[d] and not _too_large(builder, d, members[d], "plugin directory"))
+    builder.notices.extend(Notice("symlink_skipped", path, "symbolic link; skipped")
+                           for path in sorted(builder.links) if path not in builder.followed)
     items = _items(builder, skills, plugin_items)
     if not items:
         builder.notices.append(Notice("no_agent_content", "", "No agent content found"))
