@@ -15,6 +15,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import stat
 import subprocess
 import sys
@@ -288,6 +289,9 @@ def org_hash(identity: str | None) -> str | None:
 
 GIT_TIMEOUT = 30
 FETCH_TIMEOUT = 120
+KILL_TIMEOUT = 10
+GIT_STDERR_MAX = 64 * 2**10
+_WINDOWS = os.name == "nt"
 _REGULAR_MODES = ("100644", "100755")
 
 
@@ -317,17 +321,62 @@ def _run_git(executable: str, top: str, root: str, *args: str, timeout: float = 
     a timeout per call and no prompt; raises `OSError` naming the failure."""
     command = [executable, "-c", f"safe.directory={top.replace(os.sep, '/')}", "-c", "core.fsmonitor=false",
                "-C", root, *args]
+    environment = {**(env if env is not None else os.environ), "GIT_TERMINAL_PROMPT": "0"}
+    # The timeout is hard on every OS: git's output goes to temporary files, so nothing waits on a pipe that a helper
+    # such as `git-remote-https` still holds, and git runs in its own process group, which is killed whole.
+    group = ({"creationflags": getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)} if _WINDOWS
+             else {"start_new_session": True})
     try:
-        done = subprocess.run(command, capture_output=True, check=False, timeout=timeout, stdin=subprocess.DEVNULL,
-                              env={**(env if env is not None else os.environ), "GIT_TERMINAL_PROMPT": "0"})
-    except subprocess.TimeoutExpired as exc:
-        raise OSError(f"git {args[0] if args else ''} took longer than {timeout} s") from exc
-    except (OSError, subprocess.SubprocessError) as exc:
+        out, err = tempfile.TemporaryFile(), tempfile.TemporaryFile()
+    except OSError as exc:
         raise OSError(f"git could not run ({type(exc).__name__})") from exc
-    if done.returncode != 0:
-        first = done.stderr.decode("utf-8", "replace").strip().splitlines()
-        raise OSError(first[0] if first else f"git exited {done.returncode}")
-    return done.stdout
+    with out, err:
+        try:
+            process = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=out, stderr=err, env=environment,
+                                       **group)
+        except (OSError, ValueError, subprocess.SubprocessError) as exc:
+            raise OSError(f"git could not run ({type(exc).__name__})") from exc
+        try:
+            returncode = process.wait(timeout=timeout)
+        except subprocess.TimeoutExpired as exc:
+            _kill_tree(process)
+            raise OSError(f"git {args[0] if args else ''} took longer than {timeout} s") from exc
+        except BaseException:
+            _kill_tree(process)
+            raise
+        out.seek(0)
+        stdout = out.read()
+        err.seek(0)
+        stderr = err.read(GIT_STDERR_MAX)
+    if returncode != 0:
+        first = stderr.decode("utf-8", "replace").strip().splitlines()
+        raise OSError(first[0] if first else f"git exited {returncode}")
+    return stdout
+
+
+def _kill_tree(process: subprocess.Popen) -> None:
+    """Kills `process` and every process it started: on Windows with `taskkill /T /F`, elsewhere by signalling its
+    process group (it was started in a session of its own). Never raises."""
+    if _WINDOWS:
+        taskkill = os.path.join(os.environ.get("SystemRoot") or r"C:\Windows", "System32", "taskkill.exe")
+        try:
+            subprocess.run([taskkill, "/T", "/F", "/PID", str(process.pid)], stdin=subprocess.DEVNULL,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=KILL_TIMEOUT, check=False)
+        except (OSError, subprocess.SubprocessError):
+            pass
+    else:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except OSError:
+            pass
+    try:
+        process.kill()
+    except OSError:
+        pass
+    try:
+        process.wait(timeout=KILL_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        pass
 
 
 class _Repository:

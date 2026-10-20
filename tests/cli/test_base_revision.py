@@ -7,7 +7,10 @@ by the operator are honoured as given. Every repository is a temporary one under
 from __future__ import annotations
 
 import json
+import os
+import signal
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -394,3 +397,59 @@ def test_a_sha_that_is_not_hex_never_reaches_git(make_repo, tmp_path, monkeypatc
         with pytest.raises(ci.RevisionUnavailable):
             ci.read_at_revision(str(repo), sha, ".spellwarden/config.yml", max_bytes=10)
     assert calls == []
+
+
+# --- the timeout of a git call is hard: the whole process tree goes (review r2 F10) ---------------------------------
+
+def _alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    try:  # a zombie still answers signal 0 until it is reaped
+        with open(f"/proc/{pid}/stat", encoding="ascii") as handle:
+            return handle.read().rsplit(")", 1)[1].split()[0] != "Z"
+    except OSError:
+        return True
+
+
+@pytest.mark.skipif(os.name == "nt", reason="a POSIX shell script stands in for git")
+def test_a_git_call_past_its_timeout_kills_the_whole_process_tree(tmp_path):
+    """A fetch's helper (`git-remote-https`) is a grandchild that holds git's stdout and stderr: past the timeout it
+    must go too, and the call must not wait on what it holds."""
+    pid_file = tmp_path / "grandchild.pid"
+    fake = tmp_path / "bin" / "git"
+    fake.parent.mkdir()
+    fake.write_text(f"#!/bin/sh\nsleep 60 &\necho $! > '{pid_file}'\nsleep 60\n", encoding="utf-8")
+    fake.chmod(0o755)
+    started = time.monotonic()
+    with pytest.raises(OSError, match="took longer than"):
+        ci._run_git(str(fake), str(tmp_path), str(tmp_path), "fetch", timeout=1)
+    assert time.monotonic() - started < 15
+    grandchild = int(pid_file.read_text(encoding="ascii"))
+    deadline = time.monotonic() + 5
+    while _alive(grandchild) and time.monotonic() < deadline:
+        time.sleep(0.05)
+    alive = _alive(grandchild)
+    if alive:
+        os.kill(grandchild, signal.SIGKILL)
+    assert not alive
+
+
+def test_on_windows_the_tree_is_killed_with_taskkill(monkeypatch):
+    calls: list[list[str]] = []
+
+    class Process:
+        pid = 4242
+
+        def kill(self):
+            calls.append(["kill"])
+
+        def wait(self, timeout=None):  # noqa: ARG002 -- the shape of Popen.wait
+            return -9
+
+    monkeypatch.setattr(ci, "_WINDOWS", True)
+    monkeypatch.setattr(ci.subprocess, "run", lambda argv, **_kwargs: calls.append(list(argv)))
+    ci._kill_tree(Process())
+    assert os.path.basename(calls[0][0]).lower().startswith("taskkill")
+    assert calls[0][1:] == ["/T", "/F", "/PID", "4242"] and calls[1] == ["kill"]
