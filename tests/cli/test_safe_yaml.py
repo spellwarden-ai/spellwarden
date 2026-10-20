@@ -38,12 +38,15 @@ HOSTILE = {
 def test_hostile_documents_are_refused_fast_and_small(name):
     data, rule = HOSTILE[name]
     limit = BASELINE_MAX if name == "many_entries" else CONFIG_MAX
-    tracemalloc.start()
+    # Time and memory are measured on separate calls: tracemalloc slows the parser several times over.
     started = time.perf_counter()
+    with pytest.raises(YamlRefused) as caught:
+        loads(data, max_bytes=limit, name=".spellwarden/config.yml")
+    elapsed = time.perf_counter() - started
+    tracemalloc.start()
     try:
-        with pytest.raises(YamlRefused) as caught:
+        with pytest.raises(YamlRefused):
             loads(data, max_bytes=limit, name=".spellwarden/config.yml")
-        elapsed = time.perf_counter() - started
         _, peak = tracemalloc.get_traced_memory()
     finally:
         tracemalloc.stop()
