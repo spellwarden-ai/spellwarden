@@ -15,9 +15,18 @@ so no session state issued by one server reaches another.
 
 Additive to the backend's version (spec 6.8): `on_event(name, fields)` receives
 what the backend logged (`net_request`), `clock` is the deadline clock,
-`user_agent` the header sent, and `allow_private` skips the public-address
-check and nothing else. `_gate`, when set, is called before every connection
-(the probe phase's request budget, `probing.py`) and may raise `FetchError`.
+`user_agent` the header sent, and `private_origins` (URLs; only their scheme,
+host and port count) are the origins of the configured servers that may be
+private (`--probe-private` on a trusted run). A request, or a redirect hop,
+to one of those origins skips the blocked names and the private-address test,
+but every address its host resolves to must still be outside the
+always-refused set (link-local, multicast, unspecified, reserved, and every
+IPv4-mapped address); any other URL, whoever supplied it (a probed server's
+`resource_metadata` or `authorization_servers`, a `Location`), gets the full
+rules. `allow_private=False` is accepted with its old meaning; the old global
+`allow_private=True` is refused. `_gate`, when set, is called before every
+connection (the probe phase's request budget, `probing.py`) and may raise
+`FetchError`.
 
 One of the three modules of `spellwarden_cli` that may reach the network
 (`tests/test_network_boundary.py`). Python 3.11 or newer.
@@ -31,7 +40,7 @@ import socket
 import ssl
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from urllib.parse import urljoin, urlsplit
 
@@ -105,6 +114,18 @@ def is_private_address(ip: str) -> bool:
                 or parsed.is_reserved or parsed.is_unspecified)
 
 
+def is_always_refused_address(ip: str) -> bool:
+    """True for every address no fetch may reach, a configured private origin included: link-local (the cloud
+    metadata address), multicast, unspecified, reserved, and every IPv4-mapped form; an unparsable string counts."""
+    try:
+        parsed = ipaddress.ip_address(ip)
+    except ValueError:
+        return True
+    if parsed.version == 6 and parsed.ipv4_mapped is not None:
+        return True
+    return bool(parsed.is_link_local or parsed.is_multicast or parsed.is_unspecified or parsed.is_reserved)
+
+
 def default_resolver(host: str) -> list[str]:
     """Every address `host` resolves to (A and AAAA), as strings."""
     try:
@@ -116,8 +137,10 @@ def default_resolver(host: str) -> list[str]:
 
 def check_host(host: str, resolver: Callable[[str], list[str]], *, allow_private: bool = False) -> str:
     """The address to connect to, after the rules of the module docstring; raises
-    `FetchError("private_address")`. With `allow_private` the blocked names and
-    the public-address test are skipped; the lookup and the pinning are not."""
+    `FetchError("private_address")`. `allow_private` is for the host of a
+    configured private origin only (the fetcher decides per request): the
+    blocked names and the public-address test are skipped, the always-refused
+    set, the lookup and the pinning are not."""
     name = host.strip("[]").lower()
     if not name:
         raise FetchError("private_address", "blocked name")
@@ -131,10 +154,10 @@ def check_host(host: str, resolver: Callable[[str], list[str]], *, allow_private
     addresses = [name] if literal else resolver(name)
     if not addresses:
         raise FetchError("fetch_failed", "no address")
-    if not allow_private:
-        for address in addresses:
-            if is_private_address(address):
-                raise FetchError("private_address", "resolved to a private address")
+    refused = is_always_refused_address if allow_private else is_private_address
+    for address in addresses:
+        if refused(address):
+            raise FetchError("private_address", "resolved to a private address")
     return addresses[0]
 
 
@@ -178,6 +201,17 @@ def _origin(url: str) -> tuple[str, str, int]:
     return parts.scheme, (parts.hostname or "").lower(), parts.port or 443
 
 
+def _origins(urls: Iterable[str]) -> frozenset[tuple[str, str, int]]:
+    """The origins of `urls`; a URL that does not parse is left out (it pins nothing)."""
+    origins = set()
+    for url in urls:
+        try:
+            origins.add(_origin(url))
+        except ValueError:
+            continue
+    return frozenset(origins)
+
+
 def _without_mcp_headers(headers: dict[str, str]) -> dict[str, str]:
     return {name: value for name, value in headers.items() if not name.lower().startswith(_ORIGIN_BOUND_PREFIX)}
 
@@ -190,7 +224,9 @@ class Fetcher:
     def __init__(self, *, release: str = "dev", resolver: Callable[[str], list[str]] | None = None, opener=None,
                  timeout: float = TIMEOUT_SECONDS, on_event: Callable[[str, dict], None] | None = None,
                  clock: Callable[[], float] | None = None, user_agent: str | None = None,
-                 allow_private: bool = False) -> None:
+                 allow_private: bool = False, private_origins: Iterable[str] = ()) -> None:
+        if allow_private:  # the global exemption let a probed server's URLs reach any private address (spec 6.8)
+            raise ValueError("allow_private=True is replaced by private_origins: the configured URLs that may be private")
         self._release = release
         self._resolver = resolver or default_resolver
         self._opener = opener or pinned_connection
@@ -198,7 +234,7 @@ class Fetcher:
         self._on_event = on_event
         self._clock = clock or time.monotonic
         self._user_agent = user_agent or f"Spellwarden/{__version__} (+https://spellwarden.ai)"
-        self._allow_private = allow_private
+        self._private_origins = _origins(private_origins)
         self._gate: Callable[[], None] | None = None
 
     def get(self, url: str, *, max_bytes: int, accept: str = "*/*", headers: dict[str, str] | None = None) -> Response:
@@ -252,7 +288,7 @@ class Fetcher:
         if self._gate is not None:  # the probe phase's budget: no new lookup or connection once it is spent
             self._gate()
         host = parts.hostname or ""
-        ip = check_host(host, self._resolver, allow_private=self._allow_private)
+        ip = check_host(host, self._resolver, allow_private=self._is_private_origin(url))
         port = parts.port or 443
         path = parts.path or "/"
         if parts.query:
@@ -292,6 +328,16 @@ class Fetcher:
         response = Response(status, response_headers, data, url)
         location = response.header("location") if status in _REDIRECT_STATUSES else None
         return response, location
+
+    def _is_private_origin(self, url: str) -> bool:
+        """True when `url` is on one of the configured private origins; decided for every hop, so a redirect that
+        leaves the origin gets the full rules."""
+        if not self._private_origins:
+            return False
+        try:
+            return _origin(url) in self._private_origins
+        except ValueError:
+            return False
 
     def _read(self, raw, max_bytes: int, head_only: bool, *, deadline: float | None = None, sock=None) -> bytes:
         """Reads in chunks and stops as soon as `max_bytes` is exceeded: an

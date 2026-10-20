@@ -193,8 +193,26 @@ def test_a_refused_probe_records_its_code_and_no_answer_byte():
     assert [(r.status, r.skip_reason, r.result) for r in reports] == [("skipped", "refused", None)] and findings == []
     assert server.calls == []
     assert notices == [Notice("probe_skipped", ".mcp.json#intranet", "not probed (refused: private_address)")]
-    allowed, _ = probing.run_phase(target, RULES, fetcher_factory=server.factory(allow_private=True), now_iso=NOW)
+    allowed, _ = probing.run_phase(target, RULES, fetcher_factory=server.factory(private_origins={"https://10.0.0.1/mcp"}),
+                                   now_iso=NOW)
     assert allowed[0].status == "probed" and server.calls[0]["ip"] == "10.0.0.1"
+
+
+def test_a_configured_private_server_cannot_send_the_probe_to_another_private_address():
+    """Spec 6.8: `--probe-private` exempts the configured server's origin only. The URLs its answers supply (a
+    `resource_metadata` URL on the cloud metadata address, an authorization server on another private host) get
+    the public-address rules: the probe never connects to them."""
+    server = Server({
+        "tools/list": (401, {"WWW-Authenticate": 'Bearer resource_metadata="https://169.254.169.254/latest/meta-data/"'}, b""),
+        "GET": (200, {"Content-Type": "application/json"}, {"resource": "https://10.0.0.1/mcp",
+                                                             "authorization_servers": ["https://10.0.0.2"]}),
+    })
+    target = [probing.ProbeTarget(".mcp.json#intranet", ".mcp.json", 3, "https://10.0.0.1/mcp")]
+    reports, _ = probing.run_phase(target, RULES, fetcher_factory=server.factory(private_origins={"https://10.0.0.1/mcp"}),
+                                   now_iso=NOW)
+    assert reports[0].status == "probed"
+    assert {call["ip"] for call in server.calls} == {"10.0.0.1"}
+    assert [call["path"] for call in server.calls if call["method"] == "GET"][-1] == "/.well-known/oauth-protected-resource/mcp"
 
 
 def test_answers_are_bounded_before_the_engine_sees_them():

@@ -65,7 +65,8 @@ class ScriptedResponse:
 class Net:
     """A `Fetcher` over scripted answers and a scripted resolver."""
 
-    def __init__(self, answers=None, addresses=None, response_class=None, clock=None, allow_private=False):
+    def __init__(self, answers=None, addresses=None, response_class=None, clock=None, allow_private=False,
+                 private_origins=()):
         self.calls: list[dict] = []
         self.events: list[tuple[str, dict]] = []
         self.resolved: list[str] = []
@@ -82,7 +83,8 @@ class Net:
 
         # The backend's adapter sends this exact header (spec 8.1); the public default names the scanner version.
         self.fetcher = Fetcher(release="test-release", resolver=resolver, opener=opener, clock=clock,
-                               allow_private=allow_private, user_agent="Spellwarden/test-release (+https://spellwarden.ai)",
+                               allow_private=allow_private, private_origins=private_origins,
+                               user_agent="Spellwarden/test-release (+https://spellwarden.ai)",
                                on_event=lambda name, fields: self.events.append((name, fields)))
 
 
@@ -400,12 +402,12 @@ def test_the_default_user_agent_names_the_scanner_version():
 
 
 @pytest.mark.parametrize("literal", ["10.0.0.1", "127.0.0.1", "[fd00::1]"])
-def test_allow_private_lets_a_private_address_through_and_nothing_else(literal):
-    net_ = Net(answers={(literal.strip("[]"), "/mcp"): (200, {}, b"ok")}, allow_private=True)
+def test_a_configured_private_origin_is_let_through_and_nothing_else(literal):
+    net_ = Net(answers={(literal.strip("[]"), "/mcp"): (200, {}, b"ok")}, private_origins={f"https://{literal}/mcp"})
     assert net_.fetcher.get(f"https://{literal}/mcp", max_bytes=100).body == b"ok"
     assert net_.calls[0]["ip"] == literal.strip("[]")
     resolved = Net(answers={("intranet.example", "/mcp"): (200, {}, b"ok")}, addresses={"intranet.example": ["10.1.2.3"]},
-                   allow_private=True)
+                   private_origins={"https://intranet.example/mcp"})
     assert resolved.fetcher.get("https://intranet.example/mcp", max_bytes=100).body == b"ok"
     with pytest.raises(FetchError) as caught:
         net_.fetcher.get(f"http://{literal}/mcp", max_bytes=100)  # plain HTTP stays refused (spec D13)
@@ -421,6 +423,65 @@ def test_without_allow_private_the_same_addresses_are_refused():
             net_.fetcher.get(url, max_bytes=100)
         assert caught.value.code == "private_address"
     assert net_.calls == []
+
+
+def test_a_url_off_the_configured_private_origins_gets_the_public_address_rules():
+    """Spec 6.8: the exemption is pinned to the origins (scheme, host, port) of the configured servers; a URL the
+    server supplies (a `resource_metadata` URL, an authorization server) is judged like any other."""
+    net_ = Net(answers={("10.0.0.1", "/mcp"): (200, {}, b"ok"), ("intranet.example", "/mcp"): (200, {}, b"ok")},
+               addresses={"intranet.example": ["10.1.2.3"], "other.example": ["10.1.2.4"]},
+               private_origins={"https://10.0.0.1/mcp", "https://Intranet.Example:443/mcp"})
+    assert net_.fetcher.get("https://10.0.0.1/.well-known/oauth-protected-resource", max_bytes=100).status == 404
+    assert net_.fetcher.get("https://intranet.example/mcp", max_bytes=100).body == b"ok"
+    for url in ("https://169.254.169.254/latest/meta-data/", "https://10.0.0.2/mcp", "https://10.0.0.1:8443/mcp",
+                "https://other.example/mcp", "https://intranet.example:8443/mcp", "https://localhost/mcp"):
+        with pytest.raises(FetchError) as caught:
+            net_.fetcher.get(url, max_bytes=100)
+        assert caught.value.code == "private_address", url
+    assert {call["ip"] for call in net_.calls} == {"10.0.0.1", "10.1.2.3"}
+
+
+def test_a_redirect_that_leaves_the_configured_private_origin_is_refused():
+    net_ = Net(answers={("10.0.0.1", "/same"): (302, {"Location": "/mcp"}, b""),
+                        ("10.0.0.1", "/mcp"): (200, {}, b"ok"),
+                        ("10.0.0.1", "/other"): (302, {"Location": "https://10.0.0.2/mcp"}, b""),
+                        ("10.0.0.1", "/meta"): (307, {"Location": "https://169.254.169.254/latest/meta-data/"}, b""),
+                        ("10.0.0.1", "/port"): (301, {"Location": "https://10.0.0.1:8443/mcp"}, b"")},
+               private_origins={"https://10.0.0.1/mcp"})
+    assert net_.fetcher.get("https://10.0.0.1/same", max_bytes=100).body == b"ok"
+    for path in ("/other", "/meta", "/port"):
+        with pytest.raises(FetchError) as caught:
+            net_.fetcher.get(f"https://10.0.0.1{path}", max_bytes=100)
+        assert caught.value.code == "private_address", path
+    assert {call["ip"] for call in net_.calls} == {"10.0.0.1"}
+
+
+@pytest.mark.parametrize("url, addresses", [
+    ("https://169.254.169.254/latest/meta-data/", {}),
+    ("https://[fe80::1]/mcp", {}),
+    ("https://[::ffff:169.254.169.254]/mcp", {}),
+    ("https://[::ffff:10.0.0.1]/mcp", {}),
+    ("https://0.0.0.0/mcp", {}),
+    ("https://224.0.0.1/mcp", {}),
+    ("https://metadata.internal/mcp", {"metadata.internal": ["169.254.169.254"]}),
+    ("https://intranet.example/mcp", {"intranet.example": ["10.1.2.3", "fe80::1"]}),
+    ("https://intranet.example/mcp", {"intranet.example": ["::ffff:169.254.169.254"]}),
+], ids=["link-local v4", "link-local v6", "mapped link-local", "mapped private", "unspecified", "multicast",
+        "name resolving to link-local", "one of the addresses link-local", "name resolving to a mapped address"])
+def test_link_local_and_mapped_addresses_are_refused_even_for_a_configured_origin(url, addresses):
+    net_ = Net(answers={}, addresses=addresses, private_origins={url})
+    with pytest.raises(FetchError) as caught:
+        net_.fetcher.get(url, max_bytes=100)
+    assert caught.value.code == "private_address"
+    assert net_.calls == []
+
+
+def test_allow_private_true_is_no_longer_a_global_exemption():
+    """`allow_private=False` keeps its meaning (the hosted backend relies on the default); the global `True` is
+    gone: private addresses are reachable only through `private_origins` (spec 6.8)."""
+    Fetcher(allow_private=False)
+    with pytest.raises(ValueError, match="private_origins"):
+        Fetcher(allow_private=True)
 
 
 def test_the_gate_runs_before_every_connection_and_can_refuse_one():

@@ -101,7 +101,9 @@ def check_lock(options: ScanOptions, found: Discovery, errors: list[Notice]) -> 
 
 def run_probes(options: ScanOptions, found: Discovery, rules: RuleSet, findings: list[ReportFinding], notices: list[Notice]) -> list[ProbeReport]:  # noqa: E501
     """Spec 6.8: the opt-in probe phase. Off unless `probe` is set; off on a pull or merge request from a fork or
-    Dependabot; private addresses only on a trusted run (`ci.private_probe_trusted`), whatever the flag says.
+    Dependabot; private addresses only on a trusted run (`ci.private_probe_trusted`), whatever the flag says, and
+    then only at the origins of the configured servers' URLs: a URL a probed server supplies, or a redirect that
+    leaves the origin, gets the public-address rules (`net.Fetcher(private_origins=...)`).
     `run.scan` calls this before `apply_baseline`, so probe findings appended to `findings` are baselined there."""
     from spellwarden_cli import ci, net, probing  # here, not at the top, like the other seams
 
@@ -121,9 +123,10 @@ def run_probes(options: ScanOptions, found: Discovery, rules: RuleSet, findings:
         notices.append(Notice("probe_private_untrusted", "", "--probe-private is ignored: it takes effect only on a "
                                                              "local run or on a protected ref outside pull and merge requests"))
         allow_private = False
+    private_origins = frozenset(target.url for target in targets) if allow_private else frozenset()
     on_event = probing.event_logger(options.log)
     reports, probe_findings = probing.run_phase(
-        targets, rules, fetcher_factory=lambda: net.Fetcher(allow_private=allow_private, on_event=on_event),
+        targets, rules, fetcher_factory=lambda: net.Fetcher(private_origins=private_origins, on_event=on_event),
         now_iso=f"{options.as_of.isoformat()}T00:00:00Z", notices=notices)
     findings.extend(probe_findings)
     return sorted([*skipped, *reports], key=lambda report: report.item)

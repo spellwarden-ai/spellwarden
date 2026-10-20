@@ -153,6 +153,50 @@ def test_probe_private_is_honoured_on_a_trusted_run(tmp_path, monkeypatch, env):
     assert {call["ip"] for call in wire.calls} == {"10.1.2.3"}
 
 
+def test_probe_private_exempts_the_configured_origins_only(tmp_path, monkeypatch):
+    """Spec 6.8: on a trusted run `--probe-private` pins the exemption to the configured servers' origins; a probed
+    server that points the probe's metadata fetches at the cloud metadata address or another private host is
+    refused there, and a configured link-local server is never probed."""
+    calls: list[tuple[str, str]] = []
+    addresses = {"intranet.example": "10.1.2.3", "auth.internal": "10.9.9.9"}
+    challenge = [("WWW-Authenticate", 'Bearer resource_metadata="https://169.254.169.254/latest"')]
+    metadata = json.dumps({"authorization_servers": ["https://auth.internal"]}).encode()
+    answers = {("intranet.example", "/mcp"): (401, challenge, b""),
+               ("intranet.example", "/.well-known/oauth-protected-resource/mcp"): (200, [], metadata)}
+
+    class Answer(_Answer):
+        def __init__(self, status, headers, body):
+            super().__init__(status, body)
+            self.extra = headers
+
+        def getheaders(self):
+            return [*super().getheaders(), *self.extra]
+
+    def opener(host, ip, port, timeout):  # noqa: ARG001 -- the opener's shape
+        class Connection:
+            def request(self, _method, path, _body=None, _headers=None):
+                calls.append((ip, path))
+                self.answer = Answer(*answers.get((host, path), (404, [], b"")))
+
+            def getresponse(self):
+                return self.answer
+
+            def close(self):
+                pass
+
+        return Connection()
+
+    monkeypatch.setattr(net, "default_resolver", lambda host: [addresses.get(host, "8.8.8.8")])
+    monkeypatch.setattr(net, "pinned_connection", opener)
+    reports, _, notices = probe(tmp_path, {"remote": {"url": "https://intranet.example/mcp"},
+                                           "metadata": {"url": "https://169.254.169.254/mcp"}}, probe=True, probe_private=True)
+    assert [(r.item, r.status, r.skip_reason) for r in reports] == [
+        (".mcp.json#metadata", "skipped", "refused"), (".mcp.json#remote", "probed", None)]
+    assert {ip for ip, _ in calls} == {"10.1.2.3"}  # never 169.254.169.254 (configured or supplied), never auth.internal
+    assert ("10.1.2.3", "/.well-known/oauth-protected-resource/mcp") in calls  # the metadata was read, its issuer refused
+    assert "probe_private_untrusted" not in codes(notices)
+
+
 def test_unresolved_and_plain_http_urls_are_not_probed(tmp_path, monkeypatch):
     wire = Wire(monkeypatch, {})
     reports, _, notices = probe(tmp_path, {"templated": {"url": "https://${HOST}/mcp"}, "plain": {"url": "http://mcp.example/mcp"}},
