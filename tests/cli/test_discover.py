@@ -1,0 +1,234 @@
+"""Spec 6.5 and claim C6: items from the file set, one owner per file, remote
+plugins as inventory only; plan P12 to P14 and Review Focus 1 and 2."""
+from __future__ import annotations
+
+import json
+import socket
+import time
+
+from conftest import write_tree
+
+from spellwarden_cli import files
+from spellwarden_cli.discover import discover
+from spellwarden_cli.files import list_files
+from spellwarden_cli.settings import Settings
+
+SKILL = "---\nname: demo\ndescription: A demo skill.\n---\n\nRead the task.\n"
+HOOKS = json.dumps({"hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": "echo hi"}]}]}})
+MARKETPLACE = json.dumps({"name": "acme", "plugins": [
+    {"name": "infra", "source": "./plugins/infra"},
+    {"name": "remote", "source": {"source": "github", "repo": "acme/remote-plugin"}},
+]})
+MANIFEST = json.dumps({"name": "infra", "hooks": {"Stop": [{"hooks": [{"type": "command", "command": "echo bye"}]}]}})
+
+
+def _discover(root, **kwargs):
+    return discover(list_files(str(root), Settings(), **kwargs))
+
+
+def _items(found):
+    return [(item.kind, item.path, item.name, item.plugin) for item in found.items]
+
+
+def test_nested_skills_are_separate_packages(make_repo, tmp_path):
+    repo = make_repo(tmp_path / "repo", {"skills/outer/SKILL.md": SKILL, "skills/outer/run.sh": "echo",
+                                "skills/outer/inner/SKILL.md": SKILL, "skills/outer/inner/x.py": "print()"})
+    found = _discover(repo)
+    assert [(s.path, s.name, sorted(s.files)) for s in found.skills] == [
+        ("skills/outer", "outer", ["skills/outer/SKILL.md", "skills/outer/run.sh"]),
+        ("skills/outer/inner", "inner", ["skills/outer/inner/SKILL.md", "skills/outer/inner/x.py"]),
+    ]
+
+
+def test_skill_at_the_scan_root(make_repo, tmp_path):
+    repo = make_repo(tmp_path / "repo", {"SKILL.md": SKILL, "scripts/run.sh": "echo"})
+    found = _discover(repo)
+    assert [(s.path, s.name, sorted(s.files)) for s in found.skills] == [(".", repo.name, ["SKILL.md", "scripts/run.sh"])]
+    assert _items(found) == [("skill", ".", repo.name, None)]
+
+
+def test_a_plugin_brings_its_skills_configuration_and_inline_hooks(make_repo, tmp_path):
+    repo = make_repo(tmp_path / "repo", {
+        ".claude-plugin/marketplace.json": MARKETPLACE,
+        "plugins/infra/.claude-plugin/plugin.json": MANIFEST,
+        "plugins/infra/.mcp.json": json.dumps({"mcpServers": {"jira": {"url": "https://mcp.example/jira"}}}),
+        "plugins/infra/hooks/hooks.json": HOOKS,
+        "plugins/infra/skills/deploy/SKILL.md": SKILL,
+    })
+    found = _discover(repo)
+    assert _items(found) == [
+        ("hooks", "plugins/infra/hooks/hooks.json", "hooks.json", "infra"),
+        ("marketplace", ".claude-plugin/marketplace.json", "marketplace.json", None),
+        ("mcp-config", "plugins/infra/.mcp.json", ".mcp.json", "infra"),
+        ("mcp-server", "plugins/infra/.mcp.json#jira", "jira", "infra"),
+        ("plugin", ".claude-plugin/marketplace.json#infra", "infra", None),
+        ("plugin", ".claude-plugin/marketplace.json#remote", "remote", None),
+        ("plugin-manifest", "plugins/infra/.claude-plugin/plugin.json", "plugin.json", "infra"),
+        ("skill", "plugins/infra/skills/deploy", "deploy", "infra"),
+    ]
+    manifest = next(d for d in found.documents if d.kind == "plugin")
+    assert [h.command for h in manifest.hooks] == ["echo bye"]
+    assert [d.path for d in found.plugin_dirs] == ["plugins/infra"]
+    assert sorted(found.plugin_dirs[0].files) == [
+        "plugins/infra/.claude-plugin/plugin.json", "plugins/infra/.mcp.json", "plugins/infra/hooks/hooks.json",
+        "plugins/infra/skills/deploy/SKILL.md"]
+
+
+def test_a_file_reached_globally_and_through_a_plugin_is_one_item_and_one_document(make_repo, tmp_path, monkeypatch):
+    repo = make_repo(tmp_path / "repo", {
+        ".claude-plugin/marketplace.json": MARKETPLACE,
+        "plugins/infra/.mcp.json": json.dumps({"mcpServers": {"a": {"command": "npx", "args": ["x@1.0.0"]}}}),
+    })
+    reads = []
+    real = files.FileSet.read
+    monkeypatch.setattr(files.FileSet, "read", lambda self, path: reads.append(path) or real(self, path))
+    found = _discover(repo)
+    assert [d.path for d in found.documents].count("plugins/infra/.mcp.json") == 1
+    assert reads.count("plugins/infra/.mcp.json") == 1
+    assert [i for i in _items(found) if i[0] == "mcp-config"] == [("mcp-config", "plugins/infra/.mcp.json", ".mcp.json", "infra")]
+
+
+def test_remote_plugins_are_inventory_only_and_nothing_touches_the_network(make_repo, tmp_path, monkeypatch):
+    repo = make_repo(tmp_path / "repo", {".claude-plugin/marketplace.json": MARKETPLACE})
+
+    def no_network(*_args, **_kwargs):
+        raise AssertionError("discovery opened a socket")
+
+    monkeypatch.setattr(socket, "socket", no_network)
+    monkeypatch.setattr(socket, "create_connection", no_network)
+    found = _discover(repo)
+    assert ("plugin", ".claude-plugin/marketplace.json#remote", "remote", None) in _items(found)
+    assert found.plugin_dirs == ()
+
+
+def test_a_settings_file_with_hooks_is_one_document(make_repo, tmp_path):
+    repo = make_repo(tmp_path / "repo", {".claude/settings.json": json.dumps({
+        "permissions": {"defaultMode": "bypassPermissions"}, **json.loads(HOOKS)})})
+    found = _discover(repo)
+    assert [(d.path, d.kind) for d in found.documents] == [(".claude/settings.json", "settings")]
+    assert len(found.documents[0].hooks) == 1
+    assert _items(found) == [("settings", ".claude/settings.json", "settings.json", None)]
+
+
+def test_every_global_configuration_name_is_found(make_repo, tmp_path):
+    repo = make_repo(tmp_path / "repo", {".mcp.json": "{}", ".vscode/mcp.json": "{}", ".cursor/mcp.json": "{}",
+                                "sub/.mcp.json": "{}", ".claude/settings.local.json": "{}", "other/mcp.json": "{}"})
+    assert sorted(d.path for d in _discover(repo).documents) == [
+        ".claude/settings.local.json", ".cursor/mcp.json", ".mcp.json", ".vscode/mcp.json", "sub/.mcp.json"]
+
+
+def test_a_broken_document_is_an_error_and_an_unsafe_source_too(make_repo, tmp_path):
+    repo = make_repo(tmp_path / "repo", {".mcp.json": "{not json", ".claude-plugin/marketplace.json": json.dumps(
+        {"plugins": [{"name": "evil", "source": "./../outside"}]})})
+    found = _discover(repo)
+    assert ("not_json", ".mcp.json") in {(e.code, e.path) for e in found.errors}
+    assert found.plugin_dirs == ()
+
+
+def test_a_skill_over_the_package_limits_is_an_item_error_and_is_not_read(tmp_path, monkeypatch):
+    tree = {"big/SKILL.md": SKILL, **{f"big/f{index}.txt": "x" for index in range(2001)}}
+    write_tree(tmp_path / "w", tree)
+    reads = []
+    real = files.FileSet.read
+    monkeypatch.setattr(files.FileSet, "read", lambda self, path: reads.append(path) or real(self, path))
+    found = _discover(tmp_path / "w", git="")
+    assert [(e.code, e.path) for e in found.errors] == [("package_too_large", "big")]
+    assert found.skills == () and reads == []
+
+
+def test_empty_repository_has_the_no_agent_content_notice(make_repo, tmp_path):
+    found = _discover(make_repo(tmp_path / "repo", {"README.md": "hello"}))
+    assert found.items == ()
+    assert [(n.code, n.message) for n in found.notices] == [("no_agent_content", "No agent content found")]
+
+
+def test_discovery_reads_only_candidate_files(tmp_path, monkeypatch):
+    """Review Focus 1: a large tree without agent content is listed by metadata and read only where needed."""
+    tree = {f"src/pkg{index // 100}/mod{index}.py": "x = 1\n" for index in range(5000)}
+    tree[".mcp.json"] = json.dumps({"mcpServers": {}})
+    write_tree(tmp_path / "w", tree)
+    reads = []
+    real = files.FileSet.read
+    monkeypatch.setattr(files.FileSet, "read", lambda self, path: reads.append(path) or real(self, path))
+    started = time.monotonic()
+    found = _discover(tmp_path / "w", git="")
+    assert reads == [".mcp.json"]
+    assert [d.path for d in found.documents] == [".mcp.json"]
+    assert time.monotonic() - started < 10
+
+
+def _plugin_with(make_repo, tmp_path, manifest: dict, extra: dict):
+    return make_repo(tmp_path / "repo", {
+        ".claude-plugin/marketplace.json": MARKETPLACE,
+        "plugins/infra/.claude-plugin/plugin.json": json.dumps({"name": "infra", **manifest}),
+        **{f"plugins/infra/{path}": content for path, content in extra.items()},
+    })
+
+
+def test_a_reference_is_followed_whatever_its_name(make_repo, tmp_path):
+    repo = _plugin_with(make_repo, tmp_path, {"mcpServers": "./config/servers.json"},
+                        {"config/servers.json": json.dumps({"mcpServers": {"jira": {"url": "https://mcp.example/jira"}}})})
+    found = _discover(repo)
+    document = next(d for d in found.documents if d.path == "plugins/infra/config/servers.json")
+    assert document.kind == "mcp" and [s.name for s in document.servers] == ["jira"]
+    assert ("mcp-server", "plugins/infra/config/servers.json#jira", "jira", "infra") in _items(found)
+
+
+def test_the_json_shape_picks_the_parser_not_the_name(make_repo, tmp_path):
+    repo = _plugin_with(make_repo, tmp_path, {"hooks": "./hooks/handlers.json"},
+                        {"hooks/handlers.json": json.dumps({"mcpServers": {"a": {"command": "npx", "args": ["a@1.0.0"]}}})})
+    document = next(d for d in _discover(repo).documents if d.path == "plugins/infra/hooks/handlers.json")
+    assert document.kind == "mcp" and [s.name for s in document.servers] == ["a"]
+
+
+def test_a_file_with_servers_and_hooks_is_one_document_and_its_references_are_not_followed(make_repo, tmp_path):
+    both = {"mcpServers": {"a": {"url": "https://mcp.example/a"}}, **json.loads(HOOKS), "more": "./more.json"}
+    repo = _plugin_with(make_repo, tmp_path, {"hooks": "./both.json"},
+                        {"both.json": json.dumps(both), "more.json": json.dumps({"mcpServers": {"b": {"url": "https://b"}}})})
+    found = _discover(repo)
+    documents = [d for d in found.documents if d.path == "plugins/infra/both.json"]
+    assert len(documents) == 1
+    assert [s.name for s in documents[0].servers] == ["a"] and len(documents[0].hooks) == 1
+    assert documents[0].references == ()
+    assert "plugins/infra/more.json" not in {d.path for d in found.documents}
+
+
+def test_the_references_of_a_referenced_file_are_not_followed(make_repo, tmp_path):
+    # The engine takes references from the string values of `mcpServers` and `hooks` only (plan listing used other keys).
+    nested = {"mcpServers": "./more.json", "hooks": json.loads(HOOKS)["hooks"]}
+    repo = _plugin_with(make_repo, tmp_path, {"hooks": "./nested.json"},
+                        {"nested.json": json.dumps(nested), "more.json": json.dumps({"mcpServers": {"b": {"url": "https://b"}}})})
+    found = _discover(repo)
+    document = next(d for d in found.documents if d.path == "plugins/infra/nested.json")
+    assert document.references == () and len(document.hooks) == 1
+    assert "plugins/infra/more.json" not in {d.path for d in found.documents}
+
+
+def test_a_reference_to_a_file_that_is_no_configuration_is_a_notice(make_repo, tmp_path):
+    repo = _plugin_with(make_repo, tmp_path, {"hooks": "./agents/x.json"}, {"agents/x.json": json.dumps({"name": "x"})})
+    found = _discover(repo)
+    assert "plugins/infra/agents/x.json" not in {d.path for d in found.documents}
+    notice = next(n for n in found.notices if n.code == "reference_not_config")
+    assert notice.path == "plugins/infra/agents/x.json" and "plugins/infra/.claude-plugin/plugin.json" in notice.message
+    assert not found.errors
+
+
+def test_a_malformed_referenced_file_is_a_document_error(make_repo, tmp_path):
+    repo = _plugin_with(make_repo, tmp_path, {"hooks": "./hooks/extra.json"}, {"hooks/extra.json": "{broken"})
+    found = _discover(repo)
+    assert ("not_json", "plugins/infra/hooks/extra.json") in {(e.code, e.path) for e in found.errors}
+
+
+def test_unsafe_and_missing_references(make_repo, tmp_path):
+    repo = _plugin_with(make_repo, tmp_path, {"hooks": "../escape-hooks.json", "mcpServers": "./absent.json"}, {})
+    found = _discover(repo)
+    assert ("unsafe_path", "plugins/infra/.claude-plugin/plugin.json") in {(e.code, e.path) for e in found.errors}
+    assert ("file_missing", "plugins/infra/absent.json") in {(n.code, n.path) for n in found.notices}
+
+
+def test_a_file_reached_globally_and_by_reference_is_one_document(make_repo, tmp_path):
+    repo = _plugin_with(make_repo, tmp_path, {"mcpServers": "./.mcp.json"},
+                        {".mcp.json": json.dumps({"mcpServers": {"a": {"url": "https://mcp.example/a"}}})})
+    found = _discover(repo)
+    assert [d.path for d in found.documents].count("plugins/infra/.mcp.json") == 1
+    assert ("mcp-config", "plugins/infra/.mcp.json", ".mcp.json", "infra") in _items(found)
