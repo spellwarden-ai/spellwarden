@@ -20,10 +20,11 @@ host and port count) are the origins of the configured servers that may be
 private (`--probe-private` on a trusted run). A request, or a redirect hop,
 to one of those origins skips the blocked names and the private-address test,
 but every address its host resolves to must still be outside the
-always-refused set (link-local, multicast, unspecified, reserved, and every
-IPv4-mapped address); any other URL, whoever supplied it (a probed server's
-`resource_metadata` or `authorization_servers`, a `Location`), gets the full
-rules. `allow_private=False` is accepted with its old meaning; the old global
+always-refused set (link-local, the fixed cloud metadata addresses,
+multicast, unspecified, reserved, every IPv4-mapped address, and a 6to4,
+Teredo or NAT64 address embedding one of these); any other URL, whoever
+supplied it (a probed server's `resource_metadata` or `authorization_servers`,
+a `Location`), gets the full rules. `allow_private=False` is accepted with its old meaning; the old global
 `allow_private=True` is refused. `_gate`, when set, is called before every
 connection (the probe phase's request budget, `probing.py`) and may raise
 `FetchError`.
@@ -114,16 +115,39 @@ def is_private_address(ip: str) -> bool:
                 or parsed.is_reserved or parsed.is_unspecified)
 
 
+# The documented fixed cloud metadata addresses outside 169.254.0.0/16 (r2:F11): AWS IMDS over IPv6, Alibaba Cloud
+# ECS, Oracle Compute Cloud@Customer. GCP, Azure, OCI, OpenStack and most others use 169.254.169.254 (link-local).
+# Compared by value, so a zone id (`fd00:ec2::254%eth0`) does not hide one.
+_METADATA_ADDRESSES = frozenset((address.version, int(address)) for address in map(ipaddress.ip_address, (
+    "fd00:ec2::254", "100.100.100.200", "192.0.0.192")))
+_NAT64 = ipaddress.ip_network("64:ff9b::/96")
+
+
+def _refused_as_such(parsed: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    return bool((parsed.version, int(parsed)) in _METADATA_ADDRESSES or parsed.is_link_local or parsed.is_multicast
+                or parsed.is_unspecified or parsed.is_reserved)
+
+
 def is_always_refused_address(ip: str) -> bool:
     """True for every address no fetch may reach, a configured private origin included: link-local (the cloud
-    metadata address), multicast, unspecified, reserved, and every IPv4-mapped form; an unparsable string counts."""
+    metadata address), the other fixed cloud metadata addresses, multicast, unspecified, reserved, every IPv4-mapped
+    form, and a 6to4, Teredo (server or client) or NAT64 (`64:ff9b::/96`) address whose embedded IPv4 address is one
+    of these; an unparsable string counts."""
     try:
         parsed = ipaddress.ip_address(ip)
     except ValueError:
         return True
-    if parsed.version == 6 and parsed.ipv4_mapped is not None:
-        return True
-    return bool(parsed.is_link_local or parsed.is_multicast or parsed.is_unspecified or parsed.is_reserved)
+    if parsed.version == 6:
+        if parsed.ipv4_mapped is not None:
+            return True
+        embedded = list(parsed.teredo or ())
+        if parsed.sixtofour is not None:
+            embedded.append(parsed.sixtofour)
+        if parsed.scope_id is None and parsed in _NAT64:
+            embedded.append(ipaddress.IPv4Address(int(parsed) & 0xFFFFFFFF))
+        if any(_refused_as_such(address) for address in embedded):
+            return True
+    return _refused_as_such(parsed)
 
 
 def default_resolver(host: str) -> list[str]:

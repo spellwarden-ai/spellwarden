@@ -476,6 +476,41 @@ def test_link_local_and_mapped_addresses_are_refused_even_for_a_configured_origi
     assert net_.calls == []
 
 
+@pytest.mark.parametrize("ip", [
+    "fd00:ec2::254",                   # AWS IMDS over IPv6 (Nitro, IPv6 subnets)
+    "fd00:ec2::254%eth0",              # the same with a zone id
+    "100.100.100.200",                 # Alibaba Cloud ECS metadata
+    "192.0.0.192",                     # Oracle Compute Cloud@Customer metadata
+    "2002:a9fe:a9fe::1",               # 6to4 of 169.254.169.254
+    "2002:6464:64c8::1",               # 6to4 of 100.100.100.200
+    "2001:0:cb00:7101::5601:5601",     # Teredo, client 169.254.169.254
+    "2001:0:a9fe:a9fe::f7f7:f7f7",     # Teredo, server 169.254.169.254
+    "64:ff9b::a9fe:a9fe",              # NAT64 of 169.254.169.254
+    "64:ff9b::6464:64c8",              # NAT64 of 100.100.100.200
+])
+def test_cloud_metadata_and_tunnelled_link_local_addresses_are_always_refused(ip):
+    """r2:F11 (spec 6.8): "a link-local address (the cloud metadata address) is never reached" let through, for a
+    configured private origin, the metadata addresses outside 169.254.0.0/16 and the 6to4, Teredo and NAT64 forms
+    that embed a refused IPv4 address. `is_private_address` is unchanged and refuses all of them too."""
+    assert net.is_always_refused_address(ip), ip
+    assert net.is_private_address(ip), ip
+
+
+def test_a_configured_private_origin_still_reaches_ordinary_private_and_tunnelled_private_addresses():
+    for ip in ("10.0.0.1", "fd12::1", "100.64.0.1", "fd00:ec2::253", "2002:a00:1::1", "2001:0:cb00:7101::f7f7:f7f7"):
+        assert not net.is_always_refused_address(ip), ip
+
+
+@pytest.mark.parametrize("address", ["fd00:ec2::254", "100.100.100.200", "2002:a9fe:a9fe::1", "2001:0:cb00:7101::5601:5601"])
+def test_a_configured_origin_resolving_to_a_metadata_address_is_refused(address):
+    url = "https://intranet.example/mcp"
+    net_ = Net(answers={}, addresses={"intranet.example": [address]}, private_origins={url})
+    with pytest.raises(FetchError) as caught:
+        net_.fetcher.get(url, max_bytes=100)
+    assert caught.value.code == "private_address"
+    assert net_.calls == []
+
+
 def test_allow_private_true_is_no_longer_a_global_exemption():
     """`allow_private=False` keeps its meaning (the hosted backend relies on the default); the global `True` is
     gone: private addresses are reachable only through `private_origins` (spec 6.8)."""
