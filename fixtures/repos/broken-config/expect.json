@@ -1,0 +1,6 @@
+{
+  "exit_code": 2,
+  "findings": 0,
+  "errors": ["duplicate_key"],
+  "report": "required"
+}

@@ -1,0 +1,6 @@
+{
+  "exit_code": 0,
+  "findings": 0,
+  "report": "required",
+  "on_request": {"notices": ["settings_from_base"]}
+}

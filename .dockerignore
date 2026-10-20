@@ -1,0 +1,5 @@
+*
+!docker/requirements.deps.txt
+!docker/Dockerfile
+!dist/*.whl
+!wheelhouse/

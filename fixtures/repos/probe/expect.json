@@ -1,0 +1,45 @@
+{
+  "inputs": {"probe": "true"},
+  "exit_code": 0,
+  "findings": 1,
+  "probes": [{"item": ".mcp.json#internal", "status": "skipped", "skip_reason": "refused"}],
+  "report": "required",
+  "on_gitlab_request": {
+    "notices": ["base_unavailable", "probe_fork_disabled"],
+    "probes": [{"item": ".mcp.json#internal", "status": "skipped", "skip_reason": "fork"}]
+  },
+  "on_fork_request": {
+    "notices": ["base_unavailable", "probe_fork_disabled"],
+    "probes": [{"item": ".mcp.json#internal", "status": "skipped", "skip_reason": "fork"}]
+  },
+  "variants": {
+    "config-key": {
+      "files": {".spellwarden/config.yml": "version: 1\nprobe-private: true\n"},
+      "exit_code": 2,
+      "findings": 0,
+      "errors": ["settings_invalid"],
+      "probes": null,
+      "report": "any",
+      "on_request": {
+        "exit_code": 0,
+        "findings": 1,
+        "errors": [],
+        "notices": ["base_unavailable"],
+        "probes": [{"item": ".mcp.json#internal", "status": "skipped", "skip_reason": "refused"}],
+        "report": "required"
+      },
+      "on_gitlab_request": {
+        "notices": ["base_unavailable", "probe_fork_disabled"],
+        "probes": [{"item": ".mcp.json#internal", "status": "skipped", "skip_reason": "fork"}]
+      },
+      "on_fork_request": {
+        "notices": ["base_unavailable", "probe_fork_disabled"],
+        "probes": [{"item": ".mcp.json#internal", "status": "skipped", "skip_reason": "fork"}]
+      }
+    },
+    "private-pr": {
+      "inputs": {"probe-private": "true"},
+      "notices": ["probe_private_untrusted"]
+    }
+  }
+}

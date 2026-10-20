@@ -1,0 +1,10 @@
+{
+  "repo_from": "clean",
+  "files": {
+    ".spellwarden/lock.json": "{\n  \"items\": [],\n  \"lock_version\": 1\n}\n"
+  },
+  "exit_code": 3,
+  "findings": 0,
+  "lock": {"status": "stale", "added": [".claude/skills/hello"]},
+  "report": "required"
+}

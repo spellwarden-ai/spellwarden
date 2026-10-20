@@ -1,0 +1,105 @@
+name: manifest
+
+# Spec 7.5: after the owner pushed the signed wrapper tags, fill the two commits into the release manifest, verify
+# every entry, attest the manifest and replace the draft on the release.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: The released version, X.Y.Z
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  manifest:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+      packages: read
+    env:
+      VERSION: ${{ inputs.version }}
+      GH_TOKEN: ${{ github.token }}
+      IMAGE: ghcr.io/spellwarden-ai/spellwarden
+    steps:
+      - name: Only main may attest a manifest
+        # allowed_signers and the scripts come from the dispatched ref, so another branch could bring its own.
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::run manifest.yml from main, not $GITHUB_REF"
+            exit 1
+          fi
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5.4.2
+        with:
+          python-version: "3.13"
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6  # v4.1.2
+      - name: The version is X.Y.Z and allowed_signers holds a key
+        run: |
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then echo "::error::version must be X.Y.Z"; exit 1; fi
+          if ! grep -Eqv '^[[:space:]]*(#|$)' allowed_signers; then
+            echo "::error::allowed_signers holds no key; the owner adds the tag signing key first (spec 11.2 point 2)"
+            exit 1
+          fi
+      - name: The draft manifest and PyPI's file hashes
+        run: |
+          set -euo pipefail
+          gh release download "v${VERSION}" --pattern release-manifest.json --dir "$RUNNER_TEMP/draft"
+          curl -fsS "https://pypi.org/pypi/spellwarden/${VERSION}/json" -o "$RUNNER_TEMP/pypi.json"
+          python3 scripts/release_manifest.py check-pypi "$RUNNER_TEMP/draft/release-manifest.json" "$RUNNER_TEMP/pypi.json"
+      - name: PEP 740 attestations of both PyPI files
+        run: |
+          set -euo pipefail
+          for file in "spellwarden-${VERSION}-py3-none-any.whl" "spellwarden-${VERSION}.tar.gz"; do
+            uvx --from pypi-attestations==0.0.30 pypi-attestations verify pypi \
+              --repository https://github.com/spellwarden-ai/spellwarden "pypi:${file}"
+          done
+      - name: The image signature and build provenance, and the wheel's provenance
+        run: |
+          set -euo pipefail
+          draft="$RUNNER_TEMP/draft/release-manifest.json"
+          digest="$(python3 scripts/release_manifest.py get "$draft" image_digest)"
+          cosign verify "${IMAGE}@${digest}" \
+            --certificate-identity "https://github.com/spellwarden-ai/spellwarden/.github/workflows/release.yml@refs/tags/v${VERSION}" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com > /dev/null
+          gh attestation verify "oci://${IMAGE}@${digest}" --repo spellwarden-ai/spellwarden
+          gh release download "v${VERSION}" --pattern "spellwarden-${VERSION}-py3-none-any.whl" --dir "$RUNNER_TEMP/dist"
+          gh attestation verify "$RUNNER_TEMP/dist/spellwarden-${VERSION}-py3-none-any.whl" --repo spellwarden-ai/spellwarden
+      - name: The wrapper tags, their commits and their SSH signatures
+        run: |
+          set -euo pipefail
+          draft="$RUNNER_TEMP/draft/release-manifest.json"
+          wheel="$(python3 scripts/release_manifest.py get "$draft" wheel_sha256)"
+          digest="$(python3 scripts/release_manifest.py get "$draft" image_digest)"
+          action="$RUNNER_TEMP/scan-action"
+          gitlab="$RUNNER_TEMP/scan-gitlab"
+          git clone -q --filter=blob:none https://github.com/spellwarden-ai/scan.git "$action"
+          git clone -q --filter=blob:none https://gitlab.com/spellwarden-ai/scan.git "$gitlab"
+          signers="$GITHUB_WORKSPACE/allowed_signers"
+          action_commit="$(git -C "$action" rev-parse "v${VERSION}^{commit}")"
+          major="v${VERSION%%.*}"
+          test "$(git -C "$action" rev-parse "${major}^{commit}")" = "$action_commit" \
+            || { echo "::error::${major} does not point at v${VERSION}"; exit 1; }
+          component_commit="$(git -C "$gitlab" rev-parse "${VERSION}^{commit}")"
+          git -C "$action" -c gpg.ssh.allowedSignersFile="$signers" -c gpg.minTrustLevel=fully tag -v "v${VERSION}"
+          git -C "$action" -c gpg.ssh.allowedSignersFile="$signers" -c gpg.minTrustLevel=fully tag -v "$major"
+          git -C "$gitlab" -c gpg.ssh.allowedSignersFile="$signers" -c gpg.minTrustLevel=fully tag -v "$VERSION"
+          git -C "$action" show "${action_commit}:requirements.txt" | grep -q "spellwarden==${VERSION} " \
+            || { echo "::error::the Action tag does not pin spellwarden ${VERSION}"; exit 1; }
+          git -C "$action" show "${action_commit}:requirements.txt" | grep -q "sha256:${wheel}" \
+            || { echo "::error::the Action tag does not pin the released wheel"; exit 1; }
+          git -C "$gitlab" show "${component_commit}:templates/scan.yml" | grep -qF "${IMAGE}:${VERSION}@${digest}" \
+            || { echo "::error::the component tag does not pin the released image"; exit 1; }
+          python3 scripts/release_manifest.py fill "$draft" \
+            --action-commit "$action_commit" --component-commit "$component_commit" > release-manifest.json
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8  # v4.2.2
+        with:
+          subject-path: release-manifest.json
+      - name: Replace the draft on the release
+        run: gh release upload "v${VERSION}" release-manifest.json --clobber

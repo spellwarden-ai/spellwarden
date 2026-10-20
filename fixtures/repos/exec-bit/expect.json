@@ -1,0 +1,7 @@
+{
+  "modes": {".claude/skills/tool/scripts/run": "100755"},
+  "inputs": {"fail-on": "medium"},
+  "exit_code": 1,
+  "findings": 1,
+  "report": "required"
+}

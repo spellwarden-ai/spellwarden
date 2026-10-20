@@ -1,0 +1,9 @@
+{
+  "repo_from": "clean",
+  "inputs": {"telemetry": "true"},
+  "env": {"SPELLWARDEN_PING_URL": "http://127.0.0.1:8765/ping"},
+  "ping": true,
+  "exit_code": 0,
+  "findings": 0,
+  "report": "required"
+}

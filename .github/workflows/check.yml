@@ -9,6 +9,45 @@ permissions:
   contents: read
 
 jobs:
+  image:
+    # Spec 7.2: the image builds with no network after the wheelhouse step, and runs as uid 10001 on a root-owned
+    # workspace. The `system` stage (Debian's git) is built first with the network and tagged spellwarden-system; the
+    # offline build starts FROM that image, because --network none is part of every RUN's cache key.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+        with:
+          persist-credentials: false
+      - id: py
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.13"
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5.4.2
+        with:
+          python-version: "3.13"
+      - run: uv build
+      - name: Hash-checked PyYAML wheelhouse (the last network step)
+        env:
+          # setup-uv's python-version activates a uv virtual environment, which has no pip: pip is setup-python's.
+          SETUP_PYTHON: ${{ steps.py.outputs.python-path }}
+        run: >-
+          "$SETUP_PYTHON" -m pip download --only-binary :all: --require-hashes --no-deps
+          --platform manylinux_2_17_x86_64 --platform manylinux2014_x86_64
+          --python-version 3.13 --implementation cp --abi cp313
+          -r docker/requirements.deps.txt -d wheelhouse
+      - name: System layer
+        run: docker build --target system -f docker/Dockerfile -t spellwarden-system .
+      - name: Offline build
+        run: |
+          set -euo pipefail
+          version="$(uv run --locked python -c 'import spellwarden_scan; print(spellwarden_scan.__version__)')"
+          wheel="dist/spellwarden-${version}-py3-none-any.whl"
+          docker build --network none -f docker/Dockerfile \
+            --build-arg VERSION="$version" \
+            --build-arg WHEEL_SHA256="$(sha256sum "$wheel" | cut -d' ' -f1)" \
+            -t spellwarden:check .
+      - name: Container test
+        run: bash docker/container-test.sh spellwarden:check
   check:
     runs-on: ubuntu-latest
     strategy:

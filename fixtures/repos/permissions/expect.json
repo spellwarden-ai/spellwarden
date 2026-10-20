@@ -1,0 +1,9 @@
+{
+  "repo_from": "findings",
+  "inputs": {"comment": "true", "sarif-upload": "true"},
+  "exit_code": 1,
+  "findings": 1,
+  "report": "required",
+  "annotations": ["comment_permission", "sarif_upload_failed"],
+  "on_fork_request": {"annotations": ["comment_permission", "sarif_permission"]}
+}
