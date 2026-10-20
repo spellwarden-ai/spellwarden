@@ -301,6 +301,40 @@ def test_other_files_under_spellwarden_still_count_in_a_root_skill_hash(tmp_path
     assert run_cli(["lock", str(repo), "--check"])[0] == 3  # a near-name is not an own file
 
 
+@pytest.mark.parametrize("kind", ["skill\x1b[2J\x1b[31m", "**pwned** [x](https://evil.example)", "Skill", "", 7])
+def test_a_lock_item_of_an_unknown_kind_is_unreadable(kind, tmp_path, make_repo, run_cli):
+    """Spec 6.6, 6.13: the stored lock comes from the scanned revision; a kind outside the five the scanner writes is
+    an unreadable lock (exit 2) and never reaches the terminal or the comment."""
+    repo = _repo(tmp_path, make_repo)
+    assert run_cli(["lock", str(repo)])[0] == 0
+    document = json.loads((repo / lockfile.LOCK_PATH).read_text(encoding="utf-8"))
+    document["items"].append({"kind": kind, "path": "gone"})
+    (repo / lockfile.LOCK_PATH).write_text(json.dumps(document), encoding="utf-8")
+    code, out, err = run_cli(["lock", str(repo), "--check"])
+    assert code == 2
+    assert "\x1b" not in out + err and "pwned" not in out
+    code, report = _scan(run_cli, repo, "--locked")
+    assert code == 2
+    assert report["lock"]["status"] == "not_checked"
+    assert any(e["code"] == "lock_unreadable" for e in report["errors"])
+
+
+def test_the_lock_kinds_are_the_ones_the_scanner_writes_and_the_schemas_list():
+    report_schema = json.loads((SCHEMAS / "report.schema.json").read_text(encoding="utf-8"))
+    lock_schema = json.loads((SCHEMAS / "lock.schema.json").read_text(encoding="utf-8"))
+    assert set(report_schema["$defs"]["change"]["properties"]["kind"]["enum"]) == lockfile.KINDS
+    assert {branch["properties"]["kind"]["const"] for branch in lock_schema["$defs"]["item"]["oneOf"]} == lockfile.KINDS
+
+
+def test_describe_escapes_the_kind_and_the_path():
+    from spellwarden_cli.report import LockState
+
+    state = LockState(status="stale", added=({"kind": "skill\x1b[31m", "path": "a\x1b[2J‮"},))
+    text = "\n".join(lockfile.describe(state))
+    assert "\x1b" not in text and "‮" not in text
+    assert "skill\\x1b[31m" in text
+
+
 def test_own_files_are_excluded_by_exact_path():
     own = {".spellwarden/lock.json": b"a", ".spellwarden/baseline.yml": b"b", ".spellwarden/config.yml": b"c"}
     package = {**own, "SKILL.md": b"d"}

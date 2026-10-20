@@ -43,7 +43,7 @@ def render(report: Report) -> str:
         for label, changes in (("added", report.lock.added), ("removed", report.lock.removed),
                                ("changed", report.lock.changed)):
             for change in changes:
-                lines.append(f"  {label} {change['kind']} {terminal(change['path'])}")
+                lines.append(f"  {label} {terminal(change['kind'])} {terminal(change['path'])}")
         lines.append("")
     for probe in report.probes:
         detail = probe.skip_reason if probe.status == "skipped" else (

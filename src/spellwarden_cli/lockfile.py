@@ -16,11 +16,13 @@ from spellwarden_scan.model import PluginSource
 from spellwarden_cli import commands, discover, escape, files, paths
 from spellwarden_cli.baseline import BASELINE_PATH
 from spellwarden_cli.discover import Discovery
-from spellwarden_cli.report import LockState
+from spellwarden_cli.report import LOCK_ITEM_KINDS, LockState
 from spellwarden_cli.settings import CONFIG_PATH
 
 LOCK_PATH = ".spellwarden/lock.json"
 LOCK_VERSION = 1
+# The item kinds `compute_lock` writes; a stored lock holding any other kind is unreadable (spec 6.6, 6.13).
+KINDS = frozenset(LOCK_ITEM_KINDS)
 # The scanner's own files, by exact scan-root path. Nothing else under `.spellwarden/` is left out of a hash: a root
 # SKILL.md may run `.spellwarden/setup.sh`, and that script is skill content (r0:F5).
 OWN_FILES = frozenset({LOCK_PATH, BASELINE_PATH, CONFIG_PATH})
@@ -115,6 +117,8 @@ def _read(root: str) -> dict | None:
     for item in document["items"]:
         if not isinstance(item, dict) or not isinstance(item.get("kind"), str) or not isinstance(item.get("path"), str):
             raise LockUnreadable(f"{LOCK_PATH} holds an item without a kind and a path")
+        if item["kind"] not in KINDS:
+            raise LockUnreadable(f"{LOCK_PATH} holds an item of an unknown kind; the kinds are {', '.join(sorted(KINDS))}")
     return document
 
 
@@ -148,7 +152,7 @@ def describe(state: LockState) -> list[str]:
         return [f"{LOCK_PATH} is up to date."]
     lines = [f"{LOCK_PATH} is out of date:"]
     for label, changes in (("added", state.added), ("removed", state.removed), ("changed", state.changed)):
-        lines.extend(f"  {label} {change['kind']} {escape.terminal(change['path'])}" for change in changes)
+        lines.extend(f"  {label} {escape.terminal(change['kind'])} {escape.terminal(change['path'])}" for change in changes)
     return lines
 
 

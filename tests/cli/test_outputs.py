@@ -192,6 +192,24 @@ def test_hostile_paths_and_values_are_escaped_in_every_sink(name):
         assert "‮" not in message
 
 
+@pytest.mark.parametrize("name", ["text", "markdown", "json"])
+def test_lock_change_kinds_and_paths_are_escaped_in_every_sink(name):
+    """Spec 6.13: `lockfile._read` refuses an unknown kind, and every sink escapes the kind as a second guard."""
+    kind = "skill\x1b[31m **x** [l](https://evil.example) <b>‮"
+    lock = LockState(status="stale", added=({"kind": kind, "path": f"skills/{HOSTILE}"},),
+                     removed=({"kind": kind, "path": "gone"},), changed=({"kind": kind, "path": "x"},))
+    out = FORMATS[name](make_report([], lock=lock))
+    assert "\x1b" not in out
+    if name != "json":   # JSON: the encoder's escaping (6.13); C1 and bidirectional rules apply to message.text only
+        assert "‮" not in out
+    if name == "markdown":
+        lines = [line for line in out.splitlines() if line.startswith("- ")]
+        assert len(lines) == 3
+        for line in lines:
+            assert "<b>" not in line and "&lt;b&gt;" in line
+            assert "\\*\\*x\\*\\*" in line and "\\[l\\](" in line   # no emphasis, no link
+
+
 @pytest.mark.parametrize("name", ["text", "json", "sarif", "markdown", "gitlab-codequality"])
 def test_every_format_is_byte_identical_for_shuffled_inputs(name):
     findings = mixed_findings() + [make_finding(path=f"skills/s/{n}.sh") for n in range(20)]

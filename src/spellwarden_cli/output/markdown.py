@@ -96,7 +96,7 @@ def _lock(report: Report) -> list[str]:
     changes = [(label, change) for label, group in (("added", state.added), ("removed", state.removed),
                                                     ("changed", state.changed)) for change in group]
     lines = ["**Lock file:** these agent files changed since `.spellwarden/lock.json` was written:", ""]
-    lines += [f"- {label} {change['kind']} {_code(change['path'])}" for label, change in changes[:MAX_ROWS]]
+    lines += [f"- {label} {_text(change['kind'])} {_code(change['path'])}" for label, change in changes[:MAX_ROWS]]
     if len(changes) > MAX_ROWS:
         lines.append(f"- and {len(changes) - MAX_ROWS} more in the JSON report")
     return lines + [""]
