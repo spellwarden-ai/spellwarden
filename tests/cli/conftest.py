@@ -93,8 +93,9 @@ def _run_cli(args: list[str], cwd: Path | None = None, env: dict | None = None) 
     saved_out, saved_err = sys.stdout, sys.stderr
     out = io.TextIOWrapper(io.BytesIO(), encoding="utf-8")
     err = io.TextIOWrapper(io.BytesIO(), encoding="utf-8")
+    environment = clean_env(env)  # read before the clear: an empty `os.environ` would leave the command no PATH
     os.environ.clear()
-    os.environ.update(clean_env(env))
+    os.environ.update(environment)
     try:
         if cwd is not None:
             os.chdir(cwd)
