@@ -135,6 +135,9 @@ def _scan_report(args: argparse.Namespace, context) -> tuple[Report, bool]:
     except SettingsError as exc:
         return _error_report(fail_on, as_of, "settings_invalid", args.config or ".spellwarden/config.yml", str(exc),
                              source.notices), False
+    telemetry = settings.telemetry
+    if telemetry and args.config is None and source.read is not None and _request_opts_out(root):
+        telemetry = False
     options = run.ScanOptions(root=root, settings=settings, as_of=as_of, locked=args.locked, baseline=args.baseline,
                               env=dict(os.environ), log=_stderr if args.verbose else run._silent, context=context,
                               revision=source)
@@ -143,9 +146,21 @@ def _scan_report(args: argparse.Namespace, context) -> tuple[Report, bool]:
         report = run.scan(options)
     except Exception as exc:  # a scanner crash still writes every output (spec 6.2)
         return _error_report(settings.fail_on, as_of, "crash", "", f"internal error: {type(exc).__name__}: {exc}",
-                             source.notices), settings.telemetry
+                             source.notices), telemetry
     options.log(f"scan took {time.monotonic() - started:.2f} s")
-    return report, settings.telemetry
+    return report, telemetry
+
+
+def _request_opts_out(root: str) -> bool:
+    """Spec 6.10: an opt-out only ever reduces what is sent. On a request the settings come from the base revision
+    (or are the defaults when it cannot be read), but the request's own `.spellwarden/config.yml` still turns the
+    ping off with `telemetry: false`; no other key of it applies, and it never fails the scan. A file that cannot be
+    read as settings (refused, invalid) counts as an opt-out: the conservative answer."""
+    try:
+        own = load_settings(root, config=None, flags=Flags(), env={})
+    except Exception:  # noqa: BLE001 -- the request's file is untrusted input; any failure means no ping
+        return True
+    return not own.telemetry
 
 
 def write_outputs(report: Report, outputs: list[tuple[str, str | None]], *, stdout: TextIO) -> None:

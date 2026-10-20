@@ -225,3 +225,87 @@ def test_a_failing_ping_changes_neither_outputs_nor_exit_code(tmp_path, monkeypa
     monkeypatch.setattr(ping, "_urlopen", refuse)
     failed_code, failed_report = scan_in_ci(monkeypatch, repo)
     assert (failed_code, failed_report) == (sent_code, sent_report) and sent_code == 1
+
+
+# --- an opt-out only ever reduces what is sent: on a request, `telemetry: false` from either revision holds --------
+
+OPT_OUT = "version: 1\ntelemetry: false\n"
+
+
+def scan_request(monkeypatch, repo, base_sha: str | None, *args: str) -> tuple[int, dict]:
+    """A GitHub pull request event naming `base_sha` (none: the base cannot be read, `base_unavailable`)."""
+    pull: dict = {"number": 7, "head": {"repo": {"full_name": "acme/agents"}}}
+    if base_sha is not None:
+        pull["base"] = {"sha": base_sha}
+    event = repo.parent / f"{repo.name}-pull.json"
+    event.write_text(json.dumps({"pull_request": pull}), encoding="utf-8")
+    code, report = scan_in_ci(monkeypatch, repo, *args, env={"GITHUB_EVENT_NAME": "pull_request",
+                                                               "GITHUB_EVENT_PATH": str(event),
+                                                               "GITHUB_REPOSITORY": "acme/agents"})
+    return code, json.loads(report)
+
+
+def _notices(report: dict) -> list[str]:
+    return [entry["code"] for entry in report["notices"]]
+
+
+def _head(repo) -> str:
+    from conftest import git
+
+    return git(repo, "rev-parse", "HEAD").strip()
+
+
+def test_a_request_whose_base_is_unavailable_honours_the_working_tree_opt_out(tmp_path, monkeypatch, make_repo,
+                                                                               ping_requests):
+    """Review r2 F1: the defaults (`telemetry: true`) replaced the repository's own opt-out when the base could not
+    be read, so the ping was sent."""
+    repo = make_repo(tmp_path / "repo", {"README.md": "nothing to scan\n", ".spellwarden/config.yml": OPT_OUT})
+    code, report = scan_request(monkeypatch, repo, None)
+    assert code == 0 and "base_unavailable" in _notices(report)
+    assert ping_requests == []
+
+
+def test_a_request_whose_base_is_unavailable_still_pings_without_an_opt_out(tmp_path, monkeypatch, make_repo,
+                                                                           ping_requests):
+    repo = make_repo(tmp_path / "repo", {"README.md": "nothing to scan\n"})
+    code, report = scan_request(monkeypatch, repo, None)
+    assert code == 0 and "base_unavailable" in _notices(report) and len(ping_requests) == 1
+
+
+def test_a_request_honours_the_working_tree_opt_out_over_the_base_settings(tmp_path, monkeypatch, make_repo,
+                                                                          ping_requests):
+    repo = make_repo(tmp_path / "repo", {"README.md": "nothing to scan\n", ".spellwarden/config.yml": "version: 1\n"})
+    base = _head(repo)
+    (repo / ".spellwarden" / "config.yml").write_text(OPT_OUT, encoding="utf-8")
+    code, report = scan_request(monkeypatch, repo, base)
+    assert code == 0 and "settings_from_base" in _notices(report)
+    assert ping_requests == []
+
+
+def test_a_request_honours_the_base_opt_out_over_the_working_tree(tmp_path, monkeypatch, make_repo, ping_requests):
+    repo = make_repo(tmp_path / "repo", {"README.md": "nothing to scan\n", ".spellwarden/config.yml": OPT_OUT})
+    base = _head(repo)
+    (repo / ".spellwarden" / "config.yml").write_text("version: 1\ntelemetry: true\n", encoding="utf-8")
+    code, _ = scan_request(monkeypatch, repo, base)
+    assert code == 0 and ping_requests == []
+
+
+def test_no_other_working_tree_key_applies_on_a_request(tmp_path, monkeypatch, make_repo, ping_requests):
+    """Only the opt-out is taken from the request's own file: its `fail-on` and `exclude` stay unread."""
+    mcp = '{"mcpServers": {"plain": {"url": "http://mcp.example.com/mcp"}}}\n'  # SW-CFG-001, high
+    repo = make_repo(tmp_path / "repo", {".mcp.json": mcp, ".spellwarden/config.yml":
+                                         'version: 1\ntelemetry: false\nfail-on: never\nexclude: [".mcp.json"]\n'})
+    code, report = scan_request(monkeypatch, repo, None)
+    assert code == 1 and [f["rule_id"] for f in report["findings"]] == ["SW-CFG-001"]
+    assert ping_requests == []
+
+
+@pytest.mark.parametrize("text", ["version: 1\ntelemetry: false\nunknown: 1\n", "version: 2\n", "[not, a, mapping]\n",
+                                  "telemetry: [\n"], ids=["unknown key", "bad version", "not a mapping", "not yaml"])
+def test_an_invalid_working_tree_file_on_a_request_never_fails_the_scan_and_sends_nothing(
+        tmp_path, monkeypatch, make_repo, ping_requests, text):
+    """The request's own file is never validated as the settings, so it cannot fail the scan; one that cannot be
+    read as settings counts as an opt-out (the conservative answer: an opt-out only ever reduces what is sent)."""
+    repo = make_repo(tmp_path / "repo", {"README.md": "nothing to scan\n", ".spellwarden/config.yml": text})
+    code, report = scan_request(monkeypatch, repo, None)
+    assert code == 0 and report["errors"] == [] and ping_requests == []
