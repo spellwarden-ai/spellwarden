@@ -120,6 +120,11 @@ UNTRUSTED = {
     "gitlab unprotected push": {"CI": "true", "GITLAB_CI": "true", "CI_PIPELINE_SOURCE": "push",
                                 "CI_COMMIT_REF_PROTECTED": "false"},
     "other CI": {"CI": "true"},
+    # Not on the allowlist of trusted events, though the ref is protected (spec 6.8).
+    "github issue_comment on a protected ref": {"CI": "true", "GITHUB_ACTIONS": "true", "GITHUB_EVENT_NAME": "issue_comment",
+                                                "GITHUB_REF_PROTECTED": "true", "GITHUB_REPOSITORY": "acme/agents"},
+    "gitlab api pipeline on a protected ref": {"CI": "true", "GITLAB_CI": "true", "CI_PIPELINE_SOURCE": "api",
+                                               "CI_COMMIT_REF_PROTECTED": "true"},
 }
 
 

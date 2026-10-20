@@ -24,6 +24,10 @@ from spellwarden_cli.settings import FAIL_ON
 
 GITHUB_REQUEST_EVENTS = ("pull_request", "pull_request_target", "merge_group")
 GITLAB_REQUEST_SOURCES = ("merge_request_event", "external_pull_request_event")
+# Spec 6.8: the only events whose run, on a protected ref, may probe private addresses. An allowlist: any other
+# event (a comment, a review, a workflow_run, a dispatch, one added later) is untrusted.
+GITHUB_TRUSTED_EVENTS = ("push", "schedule", "workflow_dispatch")
+GITLAB_TRUSTED_SOURCES = ("push", "schedule", "web")
 DEPENDABOT = "dependabot[bot]"
 IDENTITY_PREFIX = "spellwarden-ping-v1:"
 EVENT_FILE_MAX = 25 * 2**20
@@ -111,10 +115,22 @@ def _github(env: Mapping[str, str], read_text: Callable[[str], str]) -> CiContex
             payload = None
     readable = isinstance(payload, dict)
     pull = payload.get("pull_request") if readable else None
-    is_request = event is None or event in GITHUB_REQUEST_EVENTS or not readable
+    run = payload.get("workflow_run") if readable and event == "workflow_run" else None
+    issue = payload.get("issue") if readable and event == "issue_comment" else None
+    run_of_request = isinstance(run, dict) and run.get("event") in GITHUB_REQUEST_EVENTS
+    comment_on_request = isinstance(issue, dict) and issue.get("pull_request") is not None
+    # Every `pull_request*` event (pull_request_review, pull_request_review_comment, ...) is a request too.
+    is_request = (event is None or not readable or event in GITHUB_REQUEST_EVENTS or event.startswith("pull_request")
+                  or run_of_request or comment_on_request)
     number = _int(pull.get("number")) if isinstance(pull, dict) else None
     fork = False
-    if is_request:
+    if run_of_request:  # the run's head repository; missing means a fork
+        head_repo = run.get("head_repository")
+        full_name = head_repo.get("full_name") if isinstance(head_repo, dict) else None
+        fork = not isinstance(full_name, str) or full_name != env.get("GITHUB_REPOSITORY")
+    elif comment_on_request:  # the payload names no head repository: assume a fork
+        fork = True
+    elif is_request:
         head = pull.get("head") if isinstance(pull, dict) else None
         repo = head.get("repo") if isinstance(head, dict) else None
         full_name = repo.get("full_name") if isinstance(repo, dict) else None
@@ -182,14 +198,16 @@ def detect(env: Mapping[str, str], *, read_text: Callable[[str], str] = _read_te
 
 
 def private_probe_trusted(ctx: CiContext) -> bool:
-    """Spec 6.8: a local run, or a CI run on a protected ref that is not a pull or merge request. Trust never comes
-    from the absence of a pull request alone; `other` CI is never trusted."""
+    """Spec 6.8: a local run, or a CI run on a protected ref whose event is on the allowlist (GitHub `push`,
+    `schedule`, `workflow_dispatch`; GitLab `push`, `schedule`, `web`) and is not a pull or merge request. Trust
+    never comes from the absence of a pull request alone; every other or unknown event, and `other` CI, is
+    untrusted."""
     if ctx.provider is None:
         return True
     if ctx.provider == "github":
-        return ctx.protected_ref and not ctx.is_request and ctx.event not in GITHUB_REQUEST_EVENTS
+        return ctx.protected_ref and not ctx.is_request and ctx.event in GITHUB_TRUSTED_EVENTS
     if ctx.provider == "gitlab":
-        return ctx.protected_ref and not ctx.is_request and ctx.event not in GITLAB_REQUEST_SOURCES
+        return ctx.protected_ref and not ctx.is_request and ctx.event in GITLAB_TRUSTED_SOURCES
     return False
 
 

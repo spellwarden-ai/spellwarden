@@ -73,6 +73,25 @@ def test_a_gitlab_merge_request():
     pytest.param(lambda: gitlab("web", protected="false"), id="gitlab manual run, unprotected ref"),
     pytest.param(lambda: gitlab("", protected="true"), id="gitlab unknown source"),
     pytest.param(lambda: ci.detect({"CI": "true"}, git_remote=lambda: None), id="other CI"),
+    # An allowlist, not a denylist: every event outside push, schedule and a manual run is untrusted, even on a
+    # protected ref, because its payload or its checkout can come from whoever opened a pull request.
+    pytest.param(lambda: github("issue_comment", payload={"issue": {"number": 7, "pull_request": {}}}, protected="true"),
+                 id="github comment on a pull request"),
+    pytest.param(lambda: github("issue_comment", payload={"issue": {"number": 8}}, protected="true"),
+                 id="github comment on an issue"),
+    pytest.param(lambda: github("workflow_run", payload=run_of("pull_request", "mallory/agents"), protected="true"),
+                 id="github workflow_run of a fork pull request"),
+    pytest.param(lambda: github("workflow_run", payload=run_of("push", "acme/agents"), protected="true"),
+                 id="github workflow_run of a push"),
+    pytest.param(lambda: github("pull_request_review", payload=pull(), protected="true"), id="github pull_request_review"),
+    pytest.param(lambda: github("pull_request_review_comment", payload=pull(), protected="true"),
+                 id="github pull_request_review_comment"),
+    *[pytest.param(lambda event=event: github(event, payload={}, protected="true"), id=f"github {event}")
+      for event in ("release", "repository_dispatch", "workflow_call", "check_run", "deployment", "create", "delete",
+                    "discussion", "fork", "watch", "made_up_event")],
+    *[pytest.param(lambda source=source: gitlab(source, protected="true"), id=f"gitlab {source}")
+      for source in ("api", "trigger", "pipeline", "parent_pipeline", "chat", "webide", "security_orchestration_policy",
+                     "ondemand_dast_scan", "made_up_source")],
 ])
 def test_private_probing_is_not_trusted(ctx):
     assert ci.private_probe_trusted(ctx()) is False
@@ -81,11 +100,45 @@ def test_private_probing_is_not_trusted(ctx):
 @pytest.mark.parametrize("ctx", [
     pytest.param(lambda: github("push", payload={}, protected="true"), id="github push to a protected branch"),
     pytest.param(lambda: github("schedule", payload={}, protected="true"), id="github schedule on a protected branch"),
+    pytest.param(lambda: github("workflow_dispatch", payload={}, protected="true"), id="github manual run, protected ref"),
     pytest.param(lambda: gitlab("push", protected="true"), id="gitlab push to a protected branch"),
+    pytest.param(lambda: gitlab("schedule", protected="true"), id="gitlab schedule on a protected branch"),
+    pytest.param(lambda: gitlab("web", protected="true"), id="gitlab manual run, protected ref"),
     pytest.param(lambda: ci.detect({}), id="local run"),
 ])
 def test_private_probing_is_trusted(ctx):
     assert ci.private_probe_trusted(ctx()) is True
+
+
+def run_of(event: str, head: str | None) -> dict:
+    run: dict = {"event": event}
+    if head is not None:
+        run["head_repository"] = {"full_name": head}
+    return {"workflow_run": run}
+
+
+def test_a_workflow_run_of_a_pull_request_is_a_request_and_its_fork_is_the_head_repository():
+    same = github("workflow_run", payload=run_of("pull_request", "acme/agents"))
+    assert (same.is_request, same.fork) == (True, False)
+    forked = github("workflow_run", payload=run_of("pull_request_target", "mallory/agents"))
+    assert (forked.is_request, forked.fork) == (True, True)
+    unknown = github("workflow_run", payload=run_of("pull_request", None))
+    assert (unknown.is_request, unknown.fork) == (True, True)  # no head repository: fail closed
+    pushed = github("workflow_run", payload=run_of("push", "acme/agents"))
+    assert (pushed.is_request, pushed.fork) == (False, False)
+
+
+def test_a_comment_on_a_pull_request_is_a_request_from_a_fork():
+    on_pull = github("issue_comment", payload={"issue": {"number": 7, "pull_request": {"url": "u"}}})
+    assert (on_pull.is_request, on_pull.fork) == (True, True)  # the payload names no head repository: fail closed
+    on_issue = github("issue_comment", payload={"issue": {"number": 8}})
+    assert (on_issue.is_request, on_issue.fork) == (False, False)
+
+
+def test_a_review_event_is_a_request_with_the_fork_of_its_pull_request():
+    review = github("pull_request_review", payload=pull(head="mallory/agents"))
+    assert (review.is_request, review.request_number, review.fork) == (True, 7, True)
+    assert github("pull_request_review_comment", payload=pull()).fork is False
 
 
 # Precomputed: sha256("spellwarden-ping-v1:" + identity). Documented behaviour, not a wish (spec 6.10).
