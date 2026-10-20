@@ -139,7 +139,7 @@ class _Builder:
         self.followed.add(path)
         try:
             text = self.fileset.link_target(path).decode("utf-8")
-            target = self.find(contain(posixpath.dirname(path), text))
+            target = self.find(self._link_target(path, text))
         except (UnsafePath, UnicodeDecodeError, paths.TooLarge) as exc:
             reason = "target is not UTF-8" if isinstance(exc, UnicodeDecodeError) else str(exc)
             self.errors.append(Notice("unsafe_path", path, f"symbolic link: {reason}"))
@@ -161,6 +161,25 @@ class _Builder:
         self.contents[path] = content
         self.paths.add(path)
         return True
+
+    def _link_target(self, link: str, text: str) -> str:
+        """The scan-root path a link's target names. Every refusal of the containment rule (6.13) applies except
+        the parent segment: a link may climb with `..` (`.cursor/mcp.json -> ../.mcp.json` is common) as long as it
+        stays inside the scan root and climbs through no directory that is itself a link (an agent's file system
+        would resolve that link, the scanner reads paths as written)."""
+        contain("", "/".join("_" if segment == ".." else segment for segment in text.split("/")))
+        segments = (text[2:] if text.startswith("./") else text).rstrip("/").split("/")
+        parts = posixpath.dirname(link).split("/") if posixpath.dirname(link) else []
+        for index, segment in enumerate(segments):
+            if segment == "..":
+                if not parts:
+                    raise UnsafePath("target leaves the scan root")
+                parts.pop()
+            else:
+                parts.append(segment)
+            if index < len(segments) - 1 and "/".join(parts) in self.links:
+                raise UnsafePath("target passes through a symbolic link")
+        return "/".join(parts)
 
     def document(self, kind: str, path: str, plugin: str | None = None, *,
                  drop_references: bool = False) -> ConfigDocument | None:

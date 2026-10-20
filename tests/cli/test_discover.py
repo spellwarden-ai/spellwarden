@@ -397,12 +397,14 @@ def test_a_skill_file_that_is_a_link_starts_a_skill(make_repo, tmp_path):
 def test_plugin_paths_and_references_that_are_links_are_followed(make_repo, tmp_path):
     repo = _plugin_with(make_repo, tmp_path, {"mcpServers": "./servers.json"},
                         {"real-hooks.txt": HOOKS, "real-servers.txt": SERVERS})
-    _symlink("../real-hooks.txt", repo / "plugins" / "infra" / "hooks" / "hooks.json")  # `..` is refused (6.13)
+    _symlink("../real-hooks.txt", repo / "plugins" / "infra" / "hooks" / "hooks.json")  # climbs, stays inside
     _symlink("real-servers.txt", repo / "plugins" / "infra" / "servers.json")
     found = _discover(repo)
     document = next(d for d in found.documents if d.path == "plugins/infra/servers.json")
     assert [s.name for s in document.servers] == ["jira"]
-    assert [(e.code, e.path) for e in found.errors] == [("unsafe_path", "plugins/infra/hooks/hooks.json")]
+    hooks = next(d for d in found.documents if d.path == "plugins/infra/hooks/hooks.json")
+    assert hooks.kind == "hooks" and hooks.hooks
+    assert found.errors == ()
     assert "plugins/infra/servers.json" in found.plugin_dirs[0].files
 
 
@@ -421,6 +423,28 @@ def test_a_link_at_an_agent_path_that_cannot_be_followed_is_unsafe(case, make_re
     assert found.documents == ()
     assert [n.path for n in found.notices if n.code == "symlink_skipped"] == (["a.json"] if case == "chain" else [])
     assert _scan_json(run_cli, repo, tmp_path)[0] == 2
+
+
+def test_a_link_that_climbs_inside_the_scan_root_is_followed(make_repo, tmp_path):
+    """Owner decision: a target inside the scan root is followed, `..` included (a shared `.mcp.json`)."""
+    repo = make_repo(tmp_path / "repo", {".mcp.json": SERVERS})
+    (repo / ".cursor").mkdir()
+    _symlink("../.mcp.json", repo / ".cursor" / "mcp.json")
+    found = _discover(repo)
+    assert found.errors == ()
+    assert [(d.path, [s.name for s in d.servers]) for d in found.documents] == [
+        (".cursor/mcp.json", ["jira"]), (".mcp.json", ["jira"])]
+
+
+@pytest.mark.parametrize("target", ["../../outside.json", "../sub/../../outside.json", "linkdir/../.mcp.json"])
+def test_a_link_that_climbs_out_or_through_a_link_is_unsafe(target, make_repo, tmp_path):
+    repo = make_repo(tmp_path / "repo", {".mcp.json": SERVERS, "sub/x.txt": "x\n"})
+    (tmp_path / "outside.json").write_text(SERVERS, encoding="utf-8")
+    (repo / ".cursor").mkdir()
+    _symlink("sub", repo / "linkdir")
+    _symlink(target, repo / ".cursor" / "mcp.json")
+    found = _discover(repo)
+    assert [(e.code, e.path) for e in found.errors] == [("unsafe_path", ".cursor/mcp.json")]
 
 
 def _plain_file_link(repo, path: str, target: str) -> None:
