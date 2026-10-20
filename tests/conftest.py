@@ -165,3 +165,43 @@ def load_probe_fixture(name: str) -> tuple[ProbeResult, dict]:
 @pytest.fixture
 def package():
     return make_package
+
+
+# Every variable that makes a run look like CI, or that the scanner reads from its environment (spec 6.3, 6.10, 6.11).
+_RUNNER_VARIABLES = (
+    "CI", "GITHUB_ACTIONS", "GITHUB_EVENT_NAME", "GITHUB_EVENT_PATH", "GITHUB_REF_PROTECTED", "GITHUB_REPOSITORY",
+    "GITHUB_REPOSITORY_OWNER_ID", "GITHUB_SERVER_URL", "GITHUB_API_URL", "GITHUB_ACTOR", "GITHUB_TOKEN", "GITLAB_CI",
+    "CI_PIPELINE_SOURCE", "CI_COMMIT_REF_PROTECTED", "CI_PROJECT_ID", "CI_MERGE_REQUEST_IID",
+    "CI_MERGE_REQUEST_SOURCE_PROJECT_ID", "CI_SERVER_HOST", "CI_PROJECT_ROOT_NAMESPACE", "CI_API_V4_URL",
+    "SPELLWARDEN_FAIL_ON", "SPELLWARDEN_PROBE", "SPELLWARDEN_PROBE_PRIVATE", "SPELLWARDEN_TELEMETRY",
+    "SPELLWARDEN_PING_URL", "SPELLWARDEN_GITHUB_TOKEN", "SPELLWARDEN_GITLAB_TOKEN", "DO_NOT_TRACK",
+)
+
+
+class _Sent:
+    status = 204
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_exc):
+        return None
+
+
+@pytest.fixture(autouse=True)
+def ping_requests(monkeypatch):
+    """Spec 2 invariant 9: no test reaches the network. The CI that runs this suite sets `CI` and its provider's
+    variables, so every scan a test ran would ping: they are removed, and the ping's opener records the request
+    instead of sending it. A test that wants a CI run sets the variables itself and reads this list."""
+    from spellwarden_cli import ping
+
+    for name in _RUNNER_VARIABLES:
+        monkeypatch.delenv(name, raising=False)
+    sent: list = []
+
+    def record(request, timeout=None):  # noqa: ARG001 -- the shape of urllib.request.urlopen
+        sent.append(request)
+        return _Sent()
+
+    monkeypatch.setattr(ping, "_urlopen", record)
+    return sent

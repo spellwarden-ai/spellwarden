@@ -86,6 +86,9 @@ def build_parser() -> argparse.ArgumentParser:
     _add_scan(commands)
     _add_version(commands)
     # Tasks 8, 9 and 10 add their sub-parsers below this line.
+    from spellwarden_cli import ci  # imported here like the seams of run.py: ci imports main inside run_gitlab
+
+    ci.add_parser(commands)
     from spellwarden_cli import rulescmd
 
     rulescmd.add_parser(commands)
@@ -174,6 +177,16 @@ def cmd_scan(args: argparse.Namespace) -> int:
         for fmt, path in outputs:
             if path is not None:
                 _stderr(f"wrote the {fmt} report to {path}")
+    from spellwarden_cli import ci, ping  # the ping is the last thing a scan does, after every output (spec 6.10)
+
+    root = os.path.abspath(args.path)
+    try:  # the effective telemetry setting; a scan whose settings were refused sends nothing
+        telemetry = load_settings(root, config=args.config, env=os.environ,
+                                  flags=Flags(telemetry=False if args.no_telemetry else None)).telemetry
+    except Exception:  # noqa: BLE001 -- SettingsError, or a path that is not a directory: no ping
+        telemetry = False
+    context = ci.detect(os.environ, git_remote=lambda: ci.git_remote_of(root))
+    ping.send_ping(context, telemetry=telemetry, env=os.environ, log=_stderr if args.verbose else run._silent)
     return report.exit_code()
 
 
