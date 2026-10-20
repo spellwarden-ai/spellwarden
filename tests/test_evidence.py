@@ -163,11 +163,42 @@ def test_an_option_password_is_masked_to_the_end_of_its_shell_word():
         assert mask_credentials(kept) == kept, kept
 
 
+def test_a_header_keeps_only_a_known_scheme_and_is_masked_to_its_closing_quote():
+    """Spec 5.7, 5.10: any first word was kept as a scheme (`Authorization: <token> extra` showed the token), a quote
+    inside the value ended the mask (`Bearer abc'd`), and Digest parameters after the first one leaked. Only Bearer,
+    Basic, Token, Negotiate, Digest, NTLM and AWS4-HMAC-SHA256 stay; everything after them, to the closing quote of the
+    opening quote or to the end of the line, becomes `***`; a cookie keeps no word."""
+    secret, token = "hun" + "ter2pw", "s3cr" + "3tToken123"
+    for written, expected in (
+        (f'curl -H "Authorization: {token} extra" x', 'curl -H "Authorization: ***" x'),
+        (f"Authorization: Bearer abc'd {secret}", "Authorization: Bearer ***"),
+        (f'curl -H "Authorization: Bearer ab\'cd {secret}" x', 'curl -H "Authorization: Bearer ***" x'),
+        (f"curl -H 'Authorization: Digest username=\"u\", nonce=\"n1\", response=\"{secret}\"' x",
+         "curl -H 'Authorization: Digest ***' x"),
+        (f"Authorization: AWS4-HMAC-SHA256 Credential=k/1/us/s3/aws4_request, Signature={secret}", "Authorization: AWS4-HMAC-SHA256 ***"),
+        (f"authorization: ntlm {secret}", "authorization: ntlm ***"),
+        (f'{{"Authorization": "Token {secret} x", "Accept": "a"}}', '{"Authorization": "Token ***", "Accept": "a"}'),
+        (f'{{"Authorization": "Bearer a\\"{secret}", "Accept": "a"}}', '{"Authorization": "Bearer ***", "Accept": "a"}'),
+        (f'curl -H "Proxy-Authorization: Custom {secret}" x', 'curl -H "Proxy-Authorization: ***" x'),
+        (f"curl -H 'Cookie: session {secret}' x", "curl -H 'Cookie: ***' x"),
+        (f"Set-Cookie: sid={secret}; Path=/", "Set-Cookie: ***"),
+        (f"curl -H 'Authorization: Token {secret}' -H 'Cookie: a={secret}' x", "curl -H 'Authorization: Token ***' -H 'Cookie: ***' x"),
+    ):
+        masked = mask_credentials(written)
+        assert secret not in masked and token not in masked, written
+        assert masked == expected, written
+        assert mask_credentials(masked) == masked, written  # idempotent
+    for kept in ('{"Authorization": "", "Accept": "a"}', "curl -H 'Accept: text/html' x", "X-Authorization-Mode: on"):
+        assert mask_credentials(kept) == kept, kept
+
 _REPEATS = 40_000
 _ADVERSARIAL = [
     # option masking (r1:F2): clusters with no `u`, endless clusters, unclosed and escaped quotes, mysql commands
     "-" + "a" * _REPEATS, "-u" * _REPEATS, "-fsu " * _REPEATS, '-u a:"' * _REPEATS, "-u '" * _REPEATS,
     '-u "' + "\\" * _REPEATS, "--password " * _REPEATS, "mysql " * _REPEATS, "mysql -p" * _REPEATS, "mysql '" * _REPEATS,
+    # header masking: names with no colon, endless separators, quotes and escapes in the value
+    "authorization" + " " * _REPEATS, "Authorization: " * _REPEATS, '"Authorization":"' * _REPEATS, "'Cookie: '" * _REPEATS,
+    '"Authorization: Bearer ' + "\\" * _REPEATS, "Authorization: Digest " * _REPEATS,
 ]
 
 

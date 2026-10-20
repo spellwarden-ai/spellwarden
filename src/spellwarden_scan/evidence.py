@@ -34,12 +34,14 @@ _USER_OPTION = re.compile(
 _MYSQL_COMMAND = re.compile(
     r"""(?<![\w.-])(?:mysql|mysqldump|mariadb)(?![\w.-])(?P<rest>(?:[ \t]++|[^\s"'|;&]++|"(?:[^"\\\n]|\\.)*+"?|'[^'\n]*+'?)*+)""")
 _ATTACHED_P = re.compile(r"""(?<![\w-])-p(?P<word>""" + _SHELL_WORD + ")")
-# A header that carries a credential, whatever its scheme word (`Authorization: Token x`, `Proxy-Authorization:
-# Negotiate x`, a `Cookie:` pair list): the value, to the closing quote or the end of the line, becomes `***` and
-# only a scheme word stays. Idempotent: an already masked value is left as it is.
+# A header that carries a credential (`Authorization`, `Proxy-Authorization`, `Cookie`, `Set-Cookie`): the value is
+# masked to the closing quote of its opening quote (the one after the `:`, else the one before the header name, as in
+# `-H "Authorization: x"`) or, unquoted, to the end of the line. Only a known scheme word of an authorization header
+# stays (Digest and AWS4 parameters after it are masked too); a cookie keeps no word. Idempotent.
 _AUTH_HEADER = re.compile(
-    r"""(?<![A-Za-z0-9_-])((?:proxy-)?authorization|(?:set-)?cookie)(["']?[ \t]*:[ \t]*["']?)"""
-    r"""((?:[A-Za-z][A-Za-z0-9_-]{0,31}[ \t]+)?)([^"'\n]+)""", re.I)
+    r"""(?<![A-Za-z0-9_-])(?:(?P<auth>(?:proxy-)?authorization)|(?:set-)?cookie)["']?[ \t]*:[ \t]*(?P<quote>["']?)""", re.I)
+_AUTH_SCHEME = re.compile(r"(?:bearer|basic|token|negotiate|digest|ntlm|aws4-hmac-sha256)[ \t]+", re.I)
+_HEADER_VALUE = {'"': re.compile(r"""(?:[^"\\\n]|\\.)*+"""), "'": re.compile(r"[^'\n]*+"), "": re.compile(r"[^\n]*+")}
 _HAS_LETTER = re.compile(r"[A-Za-z]")
 _HAS_DIGIT = re.compile(r"[0-9]")
 
@@ -121,11 +123,23 @@ def _mask_mysql_command(match: re.Match) -> str:
     return match.group(0)[:match.start("rest") - match.start(0)] + rest
 
 
-def _mask_auth_header(match: re.Match) -> str:
-    """`Authorization: Token x` keeps the header name and the scheme word; the credential becomes `***`."""
-    if match.group(4).strip() == "***":
-        return match.group(0)
-    return match.group(1) + match.group(2) + match.group(3) + "***"
+def _mask_auth_headers(text: str) -> str:
+    """`Authorization: Token x` keeps the header name and a known scheme word; the rest of the value becomes `***`.
+    One pass, each value read once, so a long line stays linear."""
+    out: list[str] = []
+    position = 0
+    while (match := _AUTH_HEADER.search(text, position)) is not None:
+        before = text[match.start() - 1] if match.start() else ""
+        quote = match.group("quote") or (before if before in ("'", '"') else "")
+        start = match.end()
+        end = _HEADER_VALUE[quote].match(text, start).end()
+        value = text[start:end]
+        scheme = _AUTH_SCHEME.match(value) if match.group("auth") else None
+        keep = scheme.end() if scheme else 0
+        out.append(text[position:start] + value[:keep] + ("***" if value[keep:] else ""))
+        position = end
+    out.append(text[position:])
+    return "".join(out)
 
 
 def _mask_value(match: re.Match) -> str:
@@ -147,10 +161,10 @@ def mask_credentials(text: str) -> str:
     after the scheme word; the password of `-u user:pass` (`--user`, `--proxy-user`, a cluster
     such as `-fsu`), of `--password` and of mysql's `-p` to the end of its shell word (r1:F2),
     and the value of an Authorization, Proxy-Authorization or Cookie header are
-    masked whatever the scheme word (r0:F2); whatever is left after a secret-like name and `=`
+    masked to its closing quote, keeping only a known scheme word (r0:F2); whatever is left after a secret-like name and `=`
     or `:` becomes `***`. Idempotent."""
     masked = _SCHEME.sub(lambda m: m.group(1) + " ***", text)
-    masked = _AUTH_HEADER.sub(_mask_auth_header, masked)
+    masked = _mask_auth_headers(masked)
     masked = _USER_OPTION.sub(_mask_user_option, masked)
     masked = _MYSQL_COMMAND.sub(_mask_mysql_command, masked)
     masked = ASSIGNED_SECRET.sub(_mask_assigned, masked)
