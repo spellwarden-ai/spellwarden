@@ -4,9 +4,11 @@
 
 Rules version `2026.10.1`: one rule detects more.
 
-- SW-SKL-007 joins a pipe continued on the next line inside a fenced code block of a Markdown file
-  (`curl -s https://x.example/i.sh |` then `bash`), and treats an extensionless file that starts with `#!`
-  as a script, so the same split is caught there too. A finding is numbered by the command's first line.
+- SW-SKL-007 reads the fenced code blocks of a Markdown file as scripts: a pipe continued on the next line
+  (`curl -s https://x.example/i.sh |` then `bash`, or a command after `apt-get update &&`) is one command,
+  reported once at its first line. A command 0.1.0 already reported on one line keeps its fingerprint (its
+  triage carries over); one that a neighbouring line now joins is the joined command, a new fingerprint, so an
+  accepted finding there opens once more. A fenced line ending in `\` is no longer joined with the closing fence.
 
 ## 0.1.0 (2026-10-19)
 

@@ -41,10 +41,7 @@ _CONTINUES = ("|", "&&", "||")
 
 
 def _is_script(unit: TextFile | CodeBlock) -> bool:
-    """A fenced code block, a file with a script extension, or a file that starts with a shebang."""
-    if isinstance(unit, CodeBlock) or unit.path.lower().endswith(SCRIPT_EXTENSIONS):
-        return True
-    return bool(unit.lines) and unit.lines[0].startswith("#!")
+    return isinstance(unit, CodeBlock) or unit.path.lower().endswith(SCRIPT_EXTENSIONS)
 
 
 def _logical_lines(unit: TextFile | CodeBlock) -> Iterator[tuple[str, int, str]]:
@@ -275,12 +272,16 @@ _PIPED = P.AnyOf(
 
 
 def _skl_007(package: Package) -> Iterator[Finding]:
-    seen: set[tuple[str, int]] = set()
-    # The text files, then the fenced blocks of the Markdown files, which join at `|`, `&&` and `||` as scripts do.
+    # A fenced block is read as a script (joined at `|`, `&&` and `||`); the prose of its Markdown file skips the
+    # block's lines, so a command is reported once, at its first line, by whichever view holds it.
+    fenced: set[tuple[str, int]] = {(block.path, block.first_line + offset)
+                                    for block in package.code_blocks for offset in range(len(block.lines))}
     for unit in (*package.text_files, *package.code_blocks):
+        prose = not isinstance(unit, CodeBlock)
         for path, number, line in _logical_lines(unit):  # `curl ... |` then `sh` on the next line is one pipe
-            if (path, number) not in seen and _PIPED.search(line):
-                seen.add((path, number))
+            if prose and (path, number) in fenced:
+                continue
+            if _PIPED.search(line):
                 yield _finding("SW-SKL-007", "high", TITLES["SW-SKL-007"], path, number, line)
 
 
