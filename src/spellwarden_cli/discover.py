@@ -48,6 +48,8 @@ class SkillPackage:
     links: dict[str, bytes] = field(default_factory=dict, hash=False)
     # a case variant of SKILL.md where agents load skills (`skills/<name>/skill.md`), as written; None for SKILL.md
     variant: str | None = None
+    # member links followed to one of the scanner's own files (`lockfile.OWN_FILES`): scanned, left out of the lock hash
+    own: frozenset[str] = frozenset()
 
     def engine_key(self) -> str:
         """The key the engine reads the skill file under (`frontmatter.skill_md_path`)."""
@@ -74,6 +76,7 @@ class PluginDir:
     path: str  # the plugin directory; files keyed by scan-root-relative paths, like SkillPackage.files
     files: dict[str, bytes] = field(hash=False)
     links: dict[str, bytes] = field(default_factory=dict, hash=False)  # as SkillPackage.links
+    own: frozenset[str] = frozenset()  # as SkillPackage.own
 
 
 @dataclass(frozen=True)
@@ -197,6 +200,7 @@ class _Builder:
         self.followed: set[str] = set()  # every link followed, or refused with an error
         self.resolved: dict[str, _Resolution] = {}  # package member links, resolved once, adopted only when accepted
         self.skipped: set[str] = set()  # member links of an accepted package whose target is outside the scan root
+        self.own: dict[str, str] = {}  # member links followed to one of the scanner's own files -> that file
         self.directories = {posixpath.dirname(p) for p in (*self.paths, *self.links)}
         for directory in list(self.directories):
             while directory:
@@ -548,13 +552,18 @@ def discover(fileset: FileSet) -> Discovery:
     for directory in sorted(plugin_dirs):
         package = _package(builder, directory, _inside(directory, []), "plugin directory")
         if package is not None and (package[0] or package[1]):
-            dirs.append(PluginDir(directory, _read_all(builder, package[0]), package[1]))
+            dirs.append(PluginDir(directory, _read_all(builder, package[0]), package[1],
+                                  frozenset(p for p in package[0] if p in builder.own)))
     for path in sorted(builder.links):
         if path in builder.skipped:
             refusal = builder.resolved[path].refusal
             builder.notices.append(Notice("symlink_skipped", path, f"{refusal.message if refusal else 'symbolic link'}; "
                                                                    "not followed, and its target text is in the "
                                                                    "package's lock hash"))
+        elif path in builder.own:  # r3 nit: hashing the lock into itself would make every lock stale
+            builder.notices.append(Notice("symlink_skipped", path, f"symbolic link to the scanner's own file "
+                                                                   f"{builder.own[path]!r}: scanned, but left out of the "
+                                                                   "package's lock hash like that file"))
         elif path not in builder.followed:
             builder.notices.append(Notice("symlink_skipped", path, "symbolic link; skipped"))
     items = _items(builder, skills, plugin_items)
@@ -585,8 +594,11 @@ def _package(builder: _Builder, directory: str, inside: Callable[[str], bool],
     targets = {link: r.target for link, r in resolved.items() if r.target is not None}
     if _too_large(builder, directory, count, size + sum(builder.entries[t].size for t in targets.values()), what):
         return None
+    from spellwarden_cli.lockfile import OWN_FILES  # lockfile imports this module
+
     for link, target in targets.items():
-        builder.adopt(link, target)
+        if builder.adopt(link, target) and target in OWN_FILES:
+            builder.own[link] = target
     skipped = {link: r.text for link, r in resolved.items() if r.target is None and r.text is not None}
     builder.skipped.update(skipped)
     members = sorted(p for p in builder.paths if inside(p))
@@ -635,7 +647,7 @@ def _skills(builder: _Builder, plugin_of_dir: dict[str, str]) -> list[SkillPacka
         # one skill file per directory: two names that fold alike are a `case_collision` and left out of the set
         variant = next((p for p in members if posixpath.dirname(p) == directory and _is_loaded_variant(p)), None)
         packages.append(SkillPackage(directory, name, files, frozenset(p for p in members if entries[p].executable), plugin,
-                                     links, variant))
+                                     links, variant, frozenset(p for p in members if p in builder.own)))
     return packages
 
 

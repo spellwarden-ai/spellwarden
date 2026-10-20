@@ -356,3 +356,28 @@ def test_unfollowed_member_links_enter_the_package_hash_without_colliding_with_f
     assert linked != lockfile._package_hash("skills/x", {**package, "skills/x/run.sh": b"../../../a.sh"})
     assert lockfile._package_hash("skills/moved", {"skills/moved/SKILL.md": b"d"},
                                   {"skills/moved/run.sh": b"../../../a.sh"}) == linked
+
+
+@pytest.mark.parametrize("own", [".spellwarden/lock.json", ".spellwarden/config.yml"])
+def test_a_member_link_to_the_scanners_own_file_keeps_the_lock_satisfiable(own, tmp_path, make_repo, run_cli):
+    # r3 nit: `skills/x/state.json -> ../../.spellwarden/lock.json` hashed the lock into itself, so the lock was stale
+    # forever. A member link whose target is one of the scanner's own files is still scanned, but left out of the
+    # package's lock hash like that file, with a notice.
+    import os
+
+    repo = make_repo(tmp_path / "repo", {"skills/x/SKILL.md": "---\nname: x\ndescription: A demo.\n---\n\nRead.\n",
+                                         ".spellwarden/config.yml": "version: 1\n"})
+    try:
+        os.symlink("../../" + own, repo / "skills" / "x" / "state.json")
+    except (OSError, NotImplementedError):
+        pytest.skip("symbolic links cannot be created here")
+    assert run_cli(["lock", str(repo)])[0] == 0
+    assert run_cli(["lock", str(repo)])[0] == 0
+    out = tmp_path / "report.json"
+    code, _out, _err = run_cli(["scan", str(repo), "--no-telemetry", "--locked", "--format", "json", "--output", str(out)])
+    report = json.loads(out.read_text(encoding="utf-8"))
+    assert report["lock"]["status"] == "ok" and code == 0
+    notice = next(n for n in report["notices"] if n["path"] == "skills/x/state.json")
+    assert own in notice["message"] and "lock hash" in notice["message"]
+    found = discover.discover(files.list_files(str(repo), Settings()))
+    assert "skills/x/state.json" in found.skills[0].files  # still scanned
