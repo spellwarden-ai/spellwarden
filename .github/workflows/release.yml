@@ -155,8 +155,9 @@ jobs:
         run: python3 fixtures/repos/check.py no-python "$RUNNER_TEMP/spellwarden.json" "$SW_OUT_EXIT" env
 
   e2e-permissions:
-    # Spec 7.4: contents: read only. The SARIF upload fails (warning sarif_upload_failed) and the comment is refused
-    # (notice comment_permission); the job result is the scan's exit code alone.
+    # Spec 7.4: the SARIF upload is refused (warning sarif_upload_failed) and the comment is refused (notice
+    # comment_permission); the job result is the scan's exit code alone. The Action gets an invalid token, so the
+    # upload is refused for certain: GitHub may accept a SARIF upload from a public repository's read-only token.
     needs: build
     runs-on: ubuntu-latest
     permissions:
@@ -182,6 +183,7 @@ jobs:
           comment: "true"
           sarif-upload: "true"
           telemetry: "false"
+          token: not-a-token
           requirements-file: ${{ steps.setup.outputs.requirements-file }}
       - name: The result is the scan's, not the upload's
         if: always()

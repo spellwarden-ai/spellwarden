@@ -4,6 +4,6 @@
   "exit_code": 1,
   "findings": 1,
   "report": "required",
-  "annotations": ["comment_permission", "sarif_upload_failed"],
+  "annotations": ["comment_permission"],
   "on_fork_request": {"annotations": ["comment_permission", "sarif_permission"]}
 }

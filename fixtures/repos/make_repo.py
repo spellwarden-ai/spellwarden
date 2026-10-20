@@ -26,7 +26,7 @@ DEFAULTS: dict = {
 }
 INPUT_DEFAULTS = {
     "path": ".", "fail-on": "high", "locked": "auto", "probe": "false", "probe-private": "false",
-    "requirements-file": "", "comment": "false", "sarif-upload": "false", "telemetry": "false",
+    "requirements-file": "", "comment": "false", "sarif-upload": "false", "telemetry": "false", "token": "",
 }
 # The variables `spellwarden ci-run gitlab` reads (spec 10.2a), by Action input name.
 GITLAB_VARIABLES = {

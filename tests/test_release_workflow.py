@@ -46,3 +46,10 @@ def test_the_manifest_trusts_only_the_allowed_signers():
     verifications = [line for line in run.splitlines() if " tag -v " in line]
     assert len(verifications) == 3
     assert all("gpg.ssh.allowedSignersFile=" in line and "gpg.minTrustLevel=fully" in line for line in verifications)
+
+
+def test_the_permissions_job_gives_the_action_a_token_that_cannot_upload():
+    # GitHub may accept a SARIF upload from a public repository's read-only token, so only an invalid token makes
+    # the refusal certain (found on the Action's first pull request).
+    scan = next(s for s in _steps("release.yml", "e2e-permissions") if s.get("id") == "scan")
+    assert scan["with"]["token"] == "not-a-token" and scan["with"]["sarif-upload"] == "true"
