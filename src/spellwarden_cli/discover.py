@@ -4,10 +4,12 @@ rules and through a plugin is parsed once and listed once (one owner per
 file). Only skill packages and configuration documents are read (plan P12)."""
 from __future__ import annotations
 
+import os
 import posixpath
 import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
+from typing import NamedTuple
 
 from spellwarden_scan.agentconfig import ConfigDocument, parse_document, reference_kind
 from spellwarden_scan.archive import DEFAULT_LIMITS
@@ -129,6 +131,17 @@ def _under(path: str, directory: str) -> bool:
     return directory == "." or path.startswith(directory + "/")
 
 
+class _Outside(UnsafePath):
+    """A link target outside the scan root: not repository content."""
+
+
+class _Resolution(NamedTuple):
+    target: str | None  # the file of the set the link names, when it can be followed
+    text: bytes | None  # the target text, None when it could not be read
+    refusal: Notice | None  # why the link is not followed
+    outside: bool  # the target is outside the scan root (absolute there, or climbing out of it)
+
+
 class _Builder:
     def __init__(self, fileset: FileSet) -> None:
         self.fileset = fileset
@@ -137,8 +150,14 @@ class _Builder:
         self.links = {link.path: link for link in fileset.links}
         # colliding names were dropped from the file set (6.4), so one folded name is one path
         self.folded = {_fold(p): p for p in (*self.paths, *self.links)}
-        self.followed: set[str] = set()  # every link discovery tried to follow
-        self.skipped: dict[str, tuple[bytes, str]] = {}  # package member link -> (target text, why not followed)
+        self.followed: set[str] = set()  # every link followed, or refused with an error
+        self.resolved: dict[str, _Resolution] = {}  # package member links, resolved once, adopted only when accepted
+        self.skipped: set[str] = set()  # member links of an accepted package whose target is outside the scan root
+        self.directories = {posixpath.dirname(p) for p in (*self.paths, *self.links)}
+        for directory in list(self.directories):
+            while directory:
+                directory = posixpath.dirname(directory)
+                self.directories.add(directory)
         self.documents: dict[str, ConfigDocument] = {}
         self.owners: dict[str, str] = {}  # document path -> plugin name
         self.roles: dict[str, set[str]] = {}  # document path -> every kind it was parsed as
@@ -180,54 +199,63 @@ class _Builder:
         if path in self.followed:
             return path in self.paths
         self.followed.add(path)
-        target, _text, refusal = self._resolve(path)
-        if refusal is not None:
-            self.errors.append(refusal)
+        resolution = self._resolve(path)
+        if resolution.target is None:
+            self.errors.append(resolution.refusal)  # type: ignore[arg-type]
             return False
-        return self.adopt(path, target)  # type: ignore[arg-type]
+        return self.adopt(path, resolution.target)
 
-    def member_target(self, path: str) -> str | None:
-        """The file of the set a link inside a skill package or local plugin directory names, by the rules of
-        `follow` (r2:F6), or None. A member link those rules refuse is not an error (a skill may link outside the
-        repository): it keeps the `symlink_skipped` notice and its target text is kept in `skipped`, for the
-        package's lock hash. A link whose target text cannot be read at all is an error, like an unreadable member.
-        Only the link's target text is read here; `adopt` reads the target."""
+    def member(self, path: str) -> _Resolution | None:
+        """The resolution of a link inside a skill package or local plugin directory, by the rules of `follow`
+        (r2:F6); None for a link already followed or already an error. A member link that names repository content
+        is followed or is an error: a chain, a path through a directory link, a link to a directory, a missing or
+        excluded target inside the scan root and an unreadable target text are `unsafe_path` or `unreadable`, so
+        what the lock covers cannot change behind it. Only a target outside the scan root (a skill may link outside
+        the repository) is skipped, with its target text in the package's lock hash. Only the target text is read
+        here; resolving marks nothing followed (a package over the limits leaves its links to the next package),
+        `adopt` does."""
         if path not in self.links or path in self.followed:
             return None
-        self.followed.add(path)
-        target, text, refusal = self._resolve(path)
-        if refusal is None:
-            return target
-        if text is None:
-            self.errors.append(refusal)
-        else:
-            self.skipped[path] = (text, refusal.message)
-        return None
+        if path not in self.resolved:
+            resolution = self._resolve(path)
+            if resolution.refusal is not None and not (resolution.outside and resolution.text is not None):
+                self.errors.append(resolution.refusal)
+                self.followed.add(path)
+                return None
+            self.resolved[path] = resolution
+        return self.resolved[path]
 
-    def _resolve(self, path: str) -> tuple[str | None, bytes | None, Notice | None]:
-        """`(target, text, refusal)` of the listed link `path`: the file of the set it names, its target text (None
-        when that could not be read), and the `unsafe_path` or `unreadable` notice when it is not followed."""
+    def _resolve(self, path: str) -> _Resolution:
+        """The file of the set the listed link `path` names, or the `unsafe_path` or `unreadable` notice saying why
+        it is not followed."""
         try:
             raw = self.fileset.link_target(path)
         except (UnsafePath, paths.TooLarge) as exc:
-            return None, None, Notice("unsafe_path", path, f"symbolic link: {exc}")
+            return _Resolution(None, None, Notice("unsafe_path", path, f"symbolic link: {exc}"), False)
         except OSError as exc:
-            return None, None, Notice("unreadable", path,
-                                      f"symbolic link cannot be read ({exc.strerror or type(exc).__name__})")
+            return _Resolution(None, None, Notice("unreadable", path, "symbolic link cannot be read "
+                                                  f"({exc.strerror or type(exc).__name__})"), False)
         try:
             target = self.find(self._link_target(path, raw.decode("utf-8")))
         except UnicodeDecodeError:
-            return None, raw, Notice("unsafe_path", path, "symbolic link: target is not UTF-8")
+            return _Resolution(None, raw, Notice("unsafe_path", path, "symbolic link: target is not UTF-8"), False)
         except UnsafePath as exc:
-            return None, raw, Notice("unsafe_path", path, f"symbolic link: {exc}")
+            return _Resolution(None, raw, Notice("unsafe_path", path, f"symbolic link: {exc}"), isinstance(exc, _Outside))
         if target in self.links:
-            return None, raw, Notice("unsafe_path", path, f"symbolic link to {target!r}, itself a symbolic link")
+            return _Resolution(None, raw, Notice("unsafe_path", path, f"symbolic link to {target!r}, itself a symbolic "
+                                                 "link"), False)
+        if target not in self.entries and (target in self.directories or target == ""):
+            return _Resolution(None, raw, Notice("unsafe_path", path, f"symbolic link to {target!r}, a directory inside "
+                                                 "the scan root; a link to a directory is not followed: replace it with "
+                                                 "the files it should hold"), False)
         if target not in self.entries:
-            return None, raw, Notice("unsafe_path", path, f"symbolic link to {target!r}, not a file of the file set")
-        return target, raw, None
+            return _Resolution(None, raw, Notice("unsafe_path", path, f"symbolic link to {target!r}, not a file of the "
+                                                 "file set"), False)
+        return _Resolution(target, raw, None, False)
 
     def adopt(self, path: str, target: str) -> bool:
         """The followed link `path` becomes a file of the set holding `target`'s bytes, named by the link."""
+        self.followed.add(path)
         content = self.read(target)
         if content is None:
             return False
@@ -241,20 +269,33 @@ class _Builder:
         """The scan-root path a link's target names. Every refusal of the containment rule (6.13) applies except
         the parent segment: a link may climb with `..` (`.cursor/mcp.json -> ../.mcp.json` is common) as long as it
         stays inside the scan root and climbs through no directory that is itself a link (an agent's file system
-        would resolve that link, the scanner reads paths as written)."""
+        would resolve that link, the scanner reads paths as written). An absolute target, or one that climbs out
+        of the scan root, raises `_Outside` unless it names a place inside the scan root."""
+        if os.path.isabs(text):
+            if self._inside_root(text):
+                raise UnsafePath("absolute target inside the scan root; use a relative link")
+            raise _Outside("absolute target outside the scan root")
         contain("", "/".join("_" if segment == ".." else segment for segment in text.split("/")))
         segments = (text[2:] if text.startswith("./") else text).rstrip("/").split("/")
         parts = posixpath.dirname(link).split("/") if posixpath.dirname(link) else []
         for index, segment in enumerate(segments):
             if segment == "..":
                 if not parts:
-                    raise UnsafePath("target leaves the scan root")
+                    raise _Outside("target leaves the scan root")
                 parts.pop()
             else:
                 parts.append(segment)
             if index < len(segments) - 1 and "/".join(parts) in self.links:
                 raise UnsafePath("target passes through a symbolic link")
         return "/".join(parts)
+
+    def _inside_root(self, target: str) -> bool:
+        full = os.path.normcase(os.path.normpath(target))
+        for base in {os.path.normpath(self.fileset.root), os.path.realpath(self.fileset.root)}:
+            base = os.path.normcase(base)
+            if full == base or full.startswith(base.rstrip(os.sep) + os.sep):
+                return True
+        return False
 
     def document(self, kind: str, path: str, plugin: str | None = None, *,
                  drop_references: bool = False) -> ConfigDocument | None:
@@ -410,11 +451,13 @@ def discover(fileset: FileSet) -> Discovery:
         if package is not None and (package[0] or package[1]):
             dirs.append(PluginDir(directory, _read_all(builder, package[0]), package[1]))
     for path in sorted(builder.links):
-        if path not in builder.followed:
+        if path in builder.skipped:
+            refusal = builder.resolved[path].refusal
+            builder.notices.append(Notice("symlink_skipped", path, f"{refusal.message if refusal else 'symbolic link'}; "
+                                                                   "not followed, and its target text is in the "
+                                                                   "package's lock hash"))
+        elif path not in builder.followed:
             builder.notices.append(Notice("symlink_skipped", path, "symbolic link; skipped"))
-        elif path in builder.skipped:
-            builder.notices.append(Notice("symlink_skipped", path, f"{builder.skipped[path][1]}; not followed, and its "
-                                                                   "target text is in the package's lock hash"))
     items = _items(builder, skills, plugin_items)
     if not items:
         builder.notices.append(Notice("no_agent_content", "", "No agent content found"))
@@ -439,13 +482,16 @@ def _package(builder: _Builder, directory: str, inside: Callable[[str], bool],
     size = sum(builder.entries[p].size for p in regular)
     if _too_large(builder, directory, count, size, what):
         return None
-    targets = {link: target for link in pending if (target := builder.member_target(link)) is not None}
+    resolved = {link: resolution for link in pending if (resolution := builder.member(link)) is not None}
+    targets = {link: r.target for link, r in resolved.items() if r.target is not None}
     if _too_large(builder, directory, count, size + sum(builder.entries[t].size for t in targets.values()), what):
         return None
     for link, target in targets.items():
         builder.adopt(link, target)
+    skipped = {link: r.text for link, r in resolved.items() if r.target is None and r.text is not None}
+    builder.skipped.update(skipped)
     members = sorted(p for p in builder.paths if inside(p))
-    return members, {p: builder.skipped[p][0] for p in pending if p in builder.skipped}
+    return members, skipped  # type: ignore[return-value]
 
 
 def _too_large(builder: _Builder, directory: str, count: int, size: int, what: str) -> bool:

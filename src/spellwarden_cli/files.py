@@ -31,8 +31,9 @@ class FileEntry:
 
 @dataclass(frozen=True)
 class LinkEntry:
-    """A listed symbolic link: index mode `120000`, or a link in the working tree. Never read as a file; discovery
-    follows one only at an agent-content path (spec 6.4, 6.5) and reports every other as `symlink_skipped`."""
+    """A listed symbolic link: index mode `120000`, or a link in the working tree (a linked directory too). Never read
+    as a file; discovery follows one at an agent-content path or inside a skill package or local plugin directory
+    (spec 6.4, 6.5) and reports every other as `symlink_skipped`."""
     path: str
     tracked: bool
 
@@ -178,7 +179,7 @@ def _walk(root: str, notices: list[Notice]) -> list[tuple[str, str | None]]:
             if name in SKIP_DIRS:
                 continue
             if os.path.islink(os.path.join(directory, name)):
-                notices.append(Notice("symlink_skipped", base + name, "symbolic link; skipped"))
+                found.append((base + name, None))  # a linked directory is a listed link, never entered (r2:F6)
                 continue
             kept.append(name)
         dirnames[:] = kept

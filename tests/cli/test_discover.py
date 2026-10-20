@@ -659,3 +659,61 @@ def test_member_link_targets_count_toward_the_byte_limit(make_repo, tmp_path, mo
     _symlink("../../shared/big.txt", repo / "skills" / "x" / "big.txt")
     found = _discover(repo)
     assert [(e.code, e.path) for e in found.errors] == [("package_too_large", "skills/x")] and found.skills == ()
+
+
+@pytest.mark.parametrize("case", ["chain", "through a directory link", "directory", "dangling", "absolute inside"])
+def test_a_member_link_that_resolves_inside_the_scan_root_is_followed_or_an_error(case, make_repo, tmp_path, run_cli):
+    # Security review of r2:F6: a member link whose target is repository content but cannot be followed must not be
+    # skipped with only its target text locked: changing the file at the end of a chain, or inside a linked
+    # directory, would never make the lock stale. Only a target outside the scan root is skipped and hashed.
+    repo = make_repo(tmp_path / "repo", {"skills/x/SKILL.md": SKILL, "shared/run.sh": SAFE_SCRIPT})
+    member = repo / "skills" / "x" / "run.sh"
+    if case == "chain":
+        _symlink("shared/run.sh", repo / "hop.sh")
+        _symlink("../../hop.sh", member)
+    elif case == "through a directory link":
+        _symlink("shared", repo / "linkdir")
+        _symlink("../../linkdir/run.sh", member)
+    elif case == "directory":
+        _symlink("../../shared", member)
+    elif case == "dangling":
+        _symlink("../../shared/missing.sh", member)
+    else:
+        _symlink(str(repo / "shared" / "run.sh"), member)
+    found = _discover(repo)
+    assert ("unsafe_path", "skills/x/run.sh") in {(e.code, e.path) for e in found.errors}
+    assert "skills/x/run.sh" not in [n.path for n in found.notices if n.code == "symlink_skipped"]
+    if case == "directory":
+        message = next(e.message for e in found.errors if e.path == "skills/x/run.sh")
+        assert "directory" in message and "replace" in message
+    assert _scan_json(run_cli, repo, tmp_path)[0] == 2
+
+
+def test_a_directory_link_met_by_the_walk_inside_a_skill_is_an_error(tmp_path):
+    write_tree(tmp_path / "w", {"skills/x/SKILL.md": SKILL, "shared/run.sh": SAFE_SCRIPT})
+    _symlink("../../shared", tmp_path / "w" / "skills" / "x" / "lib")
+    found = _discover(tmp_path / "w", git="")
+    assert [(e.code, e.path) for e in found.errors] == [("unsafe_path", "skills/x/lib")]
+
+
+def test_a_directory_link_met_by_the_walk_elsewhere_is_still_a_notice(tmp_path):
+    write_tree(tmp_path / "w", {"skills/x/SKILL.md": SKILL, "shared/run.sh": SAFE_SCRIPT})
+    _symlink("shared", tmp_path / "w" / "lib")
+    found = _discover(tmp_path / "w", git="")
+    assert found.errors == () and [n.path for n in found.notices if n.code == "symlink_skipped"] == ["lib"]
+
+
+def test_a_package_rejected_after_resolving_its_links_leaves_them_for_the_next_package(make_repo, tmp_path, monkeypatch):
+    # Security review of r2:F6: resolving a member link must not mark it followed; only adopting it (in a package
+    # that is accepted) does, so a later package holding the same link still follows and locks it.
+    repo = make_repo(tmp_path / "repo", {"skills/x/SKILL.md": SKILL, "shared/big.txt": "x" * 100})
+    _symlink("../../shared/big.txt", repo / "skills" / "x" / "big.txt")
+    _symlink("../../../outside.sh", repo / "skills" / "x" / "out.sh")
+    builder = discover_module._Builder(list_files(str(repo), Settings()))
+    inside = discover_module._inside("skills/x", [])
+    monkeypatch.setattr(discover_module, "DEFAULT_LIMITS", ArchiveLimits(max_uncompressed=len(SKILL) + 50))
+    assert discover_module._package(builder, "skills/x", inside, "skill package") is None
+    monkeypatch.setattr(discover_module, "DEFAULT_LIMITS", ArchiveLimits())
+    members, links = discover_module._package(builder, "skills/x", inside, "skill package")
+    assert members == ["skills/x/SKILL.md", "skills/x/big.txt"]
+    assert links == {"skills/x/out.sh": b"../../../outside.sh"}
