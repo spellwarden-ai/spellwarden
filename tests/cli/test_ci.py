@@ -190,6 +190,8 @@ CI_MARKERS = {
     "Buildkite": {"BUILDKITE": "true"}, "CircleCI": {"CIRCLECI": "true"},
     "Bitbucket Pipelines": {"BITBUCKET_BUILD_NUMBER": "17"}, "AWS CodeBuild": {"CODEBUILD_BUILD_ID": "proj:1234"},
     "Drone": {"DRONE": "true"}, "Travis CI": {"TRAVIS": "true"},
+    # Woodpecker documents `CI=woodpecker` and `CI_SYSTEM_NAME=woodpecker` (woodpecker-ci.org/docs/usage/environment).
+    "Woodpecker": {"CI_SYSTEM_NAME": "woodpecker"},
 }
 
 
@@ -207,6 +209,19 @@ def test_a_ci_that_does_not_set_ci_true_is_still_ci_and_never_trusted(marker):
 
 def test_the_markers_are_the_ones_the_tests_cover():
     assert sorted(ci.CI_MARKERS) == sorted(name for marker in CI_MARKERS.values() for name in marker)
+
+
+@pytest.mark.parametrize("value", ["woodpecker", "drone", "True", "anything", " 1 "])
+def test_any_ci_value_that_is_not_false_is_ci_and_never_trusted(value):
+    """Review r2 F3: `CI=woodpecker` (Woodpecker) and `CI=drone` were taken for a local run, so a pull-request
+    pipeline was trusted for private probing. Any non-empty `CI` that is not a false value means CI."""
+    ctx = ci.detect({"CI": value, "CI_PIPELINE_EVENT": "pull_request"}, git_remote=lambda: None)
+    assert ctx.provider == "other" and ci.private_probe_trusted(ctx) is False
+
+
+@pytest.mark.parametrize("value", ["", "  ", "0", "false", "FALSE", "no", "No", " off "])
+def test_an_empty_or_false_ci_value_is_no_ci(value):
+    assert ci.detect({"CI": value}) == ci.LOCAL
 
 
 def test_a_generic_build_id_alone_is_no_ci():

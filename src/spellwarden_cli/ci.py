@@ -4,7 +4,8 @@ the two CI commands: `spellwarden ci comment` and `spellwarden ci-run gitlab` (1
 
 Detection reads environment variables and, on GitHub, the event file; nothing else. Where it cannot tell, it gives
 the restrictive answer: an unknown event or an unreadable event file is a pull request, and a pull request whose
-head repository cannot be read is a fork; a CI system's own marker makes a run CI even without `CI=true`."""
+head repository cannot be read is a fork; any `CI` value but an empty or false one (`CI=woodpecker`) and a CI system's
+own marker make a run CI even without `CI=true`."""
 from __future__ import annotations
 
 import argparse
@@ -36,13 +37,14 @@ IDENTITY_PREFIX = "spellwarden-ping-v1:"
 EVENT_FILE_MAX = 25 * 2**20
 BODY_MAX = 2**20
 _TRUE = ("1", "true", "yes", "on")
+_FALSE = ("0", "false", "no", "off")
 # The outputs of `ci-run gitlab`, in the job's working directory, as templates/scan.yml lists them (spec 10.2).
 # Spec 6.11: variables a CI system sets whether or not it sets `CI=true`. Any of them, non-empty, makes the run CI
 # (`other` unless it is GitHub or GitLab): detection fails closed, so a CI job is never mistaken for a trusted
 # local run. A generic name such as `BUILD_ID` is not one: local tools set it too, and Jenkins always sets
-# `JENKINS_URL`.
+# `JENKINS_URL`. Woodpecker sets `CI=woodpecker` and `CI_SYSTEM_NAME=woodpecker` (its documented variables).
 CI_MARKERS = ("JENKINS_URL", "TF_BUILD", "TEAMCITY_VERSION", "BUILDKITE", "CIRCLECI",
-              "BITBUCKET_BUILD_NUMBER", "CODEBUILD_BUILD_ID", "DRONE", "TRAVIS")
+              "BITBUCKET_BUILD_NUMBER", "CODEBUILD_BUILD_ID", "DRONE", "TRAVIS", "CI_SYSTEM_NAME")
 GITLAB_OUTPUTS = (("gitlab-codequality", "gl-code-quality-report.json"), ("sarif", "spellwarden.sarif"),
                   ("markdown", "spellwarden.md"), ("json", "spellwarden.json"))
 GITLAB_MARKDOWN = dict(GITLAB_OUTPUTS)["markdown"]
@@ -73,6 +75,13 @@ LOCAL = CiContext(provider=None, event=None, is_request=False, request_number=No
 
 def _true(value: str | None) -> bool:
     return (value or "").strip().lower() in _TRUE
+
+
+def _ci_set(value: str | None) -> bool:
+    """`CI` names a CI unless it is empty or a false value: CI systems set `true`, but also their own name
+    (`CI=woodpecker`), and detection fails closed."""
+    folded = (value or "").strip().lower()
+    return bool(folded) and folded not in _FALSE
 
 
 def _object_id(value: object) -> str | None:
@@ -222,13 +231,13 @@ def _remote_identity(url: str | None) -> str | None:
 def detect(env: Mapping[str, str], *, read_text: Callable[[str], str] = _read_text,
            git_remote: Callable[[], str | None] = _git_remote) -> CiContext:
     """Spec 6.11: the provider, the event, whether the run is a pull or merge request, its number, fork and
-    Dependabot, ref protection and the installation identity. A local run (neither `CI` true nor one of
+    Dependabot, ref protection and the installation identity. A local run (`CI` unset, empty or false, and none of
     `CI_MARKERS` set) is `LOCAL`."""
     if _true(env.get("GITHUB_ACTIONS")):
         return _github(env, read_text)
     if _true(env.get("GITLAB_CI")):
         return _gitlab(env)
-    if _true(env.get("CI")) or any(env.get(name) for name in CI_MARKERS):
+    if _ci_set(env.get("CI")) or any(env.get(name) for name in CI_MARKERS):
         try:
             identity = _remote_identity(git_remote())
         except Exception:  # noqa: BLE001 -- an identity is optional; the ping then carries null
