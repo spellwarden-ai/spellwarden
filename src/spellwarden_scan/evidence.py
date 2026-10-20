@@ -5,7 +5,9 @@ import hashlib
 import re
 import unicodedata
 
-from spellwarden_scan.rules.patterns import ASSIGNED_SECRET, ASSIGNED_VALUE, CREDENTIAL_PATTERNS, PLACEHOLDER_VALUE
+from spellwarden_scan.rules.patterns import (
+    ASSIGNED_SECRET, ASSIGNED_VALUE, CREDENTIAL_PATTERNS, PLACEHOLDER_VALUE, name_tokens, secret_named,
+)
 
 EVIDENCE_MAX = 300
 # Spec 5.10: a run of 20 or more characters of `[A-Za-z0-9_\-+/=]` that does not continue an earlier run; `=` is part of
@@ -40,6 +42,33 @@ _USER_OPTION = re.compile(
 _MYSQL_COMMAND = re.compile(
     r"""(?<![\w.-])(?:mysql|mysqldump|mariadb)(?![\w.-])(?P<rest>(?:[ \t]++|[^\s"'|;&]++|"(?:[^"\\\n]|\\.)*+"?|'[^'\n]*+'?)*+)""")
 _ATTACHED_P = re.compile(r"""(?<![\w-])-p(?P<word>""" + _SHELL_WORD + ")")
+# r2:F7: the next shell word after a long option whose name is secret-named (spec 5.3's list) or holds the token `auth`
+# or `pass`, written `--opt value` or `--opt=value`, is masked whole. A spaced next word that is itself an option
+# (`-...`) is no value; a name ending in `stdin` (`--password-stdin`) takes none.
+_LONG_OPTION = re.compile(r"(?<![\w-])--(?P<name>[A-Za-z0-9][A-Za-z0-9_-]*+)(?P<sep>=|[ \t]++)?")
+_WORD = re.compile(_SHELL_WORD)
+_OPTION_TOKENS = frozenset({"auth", "pass"})
+# r2:F7: short options that carry a password only inside one program, judged to the command's end (`|`, `;`, `&` or
+# the end of the line outside quotes) like mysql's `-p`: the value is the next shell word or, attached, the rest of
+# the option's word; a spaced next word that is itself an option is no value.
+_COMMAND_REST = r"""(?![\w.-])(?P<rest>(?:[ \t]++|[^\s"'|;&]++|"(?:[^"\\\n]|\\.)*+"?|'[^'\n]*+'?)*+)"""
+
+
+def _scoped(program: str, option: str) -> tuple[re.Pattern, re.Pattern]:
+    return (re.compile(r"(?<![\w.-])(?:" + program + ")" + _COMMAND_REST),
+            re.compile(r"(?<![\w-])(?P<option>" + option + r")(?P<sep>[ \t]++(?!-)|)(?P<word>" + _SHELL_WORD + ")"))
+
+
+# (command, option, separator kept before the secret or None, at most this many options per command: 0 is all).
+# `sshpass -p` is the first `-p` only (a later one belongs to the wrapped command, `ssh -p 22`); curl's `-b` may end a
+# cluster (`-sb`) and its first `b` takes the rest; smbclient's `-U user%pass` keeps the user name.
+_SCOPED_OPTIONS = (
+    (*_scoped("sshpass", "-p"), None, 1),
+    (*_scoped(r"(?:docker|podman)[ \t]++login", "-p"), None, 0),
+    (*_scoped("redis-cli", "-a"), None, 0),
+    (*_scoped("curl", "-[ac-zA-Z]*+b"), None, 0),
+    (*_scoped("smbclient", r"-U|--user=|--user(?=[ \t])"), "%", 0),
+)
 # A header that carries a credential (`Authorization`, `Proxy-Authorization`, `Cookie`, `Set-Cookie`): the value is
 # masked to the closing quote of its opening quote (the one after the `:`, else the one before the header name, as in
 # `-H "Authorization: x"`) or, unquoted, to the end of the line. Only a known scheme word of an authorization header
@@ -98,10 +127,10 @@ def _closes(word: str, start: int, quote: str) -> bool:
     return False
 
 
-def _mask_word(word: str, keep_user: bool) -> str:
-    """The shell word with its secret masked: after the first `:` when `keep_user` (`user:***`, quotes and all; a word
-    with no `:` names a user only and stays), otherwise whole. A quote open where the mask starts keeps its closing
-    quote, so `'bob:pw two'` reads `'bob:***'`. Idempotent: the output masks to itself."""
+def _mask_word(word: str, keep_user: bool, separator: str = ":") -> str:
+    """The shell word with its secret masked: after the first `separator` when `keep_user` (`user:***`, quotes and all;
+    a word with no separator names a user only and stays), otherwise whole. A quote open where the mask starts keeps
+    its closing quote, so `'bob:pw two'` reads `'bob:***'`. Idempotent: the output masks to itself."""
     quote, index, split = "", 0, 0
     if keep_user:
         while index < len(word):
@@ -113,7 +142,7 @@ def _mask_word(word: str, keep_user: bool) -> str:
                 quote = ""
             elif not quote and char in "\"'":
                 quote = char
-            elif char == ":":
+            elif char == separator:
                 break
             index += 1
         if index >= len(word):
@@ -133,6 +162,57 @@ def _mask_user_option(match: re.Match) -> str:
 def _mask_mysql_command(match: re.Match) -> str:
     rest = _ATTACHED_P.sub(lambda m: "-p" + _mask_word(m.group("word"), keep_user=False), match.group("rest"))
     return match.group(0)[:match.start("rest") - match.start(0)] + rest
+
+
+def _unquoted(text: str) -> str:
+    """The text without one pair of enclosing quotes (or without an opening quote never closed)."""
+    if text[:1] in ("'", '"'):
+        return text[1:-1] if len(text) >= 2 and text.endswith(text[0]) else text[1:]
+    return text
+
+
+def _mask_secret_word(word: str, separator: str | None = None) -> str:
+    """The word masked whole, or after `separator` (`user%***`); a placeholder (`$TOKEN`, `<your-key>`, `***`) stays."""
+    secret = _unquoted(word.partition(separator)[2] if separator else word)
+    if not secret or PLACEHOLDER_VALUE.fullmatch(secret):
+        return word
+    return _mask_word(word, keep_user=separator is not None, separator=separator or ":")
+
+
+def _secret_option(name: str) -> bool:
+    tokens = name_tokens(name)
+    return tokens[-1:] != ("stdin",) and (secret_named(name) or not _OPTION_TOKENS.isdisjoint(tokens))
+
+
+def _mask_secret_options(text: str) -> str:
+    """`--token x`, `--api-key=x`: the value after a secret-named long option becomes `***`. One pass, each option
+    name and value read once, so a long line stays linear."""
+    out: list[str] = []
+    position = done = 0
+    while (match := _LONG_OPTION.search(text, position)) is not None:
+        position = match.end("name")
+        separator = match.group("sep")
+        if not separator or not _secret_option(match.group("name")):
+            continue
+        word = _WORD.match(text, match.end())
+        if word is None or (separator != "=" and word.group().startswith("-")):
+            continue
+        out.append(text[done:word.start()] + _mask_secret_word(word.group()))
+        done = position = word.end()
+    out.append(text[done:])
+    return "".join(out)
+
+
+def _mask_scoped_options(text: str) -> str:
+    """`sshpass -p x`, `docker login -p x`, `redis-cli -a x`, `curl -b x`, `smbclient -U user%x` (r2:F7)."""
+    for command, option, separator, count in _SCOPED_OPTIONS:
+        def in_rest(match: re.Match, option: re.Pattern = option, separator: str | None = separator,
+                    count: int = count) -> str:
+            rest = option.sub(lambda m: m.group("option") + m.group("sep") + _mask_secret_word(m.group("word"), separator),
+                              match.group("rest"), count=count)
+            return match.group(0)[:match.start("rest") - match.start(0)] + rest
+        text = command.sub(in_rest, text)
+    return text
 
 
 def _mask_auth_headers(text: str) -> str:
@@ -179,6 +259,8 @@ def mask_credentials(text: str) -> str:
     masked = _mask_auth_headers(masked)
     masked = _USER_OPTION.sub(_mask_user_option, masked)
     masked = _MYSQL_COMMAND.sub(_mask_mysql_command, masked)
+    masked = _mask_secret_options(masked)
+    masked = _mask_scoped_options(masked)
     masked = ASSIGNED_SECRET.sub(_mask_assigned, masked)
     for pattern in CREDENTIAL_PATTERNS:
         masked = pattern.sub(_mask_match, masked)

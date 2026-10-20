@@ -123,8 +123,12 @@ CREDENTIAL_PATTERNS: tuple[re.Pattern, ...] = tuple(re.compile(p) for p in (
 ASSIGNED_SECRET = re.compile(r"""(password|passwd|secret|api[_-]?key|token)\s*[:=]\s*["']([^"'\s]{8,})["']""", _I)
 # evidence.mask_credentials only: the value of any secret-like assignment, quoted or not and of any length (it is
 # masked whole; SW-SKL-011 still fires on ASSIGNED_SECRET alone, so prose such as `token: see below` stays quiet).
+# Also (r2:F7) `authorization` and `cookie` before `=` only (`Authorization:` is a header, masked keeping its scheme
+# word), and any name ending in `pwd` or `pass` (`MYSQL_PWD`, `DB_PASS`) before `=` or `:`.
 ASSIGNED_VALUE = re.compile(
-    r"""(password|passwd|secret|api[_-]?key|apikey|token|access[_-]?key|private[_-]?key|credentials?)(["']?\s*[:=]\s*)"""
+    r"""(password|passwd|secret|api[_-]?key|apikey|token|access[_-]?key|private[_-]?key|credentials?|"""
+    r"""(?:authorization|cookie)(?=["']?\s*=)|(?<![A-Za-z0-9_-])[A-Za-z0-9_-]*?(?:pwd|pass)(?=["']?\s*[:=]))"""
+    r"""(["']?\s*[:=]\s*)"""
     # triple-quoted, quoted with backslash escapes, a quote never closed (masked to the end of the line), a `<...>`,
     # `$(...)` or `${...}` placeholder kept whole, bare
     r"""("{3}[^\n]*?"{3}|'{3}[^\n]*?'{3}|"(?:[^"\\\n]|\\.)*"(?!")|'(?:[^'\\\n]|\\.)*'(?!')|["'][^\n]*|<[^<>\n]*>(?=[\s"']|$)|"""
@@ -133,6 +137,30 @@ ASSIGNED_VALUE = re.compile(
 # Only a bare reference or a word placeholder: `${VAR:-default}` and `$(command args)` may carry the secret itself, so
 # they are masked like any value.
 PLACEHOLDER_VALUE = re.compile(r"(\$\{?[A-Za-z_][A-Za-z0-9_]*\}?|<[A-Za-z][A-Za-z _-]*>|x{3,}|\.{3}|\*+|your[-_][A-Za-z0-9_-]*|changeme|example)", _I)
+# SW-CFG-002, SW-CFG-010 and evidence masking: secret-named names. Plan decision P16: `authorization` (any header holding
+# it: Proxy-Authorization, X-Authorization) and `cookie` (a literal Cookie value is a session credential) are secret
+# tokens too.
+SECRET_TOKENS = frozenset({"token", "secret", "password", "passwd", "pwd", "credential", "credentials", "apikey",
+                           "privatekey", "authorization", "cookie"})
+SECRET_PAIRS = frozenset({("api", "key"), ("access", "key"), ("private", "key"), ("client", "secret"),
+                          ("auth", "token"), ("bearer", "token")})
+_CASE_CHANGE = re.compile(r"(?<=[a-z])(?=[A-Z])")
+
+
+def name_tokens(name: str) -> tuple[str, ...]:
+    """Lower-case tokens split at every non-alphanumeric character and at lower-to-upper changes (`apiKey`)."""
+    tokens: list[str] = []
+    for part in re.split(r"[^A-Za-z0-9]+", name):
+        tokens.extend(piece.lower() for piece in _CASE_CHANGE.split(part) if piece)
+    return tuple(tokens)
+
+
+def secret_named(name: str) -> bool:
+    """Spec 5.3: the name's tokens hold a secret token or an adjacent secret pair."""
+    tokens = name_tokens(name)
+    return any(token in SECRET_TOKENS for token in tokens) or any(pair in SECRET_PAIRS for pair in zip(tokens, tokens[1:], strict=False))
+
+
 PLACEHOLDER = re.compile(r"(xxx|\.\.\.|<|your[_-]|example|changeme|\$\{|\$[A-Z_]+)", _I)
 
 # SW-SKL-008, SW-SKL-012

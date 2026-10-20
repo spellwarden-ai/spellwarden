@@ -213,6 +213,61 @@ def test_url_userinfo_is_masked_through_the_last_at_and_whole_when_too_long():
     for kept in ("mail me: a@b.example", "https://host.example/a@b", "see https://user:***@h.example/", "https://@host.example/"):
         assert mask_credentials(kept) == kept, kept
 
+
+def test_a_short_secret_after_a_secret_named_option_or_a_scoped_short_option_is_masked():
+    """r2:F7 (spec 5.7): a short or letters-only secret leaked when it followed a secret-named long option written with
+    a space (`--token x`), `authorization =`, `cookie =`, a `*_PWD`/`*_PASS` name, or a short option that carries a
+    password only in one program (`sshpass -p`, `docker login -p`, `redis-cli -a`, curl's `-b`, `smbclient -U u%p`)."""
+    secret = "hun" + "ter2x"
+    for written, expected in (
+        (f"tool --token {secret} run", "tool --token *** run"),
+        (f"tool --api-key {secret}", "tool --api-key ***"),
+        (f"tool --api_key {secret}", "tool --api_key ***"),
+        (f"tool --apikey {secret}", "tool --apikey ***"),
+        (f"tool --secret '{secret} two' x", "tool --secret '***' x"),
+        (f"tool --client-secret={secret} x", "tool --client-secret=*** x"),
+        (f"tool --auth {secret} x", "tool --auth *** x"),
+        (f"tool --private-key {secret}", "tool --private-key ***"),
+        (f"tool --credential {secret}", "tool --credential ***"),
+        (f"tool --pwd {secret}", "tool --pwd ***"),
+        (f"tool --passwd={secret}", "tool --passwd=***"),
+        (f"redis-cli --pass {secret}", "redis-cli --pass ***"),
+        (f"tool --authToken {secret}", "tool --authToken ***"),
+        (f"curl --cookie 'sid={secret}' x", "curl --cookie '***' x"),
+        (f"curl --cookie=sid={secret} x", "curl --cookie=*** x"),
+        (f"tool --verbose --token {secret}", "tool --verbose --token ***"),
+        (f"tool --token --password {secret}", "tool --token --password ***"),
+        (f"authorization = {secret}", "authorization = ***"),
+        (f"Proxy-Authorization = {secret}", "Proxy-Authorization = ***"),
+        (f"cookie = sid={secret}", "cookie = ***"),
+        (f"MYSQL_PWD={secret} mysql db", "MYSQL_PWD=*** mysql db"),
+        (f"export DB_PASS={secret}", "export DB_PASS=***"),
+        (f"smtp-pass: '{secret}'", "smtp-pass: '***'"),
+        (f"sshpass -p {secret} ssh -p 22 host", "sshpass -p *** ssh -p 22 host"),
+        (f"sshpass -p{secret} ssh host", "sshpass -p*** ssh host"),
+        (f"docker login -u bob -p {secret} registry.example", "docker login -u bob -p *** registry.example"),
+        (f"podman login -p '{secret}' registry.example", "podman login -p '***' registry.example"),
+        (f"redis-cli -h db -p 6379 -a {secret} get k", "redis-cli -h db -p 6379 -a *** get k"),
+        (f"curl -b sid={secret} https://x.example", "curl -b *** https://x.example"),
+        (f"curl -sb 'sid={secret}' https://x.example", "curl -sb '***' https://x.example"),
+        (f"curl -bsid={secret} https://x.example", "curl -b*** https://x.example"),
+        (f"smbclient //h/s -U bob%{secret}", "smbclient //h/s -U bob%***"),
+        (f"smbclient //h/s -Ubob%'{secret} two' -c ls", "smbclient //h/s -Ubob%*** -c ls"),
+        (f"smbclient //h/s --user=bob%{secret}", "smbclient //h/s --user=bob%***"),
+    ):
+        for masked in (mask_credentials(written), bounded_evidence(written)):
+            assert secret not in masked, written
+            assert masked == expected, written
+            assert mask_credentials(masked) == masked, written  # idempotent
+    # Options that carry no secret, short options outside their program, and placeholders stay readable.
+    for kept in ("echo x | docker login --password-stdin -u bob registry.example", "tool --token $GITHUB_TOKEN",
+                 "tool --api-key '<your-key>'", "ssh -p 22 host", "docker run -p 80:80 img", "redis-cli -p 6379 ping",
+                 "git log --author bob", "tool --oauth-client web", "tar -b 20 -cf x.tar d", "curl --data-binary @f x",
+                 "sshpass -f pw.txt ssh host", "smbclient //h/s -U bob", "tool --keyboard us", "x -b sid=1", "author = bob",
+                 "bypass_mode = on"):
+        assert mask_credentials(kept) == kept, kept
+
+
 _REPEATS = 40_000
 _ADVERSARIAL = [
     # option masking (r1:F2): clusters with no `u`, endless clusters, unclosed and escaped quotes, mysql commands
@@ -224,6 +279,12 @@ _ADVERSARIAL = [
     # URL userinfo (r0:F6): scheme-like words with no authority, endless userinfo, `@` runs, schemes inside an authority
     "a:" * _REPEATS, "x:@" * _REPEATS, "https://" + "a@" * _REPEATS, "a:/" * _REPEATS, "https://" + "a" * _REPEATS + "@h",
     "ab:" + "c:d@" * _REPEATS, "://a:" * _REPEATS, "x" + "y:" * _REPEATS + "//t@h", ("ab" * 15 + "c:") * _REPEATS,
+    # secret-named options and program-scoped short options (r2:F7): endless options, names, unclosed quotes, commands
+    "--token " * _REPEATS, "--token '" * _REPEATS, "--" + "a" * _REPEATS, "--a-" * _REPEATS, "--auth=" * _REPEATS,
+    "--x --token" * _REPEATS, "sshpass -p" * _REPEATS, "sshpass " * _REPEATS, "docker login -p '" * _REPEATS,
+    "redis-cli -a " * _REPEATS, "curl -" + "a" * _REPEATS, "curl -b" * _REPEATS, "smbclient -U a%" * _REPEATS,
+    "smbclient -U " + "a" * _REPEATS, "a_pwd" * _REPEATS, "a" * _REPEATS + "_pass", "a_" * _REPEATS + "pwd =",
+    "authorization " * _REPEATS, "cookie" + " " * _REPEATS, "-a-pass " * _REPEATS,
 ]
 
 

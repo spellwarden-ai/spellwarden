@@ -17,6 +17,7 @@ from spellwarden_scan.model import ConfigDocument, Finding, HookCommand, Locatio
 from spellwarden_scan.package import CodeBlock
 from spellwarden_scan.rules import Rule, make_rule
 from spellwarden_scan.rules import patterns as P
+from spellwarden_scan.rules.patterns import name_tokens, secret_named
 from spellwarden_scan.rules.skill import (
     _host_of, _legacy_ipv4, decodes_and_runs, logical_commands, pipes_remote_to_shell,
     sends_file_contents,
@@ -78,29 +79,10 @@ def _finding(rule_id: str, path: str, line: int, matched: str, evidence: str) ->
 
 # --- names and values (SW-CFG-002, SW-CFG-010) -------------------------------------------------------------------
 
-# Plan decision P16: `authorization` (any header holding it: Proxy-Authorization, X-Authorization) and `cookie`
-# (a literal Cookie value is a session credential) are secret tokens too.
-_SECRET_TOKENS = frozenset({"token", "secret", "password", "passwd", "pwd", "credential", "credentials", "apikey",
-                            "privatekey", "authorization", "cookie"})
-_SECRET_PAIRS = frozenset({("api", "key"), ("access", "key"), ("private", "key"), ("client", "secret"),
-                           ("auth", "token"), ("bearer", "token")})
-_CASE_CHANGE = re.compile(r"(?<=[a-z])(?=[A-Z])")
+# `name_tokens` and `secret_named` live in `patterns.py`, shared with evidence masking (r2:F7).
 _REFERENCE = re.compile(r"\$\{[A-Za-z_][A-Za-z0-9_]*\}|\$\{env:[A-Za-z_][A-Za-z0-9_]*\}|\$\{input:[A-Za-z0-9_.-]+\}"
                         r"|\$[A-Za-z_][A-Za-z0-9_]*")
 _SCHEME = re.compile(r"(Bearer|Basic)\s+(.*)", re.IGNORECASE | re.DOTALL)
-
-
-def name_tokens(name: str) -> tuple[str, ...]:
-    """Lower-case tokens split at every non-alphanumeric character and at lower-to-upper changes (`apiKey`)."""
-    tokens: list[str] = []
-    for part in re.split(r"[^A-Za-z0-9]+", name):
-        tokens.extend(piece.lower() for piece in _CASE_CHANGE.split(part) if piece)
-    return tuple(tokens)
-
-
-def secret_named(name: str) -> bool:
-    tokens = name_tokens(name)
-    return any(token in _SECRET_TOKENS for token in tokens) or any(pair in _SECRET_PAIRS for pair in zip(tokens, tokens[1:], strict=False))
 
 
 def is_reference(value: str) -> bool:
