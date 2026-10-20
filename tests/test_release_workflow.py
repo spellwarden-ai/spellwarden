@@ -53,3 +53,12 @@ def test_the_permissions_job_gives_the_action_a_token_that_cannot_upload():
     # the refusal certain (found on the Action's first pull request).
     scan = next(s for s in _steps("release.yml", "e2e-permissions") if s.get("id") == "scan")
     assert scan["with"]["token"] == "not-a-token" and scan["with"]["sarif-upload"] == "true"
+
+
+def test_the_no_python_job_adds_no_python_to_the_path():
+    # The v1.0.0 release run: e2e-setup's setup-python and setup-uv add their directories to $GITHUB_PATH, which the
+    # runner puts in front of the Action step's own `env: PATH`, so the Action found Python and the case failed.
+    steps = _steps("release.yml", "e2e-no-python")
+    action = next(i for i, s in enumerate(steps) if s.get("uses") == "./.spellwarden-action")
+    before = [str(s.get("uses", "")) for s in steps[:action]]
+    assert not [u for u in before if u.startswith(("actions/setup-python@", "astral-sh/setup-uv@", "./.github/actions/e2e-setup"))]

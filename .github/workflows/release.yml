@@ -101,7 +101,10 @@ jobs:
         run: uv run --locked python scripts/e2e.py sarif "$SARIF"
 
   e2e-no-python:
-    # Spec 7.4 `no-python`, with Task 17's PATH filter: every directory of PATH linked in except Python's names.
+    # Spec 7.4 `no-python`, with Task 17's PATH filter: every directory of PATH linked in except Python's names. No
+    # setup-python or setup-uv runs here: the directories they add to $GITHUB_PATH are put in front of every later
+    # step's PATH, a step's own `env: PATH` included, so the Action would find their Python. It needs no install:
+    # without Python it stops before the requirements are read. The fixture scripts use the runner's python3.
     name: e2e no-python on ${{ matrix.os }}
     needs: build
     strategy:
@@ -113,8 +116,20 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
         with:
           persist-credentials: false
-      - id: setup
-        uses: ./.github/actions/e2e-setup
+      - id: ref
+        run: |
+          ref="$(tr -d '[:space:]' < wrappers/scan-action.ref)"
+          if [[ ! "$ref" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::wrappers/scan-action.ref must hold one 40-hex commit"
+            exit 1
+          fi
+          echo "sha=$ref" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+        with:
+          repository: spellwarden-ai/scan
+          ref: ${{ steps.ref.outputs.sha }}
+          path: .spellwarden-action
+          persist-credentials: false
       - name: Build the fixture repository
         id: case
         run: python3 fixtures/repos/make_repo.py no-python "$RUNNER_TEMP/fx" --github-output
@@ -144,7 +159,6 @@ jobs:
           comment: "false"
           sarif-upload: "false"
           telemetry: "false"
-          requirements-file: ${{ steps.setup.outputs.requirements-file }}
       - name: Check the result
         if: always()
         env:
