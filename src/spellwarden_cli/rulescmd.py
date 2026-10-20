@@ -48,5 +48,7 @@ def add_parser(commands_: argparse._SubParsersAction) -> None:
 
 
 def cmd_rules(args: argparse.Namespace) -> int:
-    sys.stdout.write(_RENDER[args.format](RuleSet.baseline()))
+    from spellwarden_cli.main import write_stdout  # main imports this module
+
+    write_stdout(_RENDER[args.format](RuleSet.baseline()), sys.stdout)
     return 0

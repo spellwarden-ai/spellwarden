@@ -100,7 +100,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def cmd_version(_args: argparse.Namespace) -> int:
-    print(f"spellwarden {__version__} (rules {RULES_VERSION})")
+    write_stdout(f"spellwarden {__version__} (rules {RULES_VERSION})\n", sys.stdout)
     return 0
 
 
@@ -166,18 +166,23 @@ def _request_opts_out(root: str) -> bool:
     return not own.telemetry
 
 
+def write_stdout(text: str, stdout: TextIO) -> None:
+    """`text` as UTF-8 with `\n` line ends on every OS: the console's code page and Windows' `\r\n` stay out."""
+    buffer = getattr(stdout, "buffer", None)
+    if buffer is not None:
+        stdout.flush()
+        buffer.write(text.encode("utf-8"))
+        buffer.flush()
+    else:
+        stdout.write(text)
+
+
 def write_outputs(report: Report, outputs: list[tuple[str, str | None]], *, stdout: TextIO) -> None:
     """Each format to its file (written to a temporary file in the same directory, then renamed) or to stdout."""
     for fmt, path in outputs:
         text = FORMATS[fmt](report)
         if path is None:
-            buffer = getattr(stdout, "buffer", None)
-            if buffer is not None:
-                stdout.flush()
-                buffer.write(text.encode("utf-8"))
-                buffer.flush()
-            else:
-                stdout.write(text)
+            write_stdout(text, stdout)
             continue
         directory = os.path.dirname(os.path.abspath(path))
         os.makedirs(directory, exist_ok=True)
