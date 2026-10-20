@@ -469,3 +469,20 @@ def test_git_stderr_is_masked_and_bounded_before_it_reaches_a_notice(tmp_path):
     message = str(raised.value)
     assert secret not in message and "https://user:***@host.example/r/" in message
     assert len(message) <= ci.GIT_MESSAGE_MAX
+
+
+def test_an_unusable_temporary_directory_is_named_in_base_unavailable(make_repo, tmp_path, monkeypatch):
+    """r3 nit: with no usable temporary directory every git call failed and the notice read "git cannot read the work
+    tree (git could not run (FileNotFoundError))". It names the temporary directory, and still fails closed."""
+    import tempfile
+
+    repo, base = _guarded(make_repo, tmp_path)
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path / "missing"))
+    source = ci.revision_source(str(repo), ci.detect(pull_request(tmp_path, base)), config=True, baseline=True)
+    assert [n.code for n in source.notices] == ["base_unavailable"]
+    message = source.notices[0].message
+    assert "temporary directory" in message and "FileNotFoundError" in message
+    assert "git could not run" not in message and "cannot read the work tree" not in message
+    assert "TMPDIR" in message and "fetch-depth" not in message
+    with pytest.raises(FileNotFoundError):
+        source.read(".spellwarden/config.yml", safe_yaml.CONFIG_MAX)

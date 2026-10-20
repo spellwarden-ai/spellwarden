@@ -318,6 +318,10 @@ def _which_git() -> str | None:
     return shutil.which("git")
 
 
+class _TemporaryUnusable(OSError):
+    """No temporary file can be made for git's output: no git call can run (r3 nit)."""
+
+
 def _run_git(executable: str, top: str, root: str, *args: str, timeout: float = GIT_TIMEOUT,
              env: Mapping[str, str] | None = None) -> bytes:
     """`git -c safe.directory=<top> -c core.fsmonitor=false -C <root> <args>` (the form of `files._git`, spec 6.4), with
@@ -332,7 +336,8 @@ def _run_git(executable: str, top: str, root: str, *args: str, timeout: float = 
     try:
         out, err = tempfile.TemporaryFile(), tempfile.TemporaryFile()
     except OSError as exc:
-        raise OSError(f"git could not run ({type(exc).__name__})") from exc
+        raise _TemporaryUnusable(f"the temporary directory is unusable ({type(exc).__name__}), so git's output cannot be "
+                                 "captured") from exc
     with out, err:
         try:
             process = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=out, stderr=err, env=environment,
@@ -405,6 +410,8 @@ class _Repository:
         self.top = top
         try:
             self.prefix = self._git("rev-parse", "--show-prefix").decode("utf-8").strip()
+        except _TemporaryUnusable as exc:
+            raise RevisionUnavailable(str(exc)) from exc
         except (OSError, UnicodeDecodeError) as exc:
             raise RevisionUnavailable(f"git cannot read the work tree ({exc})") from exc
 
@@ -525,8 +532,10 @@ def revision_source(root: str, ctx: CiContext, *, config: bool, baseline: bool, 
         repository.ensure(ctx.base_sha, fetch=True)
     except RevisionUnavailable as exc:
         used = [text for text, wanted in (("the default settings", config), ("no baseline", baseline)) if wanted]
+        hint = ("Point TMPDIR (TEMP on Windows) at a writable directory." if isinstance(exc.__cause__, _TemporaryUnusable)
+                else _base_hint(ctx))
         message = (f"On a pull or merge request, {_quoted(names)} {verb} read from the base revision, never from the "
-                   f"request, but {exc}; the scan used {_quoted(tuple(used))}. {_base_hint(ctx)}")
+                   f"request, but {exc}; the scan used {_quoted(tuple(used))}. {hint}")
         return RevisionSource(read=_absent, notices=(Notice("base_unavailable", "", message),))
     sha = ctx.base_sha
 
