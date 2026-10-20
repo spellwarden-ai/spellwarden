@@ -24,6 +24,8 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from urllib.parse import urlsplit
 
+from spellwarden_scan.evidence import mask_credentials
+
 from spellwarden_cli import escape, paths
 from spellwarden_cli.report import Notice
 from spellwarden_cli.settings import FAIL_ON
@@ -291,6 +293,7 @@ GIT_TIMEOUT = 30
 FETCH_TIMEOUT = 120
 KILL_TIMEOUT = 10
 GIT_STDERR_MAX = 64 * 2**10
+GIT_MESSAGE_MAX = 300
 _WINDOWS = os.name == "nt"
 _REGULAR_MODES = ("100644", "100755")
 
@@ -350,8 +353,15 @@ def _run_git(executable: str, top: str, root: str, *args: str, timeout: float = 
         stderr = err.read(GIT_STDERR_MAX)
     if returncode != 0:
         first = stderr.decode("utf-8", "replace").strip().splitlines()
-        raise OSError(first[0] if first else f"git exited {returncode}")
+        raise OSError(_git_message(first[0]) if first else f"git exited {returncode}")
     return stdout
+
+
+def _git_message(line: str) -> str:
+    """git's first stderr line as it reaches the `base_unavailable` notice and the comment: credentials masked
+    (`evidence.mask_credentials`), then at most `GIT_MESSAGE_MAX` characters."""
+    masked = mask_credentials(line)
+    return masked if len(masked) <= GIT_MESSAGE_MAX else masked[:GIT_MESSAGE_MAX - 3] + "..."
 
 
 def _kill_tree(process: subprocess.Popen) -> None:

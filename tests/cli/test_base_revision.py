@@ -453,3 +453,19 @@ def test_on_windows_the_tree_is_killed_with_taskkill(monkeypatch):
     ci._kill_tree(Process())
     assert os.path.basename(calls[0][0]).lower().startswith("taskkill")
     assert calls[0][1:] == ["/T", "/F", "/PID", "4242"] and calls[1] == ["kill"]
+
+
+@pytest.mark.skipif(os.name == "nt", reason="a POSIX shell script stands in for git")
+def test_git_stderr_is_masked_and_bounded_before_it_reaches_a_notice(tmp_path):
+    """Review r2 nit: git's first stderr line becomes the `base_unavailable` notice and from there the pull request
+    comment; a credential in it is masked and the line is bounded."""
+    secret = "tok" + "3n" + "value"
+    fake = tmp_path / "git"
+    fake.write_text(f"#!/bin/sh\necho \"fatal: unable to access 'https://user:{secret}@host.example/r/': {'x' * 5000}\" >&2\n"
+                    "exit 128\n", encoding="utf-8")
+    fake.chmod(0o755)
+    with pytest.raises(OSError) as raised:
+        ci._run_git(str(fake), str(tmp_path), str(tmp_path), "fetch")
+    message = str(raised.value)
+    assert secret not in message and "https://user:***@host.example/r/" in message
+    assert len(message) <= ci.GIT_MESSAGE_MAX
