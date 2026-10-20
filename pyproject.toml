@@ -18,12 +18,19 @@ classifiers = [
 ]
 dependencies = ["PyYAML>=6.0"]
 
+[project.scripts]
+spellwarden = "spellwarden_cli.main:main"
+
 [project.urls]
 Homepage = "https://spellwarden.ai"
 Source = "https://github.com/spellwarden-ai/spellwarden"
 
 [dependency-groups]
-dev = ["pytest>=8.3", "ruff>=0.6"]
+dev = [
+    "jsonschema>=4.23",
+    "pytest>=8.3",
+    "ruff>=0.6",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -33,7 +40,7 @@ build-backend = "hatchling.build"
 packages = ["src/spellwarden_scan", "src/spellwarden_cli"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src/spellwarden_scan", "src/spellwarden_cli", "tests", "fixtures", "README.md", "CHANGELOG.md", "LICENSE", "pyproject.toml"]
+include = ["src/spellwarden_scan", "src/spellwarden_cli", "tests", "fixtures", "schemas", "README.md", "CHANGELOG.md", "LICENSE", "pyproject.toml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

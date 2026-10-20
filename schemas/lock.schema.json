@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/spellwarden-ai/spellwarden/blob/main/schemas/lock.schema.json",
+  "title": "Spellwarden lock (.spellwarden/lock.json)",
+  "description": "Every discovered configuration document, MCP server entry, plugin, local plugin directory and skill, by hash. Items sorted by (kind, path); written with two-space indent, sorted keys and a trailing newline. No scanner or rules version.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["lock_version", "items"],
+  "properties": {
+    "lock_version": {"const": 1},
+    "items": {"type": "array", "items": {"$ref": "#/$defs/item"}}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "item": {
+      "oneOf": [
+        {"type": "object", "additionalProperties": false, "required": ["kind", "path", "doc_kind", "status", "sha256"],
+         "properties": {"kind": {"const": "document"}, "path": {"type": "string"},
+                        "doc_kind": {"enum": ["mcp", "hooks", "settings", "marketplace", "plugin"]},
+                        "status": {"type": "string",
+                                   "pattern": "^(ok|truncated|error:(too_large|not_utf8|not_json|duplicate_key|too_deep|not_an_object))$"},
+                        "sha256": {"$ref": "#/$defs/sha256"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "path", "sha256"],
+         "properties": {"kind": {"const": "mcp-server"}, "path": {"type": "string"}, "sha256": {"$ref": "#/$defs/sha256"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "path", "source", "pin", "ref"],
+         "properties": {"kind": {"const": "plugin"}, "path": {"type": "string"}, "source": {"type": "string"},
+                        "pin": {"type": ["string", "null"], "pattern": "^[0-9a-fA-F]{40}$"},
+                        "ref": {"type": ["string", "null"]}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "path", "sha256"],
+         "properties": {"kind": {"const": "plugin-dir"}, "path": {"type": "string"}, "sha256": {"$ref": "#/$defs/sha256"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "path", "name", "sha256"],
+         "properties": {"kind": {"const": "skill"}, "path": {"type": "string"}, "name": {"type": "string"},
+                        "sha256": {"$ref": "#/$defs/sha256"}}}
+      ]
+    }
+  }
+}
