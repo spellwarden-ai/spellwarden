@@ -3,7 +3,7 @@
 
 Detection reads environment variables and, on GitHub, the event file; nothing else. Where it cannot tell, it gives
 the restrictive answer: an unknown event or an unreadable event file is a pull request, and a pull request whose
-head repository cannot be read is a fork."""
+head repository cannot be read is a fork; a CI system's own marker makes a run CI even without `CI=true`."""
 from __future__ import annotations
 
 import argparse
@@ -34,6 +34,11 @@ EVENT_FILE_MAX = 25 * 2**20
 BODY_MAX = 2**20
 _TRUE = ("1", "true", "yes", "on")
 # The outputs of `ci-run gitlab`, in the job's working directory, as templates/scan.yml lists them (spec 10.2).
+# Spec 6.11: variables a CI system sets whether or not it sets `CI=true`. Any of them, non-empty, makes the run CI
+# (`other` unless it is GitHub or GitLab): detection fails closed, so a CI job is never mistaken for a trusted
+# local run.
+CI_MARKERS = ("JENKINS_URL", "BUILD_ID", "TF_BUILD", "TEAMCITY_VERSION", "BUILDKITE", "CIRCLECI",
+              "BITBUCKET_BUILD_NUMBER", "CODEBUILD_BUILD_ID", "DRONE", "TRAVIS")
 GITLAB_OUTPUTS = (("gitlab-codequality", "gl-code-quality-report.json"), ("sarif", "spellwarden.sarif"),
                   ("markdown", "spellwarden.md"), ("json", "spellwarden.json"))
 GITLAB_MARKDOWN = dict(GITLAB_OUTPUTS)["markdown"]
@@ -42,7 +47,7 @@ _SCP_REMOTE = re.compile(r"^[A-Za-z0-9._-]+@([A-Za-z0-9.-]+):/?([^/]+)/")
 
 @dataclass(frozen=True)
 class CiContext:
-    provider: str | None          # "github" | "gitlab" | "other"; None for a local run (CI not true)
+    provider: str | None          # "github" | "gitlab" | "other"; None for a local run (no CI variable or marker)
     event: str | None             # GITHUB_EVENT_NAME or CI_PIPELINE_SOURCE
     is_request: bool              # a pull or merge request, or unknown (treated as one)
     request_number: int | None    # the pull request number or the merge request IID
@@ -182,12 +187,13 @@ def _remote_identity(url: str | None) -> str | None:
 def detect(env: Mapping[str, str], *, read_text: Callable[[str], str] = _read_text,
            git_remote: Callable[[], str | None] = _git_remote) -> CiContext:
     """Spec 6.11: the provider, the event, whether the run is a pull or merge request, its number, fork and
-    Dependabot, ref protection and the installation identity. A local run (no CI variable true) is `LOCAL`."""
+    Dependabot, ref protection and the installation identity. A local run (neither `CI` true nor one of
+    `CI_MARKERS` set) is `LOCAL`."""
     if _true(env.get("GITHUB_ACTIONS")):
         return _github(env, read_text)
     if _true(env.get("GITLAB_CI")):
         return _gitlab(env)
-    if _true(env.get("CI")):
+    if _true(env.get("CI")) or any(env.get(name) for name in CI_MARKERS):
         try:
             identity = _remote_identity(git_remote())
         except Exception:  # noqa: BLE001 -- an identity is optional; the ping then carries null

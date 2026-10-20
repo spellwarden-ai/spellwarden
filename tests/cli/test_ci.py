@@ -184,6 +184,31 @@ def test_other_ci_identity_comes_from_the_origin_remote(remote, identity):
     assert ci.detect({"CI": "true"}, git_remote=lambda: remote).identity == identity
 
 
+CI_MARKERS = {
+    "Jenkins": {"JENKINS_URL": "https://jenkins.acme.example/"}, "Jenkins build id": {"BUILD_ID": "42"},
+    "Azure Pipelines": {"TF_BUILD": "True"}, "TeamCity": {"TEAMCITY_VERSION": "2025.03"},
+    "Buildkite": {"BUILDKITE": "true"}, "CircleCI": {"CIRCLECI": "true"},
+    "Bitbucket Pipelines": {"BITBUCKET_BUILD_NUMBER": "17"}, "AWS CodeBuild": {"CODEBUILD_BUILD_ID": "proj:1234"},
+    "Drone": {"DRONE": "true"}, "Travis CI": {"TRAVIS": "true"},
+}
+
+
+@pytest.mark.parametrize("marker", CI_MARKERS.values(), ids=CI_MARKERS.keys())
+def test_a_ci_that_does_not_set_ci_true_is_still_ci_and_never_trusted(marker):
+    """Spec 6.11: detection fails closed. A run that carries a CI system's own marker is `other` CI even without
+    `CI=true` (or with `CI=false`): never trusted for private probing (6.8), and `ci: other` in the ping (6.10).
+    Plain `--probe` stays on there: `other` CI is not a pull request and not a fork (owner decision)."""
+    for env in (marker, {**marker, "CI": "false"}):
+        ctx = ci.detect(env, git_remote=lambda: "https://bitbucket.org/acme/agents.git")
+        assert (ctx.provider, ctx.is_request, ctx.fork, ctx.dependabot) == ("other", False, False, False)
+        assert ctx.identity == "other:bitbucket.org/acme"
+        assert ci.private_probe_trusted(ctx) is False
+
+
+def test_an_empty_marker_is_no_ci():
+    assert ci.detect({name: "" for marker in CI_MARKERS.values() for name in marker}) == ci.LOCAL
+
+
 def test_missing_identity_parts_give_none():
     assert github("push", GITHUB_REPOSITORY_OWNER_ID="").identity is None
     assert gitlab("push", CI_PROJECT_ROOT_NAMESPACE="").identity is None

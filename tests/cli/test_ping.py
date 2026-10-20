@@ -169,6 +169,15 @@ def test_a_scan_in_ci_pings_once(tmp_path, monkeypatch, make_repo, ping_requests
     assert json.loads(ping_requests[0].data)["org"] == "6ece64f2db0ecee34de1a73b2ad0effdf128e6b7a1a2babdb36203d72f61a785"
 
 
+def test_a_scan_on_a_ci_without_ci_true_pings_as_other(tmp_path, monkeypatch, make_repo, ping_requests):
+    from spellwarden_cli.main import main
+
+    repo = make_repo(tmp_path / "repo", {"README.md": "nothing to scan\n"})
+    monkeypatch.setenv("JENKINS_URL", "https://jenkins.acme.example/")
+    assert main(["scan", str(repo), "--format", "json", "--output", str(tmp_path / "r.json")]) == 0
+    assert [json.loads(request.data)["ci"] for request in ping_requests] == ["other"]
+
+
 def test_a_local_scan_never_pings(tmp_path, make_repo, ping_requests):
     from spellwarden_cli.main import main
 
