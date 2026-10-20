@@ -1,6 +1,6 @@
 [project]
 name = "spellwarden"
-version = "0.1.0"
+version = "0.2.0"
 description = "The Spellwarden scan engine: baseline rules for agent skills and MCP servers, probe classification, migration checklist and curation score. Pure code, no I/O."
 readme = "README.md"
 license = "Apache-2.0"

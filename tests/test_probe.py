@@ -76,7 +76,7 @@ def test_evaluate_probe_carries_classification_findings_checklist_and_versions()
     assert (result.spec_version, result.transport, result.auth_mode, result.migration_status) == ("2026-07-28", "streamable-http", "oauth-cimd", "ready")
     assert result.findings == () and result.truncated == 0
     assert [item.key for item in result.checklist] == ["rescan"]
-    assert result.rules_version == "2026.10.0" and result.scanner_version == "0.1.0"
+    assert result.rules_version == "2026.10.1" and result.scanner_version == "0.2.0"
     assert result.to_dict()["checklist"] == [{"order": 12, "key": "rescan", "text": "Re-run the Spellwarden scan"}]
     assert (result.list_meta_missing, result.long_running_tools, result.tasks_supported, result.issuer_problem) == (False, (), False, False)
 
