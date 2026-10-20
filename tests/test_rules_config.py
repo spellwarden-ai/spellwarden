@@ -327,6 +327,86 @@ def test_003_launcher_pins_are_exact_versions_only(command, args, fires):
     assert bool(found) is fires
 
 
+C40W = "0123456789abcdef0123456789abcdef01234567"
+
+
+@pytest.mark.parametrize("command, args, evidence", [
+    ("sh", ["-c", "uvx tool@latest"], ["s: uvx tool@latest (via sh -c)"]),
+    ("bash", ["-c", "npx -y 'pkg@latest' --port 3000"], ["s: npx pkg@latest (via bash -c)"]),
+    ("/bin/zsh", ["-lc", "cd /srv && FOO=1 npx pkg@next; uvx tool==1.0"], ["s: npx pkg@next (via zsh -c)"]),
+    ("bash", ["--norc", "-o", "pipefail", "-c", "docker run --rm img:latest"], ["s: docker run img:latest (via bash -c)"]),
+    ("sh -c", ["pnpx pkg"], ["s: pnpx pkg (via sh -c)"]),
+    ("sh -c 'uvx tool@main'", [], ["s: uvx tool@main (via sh -c)"]),
+    ("cmd", ["/c", "npx", "pkg@latest"], ["s: npx pkg@latest (via cmd /c)"]),
+    ("C:\\Windows\\System32\\cmd.exe", ["/d", "/s", "/C", "npx -y pkg@latest"], ["s: npx pkg@latest (via cmd /c)"]),
+    ("cmd.exe", ["/k", "\"npx.cmd\" pkg@1.2.3 & bunx other"], ["s: bunx other (via cmd /k)"]),
+    ("cmd /c npx pkg@latest", [], ["s: npx pkg@latest (via cmd /c)"]),
+    ("env", ["A=1", "B=2", "npx", "pkg@latest"], ["s: npx pkg@latest (via env)"]),
+    ("/usr/bin/env", ["-i", "-u", "HOME", "--chdir=/srv", "API_TOKEN=s3cr3t-value", "uvx", "tool"], ["s: uvx tool (via env)"]),
+    ("env", ["-S", "uvx --from 'tool>=1' tool"], ["s: uvx tool>=1 (via env)"]),
+    ("env", ["--", "A=1", "npx", "pkg"], ["s: npx pkg (via env)"]),
+    ("npm", ["exec", "pkg@latest"], ["s: npm exec pkg@latest"]),
+    ("npm", ["x", "--yes", "--", "pkg@^1"], ["s: npm x pkg@^1"]),
+    ("npm", ["exec", "--package=pkg@latest", "--", "bin"], ["s: npm exec pkg@latest"]),
+    ("pnpx", ["pkg@latest"], ["s: pnpx pkg@latest"]),
+    ("bunx", ["pkg@latest"], ["s: bunx pkg@latest"]),
+    ("bun", ["x", "pkg@latest"], ["s: bun x pkg@latest"]),
+    ("uv", ["tool", "run", "tool@latest"], ["s: uv tool run tool@latest"]),
+    ("uv", ["tool", "run", "--from", "git" + "+https://github.com/x/y@main", "tool"], ["s: uv tool run git" + "+https://github.com/x/y@main"]),
+    # pinned, or not a launch: clean
+    ("sh", ["-c", "uvx tool==1.4.2 && npx @scope/pkg@1.2.3"], []),
+    ("bash", ["-c", "npx 'pkg@1.2.3'"], []),
+    ("sh", ["./start.sh", "-c", "npx pkg@latest"], []),
+    ("sh", ["-c"], []),
+    ("cmd", ["/c", "npx", "-y", "pkg@1.2.3"], []),
+    ("cmd", ["/c", "uvx tool==1.0 --opt=a,b;c"], []),
+    ("cmd", ["npx", "pkg@latest"], []),
+    ("env", ["A=1", "B=2", "npx", "pkg@1.2.3"], []),
+    ("env", ["A=1"], []),
+    ("npm", ["exec", "github:x/y#" + C40W], []),
+    ("npm", ["install", "pkg@latest"], []),
+    ("pnpx", ["pkg@1.2.3"], []),
+    ("bun", ["x", "pkg@1.2.3"], []),
+    ("bun", ["run", "pkg@latest"], []),
+    ("uv", ["tool", "run", "--from", "git" + "+https://github.com/x/y@" + C40W, "tool"], []),
+    ("uv", ["tool", "install", "tool"], []),
+    ("uv", ["run", "tool@latest"], []),
+])
+def test_003_wrapped_and_aliased_launchers(command, args, evidence):
+    """Owner decision 2026-10-20 (5.3b): one level of `env`, `sh|bash|zsh -c` and `cmd /c|/k` is unwrapped, and
+    `npm exec`, `npm x`, `pnpx`, `bun x` are read as `npx`, `uv tool run` as `uvx`. Exact versions and 40-hex
+    commits stay clean; an `env` assignment's value never reaches the evidence."""
+    found = fired(servers({"s": {"command": command, "args": args}}), rule_id="SW-CFG-003")
+    assert [f.evidence for f in found] == evidence
+    assert all("s3cr3t" not in f.evidence and "HOME" not in f.evidence for f in found)
+
+
+def test_003_a_wrapped_launch_has_a_stable_fingerprint_from_the_field_it_came_from():
+    """The fingerprint of a word found inside a `-c` script is `[server, name, field of the script, word]`: the same
+    for every run and every listing order, and one finding per word however often the script repeats it."""
+    from spellwarden_scan.evidence import fingerprint
+    from spellwarden_scan.rules.config import config_matched
+
+    doc = servers({"s": {"command": "bash", "args": ["-c", "npx pkg@latest; npx pkg@latest | npx other"]},
+                   "t": {"command": "env", "args": ["A=1", "npx", "pkg@latest"]},
+                   "u": {"command": "sh -c 'uvx tool'"}})
+    found = fired(doc, rule_id="SW-CFG-003")
+    assert [(f.evidence, f.fingerprint) for f in found] == [
+        ("s: npx pkg@latest (via bash -c)", fingerprint("SW-CFG-003", ".mcp.json", config_matched("server", "s", "args[1]", "pkg@latest"))),
+        ("s: npx other (via bash -c)", fingerprint("SW-CFG-003", ".mcp.json", config_matched("server", "s", "args[1]", "other"))),
+        ("t: npx pkg@latest (via env)", fingerprint("SW-CFG-003", ".mcp.json", config_matched("server", "t", "args[2]", "pkg@latest"))),
+        ("u: uvx tool (via sh -c)", fingerprint("SW-CFG-003", ".mcp.json", config_matched("server", "u", "command", "tool"))),
+    ]
+    assert [f.fingerprint for f in fired(doc, rule_id="SW-CFG-003")] == [f.fingerprint for f in found]
+
+
+def test_003_unwraps_one_level_only():
+    """Owner decision: exactly one level. A wrapper inside a wrapper is not followed (a known limit, 5.3b)."""
+    doc = servers({"s": {"command": "env", "args": ["A=1", "sh", "-c", "npx pkg@latest"]},
+                   "t": {"command": "sh", "args": ["-c", "env A=1 npx pkg@latest"]}})
+    assert fired(doc, rule_id="SW-CFG-003") == []
+
+
 def test_003_package_options_name_the_package():
     doc = servers({"a": {"command": "uvx", "args": ["--from", "tool==1.0", "tool-cli"]},
                    "b": {"command": "uvx", "args": ["--from", "tool", "tool-cli"]},

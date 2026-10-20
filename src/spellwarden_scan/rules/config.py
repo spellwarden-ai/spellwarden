@@ -493,20 +493,23 @@ def _image_unpinned(image: str) -> bool:
     return ":" not in last or last.rsplit(":", 1)[1] in ("", "latest")
 
 
-def _unpinned_launches(entry: McpServerEntry) -> list[tuple[str, str, str, str]]:
-    """`(launcher, field, matched word, evidence word)` of every unpinned package, image or requirements file of a
-    launch: each package option's value, the first unpinned positional candidate, each requirements file."""
-    words = _words(entry)
+def _dispatch(words: Sequence[tuple[str, str]]) -> list[tuple[str, str, str, str]]:
+    """`(launcher, field, matched word, evidence word)` of every unpinned package, image or requirements file of one
+    launch line: each package option's value, the first unpinned positional candidate, each requirements file.
+    `npm exec`, `npm x`, `pnpx` and `bun x` are read as `npx`; `uv tool run` as `uvx` (owner decision 2026-10-20)."""
     if not words:
         return []
-    program, rest = _program(words[0][1]), words[1:]
+    program, rest = _program(words[0][1]), list(words[1:])
     second = rest[0][1] if rest else ""
-    if program in ("npx", "bunx"):
+    third = rest[1][1] if len(rest) > 1 else ""
+    if program in ("npx", "bunx", "pnpx"):
         launcher, kind, args, values, flags = program, "node", rest, _NPX_VALUE, _NPX_FLAGS
     elif program == "uvx":
         launcher, kind, args, values, flags = program, "uvx", rest, _UVX_VALUE, _UVX_FLAGS
-    elif (program, second) in (("pnpm", "dlx"), ("yarn", "dlx")):
-        launcher, kind, args, values, flags = f"{program} dlx", "node", rest[1:], _NPX_VALUE, _NPX_FLAGS
+    elif (program, second) in (("pnpm", "dlx"), ("yarn", "dlx"), ("npm", "exec"), ("npm", "x"), ("bun", "x")):
+        launcher, kind, args, values, flags = f"{program} {second}", "node", rest[1:], _NPX_VALUE, _NPX_FLAGS
+    elif (program, second, third) == ("uv", "tool", "run"):
+        launcher, kind, args, values, flags = "uv tool run", "uvx", rest[2:], _UVX_VALUE, _UVX_FLAGS
     elif (program, second) == ("pipx", "run"):
         launcher, kind, args, values, flags = "pipx run", "pipx", rest[1:], _PIPX_RUN_VALUE, _PIPX_RUN_FLAGS
     elif program in ("docker", "podman"):
@@ -528,6 +531,246 @@ def _unpinned_launches(entry: McpServerEntry) -> list[tuple[str, str, str, str]]
             found.append((launcher, field, package, _shown(package, after)))
             break
     found.extend((launcher, field, path, f"{option} {path}") for field, path, option in scan.requirements)
+    return found
+
+
+# --- wrappers (SW-CFG-003, 5.3b) -----------------------------------------------------------------------------------
+
+# Owner decision 2026-10-20: one level of `env`, `sh|bash|zsh -c` and `cmd /c|/k` is unwrapped before the dispatch
+# above; a wrapper inside a wrapper is not followed. Every word found inside a wrapper keeps the field it was read
+# from (the `-c` script's `args[N]`, or `command`), so its fingerprint is `[server, name, field, word]` as for any
+# other launch. A shell script and a `cmd` line are split into their simple commands (`;`, `&`, `|`, `(`, `)`, newline)
+# and every command is judged; a shell command's leading `NAME=VALUE` assignments are skipped.
+_SHELLS = frozenset({"sh", "bash", "zsh"})
+_SHELL_LONG_VALUE = frozenset({"--rcfile", "--init-file"})
+_SHELL_ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
+_ENV_SHORT_VALUE = frozenset("uCSP")
+_ENV_LONG_VALUE = frozenset({"--unset", "--chdir", "--split-string"})
+_SEPARATOR = None  # a command separator in a token stream
+
+
+def _sh_tokens(text: str, *, operators: bool) -> list[str | None]:
+    """POSIX shell words of `text`: single quotes literal, double quotes with `\\` escapes of `"`, `\\`, `$` and a
+    backquote, a backslash escaping the next character; with `operators`, unquoted `;`, `&`, `|`, `(`, `)` and newline
+    end a command (`_SEPARATOR`) and an unquoted `#` at a word's start comments to the end of the line. An unclosed
+    quote runs to the end of the text. No expansion is performed. Linear in `text`."""
+    tokens: list[str | None] = []
+    word: list[str] = []
+    started = False
+    index, size = 0, len(text)
+    while index < size:
+        char = text[index]
+        if char == "'":
+            end = text.find("'", index + 1)
+            end = size if end < 0 else end
+            word.append(text[index + 1:end])
+            started, index = True, end + 1
+        elif char == '"':
+            started, index = True, index + 1
+            while index < size and text[index] != '"':
+                if text[index] == "\\" and index + 1 < size and text[index + 1] in '"\\$`\n':
+                    if text[index + 1] != "\n":
+                        word.append(text[index + 1])
+                    index += 2
+                    continue
+                word.append(text[index])
+                index += 1
+            index += 1
+        elif char == "\\":
+            if index + 1 < size and text[index + 1] != "\n":
+                word.append(text[index + 1])
+                started = True
+            index += 2
+        elif char in " \t\r\n" or (operators and char in ";&|()"):
+            if started:
+                tokens.append("".join(word))
+            word, started = [], False
+            if operators and char not in " \t\r":
+                tokens.append(_SEPARATOR)
+            index += 1
+        elif operators and char == "#" and not started:
+            end = text.find("\n", index)
+            index = size if end < 0 else end
+        else:
+            word.append(char)
+            started, index = True, index + 1
+    if started:
+        tokens.append("".join(word))
+    return tokens
+
+
+def _cmd_tokens(text: str) -> list[str | None]:
+    """`cmd.exe` words of `text`: `"` toggles quoting and is removed, `^` escapes the next character outside quotes,
+    unquoted whitespace ends a word, unquoted `&`, `|`, `(`, `)` and newline end a command. Linear in `text`."""
+    tokens: list[str | None] = []
+    word: list[str] = []
+    started = quoted = False
+    index, size = 0, len(text)
+    while index < size:
+        char = text[index]
+        if char == '"':
+            quoted, started = not quoted, True
+        elif quoted:
+            word.append(char)
+        elif char == "^" and index + 1 < size:
+            index += 1
+            word.append(text[index])
+            started = True
+        elif char in " \t\r\n&|()":
+            if started:
+                tokens.append("".join(word))
+            word, started = [], False
+            if char in "\n&|()":
+                tokens.append(_SEPARATOR)
+        else:
+            word.append(char)
+            started = True
+        index += 1
+    if started:
+        tokens.append("".join(word))
+    return tokens
+
+
+def _commands(tokens: Sequence[tuple[str, str | None]], *, assignments: bool) -> list[list[tuple[str, str]]]:
+    """`(field, token)` items split at `_SEPARATOR` into simple commands; with `assignments`, each command's leading
+    `NAME=VALUE` words are dropped (the shell sets them in the environment)."""
+    commands: list[list[tuple[str, str]]] = [[]]
+    for field, token in tokens:
+        if token is _SEPARATOR:
+            commands.append([])
+        elif not (assignments and not commands[-1] and _SHELL_ASSIGNMENT.match(token)):
+            commands[-1].append((field, token))
+    return [command for command in commands if command]
+
+
+def _env_command(rest: Sequence[tuple[str, str]]) -> list[tuple[str, str]]:
+    """The command `env` runs: its options (`-i`, `-0`, `-v`, `-u NAME`, `-C DIR`, `-P PATH`, long forms, `--`)
+    skipped, `-S STRING` split into words in place (once), then every `NAME=VALUE` operand skipped."""
+    words, index, split_done = list(rest), 0, False
+    while index < len(words):
+        field, word = words[index]
+        if word == "--":
+            index += 1
+            break
+        if word == "-":  # the same as `-i`
+            index += 1
+            continue
+        if not word.startswith("-"):
+            break
+        split: tuple[str, str] | None = None
+        consumed = 1
+        if word.startswith("--"):
+            option, equals, value = word.partition("=")
+            if option == "--split-string":
+                if equals:
+                    split = (field, value)
+                elif index + 1 < len(words):
+                    split, consumed = words[index + 1], 2
+            elif option in _ENV_LONG_VALUE and not equals:
+                consumed = 2
+        else:
+            for position, letter in enumerate(word[1:], start=1):
+                if letter not in _ENV_SHORT_VALUE:
+                    continue
+                glued = word[position + 1:]
+                if letter == "S":
+                    if glued:
+                        split = (field, glued)
+                    elif index + 1 < len(words):
+                        split, consumed = words[index + 1], 2
+                elif not glued:
+                    consumed = 2
+                break
+        if split is not None and not split_done:
+            split_done = True
+            inner = [(split[0], token) for token in _sh_tokens(split[1], operators=False) if token is not None]
+            words = words[:index] + inner + words[index + consumed:]
+            continue
+        index += consumed
+    while index < len(words) and "=" in words[index][1] and not words[index][1].startswith("-"):
+        index += 1
+    return words[index:]
+
+
+def _shell_script(rest: Sequence[tuple[str, str]]) -> tuple[str, str] | None:
+    """`(field, script)` of `sh|bash|zsh ... -c SCRIPT`: options skipped (`-o`/`-O` and `--rcfile`/`--init-file` take
+    a value), the first operand is the script when a short option cluster held `c`; None otherwise (the shell runs a
+    file, which is not judged). When the line was written in `command`, the script is the first shell word of the
+    rest of `command`."""
+    index, has_c = 0, False
+    while index < len(rest):
+        word = rest[index][1]
+        if word in ("--", "-"):
+            index += 1
+            break
+        if word in _SHELL_LONG_VALUE:
+            index += 2
+            continue
+        if word.startswith("--"):  # `--login`, `--norc`, ...: no value
+            index += 1
+            continue
+        if len(word) < 2 or word[0] not in "-+":
+            break
+        letters = word[1:]
+        has_c = has_c or (word[0] == "-" and "c" in letters)
+        index += 1 + sum(letter in "oO" for letter in letters)
+    if not has_c or index >= len(rest):
+        return None
+    field, script = rest[index]
+    if field == "command":
+        words = [token for token in _sh_tokens(" ".join(w for f, w in rest[index:] if f == "command"), operators=False)
+                 if token is not None]
+        if not words:
+            return None
+        script = words[0]
+    return field, script
+
+
+def _cmd_line(rest: Sequence[tuple[str, str]]) -> tuple[str, list[tuple[str, str]]] | None:
+    """`(switch, words after it)` of `cmd [/x ...] /c|/k ...`, other switches skipped; None without `/c` or `/k`."""
+    for index, (_field, word) in enumerate(rest):
+        if not word.startswith("/"):
+            return None
+        if word.lower() in ("/c", "/k"):
+            return word.lower(), list(rest[index + 1:])
+    return None
+
+
+def _launch_lines(words: Sequence[tuple[str, str]]) -> list[tuple[str | None, list[tuple[str, str]]]]:
+    """`(wrapper, words)` of every launch line to dispatch: the line itself, or one level inside its wrapper."""
+    if not words:
+        return []
+    program, rest = _program(words[0][1]), words[1:]
+    if program == "env":
+        return [("env", _env_command(rest))]
+    if program in _SHELLS:
+        script = _shell_script(rest)
+        if script is None:
+            return []
+        field, text = script
+        return [(f"{program} -c", command)
+                for command in _commands([(field, t) for t in _sh_tokens(text, operators=True)], assignments=True)]
+    if program == "cmd":
+        line = _cmd_line(rest)
+        if line is None:
+            return []
+        switch, after = line
+        tokens = [(field, token) for field, word in after for token in _cmd_tokens(word)]
+        return [(f"cmd {switch}", command) for command in _commands(tokens, assignments=False)]
+    return [(None, list(words))]
+
+
+def _unpinned_launches(entry: McpServerEntry) -> list[tuple[str, str, str, str]]:
+    """`(launcher, field, matched word, evidence word)` of every unpinned launch of an entry, one per
+    `(field, matched word)` (a script that repeats a launch makes one finding)."""
+    found: list[tuple[str, str, str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for wrapper, line in _launch_lines(_words(entry)):
+        for launcher, field, value, shown in _dispatch(line):
+            if (field, value) in seen:
+                continue
+            seen.add((field, value))
+            found.append((launcher, field, value, f"{shown} (via {wrapper})" if wrapper else shown))
     return found
 
 

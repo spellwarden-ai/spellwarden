@@ -1,0 +1,11 @@
+{
+  "servers": {
+    "clock": {"command": "bash", "args": ["-c", "cd /srv && uvx mcp-server-time==2025.4.7"]},
+    "notes": {"command": "cmd.exe", "args": ["/d", "/c", "npx -y @acme/notes-mcp@1.4.0"]},
+    "tickets": {"command": "env", "args": ["-u", "HOME", "LOG_LEVEL=debug", "npx", "acme-tickets-mcp@2.0.1"]},
+    "wiki": {"command": "npm", "args": ["exec", "github:acme/wiki-mcp#0123456789abcdef0123456789abcdef01234567"]},
+    "search": {"command": "uv", "args": ["tool", "run", "--from", "git+https://github.com/acme/search-mcp@0123456789abcdef0123456789abcdef01234567", "acme-search"]},
+    "calendar": {"command": "pnpx", "args": ["acme-calendar-mcp@3.1.0"]},
+    "script": {"command": "sh", "args": ["./scripts/start.sh", "-c", "npx acme@latest"]}
+  }
+}

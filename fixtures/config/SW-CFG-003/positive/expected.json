@@ -23,6 +23,42 @@
    "severity": "medium",
    "path": ".mcp.json",
    "line": 6
+  },
+  {
+   "rule_id": "SW-CFG-003",
+   "severity": "medium",
+   "path": ".vscode/mcp.json",
+   "line": 3
+  },
+  {
+   "rule_id": "SW-CFG-003",
+   "severity": "medium",
+   "path": ".vscode/mcp.json",
+   "line": 4
+  },
+  {
+   "rule_id": "SW-CFG-003",
+   "severity": "medium",
+   "path": ".vscode/mcp.json",
+   "line": 5
+  },
+  {
+   "rule_id": "SW-CFG-003",
+   "severity": "medium",
+   "path": ".vscode/mcp.json",
+   "line": 6
+  },
+  {
+   "rule_id": "SW-CFG-003",
+   "severity": "medium",
+   "path": ".vscode/mcp.json",
+   "line": 7
+  },
+  {
+   "rule_id": "SW-CFG-003",
+   "severity": "medium",
+   "path": ".vscode/mcp.json",
+   "line": 8
   }
  ]
 }

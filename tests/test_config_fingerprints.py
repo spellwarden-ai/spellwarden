@@ -69,3 +69,25 @@ def test_the_matched_text_is_json_and_never_ambiguous():
     assert config_matched("server", "a,b", "url", "v") == '["server","a,b","url","v"]'
     assert hook_matched("Stop", None, "x") == hook_matched("Stop", "", "x") == '["hook","Stop","","command","x"]'
     assert config_matched("server", "é", "url", "ü") == '["server","é","url","ü"]'
+
+
+def test_wrapped_and_aliased_launches_match_their_fixed_vectors():
+    """Spec 5.3b (owner decision 2026-10-20): a launch found inside `sh -c`, `env` or `cmd /c` keeps the field it
+    was read from, so its fingerprint is the ordinary `[server, name, field, word]` vector, whatever the wrapper."""
+    doc = parse_mcp_config(".vscode/mcp.json", json.dumps({"servers": {
+        "w,1": {"command": "sh", "args": ["-c", "uvx tool@latest; FOO=1 npx pkg@next"]},
+        "w]2": {"command": "env", "args": ["A=1", "B=2", "npx", "pkg@latest"]},
+        'w"3': {"command": "cmd /c pnpx pkg"},
+        "w4": {"command": "npm", "args": ["exec", "pkg@latest"]}}}, indent=2).encode())
+    expected = [
+        ('["server","w,1","args[1]","tool@latest"]', "5b924d9e742595cb3690f02491d757c20d0f76b64e249bc91275216bb022bc87"),
+        ('["server","w,1","args[1]","pkg@next"]', "391df96a75836fd6f0720a282ab27d7775415b62fe84636a7b1d83c293d36ea3"),
+        ('["server","w]2","args[3]","pkg@latest"]', "e641568320caf9e7aa6975ec59b5dc4dbae601c8fdf4b3f5993f5e0a52f63e04"),
+        ('["server","w\\"3","command","pkg"]', "d384e907817dda743b19ad919840978746855240bd4413a4300bd165d9f72b8c"),
+        ('["server","w4","args[1]","pkg@latest"]', "7bd5db32fb8c2df8eb2bbd584a356e0a1e8b70bd800a39ac44f1156b91cf595c"),
+    ]
+    for matched, digest in expected:
+        assert hashlib.sha256(f"SW-CFG-003\x00.vscode/mcp.json\x00{matched}".encode()).hexdigest() == digest, matched
+    found = scan_agent_config([doc], RuleSet.baseline()).findings
+    assert sorted(f.fingerprint for f in found) == sorted(digest for _matched, digest in expected)
+    assert {f.rule_id for f in found} == {"SW-CFG-003"}
