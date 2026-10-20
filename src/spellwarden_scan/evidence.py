@@ -19,6 +19,18 @@ _URL_PASSWORD = re.compile(r"(://[^/\s@:]*:)(?!\*\*\*@)[^/\s]+@")
 # masked whole as `<scheme>://***@`. A `user:***@` the password rule already wrote is left as it is. Bounded and
 # anchored at a scheme's start, so a long line reads in linear time (test_linear_time).
 _URL_USERINFO = re.compile(r"(?<![A-Za-z0-9+.-])([A-Za-z][A-Za-z0-9+.-]{0,31}):[/\\]{0,8}([^/\\@\s]{1,256})@")
+# A credential given as a command option (r0:F2): the password of `-u user:pass`, `--user`, `--proxy-user` (and the
+# `--user=` and `-uuser:pass` spellings), quoted or not; the user name stays readable. Bounded, and a short option
+# never starts inside a longer word or option (`--user-agent`, `sudo -u www-data` carry no `user:pass` and stay).
+_USER_OPTION = re.compile(
+    r"""(?<![\w-])(-[uU][ \t]*|--(?:proxy-)?user(?:[ \t]+|=))"""
+    r"""(?:"([^\s"':]{0,128}):([^"\n]+)|'([^\s"':]{0,128}):([^'\n]+)|([^\s"':]{0,128}):([^\s"']+))""")
+# A header that carries a credential, whatever its scheme word (`Authorization: Token x`, `Proxy-Authorization:
+# Negotiate x`, a `Cookie:` pair list): the value, to the closing quote or the end of the line, becomes `***` and
+# only a scheme word stays. Idempotent: an already masked value is left as it is.
+_AUTH_HEADER = re.compile(
+    r"""(?<![A-Za-z0-9_-])((?:proxy-)?authorization|(?:set-)?cookie)(["']?[ \t]*:[ \t]*["']?)"""
+    r"""((?:[A-Za-z][A-Za-z0-9_-]{0,31}[ \t]+)?)([^"'\n]+)""", re.I)
 _HAS_LETTER = re.compile(r"[A-Za-z]")
 _HAS_DIGIT = re.compile(r"[0-9]")
 
@@ -50,6 +62,23 @@ def _mask_userinfo(match: re.Match) -> str:
     return match.group(1) + "://***@"
 
 
+def _mask_user_option(match: re.Match) -> str:
+    """`-u user:pass` keeps the option and the user name; the password, quoted to its closing quote or bare, becomes `***`."""
+    groups = match.groups()
+    quote, at = next((quote, at) for quote, at in (('"', 1), ("'", 3), ("", 5)) if groups[at + 1] is not None)
+    user, password = groups[at], groups[at + 1]
+    if password == "***":
+        return match.group(0)
+    return match.group(1) + quote + user + ":***"
+
+
+def _mask_auth_header(match: re.Match) -> str:
+    """`Authorization: Token x` keeps the header name and the scheme word; the credential becomes `***`."""
+    if match.group(4).strip() == "***":
+        return match.group(0)
+    return match.group(1) + match.group(2) + match.group(3) + "***"
+
+
 def _mask_value(match: re.Match) -> str:
     """Any value assigned to a secret-like name, quoted or not and of any length, becomes `***` (a short or
     letters-only password is still a password); a placeholder such as `$TOKEN` or `<your-key>` stays readable."""
@@ -66,9 +95,13 @@ def _mask_value(match: re.Match) -> str:
 def mask_credentials(text: str) -> str:
     """Every SW-SKL-011 pattern and every 20+ character mixed run becomes its
     first four characters and `***`; `Bearer` and `Basic` tokens are masked
-    after the scheme word; whatever is left after a secret-like name and `=`
+    after the scheme word; the password of `-u user:pass` (`--user`, `--proxy-user`)
+    and the value of an Authorization, Proxy-Authorization or Cookie header are
+    masked whatever the scheme word (r0:F2); whatever is left after a secret-like name and `=`
     or `:` becomes `***`. Idempotent."""
     masked = _SCHEME.sub(lambda m: m.group(1) + " ***", text)
+    masked = _AUTH_HEADER.sub(_mask_auth_header, masked)
+    masked = _USER_OPTION.sub(_mask_user_option, masked)
     masked = ASSIGNED_SECRET.sub(_mask_assigned, masked)
     for pattern in CREDENTIAL_PATTERNS:
         masked = pattern.sub(_mask_match, masked)

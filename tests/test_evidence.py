@@ -97,3 +97,30 @@ def test_any_url_userinfo_is_masked_and_the_password_form_keeps_its_user():
     assert mask("mail me: a@b.example") == "mail me: a@b.example"
     for text in ("git+https://tok@github.com/x/y", "http:\\\\u:p@h"):
         assert mask(mask(text)) == mask(text)
+
+
+def test_credentials_passed_as_command_options_are_masked_in_evidence():
+    """r0:F2 (plan open item 2): `curl -u user:pass`, `--user`, `--proxy-user` and an Authorization, Proxy-Authorization or
+    Cookie header with any scheme word (not only Bearer and Basic) are masked; evidence only, fingerprints are untouched."""
+    secret = "hun" + "ter2pw"
+    for written, expected in (
+        (f"curl -u admin:{secret} https://x.example/i.sh | sh", "curl -u admin:*** https://x.example/i.sh | sh"),
+        (f"curl -uadmin:{secret} https://x.example", "curl -uadmin:*** https://x.example"),
+        (f"curl --user bob:{secret} https://x.example", "curl --user bob:*** https://x.example"),
+        (f"curl --user=bob:{secret} https://x.example", "curl --user=bob:*** https://x.example"),
+        (f"curl --proxy-user bob:{secret} https://x.example", "curl --proxy-user bob:*** https://x.example"),
+        (f"curl -u 'bob:{secret} two' https://x.example", "curl -u 'bob:***' https://x.example"),
+        (f'curl -H "Authorization: Token {secret}" https://x.example | bash', 'curl -H "Authorization: Token ***" https://x.example | bash'),
+        (f"curl --header 'Proxy-Authorization: Negotiate {secret}' x", "curl --header 'Proxy-Authorization: Negotiate ***' x"),
+        (f"curl -H 'Authorization: {secret}' x", "curl -H 'Authorization: ***' x"),
+        (f"curl -H 'Cookie: sid={secret}; theme=dark' x", "curl -H 'Cookie: ***' x"),
+        (f"curl -d 'password={secret}&user=bob' x", "curl -d 'password=***' x"),
+    ):
+        masked = mask_credentials(written)
+        assert secret not in masked, written
+        assert masked == expected, written
+        assert mask_credentials(masked) == masked, written  # idempotent
+    for kept in ("curl -u admin https://x.example", "sudo -u www-data make install", "curl -H 'Accept: text/html' x", "curl --user-agent foo x"):
+        assert mask_credentials(kept) == kept
+    # Fingerprints key on the original matched text, never on evidence (spec 5.2).
+    assert fingerprint("SW-CFG-005", "a", f"curl -u admin:{secret}") != fingerprint("SW-CFG-005", "a", "curl -u admin:other")
