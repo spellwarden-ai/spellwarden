@@ -24,6 +24,8 @@ DEFAULT_DAYS = 90
 PRUNE_GRACE_DAYS = 30
 REASON_MAX = 1000
 _FINGERPRINT = re.compile(r"[0-9a-fA-F]{64}")
+# The shape of a rule id, as `schemas/baseline.schema.json` states it (always used with `fullmatch`; ASCII digits only).
+RULE_ID = re.compile(r"SW-(SKL|MCP|CFG)-[0-9]{3}")
 _DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 _TOP_KEYS = frozenset({"version", "accepted"})
 _ENTRY_KEYS = frozenset({"fingerprint", "rule", "path", "reason", "added", "expires"})
@@ -115,6 +117,8 @@ def parse_baseline(document: object, *, name: str = BASELINE_PATH) -> Baseline:
         for key in _TEXT_KEYS:
             if raw.get(key) is not None and not isinstance(raw[key], str):
                 raise BaselineError(f"{name}: entry {number}: {key} must be text")
+        if raw.get("rule") and not RULE_ID.fullmatch(raw["rule"]):
+            raise BaselineError(f"{name}: entry {number}: rule must be a rule id such as SW-SKL-007")
         entry, problem = _entry_of(raw)
         if entry is None:
             invalid.append(Notice("baseline_invalid", name, f"entry {number}: {problem}"))
@@ -357,7 +361,7 @@ def cmd_list(args: argparse.Namespace) -> int:
     current = {item.finding.fingerprint: item.finding for item in report.findings}
     for entry in sorted(existing.entries, key=lambda e: (e.expires, e.fingerprint)):
         state = entry_state(entry, as_of=as_of, current=current)
-        print(f"{state:<9} {entry.expires.isoformat()}  {entry.fingerprint[:12]}  {entry.rule or '-'}  "
+        print(f"{state:<9} {entry.expires.isoformat()}  {entry.fingerprint[:12]}  {escape.terminal(entry.rule or '-')}  "
               f"{escape.terminal(entry.path or '-')}  {escape.terminal(entry.reason)}")
     for notice in existing.invalid:
         print(f"{'invalid':<9} {escape.terminal(notice.message)}")

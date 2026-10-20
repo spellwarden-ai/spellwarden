@@ -129,6 +129,63 @@ def test_an_unusable_file_is_exit_2(text, tmp_path, make_repo, run_cli):
     assert any(e["code"] == "baseline_invalid" and e["path"] == baseline.BASELINE_PATH for e in report["errors"])
 
 
+BAD_RULES = ['"SW-SKL-007\\e[2J\\e[31m"', "sw-skl-007", "SW-SKL-7", '"SW-SKL-007\\n"', "SW-XYZ-001",
+             '"SW-SKL-٠٠٧"', "'**SW-SKL-007** [x](https://evil.example)'", "SW-SKL-0071"]
+
+
+@pytest.mark.parametrize("rule", BAD_RULES)
+def test_a_rule_that_is_not_a_rule_id_makes_the_file_unusable(rule, tmp_path, make_repo, run_cli):
+    """Spec 6.3, 6.7, 6.13: `rule` must have the shape of a rule id, as the schema says; anything else is a schema
+    error (exit 2, nothing suppressed), so a hostile value never reaches `baseline list` or a report."""
+    repo = _repo(tmp_path, make_repo)
+    fingerprint = _finding(_scan(run_cli, repo)[1], "SW-SKL-007")["fingerprint"]
+    _write(repo, [_entry(fingerprint, rule=rule)])
+    code, report = _scan(run_cli, repo, "--as-of", "2026-12-15")
+    assert code == 2
+    assert _finding(report, "SW-SKL-007")["suppressed"] is False
+    assert any(e["code"] == "baseline_invalid" and "rule" in e["message"] for e in report["errors"])
+    code, out, err = run_cli(["baseline", "list", str(repo), "--as-of", "2026-12-15"])
+    assert code == 2
+    assert "\x1b" not in out + err and "evil" not in out
+
+
+@pytest.mark.parametrize("rule", [None, '""'])
+def test_an_absent_or_empty_rule_is_still_accepted(rule, tmp_path, make_repo, run_cli):
+    """`rule` is informative (6.7): leaving it out keeps the entry valid, as before."""
+    repo = _repo(tmp_path, make_repo)
+    fingerprint = _finding(_scan(run_cli, repo)[1], "SW-SKL-007")["fingerprint"]
+    entry = _entry(fingerprint)
+    if rule is None:
+        del entry["rule"]
+    else:
+        entry["rule"] = rule
+    _write(repo, [entry])
+    code, report = _scan(run_cli, repo, "--as-of", "2026-12-15")
+    assert code == 0
+    assert _finding(report, "SW-SKL-007")["suppressed"] is True
+
+
+def test_the_rule_pattern_is_the_schemas_and_admits_every_rule():
+    from spellwarden_scan import RuleSet
+
+    schema = json.loads((SCHEMAS / "baseline.schema.json").read_text(encoding="utf-8"))
+    assert schema["properties"]["accepted"]["items"]["properties"]["rule"]["pattern"] == f"^{baseline.RULE_ID.pattern}$"
+    assert all(baseline.RULE_ID.fullmatch(rule.id) for rule in RuleSet.baseline())
+
+
+def test_list_escapes_the_rule_path_and_reason(tmp_path, make_repo, run_cli, monkeypatch):
+    """A second guard behind the read-time check: `baseline list` escapes every field it prints."""
+    import re
+
+    repo = _repo(tmp_path, make_repo)
+    _write(repo, [_entry("0" * 64, rule='"SW\\e[31m‮"', path='"p\\e[2J"', reason='"r\\e[1m\\nx"')])
+    monkeypatch.setattr(baseline, "RULE_ID", re.compile(r".*", re.S))
+    code, out, err = run_cli(["baseline", "list", str(repo), "--as-of", "2026-12-15"])
+    assert code == 0, err
+    assert "\x1b" not in out and "‮" not in out
+    assert "SW\\x1b[31m\\u{202E}" in out and "p\\x1b[2J" in out and "r\\x1b[1m\\nx" in out
+
+
 def test_a_missing_baseline_named_by_the_flag_is_exit_2(tmp_path, make_repo, run_cli):
     repo = _repo(tmp_path, make_repo)
     code, report = _scan(run_cli, repo, "--baseline", "accepted.yml")
