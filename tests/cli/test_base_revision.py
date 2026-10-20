@@ -145,6 +145,19 @@ def test_a_gitlab_merge_request_reads_the_diff_base(make_repo, run_cli, tmp_path
     assert code == 1 and base[:12] in notice(report, "settings_from_base")["message"]
 
 
+def test_a_gitlab_child_pipeline_of_a_merge_request_cannot_exclude_its_own_finding(make_repo, run_cli, tmp_path):
+    """Review r2 F5: a child pipeline (`parent_pipeline`) started by a merge request pipeline runs the request's code;
+    it was not a request, so the request's own settings excluded its own finding."""
+    repo, _ = two_commits(make_repo, tmp_path, {}, {".mcp.json": MCP, ".spellwarden/config.yml": EXCLUDE_MCP})
+    child = {"CI": "true", "GITLAB_CI": "true", "CI_PIPELINE_SOURCE": "parent_pipeline", "CI_PROJECT_ID": "42",
+             "CI_COMMIT_REF_PROTECTED": "false"}
+    code, report = scan(run_cli, repo, child)
+    assert code == 1 and rules(report) == ["SW-CFG-001"] and "base_unavailable" in codes(report["notices"])
+    code, report = scan(run_cli, repo, {**child, "CI_COMMIT_REF_PROTECTED": "true"})  # the protected branch's own
+    assert code == 0 and rules(report) == [] and {"base_unavailable", "settings_from_base"}.isdisjoint(
+        codes(report["notices"]))
+
+
 def test_the_base_settings_are_validated_as_the_head_ones(make_repo, run_cli, tmp_path):
     """An invalid file at the base is the same exit 2, and the notice still says where the file came from."""
     repo, base = two_commits(make_repo, tmp_path, {".spellwarden/config.yml": "version: 1\nprobe-private: true\n"},

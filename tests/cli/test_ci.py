@@ -224,6 +224,27 @@ def test_an_empty_or_false_ci_value_is_no_ci(value):
     assert ci.detect({"CI": value}) == ci.LOCAL
 
 
+@pytest.mark.parametrize(("source", "protected", "more", "is_request"), [
+    pytest.param("parent_pipeline", "false", {}, True, id="child pipeline, unprotected ref"),
+    pytest.param("parent_pipeline", "", {}, True, id="child pipeline, protection unknown"),
+    pytest.param("parent_pipeline", "true", {}, False, id="child pipeline of a protected branch"),
+    pytest.param("parent_pipeline", "true", {"CI_MERGE_REQUEST_IID": "5"}, True,
+                 id="child pipeline of a merge request on a protected source branch"),
+    pytest.param("api", "true", {"CI_MERGE_REQUEST_IID": "5"}, True, id="any source with a merge request"),
+    pytest.param("push", "true", {"CI_MERGE_REQUEST_IID": ""}, False, id="an empty merge request IID"),
+    pytest.param("pipeline", "false", {}, False, id="a multi-project pipeline stays as it was"),
+])
+def test_a_gitlab_child_pipeline_of_a_merge_request_is_a_request(source, protected, more, is_request):
+    """Review r2 F5: a child pipeline started by a merge request pipeline runs the request's code, so it is a request
+    (failing closed to the defaults when it names no base) unless its ref is protected; any pipeline that carries a
+    merge request IID is one."""
+    ctx = gitlab(source, protected=protected, **more)
+    assert ctx.is_request is is_request
+    assert ci.private_probe_trusted(ctx) is (source == "push")  # the allowlist is unchanged
+    if is_request and not more:
+        assert ctx.fork is True and ctx.base_sha is None
+
+
 def test_a_generic_build_id_alone_is_no_ci():
     """`BUILD_ID` is set by local tools too; Jenkins always sets `JENKINS_URL`, so a local shell stays local."""
     assert ci.detect({"BUILD_ID": "42"}) == ci.LOCAL
@@ -287,6 +308,15 @@ def merge_request(**more: str):
                  id="gitlab external pull request reads only its own variable"),
     pytest.param(lambda: gitlab("push", CI_MERGE_REQUEST_DIFF_BASE_SHA=BASE), None, id="gitlab push"),
     pytest.param(lambda: gitlab("", CI_MERGE_REQUEST_DIFF_BASE_SHA=BASE), None, id="gitlab unknown source"),
+    pytest.param(lambda: gitlab("parent_pipeline"), None, id="gitlab child pipeline without merge request variables"),
+    pytest.param(lambda: gitlab("parent_pipeline", CI_MERGE_REQUEST_DIFF_BASE_SHA=BASE), BASE,
+                 id="gitlab child pipeline with the diff base"),
+    pytest.param(lambda: gitlab("parent_pipeline", CI_MERGE_REQUEST_TARGET_BRANCH_SHA=BASE), BASE,
+                 id="gitlab child pipeline with the target branch sha"),
+    pytest.param(lambda: gitlab("parent_pipeline", protected="true", CI_MERGE_REQUEST_DIFF_BASE_SHA=BASE), None,
+                 id="gitlab child pipeline of a protected branch"),
+    pytest.param(lambda: gitlab("api", CI_MERGE_REQUEST_IID="5", CI_MERGE_REQUEST_DIFF_BASE_SHA=BASE), BASE,
+                 id="gitlab any source with a merge request"),
     pytest.param(lambda: ci.detect({"CI": "true"}, git_remote=lambda: None), None, id="other CI"),
     pytest.param(lambda: ci.detect({}), None, id="local run"),
 ])

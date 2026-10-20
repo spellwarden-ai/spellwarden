@@ -3,8 +3,9 @@
 the two CI commands: `spellwarden ci comment` and `spellwarden ci-run gitlab` (10.2a).
 
 Detection reads environment variables and, on GitHub, the event file; nothing else. Where it cannot tell, it gives
-the restrictive answer: an unknown event or an unreadable event file is a pull request, and a pull request whose
-head repository cannot be read is a fork; any `CI` value but an empty or false one (`CI=woodpecker`) and a CI system's
+the restrictive answer: an unknown GitHub event, a GitLab pipeline with no source or with a merge request IID, a GitLab
+child pipeline on an unprotected ref, or an unreadable event file is a pull request, and a pull request whose head
+repository cannot be read is a fork; any `CI` value but an empty or false one (`CI=woodpecker`) and a CI system's
 own marker make a run CI even without `CI=true`."""
 from __future__ import annotations
 
@@ -28,6 +29,7 @@ from spellwarden_cli.settings import FAIL_ON
 
 GITHUB_REQUEST_EVENTS = ("pull_request", "pull_request_target", "merge_group")
 GITLAB_REQUEST_SOURCES = ("merge_request_event", "external_pull_request_event")
+GITLAB_CHILD_SOURCE = "parent_pipeline"  # a request unless its ref is protected (spec 6.11)
 # Spec 6.8: the only events whose run, on a protected ref, may probe private addresses. An allowlist: any other
 # event (a comment, a review, a workflow_run, a dispatch, one added later) is untrusted.
 GITHUB_TRUSTED_EVENTS = ("push", "schedule", "workflow_dispatch")
@@ -192,7 +194,12 @@ def _github_base(event: str | None, payload: dict | None) -> str | None:
 
 def _gitlab(env: Mapping[str, str]) -> CiContext:
     source = env.get("CI_PIPELINE_SOURCE") or None
-    is_request = source is None or source in GITLAB_REQUEST_SOURCES
+    protected = _true(env.get("CI_COMMIT_REF_PROTECTED"))
+    merge_request = bool(env.get("CI_MERGE_REQUEST_IID"))
+    # A child pipeline (`parent_pipeline`) started by a merge request pipeline runs the request's code: a request,
+    # unless its ref is protected; any pipeline that carries a merge request IID is one.
+    is_request = (source is None or source in GITLAB_REQUEST_SOURCES or merge_request
+                  or (source == GITLAB_CHILD_SOURCE and not protected))
     number = _int(env.get("CI_MERGE_REQUEST_IID"))
     fork = False
     if is_request:
@@ -201,9 +208,12 @@ def _gitlab(env: Mapping[str, str]) -> CiContext:
     host = (env.get("CI_SERVER_HOST") or "").strip().lower()
     namespace = (env.get("CI_PROJECT_ROOT_NAMESPACE") or "").strip()
     identity = f"gitlab:{host}:{namespace}" if host and namespace else None
-    candidates = (_object_id(env.get(name)) for name in GITLAB_BASE_VARIABLES.get(source or "", ()))
+    names = GITLAB_BASE_VARIABLES.get(source or "", ())
+    if not names and is_request and (source == GITLAB_CHILD_SOURCE or merge_request):
+        names = GITLAB_BASE_VARIABLES["merge_request_event"]  # none set: the defaults and `base_unavailable`
+    candidates = (_object_id(env.get(name)) for name in names)
     return CiContext(provider="gitlab", event=source, is_request=is_request, request_number=number, fork=fork,
-                     dependabot=False, protected_ref=_true(env.get("CI_COMMIT_REF_PROTECTED")), identity=identity,
+                     dependabot=False, protected_ref=protected, identity=identity,
                      base_sha=next((sha for sha in candidates if sha is not None), None))
 
 
