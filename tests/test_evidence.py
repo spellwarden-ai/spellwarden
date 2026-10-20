@@ -287,6 +287,9 @@ _ADVERSARIAL = [
     "authorization " * _REPEATS, "cookie" + " " * _REPEATS, "-a-pass " * _REPEATS,
     # a user option before another credential option, a dash-led password (r4:R4-1)
     "-u --password " * _REPEATS, "-u -" * _REPEATS, "--password -" * _REPEATS, "-u -" + "a" * _REPEATS,
+    # a masked value that reads a value carries the next word (r4:R4-1): endless chains, kept placeholders
+    "--password --token " * _REPEATS, "TOKEN= " * _REPEATS, "-a cookie= " * _REPEATS, "$TOKEN = " * _REPEATS,
+    "redis-cli -a TOKEN= " * _REPEATS, "pass = $T " * _REPEATS, "x_pass=" * _REPEATS, "--token = -a " * _REPEATS,
 ]
 
 
@@ -317,7 +320,7 @@ def test_a_bare_masked_value_never_joins_two_commands():
         (f"curl -u bob:x;docker login -p {secret}", "curl -u bob:*** login -p ***"),
         # an option is no value of the option before it (found by the generated lines below)
         (f"curl -u -u bob:{secret}", "curl -u -u bob:***"),
-        (f"redis-cli --token= -u -u bob:{secret} -a DB_PASS=", "redis-cli --token= *** -u bob:*** -a ***"),
+        (f"redis-cli --token= -u -u bob:{secret} -a DB_PASS=", "redis-cli --token= *** -a ***"),
     ):
         masked = mask_credentials(written)
         assert secret not in masked, written
@@ -381,26 +384,35 @@ _DIFFERENTIAL_WORDS = [
     "--http-password"]
 _PASSWORD_OPTIONS = frozenset({"--password", "--http-password", "--proxy-password"})
 _USER_OPTIONS = frozenset({"-u", "-U", "--user"})
+_ASSIGNMENTS = frozenset({"TOKEN=", "PASSWORD=", "--token=", "--password="})
+_SWALLOWING_ASSIGNMENTS = _ASSIGNMENTS | {"DB_PASS=", "cookie=", "="}
 
 
 def _must_hide(words: list[str]) -> int:
-    """How many secret words the masking before r3:N3 hid by option (and so must still hide): the word after a spaced
-    password option, and a `user:pass` word after a user option, unless that option was itself the value of the word
-    before it (a password or user option, or `Bearer`)."""
+    """How many secret words the masking of bc93961 and of 82ca7f5 (before r2:F7's option masking) both hid, so must
+    still hide: the word after a spaced password option, a `user:pass` word after a user option, and the word after a
+    spaced assignment (`TOKEN= x`, `--token= x`), unless the option or name was itself the value of the word before it
+    (`Bearer`, a password option, a user option before an option, an assignment before an assignment) or an earlier
+    `authorization:` header masked the rest of the line."""
     hidden = 0
     for index in range(1, len(words)):
         word, option, before = words[index], words[index - 1], words[index - 2] if index >= 2 else ""
-        if "S3cr" not in word or before in _PASSWORD_OPTIONS | _USER_OPTIONS | {"Bearer"}:
+        if "S3cr" not in word or before == "Bearer":
             continue
-        if option in _PASSWORD_OPTIONS or (option in _USER_OPTIONS and ":" in word):
+        if option in _PASSWORD_OPTIONS | _USER_OPTIONS and before not in _PASSWORD_OPTIONS | _USER_OPTIONS:
+            hidden += option in _PASSWORD_OPTIONS or ":" in word
+        elif (option in _ASSIGNMENTS and before not in _PASSWORD_OPTIONS | _SWALLOWING_ASSIGNMENTS
+              and "authorization:" not in words[:index]):
             hidden += 1
     return hidden
 
 
 def test_masking_never_shows_a_secret_an_earlier_masking_hid():
     """r4:R4-1: the reviewer's differential fuzz (dfz.py) found 944 of 100,000 lines where the masking before r3:N3
-    hid a secret that r3:N3's showed (`--password -S3cr`). The expectation is encoded directly: on a fixed seed, no
-    line shows more secret words than it has, less those `_must_hide` counts."""
+    hid a secret that r3:N3's showed (`--password -S3cr`), and against 82ca7f5 (before r2:F7) 166 lines where a
+    secret-named option swallowed the name that masked the next word (`--token TOKEN= x`). The expectation is encoded
+    directly: on a fixed seed, no line shows more secret words than it has, less those `_must_hide` counts, and every
+    line masks to itself."""
     import random
 
     generator = random.Random(1)
@@ -408,6 +420,35 @@ def test_masking_never_shows_a_secret_an_earlier_masking_hid():
     for _ in range(30_000):
         words = [generator.choice(_DIFFERENTIAL_WORDS) for _ in range(generator.randint(2, 8))]
         masked = mask_credentials(" ".join(words))
-        if masked.count("S3cr") > sum("S3cr" in word for word in words) - _must_hide(words):
+        if (masked.count("S3cr") > sum("S3cr" in word for word in words) - _must_hide(words)
+                or mask_credentials(masked) != masked):
             failures.append((" ".join(words), masked))
     assert failures == []
+
+
+def test_a_masked_value_that_reads_a_value_masks_the_next_word_too():
+    """r4:R4-1 (spec 5.10): a value masked whole that is itself a credential option or a name awaiting its value would
+    have masked the word after it; that word joins the mask. A dash-led password, a separator, or a program whose
+    options are read by command ends the chain."""
+    secret = "S3cr" + "etPw"
+    for written, expected in (
+        (f"x --password --token {secret}", "x --password ***"),
+        (f"x -u --password --password= -b{secret}", "x -u --password ***"),
+        (f"x --http-password --pass bob%{secret} -x", "x --http-password *** -x"),
+        (f"x --password -U bob:{secret}", "x --password ***"),
+        (f"x --token TOKEN= bob:{secret}", "x --token ***"),
+        (f"x --api-key = bob:-{secret}", "x --api-key ***"),
+        (f"x cookie= --token= -b{secret}", "x cookie= ***"),
+        (f"sshpass -p PASSWORD= -p{secret} ssh h", "sshpass -p *** ssh h"),
+        (f"redis-cli -a cookie= -a bob%{secret}", "redis-cli -a ***"),
+        (f"sshpass = $TOKEN = bob:{secret}", "sshpass = $TOKEN = ***"),
+        # where the chain ends
+        (f"wget --password -{secret} https://x", "wget --password *** https://x"),
+        (f"x --password --token ; echo {secret}", f"x --password *** ; echo {secret}"),
+        (f"redis-cli -a TOKEN= curl -u -b{secret}", "redis-cli -a *** curl -u -b***"),
+        # a user word with nothing after its colon has no password, so nothing is added to mask on a second pass
+        (f"-U authorization: '{secret}' mysql", "-U authorization: '***' mysql"),
+    ):
+        masked = mask_credentials(written)
+        assert masked == expected, written
+        assert mask_credentials(masked) == masked, written

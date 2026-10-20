@@ -64,6 +64,9 @@ def _scoped(program: str, option: str) -> tuple[re.Pattern, re.Pattern]:
             re.compile(r"(?<![\w-])(?P<option>" + option + r")(?P<sep>[ \t]++(?!-)|)(?P<word>" + _SHELL_WORD + ")"))
 
 
+# The programs whose options `_mask_commands` reads, and (`_chain_end`) a value never swallows.
+_SCOPED_PROGRAMS = frozenset({"mysql", "mysqldump", "mariadb", "sshpass", "docker", "podman", "redis-cli", "curl",
+                              "smbclient"})
 # (command, option, separator kept before the secret or None, at most this many options per command: 0 is all).
 # `sshpass -p` is the first `-p` only (a later one belongs to the wrapped command, `ssh -p 22`); curl's `-b` may end a
 # cluster (`-sb`) and its first `b` takes the rest; smbclient's `-U user%pass` keeps the user name.
@@ -85,8 +88,62 @@ _HEADER_VALUE = {'"': re.compile(r"""(?:[^"\\\n]|\\.)*+"""), "'": re.compile(r"[
 # A word that is nothing but command separators (`;`, `&&`, `|`) is no value: masking it would join two commands, and
 # a second pass would judge the program-scoped options of the joined command differently (r3:N3).
 _SEPARATORS_ONLY = re.compile(r"[;&|]+")
+# r4:R4-1: a value masked whole that is itself a credential option or a name awaiting its value (`_reads_value`) carries
+# the next shell word into its mask, and so on: `--password --token x`, `--token TOKEN= x` and `-p PASSWORD= x` hide
+# `x`, which the option or name swallowed into the first mask would have masked by itself. Any other value, a dash-led
+# password included (`--password -Xy9z https://x`), ends there; so does a separators-only word, and the name of a program
+# whose options are masked by command (`TOKEN= curl -b x` keeps `curl`, so its `-b` is still read).
+_READS_VALUE = re.compile(r"-[A-Za-z]*[uU]|--(?:proxy-)?user|--(?P<name>[A-Za-z0-9][A-Za-z0-9_-]*+)")
+_BARE_OPTION = re.compile(r"-[A-Za-z]|--[A-Za-z0-9][A-Za-z0-9_-]*+")
+_NEXT_VALUE_WORD = re.compile(r"[ \t]++(?P<word>" + _SHELL_WORD + ")")
 _HAS_LETTER = re.compile(r"[A-Za-z]")
 _HAS_DIGIT = re.compile(r"[0-9]")
+
+
+def _reads_value(word: str) -> bool:
+    """Whether `word` reads the next word as a secret: it ends in `=` or `:` (`TOKEN=`, `--password=`, `password:`), or
+    it is a user option or a secret-named long option (`-u`, `--user`, `--password`, `--token`)."""
+    if word.endswith(("=", ":")):
+        return True
+    option = _READS_VALUE.fullmatch(word)
+    return option is not None and (option.group("name") is None or _secret_option(option.group("name")))
+
+
+def _chain_end(text: str, word: str, end: int) -> int:
+    """Where the value whose last word is `word`, ending at `end`, really ends: past each next word while the word
+    before it reads a value (a swallowed bare option such as `-a` in `-a cookie= -a x` does too), or the next word begins
+    with `=` or `:` (`$TOKEN = x` names `x` too)."""
+    swallowed = False
+    while (following := _NEXT_VALUE_WORD.match(text, end)) is not None:
+        value = following.group("word")
+        reads = _reads_value(word) or (swallowed and _BARE_OPTION.fullmatch(word) is not None)
+        if (_SEPARATORS_ONLY.fullmatch(value) or value in _SCOPED_PROGRAMS
+                or not (reads or value.startswith(("=", ":")))):
+            break
+        word, end, swallowed = value, following.end(), True
+    return end
+
+
+def _sub_values(pattern: re.Pattern, text: str, replace, value: str | int, count: int = 0, rescan: bool = False) -> str:
+    """`pattern.sub(replace, text, count=count)` for a pattern whose group `value` ends the match, except that a value
+    masked to `***` that itself takes a value also masks the words `_chain_end` adds, and (`rescan`) a value left as it
+    is, a placeholder, is read again as text (`pass = $TOKEN = x`: `$TOKEN = x` is an assignment too). One pass, linear:
+    a kept placeholder holds no further match but at its end."""
+    out: list[str] = []
+    position = done = matches = 0
+    while (count == 0 or matches < count) and (match := pattern.search(text, position)) is not None:
+        matches += 1
+        replaced = replace(match)
+        if rescan and replaced == match.group(0):
+            position = match.start(value)
+            continue
+        end = match.end()
+        if replaced != match.group(0) and replaced.endswith("***") and match.group(value) is not None:
+            end = _chain_end(text, match.group(value), end)
+        out.append(text[done:match.start()] + replaced)
+        done = position = end
+    out.append(text[done:])
+    return "".join(out)
 
 
 def _mask_match(match: re.Match) -> str:
@@ -137,8 +194,9 @@ def _closes(word: str, start: int, quote: str) -> bool:
 
 def _mask_word(word: str, keep_user: bool, separator: str = ":") -> str:
     """The shell word with its secret masked: after the first `separator` when `keep_user` (`user:***`, quotes and all;
-    a word with no separator names a user only and stays), otherwise whole. A quote open where the mask starts keeps
-    its closing quote, so `'bob:pw two'` reads `'bob:***'`. Idempotent: the output masks to itself."""
+    a word with no separator, or with nothing after it, names a user only and stays), otherwise whole. A quote open
+    where the mask starts keeps its closing quote, so `'bob:pw two'` reads `'bob:***'`. Idempotent: the output masks
+    to itself."""
     quote, index, split = "", 0, 0
     if keep_user:
         while index < len(word):
@@ -153,7 +211,7 @@ def _mask_word(word: str, keep_user: bool, separator: str = ":") -> str:
             elif char == separator:
                 break
             index += 1
-        if index >= len(word):
+        if index >= len(word) - 1:  # no separator, or nothing after it (`authorization:`): no password to hide
             return word
         split = index + 1
     elif word[:1] in ("'", '"'):
@@ -205,8 +263,10 @@ def _mask_secret_options(text: str) -> str:
         word = _WORD.match(text, match.end())
         if word is None or (separator != "=" and word.group().startswith("-")) or _SEPARATORS_ONLY.fullmatch(word.group()):
             continue
-        out.append(text[done:word.start()] + _mask_secret_word(word.group()))
-        done = position = word.end()
+        masked = _mask_secret_word(word.group())
+        end = _chain_end(text, word.group(), word.end()) if masked != word.group() and masked.endswith("***") else word.end()
+        out.append(text[done:word.start()] + masked)
+        done = position = end
     out.append(text[done:])
     return "".join(out)
 
@@ -222,8 +282,8 @@ def _mask_scoped_options(text: str) -> str:
     for command, option, separator, count in _SCOPED_OPTIONS:
         def in_rest(match: re.Match, option: re.Pattern = option, separator: str | None = separator,
                     count: int = count) -> str:
-            rest = option.sub(lambda m: m.group("option") + m.group("sep") + _mask_secret_word(m.group("word"), separator),
-                              match.group("rest"), count=count)
+            rest = _sub_values(option, match.group("rest"), lambda m: m.group("option") + m.group("sep") +
+                               _mask_secret_word(m.group("word"), separator), "word", count)
             return match.group(0)[:match.start("rest") - match.start(0)] + rest
         text = command.sub(in_rest, text)
     return text
@@ -277,7 +337,7 @@ def mask_credentials(text: str) -> str:
     # Program-scoped options first, on the commands as written: a value masked whole below may swallow a separator
     # and the next command's name (`--token x;docker login -p pw`), and must not hide that command's password.
     masked = _mask_commands(masked)
-    masked = _USER_OPTION.sub(_mask_user_option, masked)
+    masked = _sub_values(_USER_OPTION, masked, _mask_user_option, "word")
     masked = _mask_secret_options(masked)
     masked = ASSIGNED_SECRET.sub(_mask_assigned, masked)
     for pattern in CREDENTIAL_PATTERNS:
@@ -285,7 +345,7 @@ def mask_credentials(text: str) -> str:
     masked = _MIXED_RUN.sub(_mask_run, masked)
     masked = _URL_PASSWORD.sub(r"\1***@", masked)
     masked = _URL_USERINFO.sub(_mask_userinfo, masked)
-    masked = ASSIGNED_VALUE.sub(_mask_value, masked)
+    masked = _sub_values(ASSIGNED_VALUE, masked, _mask_value, 3, rescan=True)
     # And last, on the commands as they now read: a value masked whole that swallowed a separator (`TOKEN=x; tool`)
     # joined two commands, which a second pass would judge as one (r3:N3). This makes one pass the fixed point.
     return _mask_commands(masked)
