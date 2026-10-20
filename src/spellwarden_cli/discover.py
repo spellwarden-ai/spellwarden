@@ -131,6 +131,11 @@ def _under(path: str, directory: str) -> bool:
     return directory == "." or path.startswith(directory + "/")
 
 
+def _join(directory: str, name: str) -> str:
+    """`name` inside the scan-root directory `directory`, `"."` being the scan root (a plugin source `"./"`)."""
+    return name if directory == "." else f"{directory}/{name}"
+
+
 class _Outside(UnsafePath):
     """A link target outside the scan root: not repository content."""
 
@@ -424,7 +429,12 @@ def discover(fileset: FileSet) -> Discovery:
         for plugin in marketplace.plugins:
             plugin_items.append(Item("plugin", f"{path}#{plugin.name}", plugin.name))
             source = plugin.source
-            if source.kind != "local" or source.error is not None or source.local_path is None:
+            if source.kind == "local" and source.error is not None:  # an error entry, never skipped silently (r2:F12)
+                builder.errors.append(Notice("unsafe_path", path, f"plugin {plugin.name!r}: local source "
+                                             f"{source.canonical.removeprefix('local-raw:')} is not a path inside the "
+                                             "marketplace root; not read"))
+                continue
+            if source.kind != "local" or source.local_path is None:
                 continue  # remote plugins are inventory only: listed, locked, judged by SW-CFG-009, never fetched
             directory = source.local_path
             plugin_dirs.setdefault(directory, plugin.name)
@@ -435,13 +445,13 @@ def discover(fileset: FileSet) -> Discovery:
         if kind is not None and kind != "marketplace":
             builder.document(kind, path)
     for directory, name in plugin_dirs.items():
-        builder.document("mcp", f"{directory}/.mcp.json", name)
-        builder.document("hooks", f"{directory}/hooks/hooks.json", name)
-        builder.document("plugin", f"{directory}/.claude-plugin/plugin.json", name)
+        builder.document("mcp", _join(directory, ".mcp.json"), name)
+        builder.document("hooks", _join(directory, "hooks/hooks.json"), name)
+        builder.document("plugin", _join(directory, ".claude-plugin/plugin.json"), name)
     for directory, name in plugin_dirs.items():
-        manifest = builder.documents.get(builder.find(f"{directory}/.claude-plugin/plugin.json"))
+        manifest = builder.documents.get(builder.find(_join(directory, ".claude-plugin/plugin.json")))
         if manifest is not None:
-            _follow_references(builder, manifest, directory, name)
+            _follow_references(builder, manifest, "" if directory == "." else directory, name)
     skills = _skills(builder, plugin_dirs)
     # A local plugin whose directory holds no file of the set is listed and locked by its source only; one over the
     # package limits is an item error and is not read whole, like a skill (r0:F8).
@@ -528,8 +538,8 @@ def _skills(builder: _Builder, plugin_of_dir: dict[str, str]) -> list[SkillPacka
         files = _read_all(builder, members)
         if len(builder.errors) != before:
             continue  # an unreadable member makes the skill an item error, not a partial scan
-        owners = [d for d in plugin_of_dir if _under(directory, d) and d != "."]
-        plugin = plugin_of_dir[max(owners, key=len)] if owners else None
+        owners = [d for d in plugin_of_dir if _under(directory, d)]  # "." is a plugin at the scan root (r2:F12)
+        plugin = plugin_of_dir[max(owners, key=lambda d: 0 if d == "." else len(d))] if owners else None
         # the root skill is "." and never the checkout directory's name: a lock and a report must not depend on where
         # the repository sits on disk (r0:F4)
         name = posixpath.basename(directory) if directory != "." else "."

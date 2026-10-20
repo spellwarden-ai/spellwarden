@@ -510,8 +510,13 @@ def _canonical_url(value: object) -> str | None:
 
 
 def plugin_source(value: object, *, marketplace_root: str) -> PluginSource:
-    """Spec 5.6: every source value, valid or not, has one kind and one canonical string."""
+    """Spec 5.6: every source value, valid or not, has one kind and one canonical string. `"./"` and `"."` name the
+    marketplace root itself (r2:F12): `local_path` is that directory, `"."` at the scan root, and so is the canonical
+    string (`local:.`)."""
     if isinstance(value, str):
+        if value in ("./", "."):
+            local = marketplace_root.strip("/") or "."
+            return PluginSource("local", local, None, None, None, None, "local:" + local)
         try:
             local = contain(marketplace_root, value)
         except UnsafePath:

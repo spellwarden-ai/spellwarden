@@ -229,6 +229,21 @@ def test_local_sources_are_contained_against_the_marketplace_root():
     assert got["drive"] == ("local", None, 'local-raw:"C:\\\\x"', "unsafe_path")
 
 
+@pytest.mark.parametrize("value", ["./", "."])
+def test_the_marketplace_root_itself_is_a_local_source(value):
+    # r2:F12: `"./"` is the common spelling for a plugin at the marketplace root; it named an `unsafe_path` before
+    assert source(value) == ac.PluginSource("local", ".", None, None, None, None, "local:.", None)
+    doc = ac.parse_marketplace("tools/.claude-plugin/marketplace.json",
+                               json.dumps({"plugins": [{"name": "p", "source": value}]}).encode())
+    got = doc.plugins[0].source
+    assert (got.kind, got.local_path, got.canonical, got.error) == ("local", "tools", "local:tools", None)
+
+
+@pytest.mark.parametrize("value", ["./.", ".//", "./..", ".."])
+def test_other_spellings_of_dot_stay_unsafe(value):
+    assert source(value).error == "unsafe_path"
+
+
 def test_github_and_url_sources_canonicalise():
     assert source({"source": "github", "repo": "Acme/X.git"}).canonical == "github:acme/x"
     assert source({"source": "github", "repo": "acme/x"}).canonical == "github:acme/x"

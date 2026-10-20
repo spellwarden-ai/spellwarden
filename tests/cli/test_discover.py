@@ -129,6 +129,9 @@ def test_a_broken_document_is_an_error_and_an_unsafe_source_too(make_repo, tmp_p
     found = _discover(repo)
     assert ("not_json", ".mcp.json") in {(e.code, e.path) for e in found.errors}
     assert found.plugin_dirs == ()
+    # r2:F12: an unsafe local source is an error entry naming the marketplace, never silently skipped
+    error = next(e for e in found.errors if e.code == "unsafe_path")
+    assert error.path == ".claude-plugin/marketplace.json" and "evil" in error.message
 
 
 def test_a_skill_over_the_package_limits_is_an_item_error_and_is_not_read(tmp_path, monkeypatch):
@@ -747,3 +750,48 @@ def test_a_plain_file_link_with_a_backslash_target_stays_unsafe_on_windows(make_
     monkeypatch.setattr(paths_module, "_WINDOWS", True)
     found = _discover(repo)
     assert [(e.code, e.path) for e in found.errors] == [("unsafe_path", ".mcp.json")]
+
+
+
+def test_an_unsafe_local_source_fails_the_scan(make_repo, tmp_path, run_cli):
+    repo = make_repo(tmp_path / "repo", {".claude-plugin/marketplace.json": json.dumps(
+        {"plugins": [{"name": "evil", "source": "./../outside"}]})})
+    code, report = _scan_json(run_cli, repo, tmp_path)
+    assert [(e["code"], e["path"]) for e in report["errors"]] == [("unsafe_path", ".claude-plugin/marketplace.json")]
+    assert code == 2
+
+
+@pytest.mark.parametrize("value", ["./", "."])
+def test_a_plugin_at_the_marketplace_root_is_a_local_plugin(value, make_repo, tmp_path, run_cli):
+    # r2:F12: `"source": "./"` names the marketplace root, here the scan root: the plugin directory is "."
+    repo = make_repo(tmp_path / "repo", {
+        ".claude-plugin/marketplace.json": json.dumps({"plugins": [{"name": "p", "source": value}]}),
+        ".claude-plugin/plugin.json": json.dumps({"name": "p", "mcpServers": "./servers.json"}),
+        "hooks/hooks.json": HOOKS,
+        "servers.json": SERVERS,
+        "skills/x/SKILL.md": SKILL,
+    })
+    found = _discover(repo)
+    assert found.errors == ()
+    assert [d.path for d in found.plugin_dirs] == ["."]
+    assert {(d.path, d.kind) for d in found.documents} == {
+        (".claude-plugin/marketplace.json", "marketplace"), (".claude-plugin/plugin.json", "plugin"),
+        ("hooks/hooks.json", "hooks"), ("servers.json", "mcp")}
+    assert ("mcp-server", "servers.json#jira", "jira", "p") in _items(found)
+    assert ("skill", "skills/x", "x", "p") in _items(found)
+    assert run_cli(["lock", str(repo)])[0] == 0
+    lock = json.loads((repo / ".spellwarden" / "lock.json").read_text(encoding="utf-8"))
+    assert [(i["path"], i["source"]) for i in lock["items"] if i["kind"] == "plugin"] == [
+        (".claude-plugin/marketplace.json#p", "local:.")]
+    assert [i["path"] for i in lock["items"] if i["kind"] == "plugin-dir"] == ["."]
+    assert run_cli(["lock", str(repo), "--check"])[0] == 0
+
+
+def test_a_skill_belongs_to_its_innermost_plugin_not_the_root_plugin(make_repo, tmp_path):
+    repo = make_repo(tmp_path / "repo", {
+        ".claude-plugin/marketplace.json": json.dumps({"plugins": [{"name": "a", "source": "./a"},
+                                                                   {"name": "root", "source": "./"}]}),
+        "a/skills/x/SKILL.md": SKILL, "skills/y/SKILL.md": SKILL,
+    })
+    found = _discover(repo)
+    assert [(s.path, s.plugin) for s in found.skills] == [("a/skills/x", "a"), ("skills/y", "root")]
