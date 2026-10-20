@@ -55,4 +55,8 @@ select = ["E", "F", "W", "B", "UP", "ARG"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["E501"]
+# Moved and ported from the hosted backend verbatim (spec 6.8): its line length and its scripted test doubles stay.
+"src/spellwarden_cli/net.py" = ["E501"]
+"src/spellwarden_cli/probe.py" = ["E501"]
+"tests/cli/test_fetcher.py" = ["ARG"]
 "src/spellwarden_scan/rules/*" = ["E501"]  # the pattern tables read better on one line each

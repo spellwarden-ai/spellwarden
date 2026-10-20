@@ -99,6 +99,31 @@ def check_lock(options: ScanOptions, found: Discovery, errors: list[Notice]) -> 
         return LockState()
 
 
-def run_probes(options: ScanOptions, found: Discovery, rules: RuleSet, findings: list[ReportFinding], notices: list[Notice]) -> list[ProbeReport]:  # noqa: E501, ARG001
-    """Seam: Task 11 replaces this body (spec 6.8)."""
-    return []
+def run_probes(options: ScanOptions, found: Discovery, rules: RuleSet, findings: list[ReportFinding], notices: list[Notice]) -> list[ProbeReport]:  # noqa: E501
+    """Spec 6.8: the opt-in probe phase. Off unless `probe` is set; off on a pull or merge request from a fork or
+    Dependabot; private addresses only on a trusted run (`ci.private_probe_trusted`), whatever the flag says.
+    `run.scan` calls this before `apply_baseline`, so probe findings appended to `findings` are baselined there."""
+    from spellwarden_cli import ci, net, probing  # here, not at the top, like the other seams
+
+    if not options.settings.probe:
+        return []
+    context = ci.detect(options.env)
+    targets, skipped = probing.probe_targets(found)
+    for report in skipped:
+        notices.append(Notice("probe_skipped", report.item, "not probed (unresolved: the URL holds a ${...} reference)"))
+    if context.is_request and (context.fork or context.dependabot):
+        notices.append(Notice("probe_fork_disabled", "", "--probe is off on a pull or merge request from a fork or "
+                                                         "Dependabot: whoever opened it controls its endpoints"))
+        forked = [ProbeReport(target.item, "skipped", "fork", None) for target in targets]
+        return sorted([*skipped, *forked], key=lambda report: report.item)
+    allow_private = options.settings.probe_private
+    if allow_private and not ci.private_probe_trusted(context):
+        notices.append(Notice("probe_private_untrusted", "", "--probe-private is ignored: it takes effect only on a "
+                                                             "local run or on a protected ref outside pull and merge requests"))
+        allow_private = False
+    on_event = probing.event_logger(options.log)
+    reports, probe_findings = probing.run_phase(
+        targets, rules, fetcher_factory=lambda: net.Fetcher(allow_private=allow_private, on_event=on_event),
+        now_iso=f"{options.as_of.isoformat()}T00:00:00Z", notices=notices)
+    findings.extend(probe_findings)
+    return sorted([*skipped, *reports], key=lambda report: report.item)

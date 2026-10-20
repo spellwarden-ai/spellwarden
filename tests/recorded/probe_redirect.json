@@ -1,0 +1,8 @@
+[
+  {"method": "POST", "url": "https://mcp.example/mcp", "status": 302, "headers": {"Location": "https://elsewhere.example/mcp"}, "body": ""},
+  {"method": "POST", "url": "https://mcp.example/mcp#initialize", "status": 200, "headers": {"Content-Type": "application/json"},
+   "body": {"jsonrpc": "2.0", "id": 2, "result": {"protocolVersion": "2025-11-25", "capabilities": {"tools": {}}, "serverInfo": {"name": "moved", "version": "1"}}}},
+  {"method": "POST", "url": "https://mcp.example/mcp#notifications/initialized", "status": 202, "headers": {}, "body": ""},
+  {"method": "POST", "url": "https://mcp.example/mcp#tools/list", "status": 200, "headers": {"Content-Type": "application/json"},
+   "body": {"jsonrpc": "2.0", "id": 5, "result": {"tools": []}}}
+]

@@ -1,0 +1,11 @@
+[
+  {"method": "POST", "url": "https://mcp.example/mcp", "status": 200, "headers": {"Content-Type": "application/json"},
+   "body": {"jsonrpc": "2.0", "id": 1, "result": {"supportedVersions": ["2026-07-28"], "capabilities": {"tools": {}}, "serverInfo": {"name": "deploy-orchestrator", "version": "5.0"}}}},
+  {"method": "POST", "url": "https://mcp.example/mcp#tools/list", "status": 401,
+   "headers": {"Content-Type": "application/json", "WWW-Authenticate": "Bearer resource_metadata=\"https://mcp.example/.well-known/oauth-protected-resource/mcp\""}, "body": {}},
+  {"method": "GET", "url": "https://mcp.example/.well-known/oauth-protected-resource/mcp", "status": 200, "headers": {"Content-Type": "application/json"},
+   "body": {"resource": "https://mcp.example/mcp", "authorization_servers": ["https://auth.example"]}},
+  {"method": "GET", "url": "https://auth.example/.well-known/oauth-authorization-server", "status": 404, "headers": {}, "body": ""},
+  {"method": "GET", "url": "https://auth.example/.well-known/openid-configuration", "status": 200, "headers": {"Content-Type": "application/json"},
+   "body": {"issuer": "https://auth.example", "grant_types_supported": ["authorization_code", "urn:ietf:params:oauth:grant-type:jwt-bearer"]}}
+]

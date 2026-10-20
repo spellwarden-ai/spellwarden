@@ -1,0 +1,6 @@
+[
+  {"method": "POST", "url": "https://mcp.example/mcp", "status": 200, "headers": {"Content-Type": "application/json", "Mcp-Session-Id": "sess-9"},
+   "body": {"jsonrpc": "2.0", "id": 1, "result": {"supportedVersions": ["2025-11-25"], "capabilities": {"tools": {}}, "serverInfo": {"name": "grafana-query", "version": "4"}}}},
+  {"method": "POST", "url": "https://mcp.example/mcp#tools/list", "status": 200, "headers": {"Content-Type": "application/json"},
+   "body": {"jsonrpc": "2.0", "id": 5, "result": {"tools": [{"name": "query", "description": "Runs a query."}]}}}
+]

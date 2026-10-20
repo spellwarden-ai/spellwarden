@@ -1,0 +1,9 @@
+[
+  {"method": "POST", "url": "https://mcp.example/mcp", "status": 200, "headers": {"Content-Type": "application/json"},
+   "body": {"jsonrpc": "2.0", "id": 1, "error": {"code": -32601, "message": "Method not found: server/discover"}}},
+  {"method": "POST", "url": "https://mcp.example/mcp#initialize", "status": 200, "headers": {"Content-Type": "application/json", "Mcp-Session-Id": "sess-1"},
+   "body": {"jsonrpc": "2.0", "id": 2, "result": {"protocolVersion": "2025-06-18", "capabilities": {"tools": {}, "logging": {}}, "serverInfo": {"name": "s3-docs", "version": "1.0"}}}},
+  {"method": "POST", "url": "https://mcp.example/mcp#notifications/initialized", "status": 202, "headers": {}, "body": ""},
+  {"method": "POST", "url": "https://mcp.example/mcp#tools/list", "status": 200, "headers": {"Content-Type": "application/json"},
+   "body": {"jsonrpc": "2.0", "id": 5, "result": {"tools": [{"name": "read_doc", "description": "Reads a document."}]}}}
+]
