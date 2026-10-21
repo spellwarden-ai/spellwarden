@@ -21,8 +21,9 @@ PACK_ERROR_CODES = ("bad_schema", "bad_pack", "bad_rules", "bad_org_rule", "too_
 MAX_ORG_RULES = 200
 MAX_NAME = 80
 MAX_DESCRIPTION = 500
-# The canonical document is stored as one DynamoDB attribute by the hosted product (spec 6.2); 200 org rules at their
-# largest ASCII sizes stay well below it (claim E6), and a pack whose text makes it larger is refused.
+# The canonical document is stored as one DynamoDB attribute by the hosted product (spec 6.2); 200 pattern rules at
+# their largest ASCII sizes stay below it (claim E6), but host lists of 50 names of 253 characters pass it from about
+# 23 rules, so the byte bound, not the count, is what limits a pack whose rules are long.
 MAX_DOCUMENT_BYTES = 300_000
 _DOCUMENT_KEYS = frozenset({"schema", "pack", "engine", "rules", "org_rules"})
 _PACK_KEYS = frozenset({"id", "name", "version", "description"})
@@ -195,7 +196,8 @@ def validate_pack(doc: object) -> PackDocument:
     except UnicodeEncodeError:
         raise PackError("bad_schema", "The pack holds text that is not valid Unicode.") from None
     if size > MAX_DOCUMENT_BYTES:
-        raise PackError("too_many_org_rules", "The pack is larger than 300 000 bytes. Include fewer org rules.")
+        raise PackError("too_many_org_rules", "The pack is larger than 300 000 bytes. Include fewer org rules or shorten their "
+                                                   "text and host lists.")
     return document
 
 

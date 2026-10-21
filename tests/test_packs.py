@@ -259,6 +259,22 @@ def test_a_pack_whose_text_passes_300_000_bytes_is_refused():
     assert caught.value.code == "too_many_org_rules"
 
 
+def test_long_host_lists_reach_the_byte_bound_before_the_rule_count():
+    # review of 2026-10-21 (r0:F5): the largest rules are host lists, and the message names what to shorten
+    hosts = [f"h{n:02d}." + ".".join(["a" * 62] * 3 + ["a" * 52]) + ".example" for n in range(50)]
+    assert all(len(host) == 253 for host in hosts)
+
+    def host_rule(number: int) -> dict:
+        return {"id": f"SW-ORG-{number:03d}", "title": "T" * 120, "severity": "high", "area": "mcp", "owasp": [],
+                "nist": [], "targets": [], "malicious": False,
+                "detection": {"kind": "probe", "predicate": "endpoint_host_not_in", "values": hosts}}
+
+    assert len(validate_pack(document(org_rules=[host_rule(n) for n in range(1, 21)])).org_rules) == 20
+    with pytest.raises(PackError) as caught:
+        validate_pack(document(org_rules=[host_rule(n) for n in range(1, 25)]))
+    assert caught.value.code == "too_many_org_rules" and "host lists" in caught.value.message
+
+
 def test_201_org_rules_are_refused_before_any_is_read():
     doc = copy.deepcopy(load(PACKS / "invalid" / "too_many_org_rules" / "201-org-rules.json"))
     doc["org_rules"][0] = {"not": "a rule"}
