@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.1.0 (RELEASE_DATE)
+## 1.1.0 (2026-10-21)
 
 An engine release: names are added, nothing is removed or changed. The rules version stays `2026.10.2`, every
 fingerprint of 1.0.0 is unchanged, and the `spellwarden` command, its files and its reports are as in 1.0.0 apart
