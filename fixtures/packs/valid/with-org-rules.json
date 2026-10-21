@@ -1,0 +1,116 @@
+{
+  "schema": 1,
+  "pack": {
+    "id": "3b1e8c2a9d7f4e605a1b2c3d4e5f6071",
+    "name": "Platform team",
+    "version": "1.2",
+    "description": "Rules for the platform team.\nReviewed every quarter."
+  },
+  "engine": {
+    "version": "1.1.0",
+    "rules_version": "2026.10.2"
+  },
+  "rules": [
+    {
+      "id": "SW-HK-001",
+      "enabled": true
+    },
+    {
+      "id": "SW-HK-002",
+      "enabled": true
+    },
+    {
+      "id": "SW-GW-003",
+      "enabled": true
+    },
+    {
+      "id": "SW-GW-004",
+      "enabled": true
+    },
+    {
+      "id": "SW-EG-005",
+      "enabled": false
+    },
+    {
+      "id": "SW-GW-006",
+      "enabled": true
+    },
+    {
+      "id": "SW-RG-007",
+      "enabled": true
+    },
+    {
+      "id": "SW-OB-008",
+      "enabled": false
+    }
+  ],
+  "org_rules": [
+    {
+      "id": "SW-ORG-001",
+      "title": "Downloads a binary from a raw IP address",
+      "severity": "high",
+      "area": "skill",
+      "owasp": [
+        "ASI04"
+      ],
+      "nist": [
+        "SR-3"
+      ],
+      "targets": [
+        "claude-code-hooks"
+      ],
+      "malicious": false,
+      "detection": {
+        "kind": "pattern",
+        "files": "**/*.sh",
+        "in": "commands",
+        "pattern": "(curl|wget)\\s.*https?://[0-9]{1,3}\\.[0-9]{1,3}\\.",
+        "case_sensitive": false
+      }
+    },
+    {
+      "id": "SW-ORG-002",
+      "title": "MCP server without authentication",
+      "severity": "high",
+      "area": "mcp",
+      "owasp": [
+        "MCP01"
+      ],
+      "nist": [
+        "IA-5"
+      ],
+      "targets": [],
+      "malicious": false,
+      "detection": {
+        "kind": "probe",
+        "predicate": "auth_mode_in",
+        "values": [
+          "none"
+        ]
+      }
+    },
+    {
+      "id": "SW-ORG-003",
+      "title": "Asks the agent to reveal its system prompt",
+      "severity": "medium",
+      "area": "skill",
+      "owasp": [
+        "ASI01"
+      ],
+      "nist": [
+        "SI-10"
+      ],
+      "targets": [
+        "kong"
+      ],
+      "malicious": false,
+      "detection": {
+        "kind": "pattern",
+        "files": "**",
+        "in": "lines",
+        "pattern": "(reveal|print|show) (your|the) system prompt",
+        "case_sensitive": false
+      }
+    }
+  ]
+}

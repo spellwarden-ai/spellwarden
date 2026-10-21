@@ -1,0 +1,276 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/spellwarden-ai/spellwarden/blob/main/schemas/pack.schema.json",
+  "title": "Spellwarden policy pack document (schema 1)",
+  "description": "A pack of enforcement rules and org rules (Phase C spec 5.4). spellwarden_scan.validate_pack checks the same rules in code and also what a schema cannot state: org rules in id order with distinct ids, the pattern language, the path glob and the host forms (validate_org_rule), the size bound of 300 000 bytes, and that text fields hold at least one character after stripping and at most their length after stripping.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "pack", "engine", "rules", "org_rules"],
+  "properties": {
+    "schema": {"const": 1},
+    "pack": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "version", "description"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^(baseline|[0-9a-f]{32})(?![\\s\\S])"},
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "pattern": "\\S",
+          "not": {
+            "pattern": "[\\u0000-\\u001f\\u007f-\\u009f\\u00ad\\u0600-\\u0605\\u061c\\u06dd\\u070f\\u0890-\\u0891\\u08e2\\u180e\\u200b-\\u200f\\u2028-\\u202e\\u2060-\\u2064\\u2066-\\u206f\\ufeff\\ufff9-\\ufffb\\U000110bd\\U000110cd\\U00013430-\\U0001343f\\U0001bca0-\\U0001bca3\\U0001d173-\\U0001d17a\\U000e0000-\\U000e007f]"
+          }
+        },
+        "version": {"type": "string", "pattern": "^[0-9]{1,3}\\.[0-9]{1,4}(?![\\s\\S])"},
+        "description": {
+          "anyOf": [
+            {"const": ""},
+            {
+              "type": "string",
+              "maxLength": 500,
+              "pattern": "\\S",
+              "not": {
+                "pattern": "[\\u0000-\\u0009\\u000b-\\u001f\\u007f-\\u009f\\u00ad\\u0600-\\u0605\\u061c\\u06dd\\u070f\\u0890-\\u0891\\u08e2\\u180e\\u200b-\\u200f\\u2028-\\u202e\\u2060-\\u2064\\u2066-\\u206f\\ufeff\\ufff9-\\ufffb\\U000110bd\\U000110cd\\U00013430-\\U0001343f\\U0001bca0-\\U0001bca3\\U0001d173-\\U0001d17a\\U000e0000-\\U000e007f]"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "engine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "rules_version"],
+      "properties": {"version": {"type": "string"}, "rules_version": {"type": "string"}}
+    },
+    "rules": {
+      "type": "array",
+      "minItems": 8,
+      "maxItems": 8,
+      "items": false,
+      "prefixItems": [
+        {"$ref": "#/$defs/rule", "properties": {"id": {"const": "SW-HK-001"}}},
+        {"$ref": "#/$defs/rule", "properties": {"id": {"const": "SW-HK-002"}}},
+        {"$ref": "#/$defs/rule", "properties": {"id": {"const": "SW-GW-003"}}},
+        {"$ref": "#/$defs/rule", "properties": {"id": {"const": "SW-GW-004"}}},
+        {"$ref": "#/$defs/rule", "properties": {"id": {"const": "SW-EG-005"}}},
+        {"$ref": "#/$defs/rule", "properties": {"id": {"const": "SW-GW-006"}}},
+        {"$ref": "#/$defs/rule", "properties": {"id": {"const": "SW-RG-007"}}},
+        {"$ref": "#/$defs/rule", "properties": {"id": {"const": "SW-OB-008"}}}
+      ]
+    },
+    "org_rules": {"type": "array", "maxItems": 200, "items": {"$ref": "#/$defs/orgRule"}}
+  },
+  "$defs": {
+    "rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "enabled"],
+      "properties": {"id": {"type": "string"}, "enabled": {"type": "boolean"}}
+    },
+    "pattern": {"type": "string", "minLength": 1, "maxLength": 300},
+    "orgRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "severity", "area", "detection"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^SW-ORG-(?!000)[0-9]{3}(?![\\s\\S])"},
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "pattern": "\\S",
+          "not": {
+            "pattern": "[\\u0000-\\u001f\\u007f-\\u009f\\u00ad\\u0600-\\u0605\\u061c\\u06dd\\u070f\\u0890-\\u0891\\u08e2\\u180e\\u200b-\\u200f\\u2028-\\u202e\\u2060-\\u2064\\u2066-\\u206f\\ufeff\\ufff9-\\ufffb\\U000110bd\\U000110cd\\U00013430-\\U0001343f\\U0001bca0-\\U0001bca3\\U0001d173-\\U0001d17a\\U000e0000-\\U000e007f]"
+          }
+        },
+        "severity": {"enum": ["critical", "high", "medium", "low"]},
+        "area": {"enum": ["skill", "mcp"]},
+        "owasp": {
+          "type": "array",
+          "maxItems": 5,
+          "uniqueItems": true,
+          "items": {"enum": ["ASI01", "ASI04", "ASI10", "MCP01", "MCP10"]}
+        },
+        "nist": {
+          "type": "array",
+          "maxItems": 5,
+          "uniqueItems": true,
+          "items": {"enum": ["AC-3", "AC-6", "AU-2", "IA-5", "SC-7", "SI-10", "SR-3"]}
+        },
+        "targets": {
+          "type": "array",
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {"enum": ["claude-code-hooks", "kong"]}
+        },
+        "malicious": {"type": "boolean"},
+        "detection": {"oneOf": [{"$ref": "#/$defs/patternDetection"}, {"$ref": "#/$defs/probeDetection"}]}
+      },
+      "allOf": [
+        {
+          "if": {"required": ["area"], "properties": {"area": {"const": "skill"}}},
+          "then": {"properties": {"detection": {"$ref": "#/$defs/patternDetection"}}}
+        },
+        {
+          "if": {"required": ["area"], "properties": {"area": {"const": "mcp"}}},
+          "then": {"properties": {"detection": {"$ref": "#/$defs/probeDetection"}, "targets": {"maxItems": 0}}}
+        },
+        {
+          "if": {"required": ["malicious"], "properties": {"malicious": {"const": true}}},
+          "then": {"properties": {"severity": {"const": "critical"}}}
+        },
+        {
+          "if": {"required": ["targets"], "properties": {"targets": {"contains": {"const": "claude-code-hooks"}}}},
+          "then": {"properties": {"detection": {"required": ["in"], "properties": {"in": {"const": "commands"}}}}}
+        }
+      ]
+    },
+    "patternDetection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "pattern"],
+      "properties": {
+        "kind": {"const": "pattern"},
+        "files": {"type": "string", "minLength": 1, "maxLength": 200},
+        "in": {"enum": ["lines", "commands"]},
+        "pattern": {"$ref": "#/$defs/pattern"},
+        "case_sensitive": {"type": "boolean"}
+      }
+    },
+    "probeDetection": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "predicate", "values"],
+          "properties": {
+            "kind": {"const": "probe"},
+            "predicate": {"const": "auth_mode_in"},
+            "values": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 6,
+              "uniqueItems": true,
+              "items": {"enum": ["none", "static-key", "oauth-dcr", "oauth-cimd", "xaa", "unknown"]}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "predicate", "values"],
+          "properties": {
+            "kind": {"const": "probe"},
+            "predicate": {"const": "transport_in"},
+            "values": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 4,
+              "uniqueItems": true,
+              "items": {"enum": ["streamable-http", "sse", "stdio", "unknown"]}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "predicate", "values"],
+          "properties": {
+            "kind": {"const": "probe"},
+            "predicate": {"const": "deprecated_feature_any"},
+            "values": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 7,
+              "uniqueItems": true,
+              "items": {"enum": ["sse", "initialize_only", "sessions", "roots", "sampling", "logging", "dcr"]}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "predicate", "values"],
+          "properties": {
+            "kind": {"const": "probe"},
+            "predicate": {"const": "spec_version_below"},
+            "values": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "uniqueItems": true,
+              "items": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}(?![\\s\\S])"}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "predicate", "values"],
+          "properties": {
+            "kind": {"const": "probe"},
+            "predicate": {"const": "endpoint_host_in"},
+            "values": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 50,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 253,
+                "pattern": "^(\\*\\.)?[^\\s*A-Z/:]+(?![\\s\\S])"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "predicate", "values"],
+          "properties": {
+            "kind": {"const": "probe"},
+            "predicate": {"const": "endpoint_host_not_in"},
+            "values": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 50,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 253,
+                "pattern": "^(\\*\\.)?[^\\s*A-Z/:]+(?![\\s\\S])"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "predicate", "pattern"],
+          "properties": {
+            "kind": {"const": "probe"},
+            "predicate": {"const": "tool_name_matches"},
+            "pattern": {"$ref": "#/$defs/pattern"},
+            "case_sensitive": {"type": "boolean"}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "predicate", "pattern"],
+          "properties": {
+            "kind": {"const": "probe"},
+            "predicate": {"const": "tool_description_matches"},
+            "pattern": {"$ref": "#/$defs/pattern"},
+            "case_sensitive": {"type": "boolean"}
+          }
+        }
+      ]
+    }
+  }
+}
