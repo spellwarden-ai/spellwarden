@@ -65,3 +65,24 @@ def test_the_managed_mode_states_its_verification_as_the_exports_do():
                   else re.escape(f"not yet verified on {name}"))
         row = re.escape(f"| {name} | `{script}` | `{hooks.MANAGED_SETTINGS_PATHS[platform]}` | ") + status + r" \|"
         assert re.search(rf"^{row}$", section, re.M), platform
+
+
+def _fenced(block: str) -> str:
+    lines = block.strip("\n").split("\n")
+    assert lines[0].startswith("```") and lines[-1] == "```"
+    return "\n".join(lines[1:-1]) + "\n"
+
+
+def test_the_readme_export_examples_are_what_the_baseline_exports():
+    # review of 2026-10-21 (r0:F6, r0:F7): an example of each export and of both hook modes, kept equal to the output
+    section, built = _section(), "2026-12-01T00:00:00Z"
+    project = build_export(baseline_pack(), "claude-code-hooks", built_at=built, mode="project")
+    managed = build_export(baseline_pack(), "claude-code-hooks", built_at=built, mode="managed")
+    kong = build_export(baseline_pack(), "kong", built_at=built)
+    for name, expected in (("hooks-project", project[".claude/settings.json"]),
+                           ("hooks-managed", managed["managed/linux/managed-settings.json"])):
+        shown = _fenced(_between(section, f"<!-- {name}-example:start -->\n", f"<!-- {name}-example:end -->"))
+        assert shown == expected.decode("utf-8")
+    shown = _fenced(_between(section, "<!-- kong-example:start -->\n", "<!-- kong-example:end -->"))
+    assert kong["kong/spellwarden-baseline-1.0.yaml"].decode("utf-8").startswith(shown)
+    assert "Do not run `deck gateway sync` with this file alone" in section

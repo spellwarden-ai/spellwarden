@@ -197,8 +197,12 @@ LIMITS_COMMON = [
     "A missing interpreter or a hook timeout lets the tool call proceed: Claude Code treats both as non-blocking "
     "unless the hook sets `onFailure` to `block` (Claude Code v2.1.295 or later), which this export does not set. "
     "An administrator who wants failures to block adds it to the managed hooks.",
-    "The guard never blocks on its own failure: unreadable or unexpected hook input lets the tool call proceed, "
-    "with one line on standard error.",
+    "The guard never blocks on its own failure: unreadable or unexpected hook input, including an event larger "
+    "than 1 MiB, lets the tool call proceed, with one line on standard error. An agent can therefore pass every "
+    "check by making one tool call larger than 1 MiB.",
+    "A missing or unreadable guard script is not a guard failure: Python exits with status 2, which Claude Code "
+    "reads as a block, so every matched tool call is refused until the script is restored. This also happens when "
+    "the hook's path does not resolve in the shell Claude Code runs it with.",
     "Commands are matched as text. Quoting, variables, aliases or encodings can evade a check, and an org rule can "
     "miss a match longer than 512 characters that crosses a 4096-character window boundary. PowerShell commands "
     "are matched with the same patterns, which are written for POSIX shells.",

@@ -212,7 +212,7 @@ The enforcement rules (`ENFORCEMENT_RULES`), and what an export of this release 
 
 `build_export(pack, target, built_at=..., mode=...)` returns the files of an export as `{path: bytes}`; `target` is one of `EXPORT_TARGETS` (`claude-code-hooks`, `kong`), and `PLANNED_TARGETS` (`zuplo`, `agentcore-policy`, `cloudflare-egress`) are not available yet. Every export holds `SPELLWARDEN-README.md`, which lists what the target enforces, what it cannot enforce and why, how to install it and the limits of its mode, and ends with: Validate field names against the vendor's current documentation before use.
 
-**Claude Code hooks.** One guard script, `spellwarden_guard.py` (Python 3.8 or newer, standard library only, the pack's checks compiled in, never opening the network), run by a `PreToolUse` hook for Bash, PowerShell (Claude Code's shell tool on Windows), Read, Grep, Glob and MCP tools, and by a `PostToolUse` hook when SW-OB-008 is on. It denies piped remote scripts and credential-file reads, asks before destructive commands and destructive MCP tool verbs, and applies org rules with the `claude-code-hooks` target (deny for critical or high, ask for medium or low); when one command matches both, the deny wins. The command patterns are written for POSIX shells and read PowerShell commands as text. Windows paths are checked as given and with `\` read as `/`. On unreadable input it prints nothing and exits 0: the guard never blocks on its own failure, and a missing interpreter or a timeout lets the tool call proceed. Every hook runs it as `python3 -I`, so the checkout cannot plant a module it imports. `SHA256SUMS` lists the script's SHA-256.
+**Claude Code hooks.** One guard script, `spellwarden_guard.py` (Python 3.8 or newer, standard library only, the pack's checks compiled in, never opening the network), run by a `PreToolUse` hook for Bash, PowerShell (Claude Code's shell tool on Windows), Read, Grep, Glob and MCP tools, and by a `PostToolUse` hook when SW-OB-008 is on. It denies piped remote scripts and credential-file reads, asks before destructive commands and destructive MCP tool verbs, and applies org rules with the `claude-code-hooks` target (deny for critical or high, ask for medium or low); when one command matches both, the deny wins. The command patterns are written for POSIX shells and read PowerShell commands as text. Windows paths are checked as given and with `\` read as `/`. On unreadable input, including an event larger than 1 MiB, it prints nothing and exits 0: the guard never blocks on its own failure, and a missing interpreter or a timeout lets the tool call proceed. An agent can therefore pass every check by making one tool call larger than 1 MiB. A missing or unreadable script is different: Python exits with status 2, which Claude Code reads as a block, so every matched tool call is refused until the script is restored. Every hook runs it as `python3 -I`, so the checkout cannot plant a module it imports. `SHA256SUMS` lists the script's SHA-256.
 
 - Project mode (`mode="project"`, advisory): `.claude/settings.json` with the hooks, `.claude/hooks/spellwarden_guard.py`, `.claude/.gitignore` (the activity log), `SHA256SUMS` and `SPELLWARDEN-README.md`, for committing to the repository. The repository controls these files: any branch can change, replace or remove the script or the settings, so this mode helps developers who want it and enforces nothing against a checkout that does not.
 - Managed mode (`mode="managed"`, enforceable): `managed/linux/managed-settings.json`, `managed/macos/managed-settings.json`, `managed/windows/managed-settings.json`, `managed/spellwarden_guard.py`, `SHA256SUMS` and `SPELLWARDEN-README.md`. Administrators install the script read-only, owned by root or the Administrators group, at an absolute path outside every checkout, verify it against `SHA256SUMS`, and place the platform's settings file where Claude Code reads managed settings; each settings file sets `allowManagedHooksOnly`, so user, project and plugin hooks are ignored. Where a `managed-settings.json` already holds the organisation's policy, add this file's keys to it or place it as `managed-settings.d/50-spellwarden.json` beside it, rather than replacing it. On WSL, `/etc/claude-code` can be written by the user, so the managed mode is not enforced there.
@@ -223,22 +223,96 @@ The enforcement rules (`ENFORCEMENT_RULES`), and what an export of this release 
 | macOS | `/Library/Application Support/ClaudeCode/spellwarden/spellwarden_guard.py` | `/Library/Application Support/ClaudeCode/managed-settings.json` | not yet verified on macOS |
 | Windows | `C:\Program Files\ClaudeCode\spellwarden\spellwarden_guard.py` | `C:\Program Files\ClaudeCode\managed-settings.json` | not yet verified on Windows |
 
+The baseline pack's project mode writes this `.claude/settings.json`:
+
+<!-- hooks-project-example:start -->
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "^(Bash|PowerShell|Read|Grep|Glob|mcp__.*)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -I \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/spellwarden_guard.py pre",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -I \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/spellwarden_guard.py post",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+<!-- hooks-project-example:end -->
+
+and its managed mode this `managed/linux/managed-settings.json` (macOS and Windows differ only in the script path):
+
+<!-- hooks-managed-example:start -->
+```json
+{
+  "allowManagedHooksOnly": true,
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "^(Bash|PowerShell|Read|Grep|Glob|mcp__.*)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -I \"/etc/claude-code/spellwarden/spellwarden_guard.py\" pre",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -I \"/etc/claude-code/spellwarden/spellwarden_guard.py\" post",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+<!-- hooks-managed-example:end -->
+
 A platform is verified once the CI job `managed-guard` and a check by hand with Claude Code have passed on it; the same list (`spellwarden_scan.exports.hooks.MANAGED_VERIFIED`) decides which platforms every managed export's README names as not verified yet. The hook commands quote the path, for example `python3 -I "/Library/Application Support/ClaudeCode/spellwarden/spellwarden_guard.py" pre`, and on Windows `py -3 -I "C:\Program Files\ClaudeCode\spellwarden\spellwarden_guard.py" pre`, which reads the same in Git Bash and in PowerShell, the shells Claude Code runs hook commands with on Windows (`sh -c` on Linux and macOS). The export does not set the hook field `onFailure`: the guard never blocks on its own failure, and an administrator who wants failures to block can set `"onFailure": "block"` where their Claude Code version offers it. With SW-OB-008 on, the guard appends one line per tool call (time, session id, tool name; never the tool's input or output) to `spellwarden-activity.jsonl` in the project's `.claude/` (project mode) or the user's `~/.claude/` (managed mode), refusing links and anything that is not a regular file, with mode 0600, rotated to `.1` at 5 MiB. It is a local activity log the user can read, change or delete, not an audit trail.
 
-**Kong.** `kong/spellwarden-<pack id>-<version>.yaml` (for the baseline, `kong/spellwarden-baseline-1.0.yaml`) and `SPELLWARDEN-README.md`: a decK file with one global `ai-prompt-guard` plugin whose `deny_patterns` are the engine's prompt-injection patterns (SW-GW-004, prompts only) and the org rules with the `kong` target. Scope it to your AI routes or services by adding `route:` or `service:` before `deck gateway sync`:
+**Kong.** `kong/spellwarden-<pack id>-<version>.yaml` (for the baseline, `kong/spellwarden-baseline-1.0.yaml`) and `SPELLWARDEN-README.md`: a decK file with one global `ai-prompt-guard` plugin whose `deny_patterns` are the engine's prompt-injection patterns (SW-GW-004, prompts only) and the org rules with the `kong` target, each pattern a scoped group (`(?i:...)`, or `(?:...)` when case-sensitive) joined with `|` into at most 10 entries of at most 500 characters. Scope the plugin to your AI routes or services by adding `route:` or `service:`, then add it to your decK state, for example with `deck file merge`. Do not run `deck gateway sync` with this file alone: it removes every entity that is not in the files it is given. Run `deck gateway diff`, check the changes, then `deck gateway sync`. The baseline pack's export begins:
 
+<!-- kong-example:start -->
 ```yaml
 # Spellwarden policy export: pack "Spellwarden Baseline for Agents" 1.0, built 2026-12-01T00:00:00Z.
 # Enforced here: SW-GW-004 (prompts only).
-# Not enforced by this target: SW-HK-001 (Claude Code hooks), SW-GW-003 (needs Kong's MCP plugins), ...
+# Not enforced by this target: SW-HK-001 (enforced by the Claude Code hooks export), SW-HK-002 (enforced by the Claude Code hooks export), SW-GW-003 (needs Kong's MCP plugins), SW-EG-005 (a sandbox egress proxy is not in this version), SW-GW-006 (enforced by the Claude Code hooks export), SW-RG-007 (enforced by the private registry, not by an export), SW-OB-008 (a protected audit trail of tool calls is not in this version).
 # Validate field names against the vendor's current documentation before use.
 _format_version: '3.0'
 plugins:
 - name: ai-prompt-guard
   config:
     deny_patterns:
-    - (?i)ignore (all |any |the |your )?(previous|prior|above|earlier) (instructions|prompts|rules)
 ```
+<!-- kong-example:end -->
+
+followed by one entry that joins the nine prompt-injection patterns, `(?i:ignore (all |any |the |your )?(previous|prior|above|earlier) (instructions|prompts|rules))|(?i:disregard (the |your )?(system|previous|prior))|...`.
 
 ## The `spellwarden` command
 
