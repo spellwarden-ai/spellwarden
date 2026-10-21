@@ -19,7 +19,8 @@ def code_of(pattern: str) -> str:
 
 def test_the_limits_are_the_numbers_of_spec_5_2_2():
     assert dict(PATTERN_LIMITS) == {"max_length": 300, "max_parts": 4, "max_groups": 4, "max_alternatives": 16,
-                                    "max_class_members": 64, "max_repeat": 100, "window": 4096, "overlap": 512}
+                                    "max_class_members": 64, "max_repeat": 100, "max_repeat_range": 400,
+                                    "window": 4096, "overlap": 512}
     with pytest.raises(TypeError):
         PATTERN_LIMITS["window"] = 1  # type: ignore[index]
 
@@ -137,7 +138,8 @@ def test_anchors_hold_at_the_ends_of_the_unit_not_of_a_window():
 
 N = 100_000
 _G16 = "(" + "|".join("abcdefghijklmnop") + ")"
-_GB = "(" + "|".join(f"{c}{{1,100}}" for c in "abcd") + ")"
+_GB = "(" + "|".join(f"{c}{{1,34}}" for c in "abcd") + ")"
+_GA = "(" + "|".join("a{0,100}" + c for c in "bcde") + ")?"
 WORST = [
     (r"x\s+y", ["x" + " " * N, "x " * (N // 2), " " * N]),
     (r"a\s+b.*c\s+d.*e\s+f.*g\s+h", ["a" + " " * N, "a b c d e f g " * (N // 14)]),
@@ -147,7 +149,34 @@ WORST = [
     (r"\w{1,100}\s{1,100}\d{1,100}\W", ["a" * N, ("a" * 100 + " " * 100) * (N // 200)]),
     (".*".join([r"[0-9]{1,100}\s[a-f]"] * 4), ["1" * N, ("1" * 100 + " ") * (N // 101)]),
     (r"z[0-9]{1,100}\s[a-f]+[0-9]{1,100}\s[g-k]", ["z1 a1 g" * (N // 7), "z" + "1" * 100 + " " + "a" * N]),
+    (_GA + "z", ["a" * N]),
+    ("(" + "|".join("a{0,25}" + c for c in "bcdefghijklmnopq") + ")?z", ["a" * N]),
+    (".*".join(["(" + "|".join("a{0,50}" + c for c in "bcdefghi") + ")?z"] * 2), ["a" * N, ("a" * 60 + "z") * (N // 61)]),
 ]
+
+
+def test_repeats_may_vary_by_at_most_400_characters_in_one_part():
+    # review of 2026-10-21: sixteen alternatives `a{0,99}b` read 0.8 s per 100 000 characters and two such groups 1.7 s
+    group = "(" + "|".join("a{0,99}" + c for c in "bcdefghijklmnopq") + ")?"
+    for pattern in (group + "z", group + group + "z", "a{0,100}b{0,100}c{0,100}d{0,100}e?f"):
+        with pytest.raises(OrgRuleError) as caught:
+            compile_pattern(pattern)
+        assert caught.value.code == "pattern_too_complex"
+        assert "at most 400" in caught.value.message
+    compile_pattern("a{0,100}b{0,100}c{0,100}d{0,100}e")
+    compile_pattern(".*".join(["a{0,100}b{0,100}c{0,100}d{0,100}e"] * 4))
+
+
+def test_overlap_is_decided_on_every_character_not_on_a_sample():
+    # security review of 2026-10-21: a negated class that leaves out only the sampled digits passed next to `\d`
+    for pattern in ("\\d{0,99}[^0-9\u0660-\u0669\u06f0-\u06f9\u0966-\u096f\uff10-\uff19\U0001d7ce-\U0001d7ff]",
+                    "\\w{1,99}[\u4e01-\u4e02]", "k{0,9}\u212a"):
+        with pytest.raises(OrgRuleError) as caught:
+            compile_pattern(pattern)
+        assert caught.value.code == "pattern_too_complex"
+    compile_pattern(r"\w{0,9}\s")
+    compile_pattern("[^a]{0,9}a")
+    compile_pattern("a{0,99}[\u0100-\u2000]")
 
 
 @pytest.mark.parametrize("pattern, lines", WORST, ids=[p[:24] for p, _ in WORST])

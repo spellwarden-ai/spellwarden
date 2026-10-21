@@ -155,6 +155,7 @@ The limits, which `spellwarden_scan.PATTERN_LIMITS` holds:
 | `max_alternatives` | 16 | Alternatives in one group |
 | `max_class_members` | 64 | Members of one bracket class |
 | `max_repeat` | 100 | The largest number in `{m}` and `{m,n}` |
+| `max_repeat_range` | 400 | How much the repeats of one part may vary in all: `n` minus `m` of each `{m,n}`, 1 for each `?` |
 | `window` | 4096 | Characters read at once from a long line or command |
 | `overlap` | 512 | Characters two consecutive windows share |
 <!-- pattern-limits:end -->

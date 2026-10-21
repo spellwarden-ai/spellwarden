@@ -43,7 +43,7 @@ def test_build_export_is_exports_build_and_the_target_lists_are_the_spec_s():
 def test_pattern_limits_are_the_numbers_of_spec_5_2_2_and_read_only():
     assert dict(spellwarden_scan.PATTERN_LIMITS) == {
         "max_length": 300, "max_parts": 4, "max_groups": 4, "max_alternatives": 16, "max_class_members": 64,
-        "max_repeat": 100, "window": 4096, "overlap": 512,
+        "max_repeat": 100, "max_repeat_range": 400, "window": 4096, "overlap": 512,
     }
     try:
         spellwarden_scan.PATTERN_LIMITS["window"] = 1  # type: ignore[index]

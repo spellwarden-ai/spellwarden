@@ -10,6 +10,7 @@ and no repeat next to an item that can match the same characters (`a+a`, `\\s*\\
 read in windows of 4096 characters that start every 3584 characters."""
 from __future__ import annotations
 
+import functools
 import re
 import types
 from collections.abc import Callable, Iterator
@@ -27,7 +28,7 @@ from spellwarden_scan.text import valid_line
 ORG_RULE_ID_RE = re.compile(r"^SW-ORG-(?!000)\d{3}$")
 PATTERN_LIMITS = types.MappingProxyType({
     "max_length": 300, "max_parts": 4, "max_groups": 4, "max_alternatives": 16, "max_class_members": 64,
-    "max_repeat": 100, "window": 4096, "overlap": 512,
+    "max_repeat": 100, "max_repeat_range": 400, "window": 4096, "overlap": 512,
 })
 WINDOW = PATTERN_LIMITS["window"]
 WINDOW_STEP = PATTERN_LIMITS["window"] - PATTERN_LIMITS["overlap"]
@@ -384,16 +385,36 @@ def _flow(items: list) -> tuple[bool, set[int], set[int], set[tuple[int, int]], 
     return nullable, first, last, follow, atoms
 
 
+@functools.lru_cache(maxsize=1)
+def _cell_starts() -> frozenset[int]:
+    """The code points where membership in `\\d`, `\\w`, `\\s` or `.` can change, and every character whose case
+    mapping is not itself (with the one after it). Read once from the running `re` and `str`, so it follows the
+    interpreter's Unicode tables."""
+    text = "".join(map(chr, range(0x110000)))
+    starts = {0, 10, 11}
+    for run in (r"\d+", r"\w+", r"\s+"):
+        for match in re.finditer(run, text):
+            starts.update(match.span())
+    for code, char in enumerate(text):
+        if char.lower() != char or char.upper() != char or char.casefold() != char:
+            starts.update((code, code + 1))
+    return frozenset(starts)
+
+
 def _samples(atoms: list[_Atom]) -> str:
-    chars = {chr(code) for code in range(256)} | set(_EXTRA_SAMPLES)
+    """One character from every run of code points that all items of the part treat alike: the runs are cut at the
+    edges of every literal and range of the part and at `_cell_starts`, so two items overlap exactly when they
+    share a sample (security review of 2026-10-21: sampling every 64th character of a range missed overlaps)."""
+    starts = set(_cell_starts())
     for atom in atoms:
         for char in atom.literals:
-            chars.update((char, char.upper(), char.lower(), char.casefold()))
+            for variant in {char, char.upper(), char.lower(), char.casefold()}:
+                if len(variant) == 1:
+                    starts.update((ord(variant), ord(variant) + 1))
         for low, high in atom.ranges:
-            step = max(1, (ord(high) - ord(low)) // 64)
-            chars.update(chr(code) for code in range(ord(low), ord(high) + 1, step))
-            chars.add(high)
-    return "".join(sorted(char for char in chars if len(char) == 1))
+            starts.update((ord(low), ord(high) + 1))
+    chars = {chr(code) for code in starts if code < 0x110000} | set(_EXTRA_SAMPLES)
+    return "".join(sorted(chars))
 
 
 def _check_cost(items: list, flags: int) -> None:
@@ -403,6 +424,10 @@ def _check_cost(items: list, flags: int) -> None:
     if len(unbounded) > 1:
         raise _complex(f"The part with characters {unbounded[0].position} and {unbounded[1].position} has two unbounded "
                        "repeats (* or +). Split it with .* or bound one with {m,n}.")
+    varying = sum(atom.high - atom.low for atom in atoms if atom.high is not None)
+    if varying > PATTERN_LIMITS["max_repeat_range"]:
+        raise _complex(f"A part of the pattern lets its repeats vary by {varying} characters in all ({{m,n}} varies by n "
+                       f"minus m, ? by 1). Write at most {PATTERN_LIMITS['max_repeat_range']} between two .* gaps.")
     for index in first:
         if atoms[index].high is None:
             raise _complex(f"A part starts with an unbounded repeat at character {atoms[index].position}. Start it with "
