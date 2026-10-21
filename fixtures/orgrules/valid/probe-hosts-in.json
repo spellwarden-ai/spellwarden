@@ -1,0 +1,14 @@
+{
+  "id": "SW-ORG-002",
+  "title": "Server outside the approved hosts",
+  "severity": "medium",
+  "area": "mcp",
+  "detection": {
+    "kind": "probe",
+    "predicate": "endpoint_host_in",
+    "values": [
+      "mcp.example.com",
+      "*.untrusted.example"
+    ]
+  }
+}

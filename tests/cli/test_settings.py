@@ -10,8 +10,8 @@ import types
 import pytest
 from conftest import write_tree
 
-from spellwarden_cli import settings as settings_module
 from spellwarden_cli.settings import Flags, Settings, SettingsError, env_bool, glob_match, load_settings
+from spellwarden_scan import glob as glob_module
 
 CONFIG = ".spellwarden/config.yml"
 
@@ -148,7 +148,7 @@ def _counting_fnmatch(monkeypatch, budget):
         if len(calls) > budget:
             raise AssertionError(f"more than {budget} segment comparisons")
         return fnmatch.fnmatchcase(name, pattern)
-    monkeypatch.setattr(settings_module, "fnmatch", types.SimpleNamespace(fnmatchcase=fnmatchcase))
+    monkeypatch.setattr(glob_module, "fnmatch", types.SimpleNamespace(fnmatchcase=fnmatchcase))
     return calls
 
 

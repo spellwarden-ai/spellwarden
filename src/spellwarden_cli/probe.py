@@ -19,6 +19,7 @@ INITIALIZE_VERSION = "2025-11-25"
 MAX_REQUESTS = 9
 MAX_TOOLS = 200
 MAX_DESCRIPTION = 1000
+MAX_SCHEMA_BYTES = 16 * 1024  # Phase C spec 5.6: the largest `inputSchema` recorded, as canonical JSON
 _RESOURCE_METADATA_RE = re.compile(r'resource_metadata="([^"]+)"')
 
 
@@ -215,10 +216,25 @@ def _rpc_result(response) -> dict | None:
     return None
 
 
+def _schema_of(value: object) -> dict | None:
+    """Phase C spec 5.6: a tool's `inputSchema` when it is a JSON object whose canonical JSON (sorted keys, no
+    whitespace, UTF-8) is at most 16 KiB; anything else, or a value that cannot be written as UTF-8 (a lone
+    surrogate), is no schema."""
+    if not isinstance(value, dict):
+        return None
+    try:
+        canonical = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
+        size = len(canonical.encode("utf-8"))
+    except (TypeError, ValueError, RecursionError):  # UnicodeEncodeError is a ValueError
+        return None
+    return value if size <= MAX_SCHEMA_BYTES else None
+
+
 def _tool_of(tool: dict) -> ToolInfo:
     description = tool.get("description") if isinstance(tool.get("description"), str) else ""
     annotations = tool.get("annotations") if isinstance(tool.get("annotations"), dict) else {}
-    return ToolInfo(name=tool["name"][:128], description=description[:MAX_DESCRIPTION], annotations=annotations)
+    return ToolInfo(name=tool["name"][:128], description=description[:MAX_DESCRIPTION], annotations=annotations,
+                    input_schema=_schema_of(tool.get("inputSchema")))
 
 
 def probe(fetcher, endpoint: str, *, release: str, now_iso: str,

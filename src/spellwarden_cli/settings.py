@@ -3,11 +3,11 @@ precedence (spec 6.3). Unknown keys are errors; `probe-private` is never a
 settings key, so the scanned revision cannot grant itself private probing."""
 from __future__ import annotations
 
-import fnmatch
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 
 from spellwarden_cli import paths, safe_yaml
+from spellwarden_scan.glob import glob_match
 
 CONFIG_PATH = ".spellwarden/config.yml"
 FAIL_ON = ("critical", "high", "medium", "low", "never")
@@ -47,28 +47,6 @@ def env_bool(value: str | None) -> bool | None:
     if folded in _FALSE:
         return False
     return None
-
-
-def glob_match(path: str, pattern: str) -> bool:
-    """`fnmatch` per path segment (`*` never crosses `/`); a `**` segment matches zero or more segments.
-    Patterns come from the scanned revision, so matching is bounded (spec 6.3): no recursion, and at most one
-    segment comparison per (path segment, pattern segment) pair."""
-    return _match(path.split("/"), pattern.strip("/").split("/"))
-
-
-def _match(parts: list[str], pattern: list[str]) -> bool:
-    # `reached` holds every count of path segments that the pattern segments read so far can consume.
-    # A run of `**` collapses for free: `**` maps the set to everything from its smallest member up.
-    reached = {0}
-    for segment in pattern:
-        if segment == "**":
-            reached = set(range(min(reached), len(parts) + 1))
-        else:
-            reached = {index + 1 for index in reached
-                       if index < len(parts) and fnmatch.fnmatchcase(parts[index], segment)}
-        if not reached:
-            return False
-    return len(parts) in reached
 
 
 def load_settings(root: str, *, config: str | None, flags: Flags, env: Mapping[str, str],

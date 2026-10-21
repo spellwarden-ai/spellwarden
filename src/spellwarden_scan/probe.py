@@ -7,6 +7,7 @@ from datetime import date
 
 from spellwarden_scan import checklist
 from spellwarden_scan.model import McpScanResult, ProbeResult
+from spellwarden_scan.orgrules import BudgetMeter, OrgRuleBudget
 from spellwarden_scan.rules import RuleSet
 from spellwarden_scan.scan import run_rules
 from spellwarden_scan.version import RULES_VERSION, __version__
@@ -173,9 +174,12 @@ def migration_status_of(spec_version: str | None, auth_mode: str, deprecated_fea
     return "to_migrate"
 
 
-def evaluate_probe(probe: ProbeResult, rules: RuleSet, *, max_findings: int = 500, max_per_rule: int = 100) -> McpScanResult:
+def evaluate_probe(probe: ProbeResult, rules: RuleSet, *, max_findings: int = 500, max_per_rule: int = 100,
+                   org_rule_budget: OrgRuleBudget | None = None) -> McpScanResult:
     spec_version, transport, auth_mode, deprecated = classify(probe)
-    findings, truncated = run_rules(rules.ordered_for_scan("mcp"), probe, max_findings=max_findings, max_per_rule=max_per_rule)
+    meter = BudgetMeter(org_rule_budget)
+    findings, truncated = run_rules(rules.ordered_for_scan("mcp"), probe, max_findings=max_findings, max_per_rule=max_per_rule,
+                                    meter=meter)
     result = McpScanResult(
         findings=tuple(findings), truncated=truncated, spec_version=spec_version, transport=transport, auth_mode=auth_mode,
         deprecated_features=deprecated, migration_status=migration_status_of(spec_version, auth_mode, deprecated, transport),
@@ -183,5 +187,6 @@ def evaluate_probe(probe: ProbeResult, rules: RuleSet, *, max_findings: int = 50
         list_meta_missing=list_meta_missing_of(probe), long_running_tools=long_running_tools_of(probe),
         tasks_supported=TASKS_CAPABILITY in (probe.capabilities or {}),
         issuer_problem=any(f.rule_id == "SW-MCP-010" for f in findings),
+        org_rules_incomplete=tuple(sorted(meter.incomplete)),
     )
     return dataclasses.replace(result, checklist=checklist.migration_checklist(result))

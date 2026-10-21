@@ -1,0 +1,13 @@
+{
+  "id": "SW-ORG-002",
+  "title": "Server outside the approved hosts",
+  "severity": "medium",
+  "area": "mcp",
+  "detection": {
+    "kind": "probe",
+    "predicate": "auth_mode_in",
+    "values": [
+      "basic"
+    ]
+  }
+}

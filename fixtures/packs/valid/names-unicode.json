@@ -1,0 +1,72 @@
+{
+  "schema": 1,
+  "pack": {
+    "id": "3b1e8c2a9d7f4e605a1b2c3d4e5f6071",
+    "name": "\u00c9quipe s\u00e9curit\u00e9 \u5b89\u5168 \ud83d\ude80",
+    "version": "1.2",
+    "description": ""
+  },
+  "engine": {
+    "version": "1.1.0",
+    "rules_version": "2026.10.2"
+  },
+  "rules": [
+    {
+      "id": "SW-HK-001",
+      "enabled": true
+    },
+    {
+      "id": "SW-HK-002",
+      "enabled": true
+    },
+    {
+      "id": "SW-GW-003",
+      "enabled": true
+    },
+    {
+      "id": "SW-GW-004",
+      "enabled": true
+    },
+    {
+      "id": "SW-EG-005",
+      "enabled": true
+    },
+    {
+      "id": "SW-GW-006",
+      "enabled": true
+    },
+    {
+      "id": "SW-RG-007",
+      "enabled": true
+    },
+    {
+      "id": "SW-OB-008",
+      "enabled": true
+    }
+  ],
+  "org_rules": [
+    {
+      "id": "SW-ORG-003",
+      "title": "Demande le prompt syst\u00e8me \u63d0\u793a",
+      "severity": "medium",
+      "area": "skill",
+      "owasp": [
+        "ASI01"
+      ],
+      "nist": [
+        "SI-10"
+      ],
+      "targets": [
+        "kong"
+      ],
+      "malicious": false,
+      "detection": {
+        "kind": "pattern",
+        "files": "**",
+        "in": "lines",
+        "pattern": "(reveal|print|show) (your|the) system prompt",
+        "case_sensitive": false
+      }
+    }
+  ]
+}

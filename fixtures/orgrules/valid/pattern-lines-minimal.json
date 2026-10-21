@@ -1,0 +1,10 @@
+{
+  "id": "SW-ORG-010",
+  "title": "Mentions the staging bastion",
+  "severity": "low",
+  "area": "skill",
+  "detection": {
+    "kind": "pattern",
+    "pattern": "bastion\\.staging"
+  }
+}

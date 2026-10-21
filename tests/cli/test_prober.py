@@ -3,6 +3,8 @@
 file are the imports, one unused name, and the `on_event` test at the end."""
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from fake_net import FakeFetcher, load_exchanges
@@ -148,3 +150,28 @@ def test_a_probe_that_raises_is_a_result_and_an_event():
     result = probe(Broken(), ENDPOINT, release="r", now_iso="t", on_event=lambda name, fields: events.append((name, fields)))
     assert (result.reachable, result.error, result.probed_at) == (False, "unreachable", "t")
     assert events == [("probe_failed", {"error_class": "RuntimeError"})]
+
+
+def _schema_of_size(size: int) -> dict:
+    """A JSON object whose canonical JSON (sorted keys, no spaces, UTF-8) is exactly `size` bytes."""
+    base = {"type": "object", "properties": {"q": {"type": "string", "description": ""}}}
+    overhead = len(json.dumps(base, sort_keys=True, separators=(",", ":")).encode("utf-8"))
+    base["properties"]["q"]["description"] = "x" * (size - overhead)
+    return base
+
+
+def test_the_prober_records_input_schemas_up_to_16_kib():
+    # Phase C spec 5.6 and claim E9: kept at 10 KiB and at exactly 16 384 bytes, dropped at 16 385 and at 20 KiB;
+    # anything that is not a JSON object, or cannot be written as UTF-8, is no schema.
+    exchanges = load_exchanges("probe_none")
+    schemas = {"ten": _schema_of_size(10 * 1024), "edge": _schema_of_size(16384), "over": _schema_of_size(16385),
+               "twenty": _schema_of_size(20 * 1024), "list": ["not", "an", "object"], "text": "object",
+               "surrogate": {"type": "object", "description": "\ud800"}}
+    exchanges[1]["body"]["result"]["tools"] = [{"name": name, "description": "d", "inputSchema": schema}
+                                               for name, schema in schemas.items()] + [{"name": "none", "description": "d"}]
+    result = probe(FakeFetcher(exchanges), ENDPOINT, release="r", now_iso="t")
+    recorded = {tool.name: tool.input_schema for tool in result.tools}
+    assert recorded["ten"] == schemas["ten"] and recorded["edge"] == schemas["edge"]
+    assert [name for name, value in recorded.items() if value is None] == ["over", "twenty", "list", "text", "surrogate", "none"]
+    assert probe_module.MAX_SCHEMA_BYTES == 16384
+    assert type(result).from_dict(result.to_dict()) == result

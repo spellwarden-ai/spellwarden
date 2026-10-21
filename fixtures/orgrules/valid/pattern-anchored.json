@@ -1,0 +1,14 @@
+{
+  "id": "SW-ORG-011",
+  "title": "Line starts with sudo su",
+  "severity": "medium",
+  "area": "skill",
+  "targets": [
+    "kong"
+  ],
+  "detection": {
+    "kind": "pattern",
+    "pattern": "^sudo su$",
+    "case_sensitive": true
+  }
+}
