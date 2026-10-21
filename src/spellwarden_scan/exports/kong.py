@@ -9,6 +9,7 @@ order; an org rule that fits nowhere is listed as not enforced."""
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
 
 import yaml
 
@@ -69,10 +70,29 @@ def deny_patterns(doc: PackDocument) -> tuple[list[str], list[str]]:
     return entries, overflow
 
 
+def _tokens(entry: str) -> Iterator[str]:
+    """The regex tokens of `entry` that `FORBIDDEN` names, read as a regex reads them: an escaped character is one
+    token (`\\\\A` is a backslash and A, not `\\A`), and `(` opens a group only outside a bracket class."""
+    index, in_class = 0, False
+    while index < len(entry):
+        char = entry[index]
+        if char == "\\":
+            yield entry[index:index + 2]
+            index += 2
+            continue
+        if in_class:
+            in_class = char != "]"
+        elif char == "[":
+            in_class = True
+        elif char == "(":
+            yield entry[index:index + 3]
+        index += 1
+
+
 def _check(entry: str) -> None:
     """Spec 5.5.2: every emitted pattern compiles with Python `re` and uses nothing PCRE reads differently. A
     failure is a bug in the engine, never a user error, so it raises instead of being reported."""
-    if len(entry) > MAX_PATTERN_CHARS or any(token in entry for token in FORBIDDEN):
+    if len(entry) > MAX_PATTERN_CHARS or any(token in FORBIDDEN for token in _tokens(entry)):
         raise RuntimeError(f"export pattern outside the shared subset: {entry[:80]!r}")
     re.compile(entry)
 

@@ -181,6 +181,29 @@ def test_an_org_pattern_whose_scoped_form_is_over_500_characters_is_listed_as_no
         assert "SW-ORG-002" in text.splitlines()[1]
 
 
+def test_escaped_characters_that_spell_a_forbidden_token_are_exported():
+    """Review of 2026-10-21 (r1:F1): the shared-subset check read raw substrings, so an escaped backslash before A or
+    Z, or an optional literal parenthesis before P or <, made a valid pack's export raise."""
+    patterns = [r"C:\\Apps", r"end\\Z", r"\(?P", r"\(?<x", r"[(]?Px"]
+    rules = [kong_rule(n, pattern) for n, pattern in enumerate(patterns, start=1)]
+    doc = with_rules(baseline_pack(), org_rules=rules)
+    entries, overflow = deny_patterns(doc)
+    assert overflow == []
+    text, _, _ = kong(doc)
+    assert all(f"SW-ORG-{n:03d}" in text.splitlines()[1] for n in range(1, len(patterns) + 1))
+    combined = [re.compile(entry) for entry in entries]
+    for line in ("C:\\Apps", "the end\\Z", "(P", "(<x", "Px"):
+        assert any(c.search(line) for c in combined), line
+
+
+@pytest.mark.parametrize("entry", ["(?P<x>a)", "(?#c)a", "(?<=a)b", "(?<!a)b", "\\Aa", "a\\Z", "x|(?Pa"])
+def test_the_shared_subset_check_still_refuses_the_forbidden_constructs(entry):
+    from spellwarden_scan.exports.kong import _check
+
+    with pytest.raises(RuntimeError):
+        _check(entry)
+
+
 def test_nothing_to_enforce_gives_an_empty_plugin_list_and_says_so():
     doc = with_rules(baseline_pack(), off=("SW-GW-004",))
     text, document, readme = kong(doc)
