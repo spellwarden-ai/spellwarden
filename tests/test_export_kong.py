@@ -15,7 +15,7 @@ import yaml
 from spellwarden_scan.exports import (
     CANNOT_ENFORCE, EXPORT_MODES, EXPORT_TARGETS, PLANNED_TARGETS, README_NAME, VENDOR_LINE, build, coverage,
 )
-from spellwarden_scan.exports.kong import MAX_PATTERN_CHARS, MAX_PATTERNS, OVERFLOW_REASON, deny_patterns, scoped
+from spellwarden_scan.exports.kong import MAX_PATTERN_CHARS, MAX_PATTERNS, OVERFLOW_REASON, deny_patterns
 from spellwarden_scan.orgrules import compile_pattern
 from spellwarden_scan.packs import ENFORCEMENT_IDS, ENFORCEMENT_RULES, PackError, baseline_pack, validate_pack
 from spellwarden_scan.rules.patterns import INJECTION
@@ -118,8 +118,8 @@ def test_each_emitted_pattern_compiles_and_reads_like_the_engine():
     for pattern in INJECTION:
         assert "(?i:" + pattern.pattern + ")" in joined
     spec = next(spec for spec in doc.org_rules if spec["id"] == "SW-ORG-003")
-    pcre = compile_pattern(spec["detection"]["pattern"], case_sensitive=False).pcre
-    assert pcre.startswith("(?i)") and scoped(pcre) in joined
+    compiled = compile_pattern(spec["detection"]["pattern"], case_sensitive=False)
+    assert compiled.pcre.startswith("(?i)") and "(?im:" + compiled.pcre[len("(?i)"):] + ")" in joined
     for entry in entries:
         re.compile(entry)
         assert not any(token in entry for token in ("(?P", "(?#", "(?<", "\\A", "\\Z"))
@@ -205,8 +205,9 @@ def test_the_shared_subset_check_still_refuses_the_forbidden_constructs(entry):
 
 
 @pytest.mark.parametrize("pattern, case_sensitive", [("a.*b.*c", False), ("^curl.*\\| ?sh$", False),
-                                                     ("Token.*=.*[0-9]{4}", True), (r"\bsudo\b.*rm -rf", False)])
-def test_a_multi_part_pattern_reads_like_the_engine_and_never_backtracks_across_parts(pattern, case_sensitive):
+                                                     ("Token.*=.*[0-9]{4}", True), (r"\bsudo\b.*rm -rf", False),
+                                                     ("^sudo", False), ("rm -rf$", False)])
+def test_an_org_pattern_reads_line_by_line_like_the_engine_and_never_backtracks_across_parts(pattern, case_sensitive):
     import time
 
     from spellwarden_scan.exports.kong import kong_pattern
@@ -215,7 +216,7 @@ def test_a_multi_part_pattern_reads_like_the_engine_and_never_backtracks_across_
     compiled = compile_pattern(pattern, case_sensitive=case_sensitive)
     exported = re.compile(kong_pattern(compiled))
     lines = ["a b c", "c b a", "xa yb", "curl x | sh", "curl x | sh now", "CURL X |SH", "Token = 1234",
-             "token = 1234", "sudo then rm -rf /", "pseudo rm -rf", "a b\nc"]
+             "token = 1234", "sudo then rm -rf /", "pseudo rm -rf", "a b\nc", "ok\nsudo rm -rf\nok", "x sudo rm -rf y"]
     for line in lines:
         assert bool(exported.search(line)) == any(pattern_search(compiled, unit) for unit in line.split("\n")), line
     hostile = "ab" * 50_000 + "\n" + "a" * 100_000

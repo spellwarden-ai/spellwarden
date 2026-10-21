@@ -37,16 +37,19 @@ def scoped(pcre: str) -> str:
 
 
 def kong_pattern(compiled: CompiledPattern) -> str:
-    """One deny pattern. A single part is a scoped group (`scoped`). Several parts are a line-anchored chain of atomic
-    groups, `(?im:^(?>.*?A)(?>.*?B))`, which takes the first A on a line and then the first B after it, as the
-    engine's `pattern_search` does, and never backtracks across parts: `A.*B.*C` backtracks with the cube of the
-    prompt's length, so a prompt could hold the gateway (owner decision of 2026-10-21, after the security review)."""
+    """One deny pattern, read line by line as the engine reads a unit (`m`: `^` and `$` hold at each line's ends). A
+    single part is one group, `(?im:A)`. Several parts are a line-anchored chain of atomic groups,
+    `(?im:^(?>.*?A)(?>.*?B))`, which takes the first A on a line and then the first B after it, as the engine's
+    `pattern_search` does, and never backtracks across parts: `A.*B.*C` backtracks with the cube of the prompt's
+    length, so a prompt could hold the gateway (owner decision of 2026-10-21, after the security review). Without the
+    case flag the groups open with `(?m:`."""
+    flags = "(?m:" if compiled.case_sensitive else "(?im:"
     if len(compiled.parts) == 1:
-        return scoped(compiled.pcre)
+        return flags + compiled.parts[0].pattern + ")"
     texts = [part.pattern for part in compiled.parts]
     groups = ["(?>" + texts[0][1:] + ")" if texts[0].startswith("^") else "(?>.*?" + texts[0] + ")"]
     groups += ["(?>.*?" + text + ")" for text in texts[1:]]
-    return ("(?m:" if compiled.case_sensitive else "(?im:") + "^" + "".join(groups) + ")"
+    return flags + "^" + "".join(groups) + ")"
 
 
 def _alternatives(doc: PackDocument) -> list[tuple[str | None, str]]:
