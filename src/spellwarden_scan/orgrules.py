@@ -849,7 +849,13 @@ def endpoint_host(endpoint: str | None) -> str | None:
 
 
 def host_matches(host: str, entry: str) -> bool:
-    """`mcp.example.com` matches itself only; `*.example.com` matches every subdomain and not `example.com`."""
+    """`mcp.example.com` matches itself only; `*.example.com` matches every subdomain and not `example.com`. A host
+    that is not a plain lower-case host name (a backslash, `%`, non-ASCII, an IPv6 address) matches no entry: a URL
+    parser such as a client's may read such an authority as a different host (WHATWG reads a backslash after
+    `https://evil.example` as `/`, so the host is `evil.example`). `endpoint_host_not_in` therefore fires on such a
+    host and `endpoint_host_in` does not."""
+    if len(host) > 253 or host.startswith("*.") or _HOST.match(host) is None:
+        return False
     if entry.startswith("*."):
         return host.endswith(entry[1:]) and host != entry[2:]
     return host == entry

@@ -339,6 +339,11 @@ def test_hosts_are_matched_exactly_or_by_suffix():
     assert endpoint_host("https://mcp.example.com./x") == "mcp.example.com"
     assert endpoint_host("https://[2001:db8::1]/mcp") == "2001:db8::1" and endpoint_host("not a url") is None
     assert host_matches("a.b.example.com", "*.example.com") and not host_matches("example.com", "*.example.com")
+    # security review of 2026-10-21: a client reads a backslash as `/`, so this endpoint connects to evil.example
+    tricky = endpoint_host("https://evil.example\\.mcp.example.com/mcp")
+    assert tricky is not None and not host_matches(tricky, "*.example.com")
+    for host in ("evil.example%2emcp.example.com", "mcp.ex\u00e4mple.com", "*.example.com", "2001:db8::1"):
+        assert not host_matches(host, "*.example.com") and not host_matches(host, host)
     assert not host_matches("badexample.com", "*.example.com") and host_matches("example.com", "example.com")
 
 
