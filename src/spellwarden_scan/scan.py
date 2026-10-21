@@ -9,7 +9,7 @@ from collections.abc import Collection, Mapping, Sequence
 
 from spellwarden_scan.canonical import canonical_sha256
 from spellwarden_scan.model import SEVERITY_RANK, ConfigDocument, ConfigScanResult, Finding, SkillScanResult
-from spellwarden_scan.orgrules import BudgetMeter, OrgRuleBudget
+from spellwarden_scan.orgrules import BudgetMeter, OrgRuleBudget, is_org_rule
 from spellwarden_scan.package import Package
 from spellwarden_scan.rules import RuleSet
 from spellwarden_scan.rules.config import AgentConfig
@@ -31,8 +31,8 @@ def run_rules(rules, subject, *, max_findings: int, max_per_rule: int,
     truncated = 0
     for rule in rules:
         kept_for_rule = 0
-        evaluate = getattr(rule.detect, "evaluate", None) if meter is not None else None
-        for finding in (evaluate(subject, meter) if evaluate is not None else rule.detect(subject)):
+        budgeted = meter is not None and is_org_rule(rule)
+        for finding in (rule.detect.evaluate(subject, meter) if budgeted else rule.detect(subject)):
             if kept_for_rule >= max_per_rule or len(retained) >= max_findings:
                 truncated += 1
                 continue

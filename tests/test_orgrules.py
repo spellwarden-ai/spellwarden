@@ -225,6 +225,20 @@ def test_the_baseline_findings_are_identical_with_a_stopped_budget():
     assert plain.org_rules_incomplete == () and "org_rules_incomplete" not in plain.to_dict()
 
 
+def test_a_custom_rule_whose_detector_has_an_evaluate_method_is_called_as_in_1_0_0():
+    # review of 2026-10-21: only org rules read through the meter, whatever attributes another detector has
+    class Detector:
+        def __call__(self, _package):
+            return iter(())
+
+        def evaluate(self, _text):
+            raise AssertionError("not called")
+
+    rules = BASELINE.with_rules([make_rule("SW-SKL-099", "Custom", "low", "skill", owasp=(), nist=(), detect=Detector())])
+    result = scan_skill_package(_budget_package(), rules, org_rule_budget=OrgRuleBudget(clock=StepClock(), seconds=1))
+    assert [f.rule_id for f in result.findings] == [f.rule_id for f in scan_skill_package(_budget_package(), BASELINE).findings]
+
+
 def test_findings_recorded_before_the_stop_are_kept():
     files = make_package({"SKILL.md": "needle first\n" + "x\n" * 5})
     clock = StepClock()
