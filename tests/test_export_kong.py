@@ -204,6 +204,26 @@ def test_the_shared_subset_check_still_refuses_the_forbidden_constructs(entry):
         _check(entry)
 
 
+@pytest.mark.parametrize("pattern, case_sensitive", [("a.*b.*c", False), ("^curl.*\\| ?sh$", False),
+                                                     ("Token.*=.*[0-9]{4}", True), (r"\bsudo\b.*rm -rf", False)])
+def test_a_multi_part_pattern_reads_like_the_engine_and_never_backtracks_across_parts(pattern, case_sensitive):
+    import time
+
+    from spellwarden_scan.exports.kong import kong_pattern
+    from spellwarden_scan.orgrules import pattern_search
+
+    compiled = compile_pattern(pattern, case_sensitive=case_sensitive)
+    exported = re.compile(kong_pattern(compiled))
+    lines = ["a b c", "c b a", "xa yb", "curl x | sh", "curl x | sh now", "CURL X |SH", "Token = 1234",
+             "token = 1234", "sudo then rm -rf /", "pseudo rm -rf", "a b\nc"]
+    for line in lines:
+        assert bool(exported.search(line)) == any(pattern_search(compiled, unit) for unit in line.split("\n")), line
+    hostile = "ab" * 50_000 + "\n" + "a" * 100_000
+    started = time.perf_counter()
+    exported.search(hostile)
+    assert time.perf_counter() - started < 0.5
+
+
 def test_nothing_to_enforce_gives_an_empty_plugin_list_and_says_so():
     doc = with_rules(baseline_pack(), off=("SW-GW-004",))
     text, document, readme = kong(doc)

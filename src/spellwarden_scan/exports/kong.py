@@ -14,7 +14,7 @@ from collections.abc import Iterator
 import yaml
 
 from spellwarden_scan.exports import README_NAME, TEXT_MAX, VENDOR_LINE, coverage, readme_text
-from spellwarden_scan.orgrules import compile_pattern
+from spellwarden_scan.orgrules import CompiledPattern, compile_pattern
 from spellwarden_scan.packs import PackDocument
 from spellwarden_scan.rules.patterns import INJECTION
 from spellwarden_scan.text import comment_safe
@@ -36,6 +36,19 @@ def scoped(pcre: str) -> str:
     return "(?:" + pcre + ")"
 
 
+def kong_pattern(compiled: CompiledPattern) -> str:
+    """One deny pattern. A single part is a scoped group (`scoped`). Several parts are a line-anchored chain of atomic
+    groups, `(?im:^(?>.*?A)(?>.*?B))`, which takes the first A on a line and then the first B after it, as the
+    engine's `pattern_search` does, and never backtracks across parts: `A.*B.*C` backtracks with the cube of the
+    prompt's length, so a prompt could hold the gateway (owner decision of 2026-10-21, after the security review)."""
+    if len(compiled.parts) == 1:
+        return scoped(compiled.pcre)
+    texts = [part.pattern for part in compiled.parts]
+    groups = ["(?>" + texts[0][1:] + ")" if texts[0].startswith("^") else "(?>.*?" + texts[0] + ")"]
+    groups += ["(?>.*?" + text + ")" for text in texts[1:]]
+    return ("(?m:" if compiled.case_sensitive else "(?im:") + "^" + "".join(groups) + ")"
+
+
 def _alternatives(doc: PackDocument) -> list[tuple[str | None, str]]:
     """(the org rule id, or None for SW-GW-004's patterns; the scoped pattern), in rule order."""
     items: list[tuple[str | None, str]] = []
@@ -45,7 +58,7 @@ def _alternatives(doc: PackDocument) -> list[tuple[str | None, str]]:
         if "kong" in spec.get("targets", ()):
             detection = spec["detection"]
             compiled = compile_pattern(detection["pattern"], case_sensitive=detection.get("case_sensitive", False))
-            items.append((spec["id"], scoped(compiled.pcre)))
+            items.append((spec["id"], kong_pattern(compiled)))
     return items
 
 
@@ -138,4 +151,4 @@ def kong_files(doc: PackDocument, *, built_at: str) -> dict[str, bytes]:
 
 
 __all__ = ["FORBIDDEN", "MAX_PATTERNS", "MAX_PATTERN_CHARS", "OVERFLOW_REASON", "deny_patterns", "kong_files",
-           "scoped", "yaml_path"]
+           "kong_pattern", "scoped", "yaml_path"]
