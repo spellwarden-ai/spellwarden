@@ -34,7 +34,7 @@ MANAGED_SETTINGS_PATHS = {
 }
 # The platforms on which the managed mode passed the release gate of spec 5.5.1 (the CI job `managed-guard` and the
 # owner's check with Claude Code installed). Task 8 sets it before the v1.1.0 tag; the README names the others.
-MANAGED_VERIFIED: tuple[str, ...] = ()
+MANAGED_VERIFIED: tuple[str, ...] = ("linux", "macos", "windows")
 PLATFORM_NAMES = {"linux": "Linux", "macos": "macOS", "windows": "Windows"}
 # SW-GW-006 for MCP tools: the `<tool>` part of `mcp__<server>__<tool>` starts with one of these or holds it as a
 # `_`- or `-`-separated word.

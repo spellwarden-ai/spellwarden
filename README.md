@@ -219,9 +219,9 @@ The enforcement rules (`ENFORCEMENT_RULES`), and what an export of this release 
 
 | Platform | Script path | Managed settings file | Status |
 |---|---|---|---|
-| Linux | `/etc/claude-code/spellwarden/spellwarden_guard.py` | `/etc/claude-code/managed-settings.json` | not yet verified on Linux |
-| macOS | `/Library/Application Support/ClaudeCode/spellwarden/spellwarden_guard.py` | `/Library/Application Support/ClaudeCode/managed-settings.json` | not yet verified on macOS |
-| Windows | `C:\Program Files\ClaudeCode\spellwarden\spellwarden_guard.py` | `C:\Program Files\ClaudeCode\managed-settings.json` | not yet verified on Windows |
+| Linux | `/etc/claude-code/spellwarden/spellwarden_guard.py` | `/etc/claude-code/managed-settings.json` | verified on 21 October 2026 |
+| macOS | `/Library/Application Support/ClaudeCode/spellwarden/spellwarden_guard.py` | `/Library/Application Support/ClaudeCode/managed-settings.json` | verified on 21 October 2026 |
+| Windows | `C:\Program Files\ClaudeCode\spellwarden\spellwarden_guard.py` | `C:\Program Files\ClaudeCode\managed-settings.json` | verified on 21 October 2026 |
 
 The baseline pack's project mode writes this `.claude/settings.json`:
 
