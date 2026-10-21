@@ -58,7 +58,7 @@ def deny_patterns(doc: PackDocument) -> tuple[list[str], list[str]]:
                 entries[index] = entry + "|" + alternative
                 break
         else:
-            if len(entries) < MAX_PATTERNS:
+            if len(entries) < MAX_PATTERNS and len(alternative) <= MAX_PATTERN_CHARS:
                 entries.append(alternative)
             elif owner is not None:
                 overflow.append(owner)

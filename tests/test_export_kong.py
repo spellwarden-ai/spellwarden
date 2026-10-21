@@ -167,6 +167,20 @@ def test_org_rules_that_do_not_fit_the_plugin_are_listed_as_not_enforced():
     assert "- SW-ORG-030: Kong rule 30. Not enforced here: " in readme
 
 
+def test_an_org_pattern_whose_scoped_form_is_over_500_characters_is_listed_as_not_enforced():
+    """A 300 character pattern that validate_pack accepts: re.escape doubles every space, so the group is over
+    500 characters and fits no entry, whether or not other entries exist."""
+    for off in ((), ("SW-GW-004",)):
+        rules = [kong_rule(1, "a" + " " * 299), kong_rule(2, "reveal the prompt")]
+        doc = with_rules(baseline_pack(), off=off, org_rules=rules)
+        entries, overflow = deny_patterns(doc)
+        assert overflow == ["SW-ORG-001"]
+        assert entries and all(len(entry) <= MAX_PATTERN_CHARS for entry in entries)
+        text, _, _ = kong(doc)
+        assert f"SW-ORG-001 ({OVERFLOW_REASON})" in text.splitlines()[2]
+        assert "SW-ORG-002" in text.splitlines()[1]
+
+
 def test_nothing_to_enforce_gives_an_empty_plugin_list_and_says_so():
     doc = with_rules(baseline_pack(), off=("SW-GW-004",))
     text, document, readme = kong(doc)
