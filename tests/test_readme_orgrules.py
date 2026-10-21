@@ -86,3 +86,14 @@ def test_the_readme_export_examples_are_what_the_baseline_exports():
     shown = _fenced(_between(section, "<!-- kong-example:start -->\n", "<!-- kong-example:end -->"))
     assert kong["kong/spellwarden-baseline-1.0.yaml"].decode("utf-8").startswith(shown)
     assert "Do not run `deck gateway sync` with this file alone" in section
+
+
+def test_the_guard_limits_are_stated_in_the_readme_and_in_every_hooks_export():
+    # security review of 2026-10-21: the 1 MiB pass-through (decision D28, kept by the owner) and the exit 2 block
+    oversize = "An agent can therefore pass every check by making one tool call larger than 1 MiB."
+    missing = "Python exits with status 2, which Claude Code reads as a block"
+    assert oversize in _section() and missing in _section()
+    for mode in ("project", "managed"):
+        readme = build_export(baseline_pack(), "claude-code-hooks", built_at="t", mode=mode)["SPELLWARDEN-README.md"]
+        text = readme.decode("utf-8")
+        assert "larger than 1 MiB" in text and missing in text

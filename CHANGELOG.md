@@ -8,8 +8,10 @@ from the version they print. The GitHub Action and the GitLab CI/CD component ar
 
 - Org rules: `validate_org_rule` and `compile_org_rule` turn a JSON rule spec (`SW-ORG-001` to `SW-ORG-999`) into a
   `Rule`: a file pattern for skills, read line by line or shell command by shell command, in a small pattern
-  language that runs in bounded time and reads the same in Kong (`PATTERN_LIMITS`), or one of eight checks of a
-  probed MCP server. `scan_skill_package` and `evaluate_probe` take `org_rule_budget=OrgRuleBudget(clock, seconds)`,
+  language that runs in bounded time (`PATTERN_LIMITS`, among them `max_repeat_range`: the repeats of one part
+  may vary by at most 400 in all) and reads the same in Kong apart from the Unicode classes `\w`, `\d`, `\s` and
+  `\b`, or one of eight checks of a probed MCP server. A host allowlist check never matches a host that is not a
+  plain host name. `scan_skill_package` and `evaluate_probe` take `org_rule_budget=OrgRuleBudget(clock, seconds)`,
   and their results carry `org_rules_incomplete` (left out of `to_dict()` when empty, so a 1.0.0 report keeps its
   bytes). The pattern language refuses repeats that could make matching slow. `make_rule` still refuses `SW-ORG` ids.
 - Policy packs: the eight enforcement rules (`ENFORCEMENT_RULES`), the Spellwarden baseline pack 1.0
@@ -18,7 +20,10 @@ from the version they print. The GitHub Action and the GitLab CI/CD component ar
   `valid_block`, `comment_safe`).
 - Exports (`build_export`): Claude Code hooks with a standard-library guard script, in a project mode (advisory) and
   a managed mode for administrators (`allowManagedHooksOnly`, the script outside every checkout), and Kong
-  (`ai-prompt-guard` deny patterns in a decK file). Each export lists what its target cannot enforce. The hooks also
+  (`ai-prompt-guard` deny patterns in a decK file, read line by line; a pattern with several parts becomes a chain
+  of atomic groups, `kong_pattern`, so a long prompt cannot make the gateway backtrack). Each export lists what its
+  target cannot enforce, and the hooks export states the guard's limits: an event larger than 1 MiB is let through
+  unchecked, and a missing guard script blocks every matched tool call. The hooks also
   cover Claude Code's PowerShell tool. The CI job `managed-guard` checks the managed mode on Linux, macOS and
   Windows (Git Bash, PowerShell and cmd).
 - `ToolInfo.input_schema`: the prober records a tool's `inputSchema` when it is a JSON object of at most 16 KiB.
