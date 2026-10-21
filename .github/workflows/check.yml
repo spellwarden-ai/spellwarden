@@ -88,6 +88,127 @@ jobs:
       - run: uv run --locked pytest -q -o faulthandler_timeout=120
       - run: uv build
 
+  # Phase C spec 5.5.1, the release gate of the managed hook mode (owner answer R2, claim E7). On each platform the
+  # managed export of the vector pack is installed at its documented path with administrator rights, owned by root or
+  # the Administrators group and not writable by others; the unprivileged user cannot change it; the exact command
+  # string of the generated managed-settings.json runs through the platform's shells with the vectors on stdin and
+  # must decide as they say; `python3 -I` and `py -3 -I` keep a planted module out. v1.1.0 is not tagged until this
+  # job is green on all three platforms (plan Task 8).
+  managed-guard:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Keep line endings as committed (fixtures are read byte for byte)
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+        with:
+          persist-credentials: false
+      # The interpreter the hook commands find: `python3` on Linux and macOS, the `py` launcher on Windows.
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.13"
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5.4.2
+      - run: uv sync --locked
+      - name: The interpreters the commands name
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then py -3 -c "import sys; print(sys.version)"; else python3 -c "import sys; print(sys.version)"; fi
+      - name: Build the managed export of the vector pack
+        run: uv run --locked python tests/guard_ci.py build "$RUNNER_TEMP/export"
+      - name: Install with administrator rights (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          sudo install -d -o root -g root -m 0755 /etc/claude-code /etc/claude-code/spellwarden
+          sudo install -o root -g root -m 0644 "$RUNNER_TEMP/export/managed/spellwarden_guard.py" /etc/claude-code/spellwarden/spellwarden_guard.py
+          sudo install -o root -g root -m 0644 "$RUNNER_TEMP/export/managed/linux/managed-settings.json" /etc/claude-code/managed-settings.json
+          echo "SW_SCRIPT=/etc/claude-code/spellwarden/spellwarden_guard.py" >> "$GITHUB_ENV"
+          echo "SW_SETTINGS=/etc/claude-code/managed-settings.json" >> "$GITHUB_ENV"
+      - name: Install with administrator rights (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          set -euo pipefail
+          base="/Library/Application Support/ClaudeCode"
+          sudo install -d -o root -g wheel -m 0755 "$base" "$base/spellwarden"
+          sudo install -o root -g wheel -m 0644 "$RUNNER_TEMP/export/managed/spellwarden_guard.py" "$base/spellwarden/spellwarden_guard.py"
+          sudo install -o root -g wheel -m 0644 "$RUNNER_TEMP/export/managed/macos/managed-settings.json" "$base/managed-settings.json"
+          echo "SW_SCRIPT=$base/spellwarden/spellwarden_guard.py" >> "$GITHUB_ENV"
+          echo "SW_SETTINGS=$base/managed-settings.json" >> "$GITHUB_ENV"
+      - name: Install with administrator rights (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $base = 'C:\Program Files\ClaudeCode'
+          New-Item -ItemType Directory -Force -Path "$base\spellwarden" | Out-Null
+          Copy-Item "$env:RUNNER_TEMP\export\managed\spellwarden_guard.py" "$base\spellwarden\spellwarden_guard.py"
+          Copy-Item "$env:RUNNER_TEMP\export\managed\windows\managed-settings.json" "$base\managed-settings.json"
+          # Owner Administrators; Administrators and SYSTEM full control, Users read and execute; nothing inherited
+          # from Program Files (whose CREATOR OWNER entry would give the installing account full control).
+          icacls $base /setowner '*S-1-5-32-544' /T /C; if ($LASTEXITCODE) { exit 1 }
+          icacls $base /inheritance:r /grant:r '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-545:(OI)(CI)RX'; if ($LASTEXITCODE) { exit 1 }
+          icacls "$base\*" /reset /T /C; if ($LASTEXITCODE) { exit 1 }
+          Add-Content -Path $env:GITHUB_ENV -Value "SW_SCRIPT=$base\spellwarden\spellwarden_guard.py"
+          Add-Content -Path $env:GITHUB_ENV -Value "SW_SETTINGS=$base\managed-settings.json"
+      - name: The installed script matches SHA256SUMS
+        run: uv run --locked python tests/guard_ci.py sums "$RUNNER_TEMP/export/SHA256SUMS" "$SW_SCRIPT"
+      - name: The unprivileged user cannot modify or replace the script (Linux, macOS)
+        if: runner.os != 'Windows'
+        run: |
+          set -euo pipefail
+          uv run --locked python tests/guard_ci.py perms "$SW_SCRIPT"
+          if sudo -u nobody sh -c 'printf x >> "$1"' sh "$SW_SCRIPT" 2>/dev/null; then echo "nobody can append to the script"; exit 1; fi
+          if sudo -u nobody sh -c 'mv "$1" "$1.moved"' sh "$SW_SCRIPT" 2>/dev/null; then echo "nobody can move the script"; exit 1; fi
+      # The Windows runner account is itself an administrator, so a write attempt proves nothing there: the check reads
+      # the access lists and refuses any entry that lets someone other than Administrators or SYSTEM change the
+      # script or its folder.
+      - name: Only Administrators and SYSTEM can modify or replace the script (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $changing = [System.Security.AccessControl.FileSystemRights]'WriteData, AppendData, WriteExtendedAttributes, WriteAttributes, Delete, DeleteSubdirectoriesAndFiles, ChangePermissions, TakeOwnership'
+          $allowed = @('S-1-5-32-544', 'S-1-5-18')
+          $bad = @()
+          foreach ($target in @($env:SW_SCRIPT, (Split-Path -Parent $env:SW_SCRIPT), 'C:\Program Files\ClaudeCode')) {
+            $acl = Get-Acl -LiteralPath $target
+            $owner = (New-Object System.Security.Principal.NTAccount($acl.Owner)).Translate([System.Security.Principal.SecurityIdentifier]).Value
+            if ($owner -notin $allowed) { $bad += "$target is owned by $($acl.Owner)" }
+            foreach ($entry in $acl.Access) {
+              $sid = $entry.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value
+              # The specific rights that change a file, plus GENERIC_ALL and GENERIC_WRITE (0x10000000, 0x40000000).
+              $changes = ([int64]$entry.FileSystemRights -band ([int64]$changing -bor 0x50000000)) -ne 0
+              if ($entry.AccessControlType -eq 'Allow' -and $changes -and $sid -notin $allowed) {
+                $bad += "$target lets $($entry.IdentityReference) $($entry.FileSystemRights)"
+              }
+            }
+          }
+          if ($bad.Count) { $bad | ForEach-Object { Write-Output $_ }; exit 1 }
+          Write-Output 'only Administrators and SYSTEM can change the guard'
+      - name: The vectors through the exact command (sh -c on Linux and macOS)
+        if: runner.os != 'Windows'
+        run: |
+          set -euo pipefail
+          uv run --locked python tests/guard_ci.py run "$SW_SETTINGS" sh
+          uv run --locked python tests/guard_ci.py isolation "$SW_SETTINGS" sh
+      # Claude Code runs Windows hook commands through Git Bash, or PowerShell when Git Bash is missing
+      # (code.claude.com/docs/en/hooks, checked 2026-10-21); the spec names `cmd /c`. The command must decide alike in
+      # all three.
+      - name: The vectors through the exact command (Git Bash, PowerShell and cmd on Windows)
+        if: runner.os == 'Windows'
+        run: |
+          set -euo pipefail
+          for shell in "C:/Program Files/Git/bin/bash.exe" powershell cmd; do
+            uv run --locked python tests/guard_ci.py run "$SW_SETTINGS" "$shell"
+            uv run --locked python tests/guard_ci.py isolation "$SW_SETTINGS" "$shell"
+          done
+
   actionlint:
     runs-on: ubuntu-latest
     env:
