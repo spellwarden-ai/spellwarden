@@ -639,7 +639,7 @@ def validate_org_rule(spec: object) -> None:
     if not valid_line(spec.get("title"), 120):
         raise _fail("bad_title", "The title must be 1 to 120 characters on one line, without control characters.")
     severity = spec.get("severity")
-    if severity not in SEVERITY_RANK:
+    if not isinstance(severity, str) or severity not in SEVERITY_RANK:
         raise _fail("bad_severity", "The severity must be critical, high, medium or low.")
     area = spec.get("area")
     if area not in AREAS:

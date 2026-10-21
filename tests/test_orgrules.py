@@ -82,6 +82,19 @@ def test_mappings_are_split_like_make_rule_and_the_baseline_id_check_is_unchange
     assert RULE_ID_RE.pattern == r"^SW-(SKL|MCP|CFG)-\d{3}$"
 
 
+@pytest.mark.parametrize("bad", [["high"], {"level": "high"}, None, 3, True])
+def test_a_non_string_severity_is_an_org_rule_error_and_a_pack_error_never_a_type_error(bad):
+    from spellwarden_scan.packs import PackError, baseline_pack, validate_pack
+    with pytest.raises(OrgRuleError) as caught:
+        validate_org_rule(rule(severity=bad))
+    assert caught.value.code == "bad_severity"
+    doc = baseline_pack().to_dict()
+    doc["org_rules"] = [rule(severity=bad)]
+    with pytest.raises(PackError) as pack_caught:
+        validate_pack(doc)
+    assert pack_caught.value.code == "bad_org_rule" and pack_caught.value.rule_error == "bad_severity"
+
+
 def test_a_spec_is_not_changed_by_validation():
     spec = rule(detection={"kind": "pattern", "pattern": "needle"})
     before = json.dumps(spec, sort_keys=True)

@@ -1,0 +1,1 @@
+{"id": "SW-ORG-001", "title": "Org pattern", "severity": ["high"], "area": "skill", "detection": {"kind": "pattern", "pattern": "needle"}}
