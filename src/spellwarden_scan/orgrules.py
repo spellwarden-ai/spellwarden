@@ -12,8 +12,17 @@ from __future__ import annotations
 
 import re
 import types
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
+from datetime import date
+
+from spellwarden_scan.evidence import bounded_evidence, fingerprint
+from spellwarden_scan.glob import glob_match
+from spellwarden_scan.model import SEVERITY_RANK, Finding, Location
+from spellwarden_scan.package import CodeBlock, Package
+from spellwarden_scan.rules import ALLOWED_NIST, ALLOWED_OWASP, Rule
+from spellwarden_scan.rules.skill import logical_commands
+from spellwarden_scan.text import valid_line
 
 ORG_RULE_ID_RE = re.compile(r"^SW-ORG-(?!000)\d{3}$")
 PATTERN_LIMITS = types.MappingProxyType({
@@ -490,5 +499,356 @@ def pattern_search(compiled: CompiledPattern, text: str) -> bool:
     return False
 
 
-__all__ = ["ERROR_CODES", "ORG_RULE_ID_RE", "PATTERN_LIMITS", "CompiledPattern", "OrgRuleError", "compile_pattern",
-           "pattern_search", "unit_windows"]
+# --- Org rule specs (spec 5.2.1, 5.2.3) and their detection ------------------------------------------------
+
+AREAS = ("skill", "mcp")
+TARGETS = ("claude-code-hooks", "kong")
+SPEC_KEYS = ("id", "title", "severity", "area", "owasp", "nist", "targets", "malicious", "detection")
+PATTERN_KEYS = ("kind", "files", "in", "pattern", "case_sensitive")
+PROBE_PREDICATES = ("auth_mode_in", "transport_in", "deprecated_feature_any", "spec_version_below",
+                    "endpoint_host_in", "endpoint_host_not_in", "tool_name_matches", "tool_description_matches")
+PATTERN_PREDICATES = ("tool_name_matches", "tool_description_matches")
+AUTH_MODES = ("none", "static-key", "oauth-dcr", "oauth-cimd", "xaa", "unknown")
+TRANSPORTS = ("streamable-http", "sse", "stdio", "unknown")
+DEPRECATED_FEATURES = ("sse", "initialize_only", "sessions", "roots", "sampling", "logging", "dcr")
+_VALUE_LISTS = {"auth_mode_in": (AUTH_MODES, 6), "transport_in": (TRANSPORTS, 4),
+                "deprecated_feature_any": (DEPRECATED_FEATURES, 7)}
+MAX_HOSTS = 50
+MAX_GLOB = 200
+MAX_GLOB_SEGMENTS = 16
+MAX_MAPPINGS = 5
+_LABEL = r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
+_HOST = re.compile(rf"^(?:\*\.)?{_LABEL}(?:\.{_LABEL})*$")
+_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def _fail(code: str, message: str) -> OrgRuleError:
+    return OrgRuleError(code, message)
+
+
+def _string_list(value: object, *, code: str, what: str, limit: int, allowed: tuple[str, ...] | None) -> list[str]:
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        raise _fail(code, f"{what} must be a list of text values.")
+    if len(set(value)) != len(value):
+        raise _fail(code, f"{what} lists a value twice. List each value once.")
+    if len(value) > limit:
+        raise _fail(code, f"{what} lists {len(value)} values. List at most {limit}.")
+    if allowed is not None:
+        for item in value:
+            if item not in allowed:
+                raise _fail(code, f"{what} holds {item!r}, which is not one of {', '.join(allowed)}.")
+    return value
+
+
+def _check_glob(files: object) -> str:
+    if not isinstance(files, str) or not 1 <= len(files) <= MAX_GLOB:
+        raise _fail("bad_glob", f"The files pattern must be text of 1 to {MAX_GLOB} characters.")
+    if files.startswith("/") or "\\" in files or "\x00" in files:
+        raise _fail("bad_glob", "The files pattern must be a relative path with / between folders, such as **/*.sh.")
+    segments = files.split("/")
+    if len(segments) > MAX_GLOB_SEGMENTS:
+        raise _fail("bad_glob", f"The files pattern has {len(segments)} segments. Write at most {MAX_GLOB_SEGMENTS}.")
+    if any(segment in ("", ".", "..") for segment in segments):
+        raise _fail("bad_glob", "The files pattern holds an empty, . or .. segment. Write a path inside the skill.")
+    return files
+
+
+def _check_hosts(values: list[str]) -> None:
+    for host in values:
+        if len(host) > 253 or _HOST.match(host) is None:
+            raise _fail("bad_values", f"The host {host!r} is not a lower-case host name such as mcp.example.com or "
+                                      "*.example.com.")
+
+
+def _check_detection(detection: object, area: str) -> dict:
+    if not isinstance(detection, dict):
+        raise _fail("bad_detection", "The detection must be an object with a kind.")
+    kind = detection.get("kind")
+    if area == "skill":
+        if kind != "pattern":
+            raise _fail("bad_detection", "A skill rule detects with a file pattern: set kind to pattern.")
+        for key in detection:
+            if key not in PATTERN_KEYS:
+                raise _fail("unknown_key", f"The detection has the unknown key {key!r}.")
+        if "pattern" not in detection:
+            raise _fail("bad_detection", "A pattern rule needs a pattern.")
+        _check_glob(detection.get("files", "**"))
+        if detection.get("in", "lines") not in ("lines", "commands"):
+            raise _fail("bad_detection", "Read either lines or commands.")
+        case_sensitive = detection.get("case_sensitive", False)
+        if not isinstance(case_sensitive, bool):
+            raise _fail("bad_detection", "Set case_sensitive to true or false.")
+        compile_pattern(detection["pattern"], case_sensitive=case_sensitive)
+        return detection
+    if kind != "probe":
+        raise _fail("bad_detection", "A server rule detects with a probe check: set kind to probe.")
+    predicate = detection.get("predicate")
+    if predicate not in PROBE_PREDICATES:
+        raise _fail("bad_predicate", f"The check {predicate!r} is not one of {', '.join(PROBE_PREDICATES)}.")
+    if predicate in PATTERN_PREDICATES:
+        allowed_keys = ("kind", "predicate", "pattern", "case_sensitive")
+    else:
+        allowed_keys = ("kind", "predicate", "values")
+    for key in detection:
+        if key not in allowed_keys:
+            raise _fail("unknown_key", f"The detection has the unknown key {key!r} for the check {predicate}.")
+    if predicate in PATTERN_PREDICATES:
+        if "pattern" not in detection:
+            raise _fail("bad_detection", f"The check {predicate} needs a pattern.")
+        case_sensitive = detection.get("case_sensitive", False)
+        if not isinstance(case_sensitive, bool):
+            raise _fail("bad_detection", "Set case_sensitive to true or false.")
+        compile_pattern(detection["pattern"], case_sensitive=case_sensitive)
+        return detection
+    if "values" not in detection:
+        raise _fail("bad_values", f"The check {predicate} needs values.")
+    values = detection["values"]
+    if predicate in _VALUE_LISTS:
+        allowed, limit = _VALUE_LISTS[predicate]
+        _string_list(values, code="bad_values", what="The value list", limit=limit, allowed=allowed)
+    elif predicate == "spec_version_below":
+        if not (isinstance(values, list) and len(values) == 1 and isinstance(values[0], str)
+                and _DATE.match(values[0]) and _real_date(values[0])):
+            raise _fail("bad_values", "The check spec_version_below takes one date written YYYY-MM-DD.")
+    else:
+        _string_list(values, code="bad_values", what="The host list", limit=MAX_HOSTS, allowed=None)
+        _check_hosts(values)
+    if not values:
+        raise _fail("bad_values", f"The check {predicate} needs at least one value.")
+    return detection
+
+
+def _real_date(text: str) -> bool:
+    try:
+        date.fromisoformat(text)
+    except ValueError:
+        return False
+    return True
+
+
+def validate_org_rule(spec: object) -> None:
+    """Spec 5.2.1: raises `OrgRuleError` for the first problem found, in the order of the field table."""
+    if not isinstance(spec, dict):
+        raise _fail("unknown_key", "An org rule is an object with the keys " + ", ".join(SPEC_KEYS) + ".")
+    for key in spec:
+        if key not in SPEC_KEYS:
+            raise _fail("unknown_key", f"The rule has the unknown key {key!r}.")
+    rule_id = spec.get("id")
+    if not isinstance(rule_id, str) or ORG_RULE_ID_RE.match(rule_id) is None:
+        raise _fail("bad_id", "The rule id must be SW-ORG- followed by three digits from 001 to 999.")
+    if not valid_line(spec.get("title"), 120):
+        raise _fail("bad_title", "The title must be 1 to 120 characters on one line, without control characters.")
+    severity = spec.get("severity")
+    if severity not in SEVERITY_RANK:
+        raise _fail("bad_severity", "The severity must be critical, high, medium or low.")
+    area = spec.get("area")
+    if area not in AREAS:
+        raise _fail("bad_area", "The area must be skill or mcp.")
+    _string_list(spec.get("owasp", []), code="bad_mapping", what="The OWASP mapping", limit=MAX_MAPPINGS,
+                 allowed=ALLOWED_OWASP)
+    _string_list(spec.get("nist", []), code="bad_mapping", what="The NIST mapping", limit=MAX_MAPPINGS,
+                 allowed=ALLOWED_NIST)
+    targets = _string_list(spec.get("targets", []), code="bad_target", what="The target list", limit=len(TARGETS),
+                           allowed=TARGETS)
+    malicious = spec.get("malicious", False)
+    if not isinstance(malicious, bool):
+        raise _fail("bad_severity", "Set malicious to true or false.")
+    if malicious and severity != "critical":
+        raise _fail("bad_severity", "Only a critical rule can be marked malicious.")
+    if "detection" not in spec:
+        raise _fail("bad_detection", "The rule needs a detection.")
+    detection = _check_detection(spec["detection"], area)
+    if targets and area == "mcp":
+        raise _fail("bad_target", "A server check has no export target.")
+    if "claude-code-hooks" in targets and detection.get("in", "lines") != "commands":
+        raise _fail("bad_target", "Claude Code hooks check shell commands, so the rule must read commands.")
+
+
+@dataclass(frozen=True)
+class OrgRuleBudget:
+    """The org-rule time budget of a scan (spec 5.2.2): `clock` is the caller's (the engine reads no clock of its own)."""
+
+    clock: Callable[[], float]
+    seconds: float
+
+
+class BudgetMeter:
+    """One per scan call. `tick()` is read before each unit an org rule evaluates: True while fewer than `seconds` have
+    passed since the first tick, then False for the rest of the scan. Without a budget it is always True."""
+
+    def __init__(self, budget: OrgRuleBudget | None) -> None:
+        self.budget = budget
+        self.started: float | None = None
+        self.stopped = False
+        self.incomplete: set[str] = set()
+
+    def tick(self) -> bool:
+        if self.budget is None:
+            return True
+        if self.stopped:
+            return False
+        now = self.budget.clock()
+        if self.started is None:
+            self.started = now
+        elif now - self.started >= self.budget.seconds:
+            self.stopped = True
+            return False
+        return True
+
+
+def _without_bom(text: str, first: bool) -> str:
+    return text[1:] if first and text.startswith("\U0000feff") else text
+
+
+class OrgRuleDetector:
+    """The `detect` of a compiled org rule: callable like every rule's `detect`, and `evaluate(subject, meter)` for
+    the scan functions, which reads one unit per `meter.tick()` and records the rule in `meter.incomplete` when the
+    budget stops it before the last unit."""
+
+    def __init__(self, spec: dict) -> None:
+        self.spec = spec
+        self.rule_id: str = spec["id"]
+        self.severity: str = spec["severity"]
+        self.title: str = spec["title"].strip()
+        self.malicious: bool = bool(spec.get("malicious", False))
+        detection = spec["detection"]
+        self.kind: str = detection["kind"]
+        self.files: str = detection.get("files", "**")
+        self.read: str = detection.get("in", "lines")
+        self.predicate: str | None = detection.get("predicate")
+        self.values: tuple[str, ...] = tuple(detection.get("values", ()))
+        self.pattern = (compile_pattern(detection["pattern"], case_sensitive=detection.get("case_sensitive", False))
+                        if "pattern" in detection else None)
+
+    def __call__(self, subject) -> Iterator[Finding]:
+        return self.evaluate(subject, BudgetMeter(None))
+
+    def evaluate(self, subject, meter: BudgetMeter) -> Iterator[Finding]:
+        units = self._package_units(subject) if self.kind == "pattern" else self._probe_units(subject)
+        for unit in units:
+            if not meter.tick():
+                meter.incomplete.add(self.rule_id)
+                return
+            finding = unit()
+            if finding is not None:
+                yield finding
+
+    # Each unit is a thunk returning the finding or None, so the meter is read before the unit's work.
+
+    def _selected(self, package: Package, path: str) -> bool:
+        prefix = f"{package.root}/" if package.root else ""
+        relative = path[len(prefix):] if prefix and path.startswith(prefix) else path
+        return glob_match(relative, self.files)
+
+    def _package_units(self, package: Package) -> Iterator[Callable[[], Finding | None]]:
+        if self.read == "lines":
+            for unit in package.text_files:
+                if not self._selected(package, unit.path):
+                    continue
+                for number, line in enumerate(unit.lines, start=1):
+                    yield self._line_unit(unit.path, number, _without_bom(line, number == 1))
+            return
+        for unit in package.scripts():
+            if not self._selected(package, unit.path):
+                continue
+            for path, number, command in logical_commands(unit):
+                yield self._line_unit(path, number, _without_bom(command, number == 1 and not isinstance(unit, CodeBlock)))
+
+    def _line_unit(self, path: str, number: int, text: str) -> Callable[[], Finding | None]:
+        def run() -> Finding | None:
+            if self.pattern is None or not pattern_search(self.pattern, text):
+                return None
+            return Finding(self.rule_id, self.severity, self.title, Location(path, number), bounded_evidence(text),
+                           fingerprint(self.rule_id, path, text), self.malicious)
+        return run
+
+    def _probe_units(self, probe) -> Iterator[Callable[[], Finding | None]]:
+        if self.predicate in PATTERN_PREDICATES:
+            for tool in probe.tools:
+                yield self._tool_unit(tool)
+            return
+        yield lambda: self._server_finding(probe)
+
+    def _tool_unit(self, tool) -> Callable[[], Finding | None]:
+        def run() -> Finding | None:
+            from spellwarden_scan.probe import text_of
+
+            text = tool.name if self.predicate == "tool_name_matches" else text_of(tool.description)
+            if self.pattern is None or not isinstance(text, str) or not pattern_search(self.pattern, text):
+                return None
+            return self._finding(f"tool:{tool.name}", text)
+        return run
+
+    def _server_finding(self, probe) -> Finding | None:
+        from spellwarden_scan.probe import classify
+
+        spec_version, transport, auth_mode, deprecated = classify(probe)
+        if self.predicate == "transport_in":
+            return self._finding(None, f"transport {transport}", probe) if transport in self.values else None
+        if probe.endpoint is None:
+            return None  # a stdio server sees transport_in and the tool checks only (spec 5.2.3)
+        if self.predicate == "auth_mode_in":
+            return self._finding(None, f"auth mode {auth_mode}", probe) if auth_mode in self.values else None
+        if self.predicate == "deprecated_feature_any":
+            used = [name for name in deprecated if name in self.values]
+            return self._finding(None, "deprecated features: " + ", ".join(used), probe) if used else None
+        if self.predicate == "spec_version_below":
+            if spec_version is None:
+                return self._finding(None, "spec version unknown", probe)
+            return self._finding(None, f"spec version {spec_version}", probe) if spec_version < self.values[0] else None
+        host = endpoint_host(probe.endpoint)
+        listed = host is not None and any(host_matches(host, entry) for entry in self.values)
+        if self.predicate == "endpoint_host_in":
+            return self._finding(None, f"endpoint host {host}", probe) if listed else None
+        return None if listed else self._finding(None, f"endpoint host {host or 'unknown'}", probe)
+
+    def _finding(self, path: str | None, evidence: str, probe=None) -> Finding:
+        from spellwarden_scan.rules.mcp import _where
+
+        location = path if path is not None else _where(probe)
+        return Finding(self.rule_id, self.severity, self.title, Location(location, None), bounded_evidence(evidence),
+                       fingerprint(self.rule_id, location, evidence), self.malicious)
+
+
+def endpoint_host(endpoint: str | None) -> str | None:
+    """The lower-case host of an endpoint URL without port, brackets or a trailing dot; None when it has none."""
+    from spellwarden_scan.rules.mcp import _origin
+
+    origin = _origin(endpoint)
+    if origin is None:
+        return None
+    authority = origin.split("://", 1)[1]
+    if authority.startswith("["):
+        return authority[1:authority.index("]")]
+    return authority.rsplit(":", 1)[0].rstrip(".") if ":" in authority else authority.rstrip(".")
+
+
+def host_matches(host: str, entry: str) -> bool:
+    """`mcp.example.com` matches itself only; `*.example.com` matches every subdomain and not `example.com`."""
+    if entry.startswith("*."):
+        return host.endswith(entry[1:]) and host != entry[2:]
+    return host == entry
+
+
+def compile_org_rule(spec: object) -> Rule:
+    """Validates `spec` and returns its `Rule`, built without `make_rule` (which keeps refusing `SW-ORG` ids)."""
+    validate_org_rule(spec)
+    assert isinstance(spec, dict)
+    owasp = tuple(spec.get("owasp", ()))
+    return Rule(
+        id=spec["id"], title=spec["title"].strip(), severity_default=spec["severity"], area=spec["area"],
+        owasp_agentic=tuple(i for i in owasp if i.startswith("ASI")),
+        owasp_mcp=tuple(i for i in owasp if i.startswith("MCP")), nist=tuple(spec.get("nist", ())),
+        targets=tuple(spec.get("targets", ())), malicious_indicator=bool(spec.get("malicious", False)),
+        detect=OrgRuleDetector(spec),
+    )
+
+
+def is_org_rule(rule: Rule) -> bool:
+    return isinstance(rule.detect, OrgRuleDetector)
+
+
+__all__ = ["AREAS", "AUTH_MODES", "DEPRECATED_FEATURES", "ERROR_CODES", "ORG_RULE_ID_RE", "PATTERN_LIMITS",
+           "PROBE_PREDICATES", "TARGETS", "TRANSPORTS", "BudgetMeter", "CompiledPattern", "OrgRuleBudget",
+           "OrgRuleDetector", "OrgRuleError", "compile_org_rule", "compile_pattern", "endpoint_host", "host_matches",
+           "is_org_rule", "pattern_search", "unit_windows", "validate_org_rule"]

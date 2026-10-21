@@ -1,0 +1,21 @@
+{
+  "id": "SW-ORG-012",
+  "title": "Known exfiltration host",
+  "severity": "critical",
+  "area": "skill",
+  "malicious": true,
+  "owasp": [
+    "ASI04",
+    "MCP01"
+  ],
+  "nist": [
+    "SR-3",
+    "SC-7"
+  ],
+  "detection": {
+    "kind": "pattern",
+    "files": "**",
+    "in": "lines",
+    "pattern": "exfil\\.example\\.com"
+  }
+}

@@ -9,6 +9,7 @@ from collections.abc import Collection, Mapping, Sequence
 
 from spellwarden_scan.canonical import canonical_sha256
 from spellwarden_scan.model import SEVERITY_RANK, ConfigDocument, ConfigScanResult, Finding, SkillScanResult
+from spellwarden_scan.orgrules import BudgetMeter, OrgRuleBudget
 from spellwarden_scan.package import Package
 from spellwarden_scan.rules import RuleSet
 from spellwarden_scan.rules.config import AgentConfig
@@ -21,14 +22,17 @@ def _sort_key(finding: Finding) -> tuple:
     return (SEVERITY_RANK[finding.severity], finding.rule_id, finding.location.path, finding.location.line or 0)
 
 
-def run_rules(rules, subject, *, max_findings: int, max_per_rule: int) -> tuple[list[Finding], int]:
+def run_rules(rules, subject, *, max_findings: int, max_per_rule: int,
+              meter: BudgetMeter | None = None) -> tuple[list[Finding], int]:
     """Shared by the skill and the probe scans: lazily consumes each rule's
-    findings, keeps at most the caps, counts the rest."""
+    findings, keeps at most the caps, counts the rest. With a `meter`, an org rule
+    (Phase C spec 5.2.2) reads its units through it; baseline rules never do."""
     retained = _retained_list()
     truncated = 0
     for rule in rules:
         kept_for_rule = 0
-        for finding in rule.detect(subject):
+        evaluate = getattr(rule.detect, "evaluate", None) if meter is not None else None
+        for finding in (evaluate(subject, meter) if evaluate is not None else rule.detect(subject)):
             if kept_for_rule >= max_per_rule or len(retained) >= max_findings:
                 truncated += 1
                 continue
@@ -40,13 +44,17 @@ def run_rules(rules, subject, *, max_findings: int, max_per_rule: int) -> tuple[
 
 def scan_skill_package(files: Mapping[str, bytes], rules: RuleSet, *, root: str = "",
                        executable_paths: Collection[str] = frozenset(), max_findings: int = 500,
-                       max_per_rule: int = 100) -> SkillScanResult:
+                       max_per_rule: int = 100, org_rule_budget: OrgRuleBudget | None = None) -> SkillScanResult:
+    """`org_rule_budget` bounds the time org rules may take (Phase C spec 5.2.2); a non-empty
+    `org_rules_incomplete` on the result is an incomplete policy evaluation, never a clean one."""
     package = Package.build(files, root=root, executable_paths=executable_paths)
+    meter = BudgetMeter(org_rule_budget)
     retained, truncated = run_rules(rules.ordered_for_scan("skill"), package, max_findings=max_findings,
-                                    max_per_rule=max_per_rule)
+                                    max_per_rule=max_per_rule, meter=meter)
     return SkillScanResult(
         findings=tuple(retained), truncated=truncated, sha256=canonical_sha256(files), metadata=package.metadata,
         files_scanned=package.files_scanned, rules_version=RULES_VERSION, scanner_version=__version__,
+        org_rules_incomplete=tuple(sorted(meter.incomplete)),
     )
 
 

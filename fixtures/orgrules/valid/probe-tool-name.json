@@ -1,0 +1,11 @@
+{
+  "id": "SW-ORG-002",
+  "title": "Server outside the approved hosts",
+  "severity": "medium",
+  "area": "mcp",
+  "detection": {
+    "kind": "probe",
+    "predicate": "tool_name_matches",
+    "pattern": "^(delete|drop)_"
+  }
+}

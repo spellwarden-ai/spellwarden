@@ -1,0 +1,23 @@
+{
+  "id": "SW-ORG-001",
+  "title": "Line one\nline two",
+  "severity": "high",
+  "area": "skill",
+  "owasp": [
+    "ASI04"
+  ],
+  "nist": [
+    "SR-3"
+  ],
+  "targets": [
+    "claude-code-hooks"
+  ],
+  "malicious": false,
+  "detection": {
+    "kind": "pattern",
+    "files": "**/*.sh",
+    "in": "commands",
+    "pattern": "(curl|wget)\\s.*https?://[0-9]{1,3}\\.[0-9]{1,3}\\.",
+    "case_sensitive": false
+  }
+}

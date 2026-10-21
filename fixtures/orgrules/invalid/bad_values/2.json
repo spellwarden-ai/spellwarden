@@ -1,0 +1,13 @@
+{
+  "id": "SW-ORG-002",
+  "title": "Server outside the approved hosts",
+  "severity": "medium",
+  "area": "mcp",
+  "detection": {
+    "kind": "probe",
+    "predicate": "spec_version_below",
+    "values": [
+      "2026-13-01"
+    ]
+  }
+}

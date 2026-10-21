@@ -1,0 +1,23 @@
+{
+  "id": "SW-ORG-001",
+  "title": "Downloads a binary from a raw IP address",
+  "severity": "high",
+  "area": "skill",
+  "owasp": [
+    "ASI04"
+  ],
+  "nist": [
+    "SR-3"
+  ],
+  "targets": [
+    "claude-code-hooks"
+  ],
+  "malicious": false,
+  "detection": {
+    "kind": "pattern",
+    "files": "**/*.sh",
+    "in": "commands",
+    "pattern": "x\\s*\\s",
+    "case_sensitive": false
+  }
+}

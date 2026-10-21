@@ -1,0 +1,14 @@
+{
+  "id": "SW-ORG-002",
+  "title": "Server outside the approved hosts",
+  "severity": "medium",
+  "area": "mcp",
+  "detection": {
+    "kind": "probe",
+    "predicate": "deprecated_feature_any",
+    "values": [
+      "sessions",
+      "dcr"
+    ]
+  }
+}

@@ -1,0 +1,4 @@
+{"findings": [
+  {"rule_id": "SW-ORG-001", "severity": "high", "path": "scripts/install.sh", "line": 4},
+  {"rule_id": "SW-ORG-001", "severity": "high", "path": "scripts/install.sh", "line": 7}
+]}

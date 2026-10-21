@@ -1,0 +1,16 @@
+{
+  "id": "SW-ORG-002",
+  "title": "Server outside the approved hosts",
+  "severity": "medium",
+  "area": "mcp",
+  "detection": {
+    "kind": "probe",
+    "predicate": "transport_in",
+    "values": [
+      "sse"
+    ]
+  },
+  "targets": [
+    "kong"
+  ]
+}

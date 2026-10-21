@@ -41,6 +41,12 @@ class _Model:
         return cls(**values)
 
 
+def _without_empty_incomplete(data: dict) -> dict:
+    if not data.get("org_rules_incomplete"):
+        data.pop("org_rules_incomplete", None)
+    return data
+
+
 def _convert(cls, name: str, value: Any) -> Any:
     """Rebuilds nested classes and tuples from JSON by field name."""
     nested = _NESTED.get((cls.__name__, name))
@@ -95,6 +101,12 @@ class SkillScanResult(_Model):
     files_scanned: int
     rules_version: str
     scanner_version: str
+    # Phase C spec 5.2.2: the org rules the time budget stopped; written by `to_dict` only when non-empty, so every
+    # 1.0.0 output stays byte-identical (plan decision P-ORG-3).
+    org_rules_incomplete: tuple[str, ...] = ()
+
+    def to_dict(self) -> dict:
+        return _without_empty_incomplete(_Model.to_dict(self))
 
 
 @dataclass(frozen=True, slots=True)
@@ -164,6 +176,10 @@ class McpScanResult(_Model):
     long_running_tools: tuple[str, ...] = ()
     tasks_supported: bool = False
     issuer_problem: bool = False
+    org_rules_incomplete: tuple[str, ...] = ()  # as on `SkillScanResult`
+
+    def to_dict(self) -> dict:
+        return _without_empty_incomplete(_Model.to_dict(self))
 
 
 @dataclass(frozen=True, slots=True)
@@ -281,4 +297,4 @@ _NESTED: dict[tuple[str, str], tuple[str, type]] = {
     ("ConfigScanResult", "findings"): ("many", Finding),
 }
 _TUPLE_FIELDS = frozenset({"problems", "grant_types_supported", "deprecated_features", "long_running_tools", "args",
-                           "references", "documents"})
+                           "references", "documents", "org_rules_incomplete"})
