@@ -114,6 +114,9 @@ class ToolInfo(_Model):
     name: str
     description: str = ""
     annotations: dict = field(default_factory=dict)
+    # Phase C spec 5.6: the tool's `inputSchema` as the prober recorded it (a JSON object of at most 16 KiB of
+    # canonical JSON), else None. Additive: a 1.0.0 dict without it loads; no rule reads it in 1.1.0.
+    input_schema: dict | None = None
 
 
 @dataclass(frozen=True, slots=True)

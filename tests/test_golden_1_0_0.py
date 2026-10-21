@@ -110,3 +110,31 @@ def test_the_frozen_schemas_are_this_release_s():
     for name in record.SCHEMAS:
         frozen = (GOLDEN / "schemas" / f"{name}.schema.json").read_bytes()
         assert frozen == (ROOT / "schemas" / f"{name}.schema.json").read_bytes(), name
+
+
+# Phase C, claim E10: 1.1.0 changes nothing a scan produces. The reports differ from the recorded 1.0.0 ones only in
+# the one place each names the scanner version, and the schemas are the 1.0.0 schemas. The JSON report embeds
+# `McpScanResult.to_dict()`, which leaves out an empty `org_rules_incomplete` (Task 3, plan decision P-ORG-3), so a
+# report of a scan without org rules has no new key.
+_VERSION_MARKERS = {"report.json": '"scanner_version": "{v}"', "report.sarif": '"semanticVersion": "{v}"',
+                    "report.md": "Spellwarden {v}, rules "}
+
+
+@pytest.mark.skipif(__version__ == "1.0.0", reason="1.0.0 compares the bytes as they are")
+def test_reports_differ_from_the_recorded_ones_only_in_the_version(fresh):
+    for _fmt, name in record.OUTPUTS:
+        recorded = (GOLDEN / "out" / name).read_bytes().decode("utf-8")
+        produced = (fresh[1] / name).read_bytes().decode("utf-8")
+        marker = _VERSION_MARKERS.get(name)
+        if marker is not None:
+            assert recorded.count(marker.format(v="1.0.0")) == 1, name
+            assert produced.count(marker.format(v=__version__)) == 1, name
+            produced = produced.replace(marker.format(v=__version__), marker.format(v="1.0.0"))
+        assert produced == recorded, name
+
+
+@pytest.mark.skipif(not __version__.startswith("1.1."), reason="Phase C's promise: 1.1 changes no schema")
+def test_the_schemas_are_still_the_1_0_0_schemas():
+    for name in record.SCHEMAS:
+        frozen = (GOLDEN / "schemas" / f"{name}.schema.json").read_bytes()
+        assert frozen == (ROOT / "schemas" / f"{name}.schema.json").read_bytes(), name

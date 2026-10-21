@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.1.0 (RELEASE_DATE)
+
+An engine release: names are added, nothing is removed or changed. The rules version stays `2026.10.2`, every
+fingerprint of 1.0.0 is unchanged, and the `spellwarden` command, its files and its reports are as in 1.0.0 apart
+from the version they print. The GitHub Action and the GitLab CI/CD component are not re-released and stay at 1.0.0.
+
+- Org rules: `validate_org_rule` and `compile_org_rule` turn a JSON rule spec (`SW-ORG-001` to `SW-ORG-999`) into a
+  `Rule`: a file pattern for skills, read line by line or shell command by shell command, in a small pattern
+  language that runs in bounded time and reads the same in Kong (`PATTERN_LIMITS`), or one of eight checks of a
+  probed MCP server. `scan_skill_package` and `evaluate_probe` take `org_rule_budget=OrgRuleBudget(clock, seconds)`,
+  and their results carry `org_rules_incomplete` (left out of `to_dict()` when empty, so a 1.0.0 report keeps its
+  bytes). The pattern language refuses repeats that could make matching slow. `make_rule` still refuses `SW-ORG` ids.
+- Policy packs: the eight enforcement rules (`ENFORCEMENT_RULES`), the Spellwarden baseline pack 1.0
+  (`baseline_pack()`, also `packs/baseline.json`), the pack document of schema 1 (`schemas/pack.schema.json`,
+  `validate_pack`, `canonical_json`, `pack_sha256`) and the text rules for names and titles (`valid_line`,
+  `valid_block`, `comment_safe`).
+- Exports (`build_export`): Claude Code hooks with a standard-library guard script, in a project mode (advisory) and
+  a managed mode for administrators (`allowManagedHooksOnly`, the script outside every checkout), and Kong
+  (`ai-prompt-guard` deny patterns in a decK file). Each export lists what its target cannot enforce. The hooks also
+  cover Claude Code's PowerShell tool. The CI job `managed-guard` checks the managed mode on Linux, macOS and
+  Windows (Git Bash, PowerShell and cmd).
+- `ToolInfo.input_schema`: the prober records a tool's `inputSchema` when it is a JSON object of at most 16 KiB.
+- `spellwarden_cli.settings` imports the path glob from `spellwarden_scan.glob`, its new home.
+
 ## 1.0.0 (2026-10-20)
 
 The scanner, its files and its report are now a stable public contract (`schemas/`, kept compatible from this

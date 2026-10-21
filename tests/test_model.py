@@ -43,3 +43,28 @@ def test_probe_result_has_a_default_for_every_field():
 def test_from_dict_ignores_unknown_keys_and_fills_missing_defaults():
     probe = model.ProbeResult.from_dict({"endpoint": "https://x.example/mcp", "future_field": 1})
     assert probe.endpoint == "https://x.example/mcp" and probe.probed_at is None
+
+
+def test_tool_info_input_schema_is_optional_and_round_trips():
+    # Phase C spec 5.6 and claim E9: an additive field; a 1.0.0 dict without it still loads.
+    plain = model.ToolInfo("search", "Searches.")
+    assert plain.input_schema is None
+    assert model.ToolInfo.from_dict({"name": "search", "description": "Searches.", "annotations": {}}) == plain
+    schema = {"type": "object", "properties": {"q": {"type": "string", "description": "What to look for."}},
+              "required": ["q"]}
+    with_schema = model.ToolInfo("search", "Searches.", {}, schema)
+    as_json = json.loads(json.dumps(with_schema.to_dict()))
+    assert as_json["input_schema"] == schema
+    assert model.ToolInfo.from_dict(as_json) == with_schema
+
+
+def test_every_1_0_0_probe_fixture_still_loads_and_round_trips():
+    from conftest import PROBE_FIXTURES
+
+    paths = sorted(PROBE_FIXTURES.rglob("*.json"))
+    assert len(paths) >= 20
+    for path in paths:
+        document = json.loads(path.read_text(encoding="utf-8"))
+        probe = model.ProbeResult.from_dict(document["probe"])
+        assert all(tool.input_schema is None for tool in probe.tools), path.name
+        assert model.ProbeResult.from_dict(json.loads(json.dumps(probe.to_dict()))) == probe, path.name
