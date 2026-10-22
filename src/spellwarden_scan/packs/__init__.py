@@ -41,7 +41,7 @@ BASELINE_JSON = """{
     "description": "The eight Spellwarden baseline enforcement rules, mapped to OWASP and NIST."
   },
   "engine": {
-    "version": "1.1.0",
+    "version": "1.1.1",
     "rules_version": "2026.10.2"
   },
   "rules": [

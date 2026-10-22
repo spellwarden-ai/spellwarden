@@ -28,10 +28,15 @@ class _Probe:
         self.fetcher, self.endpoint, self.release = fetcher, endpoint, release
         self.requests = 0
         self.session_id: str | None = None
+        self.negotiated_version: str | None = None
         self.state: dict = {"endpoint": endpoint, "reachable": False}
 
     def _headers(self, method: str) -> dict[str, str]:
-        headers = {"MCP-Protocol-Version": DISCOVER_VERSION if method == "server/discover" else INITIALIZE_VERSION,
+        # After `initialize`, every request carries the version the server negotiated (MCP 2025-06-18, "Protocol
+        # Version Header"): a server that negotiated an older version refuses the probe's own with 400 (the AWS MCP
+        # server, 2026-10-22, "Unsupported protocol version: 2025-11-25").
+        version = DISCOVER_VERSION if method == "server/discover" else (self.negotiated_version or INITIALIZE_VERSION)
+        headers = {"MCP-Protocol-Version": version,
                    "Mcp-Method": method, "Mcp-Name": PROBE_NAME, "Accept": "application/json, text/event-stream"}
         if self.session_id:
             headers["Mcp-Session-Id"] = self.session_id
@@ -92,6 +97,8 @@ class _Probe:
             if init_result is not None:
                 state["initialize"] = init_result
                 state["negotiated_version"] = init_result.get("protocolVersion")
+                if isinstance(init_result.get("protocolVersion"), str) and init_result["protocolVersion"]:
+                    self.negotiated_version = init_result["protocolVersion"]
                 state["capabilities"] = init_result.get("capabilities") if isinstance(init_result.get("capabilities"), dict) else {}
                 self._post("notifications/initialized", {}, notification=True)
         if statuses and all(status in (404, 405) for status in statuses):
