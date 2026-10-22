@@ -175,3 +175,23 @@ def test_the_prober_records_input_schemas_up_to_16_kib():
     assert [name for name, value in recorded.items() if value is None] == ["over", "twenty", "list", "text", "surrogate", "none"]
     assert probe_module.MAX_SCHEMA_BYTES == 16384
     assert type(result).from_dict(result.to_dict()) == result
+
+
+def test_after_initialize_every_request_carries_the_negotiated_protocol_version():
+    """A server that negotiates an older version than the probe's refuses the probe's own on `tools/list` (the AWS
+    MCP server on 2026-10-22: 400 "Unsupported protocol version: 2025-11-25"); the header follows the negotiation."""
+    fetcher = FakeFetcher()
+    fetcher.add("POST", ENDPOINT, status=400, body={"jsonrpc": "2.0", "id": 1, "error": {"code": -32601, "message": "no discover"}}, queue=True)
+    fetcher.add("POST", ENDPOINT, status=200, headers={"Mcp-Session-Id": "s1"},
+                body={"jsonrpc": "2.0", "id": 2, "result": {"protocolVersion": "2025-06-18", "capabilities": {"tools": {}},
+                                                           "serverInfo": {"name": "older", "version": "1"}}}, queue=True)
+    fetcher.add("POST", ENDPOINT, status=202, body=b"", queue=True)
+    fetcher.add("POST", ENDPOINT, status=200, body={"jsonrpc": "2.0", "id": 4, "result": {"tools": [
+        {"name": "list_regions", "description": "Lists regions.", "inputSchema": {"type": "object"}}]}}, queue=True)
+    result = probe(fetcher, ENDPOINT, release="test-release", now_iso="2026-10-22T13:00:00Z")
+    sent = posts(fetcher.requests)
+    assert [r["headers"]["Mcp-Method"] for r in sent] == ["server/discover", "initialize", "notifications/initialized", "tools/list"]
+    assert [r["headers"]["MCP-Protocol-Version"] for r in sent] == ["2026-07-28", "2025-11-25", "2025-06-18", "2025-06-18"]
+    assert sent[3]["headers"]["Mcp-Session-Id"] == "s1"
+    assert result.negotiated_version == "2025-06-18" and result.tools_source == "probe"
+    assert [tool.name for tool in result.tools] == ["list_regions"] and result.unauthenticated_status == 200

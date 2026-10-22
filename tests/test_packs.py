@@ -102,7 +102,7 @@ def test_the_baseline_pack():
     assert (pack.pack_id, pack.name, pack.version) == ("baseline", "Spellwarden Baseline for Agents", "1.0")
     assert pack.enabled() == ENFORCEMENT_IDS
     assert pack.org_rules == ()
-    assert (pack.engine_version, pack.rules_version) == ("1.1.0", RULES_VERSION)
+    assert (pack.engine_version, pack.rules_version) == ("1.1.1", RULES_VERSION)
     assert pack.to_dict() == json.loads(BASELINE_JSON)
     assert BASELINE_JSON == json.dumps(pack.to_dict(), indent=2, ensure_ascii=False) + "\n"
 

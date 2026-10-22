@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.1.1 (2026-10-22)
+
+A fix release of the MCP prober: no rule, fingerprint, report or command changes. The rules version stays `2026.10.2`.
+The baseline pack document names this engine version, so its SHA-256 changes; its eight rules do not.
+
+- The prober sends the protocol version the server negotiated in `initialize` on every later request
+  (`MCP-Protocol-Version`, MCP 2025-06-18). It sent its own version, `2025-11-25`, and a server that negotiated an
+  older one refused `tools/list` with `400 Unsupported protocol version` (seen with the AWS MCP server on
+  2026-10-22), so no tool list was recorded for such servers. `server/discover` keeps `2026-07-28`.
+
 ## 1.1.0 (2026-10-21)
 
 An engine release: names are added, nothing is removed or changed. The rules version stays `2026.10.2`, every
