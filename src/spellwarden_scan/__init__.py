@@ -1,7 +1,8 @@
 """spellwarden_scan: the Spellwarden scan engine (spec 5). Pure code: it
 takes bytes and recorded probe results and returns findings: skill packages
 (`scan_skill_package`), probed MCP servers (`evaluate_probe`) and agent
-configuration documents (`parse_*`, `scan_agent_config`). Since 1.1.0 it also
+configuration documents (`parse_*`, `scan_agent_config`). Since 1.2.0 `identity` and `gate` hold the identities
+and findings of the connected command's registry gate. Since 1.1.0 it also
 compiles organisation rules (`compile_org_rule`), validates policy pack
 documents (`validate_pack`) and builds their exports (`build_export`)."""
 from __future__ import annotations
@@ -10,6 +11,7 @@ from spellwarden_scan.agentconfig import (
     parse_document, parse_hooks, parse_marketplace, parse_mcp_config, parse_plugin_manifest, parse_settings,
     reference_kind,
 )
+from spellwarden_scan import gate, identity  # noqa: F401 (O3 spec 5.4: `spellwarden_scan.gate`, `spellwarden_scan.identity`)
 from spellwarden_scan.archive import ArchiveError, ArchiveLimits, unpack_zip
 from spellwarden_scan.canonical import canonical_sha256
 from spellwarden_scan.evidence import mask_credentials
@@ -17,9 +19,9 @@ from spellwarden_scan.exports import EXPORT_MODES, EXPORT_TARGETS, PLANNED_TARGE
 from spellwarden_scan.exports import build as build_export
 from spellwarden_scan.frontmatter import FrontmatterError, parse_frontmatter
 from spellwarden_scan.model import (
-    SEVERITY_RANK, Area, AuthServerMetadata, ChecklistItem, ConfigDocument, ConfigScanResult, CurationInputs, Finding,
-    HookCommand, Location, MarketplacePlugin, McpScanResult, McpServerEntry, Metadata, PluginSource, ProbeResult,
-    SettingFlag, Severity, SkillScanResult, ToolInfo,
+    SEVERITY_RANK, Area, AuthServerMetadata, ChecklistItem, ConfigDocument, ConfigScanResult, CurationInputs,
+    EnabledPlugin, Finding, HookCommand, Location, MarketplaceDecl, MarketplacePlugin, McpScanResult, McpServerEntry, Metadata,
+    PluginSource, ProbeResult, SettingFlag, Severity, SkillScanResult, ToolInfo,
 )
 from spellwarden_scan.checklist import migration_checklist
 from spellwarden_scan.curation import curation_score, is_curated, is_quarantined
@@ -48,4 +50,6 @@ __all__ = [
     "EnforcementRule", "ENFORCEMENT_RULES", "PackDocument", "PackError", "baseline_pack", "validate_pack",
     "canonical_json", "pack_sha256", "EXPORT_TARGETS", "PLANNED_TARGETS", "EXPORT_MODES", "build_export",
     "valid_line", "valid_block", "comment_safe",
+    # O3 spec 5.4: added in 1.2.0 (the rest of 5.4 lives in `identity`, `gate` and `packs`)
+    "MarketplaceDecl", "EnabledPlugin",
 ]

@@ -19,6 +19,15 @@ NAMES_1_1_0 = (
     "pack_sha256", "EXPORT_TARGETS", "PLANNED_TARGETS", "EXPORT_MODES", "build_export", "valid_line", "valid_block",
     "comment_safe",
 )
+NAMES_1_2_0 = ("MarketplaceDecl", "EnabledPlugin")
+# O3 spec 5.4: the names that live in a submodule of the engine, which the package imports so that they are reachable.
+IDENTITY_NAMES = (
+    "package_files", "PackageFiles", "package_sha256", "nested_skill_roots", "is_skill_file", "fold_skill_name",
+    "normalise_url", "server_identity", "request_link_url", "command_identity", "CommandIdentity",
+    "parse_command_identity", "format_command_identity", "ParsedCommandIdentity", "LAUNCH_OVERRIDE_ENV", "QUIET_FLAGS",
+    "LAUNCHER_FAMILY", "resolver_files", "canonical_repo_url", "plugin_identity", "marketplace_identity", "SKIP_DIRS",
+)
+GATE_NAMES = ("gate_finding", "resolver_binding", "unhashable_binding", "GATE_RULE_IDS", "GATE_REASONS", "GATE_KINDS")
 
 
 def test_the_1_0_0_names_are_all_still_exported():
@@ -29,8 +38,24 @@ def test_the_1_0_0_names_are_all_still_exported():
 def test_1_1_0_adds_exactly_the_names_of_spec_5_8():
     for name in NAMES_1_1_0:
         assert name in spellwarden_scan.__all__ and hasattr(spellwarden_scan, name), name
-    assert sorted(spellwarden_scan.__all__) == sorted(NAMES_1_0_0 + NAMES_1_1_0)
+    assert sorted(spellwarden_scan.__all__) == sorted(NAMES_1_0_0 + NAMES_1_1_0 + NAMES_1_2_0)
     assert len(spellwarden_scan.__all__) == len(set(spellwarden_scan.__all__))
+
+
+def test_1_2_0_adds_the_names_of_o3_spec_5_4():
+    from spellwarden_scan import packs
+    from spellwarden_scan.model import ConfigDocument, SkillScanResult
+
+    for name in NAMES_1_2_0:
+        assert name in spellwarden_scan.__all__ and hasattr(spellwarden_scan, name), name
+    for name in IDENTITY_NAMES:
+        assert hasattr(spellwarden_scan.identity, name), name
+    for name in GATE_NAMES:
+        assert hasattr(spellwarden_scan.gate, name), name
+    assert hasattr(packs, "org_rule_min_version") and hasattr(packs, "PREDICATE_SINCE")
+    assert "package_sha256" in SkillScanResult.__dataclass_fields__
+    assert {"marketplaces", "enabled_plugins"} <= set(ConfigDocument.__dataclass_fields__)
+    assert "registry" in {rule.area for rule in spellwarden_scan.RuleSet.baseline()}
 
 
 def test_build_export_is_exports_build_and_the_target_lists_are_the_spec_s():

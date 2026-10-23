@@ -13,7 +13,7 @@ import pytest
 import yaml
 from conftest import _RUNNER_VARIABLES
 
-from spellwarden_scan import __version__
+from spellwarden_scan import RULES_VERSION, __version__
 
 ROOT = Path(__file__).resolve().parents[1]
 GOLDEN = ROOT / "tests" / "golden" / "1.0.0"
@@ -112,29 +112,97 @@ def test_the_frozen_schemas_are_this_release_s():
         assert frozen == (ROOT / "schemas" / f"{name}.schema.json").read_bytes(), name
 
 
-# Phase C, claim E10: 1.1.0 changes nothing a scan produces. The reports differ from the recorded 1.0.0 ones only in
-# the one place each names the scanner version, and the schemas are the 1.0.0 schemas. The JSON report embeds
-# `McpScanResult.to_dict()`, which leaves out an empty `org_rules_incomplete` (Task 3, plan decision P-ORG-3), so a
-# report of a scan without org rules has no new key.
+# Phase C, claim E10 and O3 invariant 1, claim E4: a free-mode scan of the 1.0.0 golden repository differs from the
+# recorded 1.0.0 reports in exactly the places each names the scanner version, plus the four normalised differences of
+# the connected release (P5, P32): the `rules_version` value, the three SW-REG descriptors of the SARIF rule table, the
+# `ruleIndex` of every SARIF result (renumbered through the table with those three removed), and the three added lines
+# of `spellwarden rules` (pinned by tests/cli/test_rules_unchanged.py: the golden set holds no `rules` output). The JSON
+# report embeds no skill result, so it gains no `package_sha256` and no `connected` key.
 _VERSION_MARKERS = {"report.json": '"scanner_version": "{v}"', "report.sarif": '"semanticVersion": "{v}"',
                     "report.md": "Spellwarden {v}, rules "}
+_RULES_VERSION_MARKERS = {"report.json": '"rules_version": "{r}"', "report.md": ", rules {r}."}
+RECORDED_RULES_VERSION = "2026.10.2"
+REGISTRY_IDS = ("SW-REG-001", "SW-REG-002", "SW-REG-003")
+
+
+def _normalised_sarif(text: str, *, produced: bool) -> dict:
+    """The SARIF document with the three registry descriptors removed and every `ruleIndex` remapped through the
+    reduced table; the version is put back to the recorded one."""
+    document = json.loads(text)
+    driver = document["runs"][0]["tool"]["driver"]
+    if produced:
+        assert driver["semanticVersion"] == __version__
+        driver["semanticVersion"] = "1.0.0"
+        table = driver["rules"]
+        assert [r["id"] for r in table] == sorted(r["id"] for r in table)
+        kept = [r for r in table if r["id"] not in REGISTRY_IDS]
+        assert len(table) - len(kept) == 3
+        new_index = {old: kept.index(rule) for old, rule in enumerate(table) if rule in kept}
+        for result in document["runs"][0]["results"]:
+            assert result["ruleIndex"] in new_index, result
+            result["ruleIndex"] = new_index[result["ruleIndex"]]
+        driver["rules"] = kept
+    return document
 
 
 @pytest.mark.skipif(__version__ == "1.0.0", reason="1.0.0 compares the bytes as they are")
-def test_reports_differ_from_the_recorded_ones_only_in_the_version(fresh):
+def test_reports_differ_from_the_recorded_ones_only_in_the_normalised_differences(fresh):
     for _fmt, name in record.OUTPUTS:
         recorded = (GOLDEN / "out" / name).read_bytes().decode("utf-8")
         produced = (fresh[1] / name).read_bytes().decode("utf-8")
-        marker = _VERSION_MARKERS.get(name)
-        if marker is not None:
-            assert recorded.count(marker.format(v="1.0.0")) == 1, name
-            assert produced.count(marker.format(v=__version__)) == 1, name
-            produced = produced.replace(marker.format(v=__version__), marker.format(v="1.0.0"))
+        if name == "report.sarif":
+            assert _normalised_sarif(produced, produced=True) == _normalised_sarif(recorded, produced=False)
+            continue
+        for markers, now, then in ((_VERSION_MARKERS, __version__, "1.0.0"),
+                                   (_RULES_VERSION_MARKERS, RULES_VERSION, RECORDED_RULES_VERSION)):
+            marker = markers.get(name)
+            if marker is not None:
+                assert recorded.count(marker.format(v=then, r=then)) == 1, name
+                assert produced.count(marker.format(v=now, r=now)) == 1, name
+                produced = produced.replace(marker.format(v=now, r=now), marker.format(v=then, r=then))
         assert produced == recorded, name
 
 
-@pytest.mark.skipif(not __version__.startswith("1.1."), reason="Phase C's promise: 1.1 changes no schema")
-def test_the_schemas_are_still_the_1_0_0_schemas():
-    for name in record.SCHEMAS:
-        frozen = (GOLDEN / "schemas" / f"{name}.schema.json").read_bytes()
-        assert frozen == (ROOT / "schemas" / f"{name}.schema.json").read_bytes(), name
+def test_the_free_mode_report_has_no_connected_key_and_no_package_hash(fresh):
+    report = json.loads((fresh[1] / "report.json").read_text(encoding="utf-8"))
+    assert "connected" not in report and "package_sha256" not in json.dumps(report)
+    assert not any(f["rule_id"].startswith("SW-REG-") for f in report["findings"])
+
+
+def _required_fields(schema, path=()) -> set[tuple]:
+    """Every `(path, name)` the schema requires, at any depth."""
+    found: set[tuple] = set()
+    if isinstance(schema, dict):
+        for name in schema.get("required", ()) if isinstance(schema.get("required"), list) else ():
+            found.add((path, name))
+        for key, value in schema.items():
+            found |= _required_fields(value, path + (key,))
+    elif isinstance(schema, list):
+        for index, value in enumerate(schema):
+            found |= _required_fields(value, path + (index,))
+    return found
+
+
+def _current_schema(name: str) -> dict:
+    return json.loads((ROOT / "schemas" / f"{name}.schema.json").read_text(encoding="utf-8"))
+
+
+def test_1_0_0_reports_validate_against_the_1_2_0_schemas():
+    _validate(json.loads((GOLDEN / "out" / "report.json").read_text(encoding="utf-8")), _current_schema("report"))
+
+
+@pytest.mark.parametrize("name", ["settings", "baseline", "lock"])
+def test_1_2_0_input_schemas_require_no_more_than_1_0_0_did(name):
+    assert _required_fields(_current_schema(name)) <= _required_fields(_schema(name))
+
+
+def test_1_2_0_report_schema_keeps_every_1_0_0_required_field():
+    assert _required_fields(_schema("report")) <= _required_fields(_current_schema("report"))
+
+
+def test_1_0_0_input_files_validate_against_the_1_2_0_input_schemas():
+    state = GOLDEN / "repo" / ".spellwarden"
+    as_json = lambda data: json.loads(json.dumps(data, default=str))  # noqa: E731
+    _validate(as_json(yaml.safe_load((state / "config.yml").read_text(encoding="utf-8"))), _current_schema("settings"))
+    _validate(as_json(yaml.safe_load((state / "baseline.yml").read_text(encoding="utf-8"))), _current_schema("baseline"))
+    _validate(json.loads((state / "lock.json").read_text(encoding="utf-8")), _current_schema("lock"))

@@ -25,7 +25,7 @@ PRUNE_GRACE_DAYS = 30
 REASON_MAX = 1000
 _FINGERPRINT = re.compile(r"[0-9a-fA-F]{64}")
 # The shape of a rule id, as `schemas/baseline.schema.json` states it (always used with `fullmatch`; ASCII digits only).
-RULE_ID = re.compile(r"SW-(SKL|MCP|CFG)-[0-9]{3}")
+RULE_ID = re.compile(r"SW-(SKL|MCP|CFG|REG|ORG)-[0-9]{3}")
 _DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 _TOP_KEYS = frozenset({"version", "accepted"})
 _ENTRY_KEYS = frozenset({"fingerprint", "rule", "path", "reason", "added", "expires"})
