@@ -251,8 +251,8 @@ def test_tag_refuses_an_existing_release_tag(tmp_path):
 
 # --- the three fixture trees (O3 plan P13) ------------------------------------------------------------------------------
 # `release-wrappers.py` copies scan-action/fixtures over scan-gitlab/fixtures and this repository's fixtures/repos, so
-# before a release the three trees are byte-equal. The connected fixtures (`connected/`, `make_repo.py`, `check.py`) are
-# committed here first and reach the wrappers in O3 Tasks 26 and 27: until a checkout holds `connected/`, it has not
+# before a release the three trees are byte-equal. The connected fixtures (`connected/`, `make_repo.py`, `check.py` and the
+# `connected` variant in `findings/expect.json`, which `release.yml` runs) are committed here first and reach the wrappers in O3 Tasks 26 and 27: until a checkout holds `connected/`, it has not
 # received the 1.2.0 fixtures, and comparing it would only repeat that it is behind.
 
 FIXTURES = SCRIPTS.parents[0] / "fixtures" / "repos"
