@@ -14,9 +14,12 @@ from typing import TextIO
 
 from spellwarden_scan import RULES_VERSION, RuleSet, __version__
 
+import dataclasses
+
 from spellwarden_cli import run
 from spellwarden_cli.output import FORMATS, write_stdout
 from spellwarden_cli.report import LockState, Notice, Report
+from spellwarden_cli.secret import Credentials, read_credentials
 from spellwarden_cli.settings import FAIL_ON, Flags, SettingsError, load_settings
 
 
@@ -67,6 +70,10 @@ def _add_scan(commands) -> None:
     scan.add_argument("--config", metavar="FILE", help="a settings file instead of .spellwarden/config.yml")
     scan.add_argument("--as-of", type=_iso_date, metavar="YYYY-MM-DD", help="evaluation date (default: today, UTC)")
     scan.add_argument("--no-telemetry", action="store_true", help="send no usage ping")
+    upload = scan.add_mutually_exclusive_group()
+    upload.add_argument("--upload", dest="upload", action="store_true", default=None,
+                        help="in connected mode, upload the results in CI (default: on)")
+    upload.add_argument("--no-upload", dest="upload", action="store_false")
     talk = scan.add_mutually_exclusive_group()
     talk.add_argument("--quiet", action="store_true", help="print only the requested outputs and errors")
     talk.add_argument("--verbose", action="store_true", help="print network events and timings to stderr")
@@ -117,7 +124,16 @@ def _error_report(fail_on: str, as_of: date, code: str, path: str, message: str,
                   errors=(Notice(code, path, message),), repo_prefix=None, rules=RuleSet.baseline()).sorted()
 
 
-def _scan_report(args: argparse.Namespace, context) -> tuple[Report, bool]:
+def api_url_env(env) -> str | None:
+    """`SPELLWARDEN_API_URL` when it is honoured: loopback HTTP only, the rule of `SPELLWARDEN_PING_URL` (O3 spec 6.2).
+    Task 6's `api.api_url` replaces this stub."""
+    from spellwarden_cli import ping
+
+    raw = env.get("SPELLWARDEN_API_URL")
+    return ping.loopback_url(raw) if raw else None
+
+
+def _scan_report(args: argparse.Namespace, context, credentials: Credentials) -> tuple[Report, bool]:
     """The report and the effective telemetry setting (False when the settings were refused: no ping). On a pull or
     merge request in CI the settings file and the baseline come from the base revision (`ci.revision_source`, D35)."""
     from spellwarden_cli import ci
@@ -128,22 +144,34 @@ def _scan_report(args: argparse.Namespace, context) -> tuple[Report, bool]:
     if not os.path.isdir(root):
         return _error_report(fail_on, as_of, "path_not_directory", args.path, "the scan path must be a directory"), False
     flags = Flags(fail_on=args.fail_on, probe=args.probe, probe_private=args.probe_private,
-                  telemetry=False if args.no_telemetry else None)
+                  telemetry=False if args.no_telemetry else None, upload=args.upload)
+    log = _stderr if args.verbose else run._silent
+    api_url = api_url_env(os.environ)
+    if os.environ.get("SPELLWARDEN_API_URL") and api_url is None:
+        log("SPELLWARDEN_API_URL ignored: it is honoured for loopback HTTP only (127.0.0.1, [::1] or localhost)")
     try:
-        source = ci.revision_source(root, context, config=args.config is None, baseline=args.baseline is None)
+        source = ci.revision_source(root, context, config=args.config is None, baseline=args.baseline is None,
+                                    env=os.environ)
+        # P47: under --config on a request, `connected.pack` and `connected.required` still come from the base revision.
+        connected_source = (ci.revision_source(root, context, config=True, baseline=False, env=os.environ)
+                            if args.config is not None else None)
     except Exception as exc:  # a crash before the settings are read still writes every output (spec 6.2); no ping
         return _error_report(fail_on, as_of, "crash", "", f"internal error: {type(exc).__name__}: {exc}"), False
     try:
-        settings = load_settings(root, config=args.config, flags=flags, env=os.environ, read=source.read)
+        settings = load_settings(root, config=args.config, flags=flags, env=os.environ, read=source.read,
+                                 connected_read=connected_source.read if connected_source is not None else None)
     except SettingsError as exc:
         return _error_report(fail_on, as_of, "settings_invalid", args.config or ".spellwarden/config.yml", str(exc),
                              source.notices), False
+    if connected_source is not None and connected_source.read is not None and (
+            settings.connected.pack is not None or settings.connected.required):
+        source = dataclasses.replace(source, notices=(*source.notices, *connected_source.notices))
     telemetry = settings.telemetry
     if telemetry and args.config is None and source.read is not None and _request_opts_out(root):
         telemetry = False
     options = run.ScanOptions(root=root, settings=settings, as_of=as_of, locked=args.locked, baseline=args.baseline,
-                              env=dict(os.environ), log=_stderr if args.verbose else run._silent, context=context,
-                              revision=source)
+                              env=dict(os.environ), log=log, context=context, revision=source, credentials=credentials,
+                              api_url=api_url, as_of_given=args.as_of is not None)
     started = time.monotonic()
     try:
         report = run.scan(options)
@@ -195,9 +223,10 @@ def cmd_scan(args: argparse.Namespace) -> int:
         return 2
     from spellwarden_cli import ci, ping
 
+    credentials = read_credentials(os.environ)  # first: the four secrets leave the environment before anything else runs
     root = os.path.abspath(args.path)
-    context = ci.detect(os.environ, git_remote=lambda: ci.git_remote_of(root))  # once, for the scan and the ping
-    report, telemetry = _scan_report(args, context)
+    context = ci.detect(os.environ, git_remote=lambda: ci.git_remote_of(root, env=os.environ))  # once, for the scan and the ping
+    report, telemetry = _scan_report(args, context, credentials)
     write_outputs(report, outputs, stdout=sys.stdout)
     if not args.quiet:
         for fmt, path in outputs:

@@ -8,6 +8,7 @@ from collections.abc import Callable, Mapping
 import dataclasses
 from dataclasses import dataclass, field
 from datetime import date
+import re
 from typing import TYPE_CHECKING
 
 from spellwarden_scan import RULES_VERSION, Finding, RuleSet, __version__, scan_agent_config, scan_skill_package
@@ -15,10 +16,15 @@ from spellwarden_scan import RULES_VERSION, Finding, RuleSet, __version__, scan_
 from spellwarden_cli import discover, files
 from spellwarden_cli.discover import Discovery, SkillPackage
 from spellwarden_cli.report import LockState, Notice, ProbeReport, Report, ReportFinding
+from spellwarden_cli.secret import Credentials
 from spellwarden_cli.settings import Settings
 
 if TYPE_CHECKING:
     from spellwarden_cli.ci import CiContext, RevisionSource
+
+
+# O3 spec 6.2: the shape of a pipeline key. A connector token (`swc_`) or a CI token (`swt_`) does not match.
+KEY_RE = re.compile(r"swk_[A-Za-z0-9_-]{40}")
 
 
 def _silent(_line: str) -> None:
@@ -36,13 +42,52 @@ class ScanOptions:
     log: Callable[[str], None] = _silent  # --verbose lines (stderr)
     context: CiContext | None = None  # the CI context `main` detected once; None: detected from `env` when needed
     revision: RevisionSource | None = None  # where the default baseline is read (D35); None: the working tree
+    credentials: Credentials | None = None  # read once from the environment by `main` (O3 spec 6.1); None: none
+    api_url: str | None = None  # SPELLWARDEN_API_URL when honoured (loopback HTTP only; O3 spec 6.2), else None
+    as_of_given: bool = False  # `--as-of` was passed; refused in connected mode
+
+
+def connected_config_problem(options: ScanOptions) -> Notice | None:
+    """The checks of O3 spec 6.2 that need no network, in order: both credentials, a key of the wrong shape, `--as-of`
+    in connected mode. The result is an error that stops the run before any file is listed and any request is made.
+    Whether the run is connected is `connected.activation`'s decision (Task 8); here only what the variables and the
+    settings in force already say. No message carries a credential."""
+    credentials = options.credentials
+    if credentials is None:
+        return None
+    if credentials.org and credentials.key:
+        return Notice("connected_config", "", "SPELLWARDEN_ORG and SPELLWARDEN_API_KEY are both set. Use SPELLWARDEN_ORG "
+                      "with the pipeline's identity, or SPELLWARDEN_API_KEY alone, not both.")
+    if credentials.key is not None and KEY_RE.fullmatch(credentials.key.value) is None:
+        return Notice("connected_key_invalid", "", "SPELLWARDEN_API_KEY is not a CI key. A CI key starts with swk_. "
+                      "Create one under Settings, API keys, with access CI.")
+    in_ci = options.context is not None and options.context.provider is not None
+    connected = bool(credentials.org) or credentials.key is not None or (options.settings.connected.required and in_ci)
+    if connected and options.as_of_given:
+        return Notice("connected_config", "", "--as-of cannot be used in connected mode: the server works out when "
+                      "baseline entries expire.")
+    return None
+
+
+def _stopped(options: ScanOptions, notices: list[Notice], problem: Notice) -> Report:
+    """A report that holds the one error and the notices that explain where the settings came from."""
+    return Report(scanner_version=__version__, rules_version=RULES_VERSION, as_of=options.as_of.isoformat(),
+                  fail_on=options.settings.fail_on, items=(), findings=(), probes=(), lock=LockState(),
+                  notices=tuple(notices), errors=(problem,), repo_prefix=None, rules=RuleSet.baseline()).sorted()
 
 
 def scan(options: ScanOptions) -> Report:
     rules = RuleSet.baseline()
-    fileset = files.list_files(options.root, options.settings)
+    early: list[Notice] = [*(options.revision.notices if options.revision else ())]
+    if options.api_url is not None:
+        early.append(Notice("api_url_override", "", "SPELLWARDEN_API_URL is honoured: the connected calls go to a loopback "
+                                                    "address, not to the Spellwarden service."))
+    problem = connected_config_problem(options)
+    if problem is not None:
+        return _stopped(options, early, problem)
+    fileset = files.list_files(options.root, options.settings, env=options.env)
     found = discover.discover(fileset)
-    notices: list[Notice] = [*fileset.notices, *found.notices, *(options.revision.notices if options.revision else ())]
+    notices: list[Notice] = [*fileset.notices, *found.notices, *early]
     errors: list[Notice] = [*fileset.errors, *found.errors]
     options.log(f"{len(fileset.entries)} files listed, {len(found.items)} items discovered")
     findings = engine_findings(found, rules, notices)

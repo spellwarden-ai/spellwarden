@@ -9,6 +9,7 @@ import stat
 import subprocess
 import sys
 import unicodedata
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 from spellwarden_scan import identity
@@ -85,8 +86,10 @@ def work_tree_top(root: str) -> str | None:
         current = parent
 
 
-def list_files(root: str, settings: Settings, *, git: str | None = None, platform: str = sys.platform) -> FileSet:
-    """`git=None` looks git up on `PATH`; `git=""` disables it (the walk). Entries are sorted by path."""
+def list_files(root: str, settings: Settings, *, git: str | None = None, platform: str = sys.platform,
+               env: Mapping[str, str] | None = None) -> FileSet:
+    """`git=None` looks git up on `PATH`; `git=""` disables it (the walk). Entries are sorted by path. Git runs with
+    the explicit environment `env` (else a copy of ours; O3 invariant 2)."""
     root = os.path.abspath(root)
     notices: list[Notice] = []
     errors: list[Notice] = []
@@ -96,7 +99,7 @@ def list_files(root: str, settings: Settings, *, git: str | None = None, platfor
     prefix: str | None = None
     if top is not None and executable:
         try:
-            prefix, listed = _git_listing(executable, top, root, notices)
+            prefix, listed = _git_listing(executable, top, root, notices, env)
         except _GitFailed as exc:
             notices.append(Notice("git_unavailable", "", f"git could not list the files ({exc}); the directory was walked"))
     if listed is None:
@@ -124,11 +127,12 @@ def _selected(path: str, settings: Settings) -> bool:
     return not any(glob_match(path, pattern) for pattern in settings.exclude)
 
 
-def _git(executable: str, top: str, root: str, *args: str) -> bytes:
+def _git(executable: str, top: str, root: str, *args: str, env: Mapping[str, str] | None = None) -> bytes:
     command = [executable, "-c", f"safe.directory={top.replace(os.sep, '/')}", "-c", "core.fsmonitor=false",
                "-C", root, *args]
     try:
-        done = subprocess.run(command, capture_output=True, check=False, timeout=_GIT_TIMEOUT, stdin=subprocess.DEVNULL)
+        done = subprocess.run(command, capture_output=True, check=False, timeout=_GIT_TIMEOUT, stdin=subprocess.DEVNULL,
+                              env=dict(os.environ) if env is None else dict(env))
     except (OSError, subprocess.SubprocessError) as exc:
         raise _GitFailed(type(exc).__name__) from exc
     if done.returncode != 0:
@@ -145,10 +149,11 @@ def _decode(raw: bytes, notices: list[Notice]) -> str | None:
         return None
 
 
-def _git_listing(executable: str, top: str, root: str, notices: list[Notice]) -> tuple[str, list[tuple[str, str | None]]]:
-    prefix = _git(executable, top, root, "rev-parse", "--show-prefix").decode("utf-8", "replace").strip()
-    staged = _git(executable, top, root, "ls-files", "-z", "--stage", "--full-name")
-    others = _git(executable, top, root, "ls-files", "-z", "--others", "--exclude-standard", "--full-name")
+def _git_listing(executable: str, top: str, root: str, notices: list[Notice],
+                 env: Mapping[str, str] | None = None) -> tuple[str, list[tuple[str, str | None]]]:
+    prefix = _git(executable, top, root, "rev-parse", "--show-prefix", env=env).decode("utf-8", "replace").strip()
+    staged = _git(executable, top, root, "ls-files", "-z", "--stage", "--full-name", env=env)
+    others = _git(executable, top, root, "ls-files", "-z", "--others", "--exclude-standard", "--full-name", env=env)
     listed: dict[str, str | None] = {}
     for record in staged.split(b"\0"):
         if not record:

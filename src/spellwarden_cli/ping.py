@@ -38,16 +38,24 @@ def ping_body(ctx: CiContext, *, version: str, rules_version: str) -> dict:
     return {"schema": 1, "version": version, "rules_version": rules_version, "ci": ci, "org": org_hash(ctx.identity)}
 
 
+def loopback_url(raw: str) -> str | None:
+    """`raw` in the form of the test hooks (D25): `http://127.0.0.1:<port>/<path>`, `http://[::1]:<port>/<path>` or
+    `http://localhost:<port>/<path>` (written with 127.0.0.1); None for anything else. `SPELLWARDEN_API_URL` (O3
+    spec 6.2) follows the same rule."""
+    match = _LOOPBACK.fullmatch(raw)
+    if match is None or not 1 <= int(match.group(2)) <= 65535:
+        return None
+    host = "127.0.0.1" if match.group(1) == "localhost" else match.group(1)
+    return f"http://{host}:{int(match.group(2))}{match.group(3) or '/'}"
+
+
 def ping_url(env: Mapping[str, str]) -> tuple[str, bool]:
     """The endpoint and whether a set `SPELLWARDEN_PING_URL` was ignored (it is honoured for loopback HTTP only)."""
     raw = env.get("SPELLWARDEN_PING_URL")
     if not raw:
         return DEFAULT_URL, False
-    match = _LOOPBACK.fullmatch(raw)
-    if match is None or not 1 <= int(match.group(2)) <= 65535:
-        return DEFAULT_URL, True
-    host = "127.0.0.1" if match.group(1) == "localhost" else match.group(1)
-    return f"http://{host}:{int(match.group(2))}{match.group(3) or '/'}", False
+    url = loopback_url(raw)
+    return (DEFAULT_URL, True) if url is None else (url, False)
 
 
 def telemetry_off(env: Mapping[str, str]) -> bool:

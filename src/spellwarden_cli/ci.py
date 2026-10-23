@@ -102,9 +102,9 @@ def _read_text(path: str) -> str:
         return handle.read(EVENT_FILE_MAX)
 
 
-def git_remote_of(root: str) -> str | None:
+def git_remote_of(root: str, *, env: Mapping[str, str] | None = None) -> str | None:
     """`git remote get-url origin` of the work tree holding `root`, with `safe.directory` set to that one work tree
-    (spec 6.4), or None."""
+    (spec 6.4), or None. The subprocess gets an explicit environment (`env`, else a copy of ours; O3 invariant 2)."""
     from spellwarden_cli.files import work_tree_top
 
     top = work_tree_top(root)
@@ -112,7 +112,8 @@ def git_remote_of(root: str) -> str | None:
         return None
     try:
         done = subprocess.run(["git", "-c", f"safe.directory={top}", "-C", root, "remote", "get-url", "origin"],
-                              capture_output=True, text=True, timeout=10, check=False)
+                              capture_output=True, text=True, timeout=10, check=False,
+                              env=dict(os.environ) if env is None else dict(env))
     except (OSError, subprocess.SubprocessError):
         return None
     url = done.stdout.strip()
@@ -397,9 +398,10 @@ def _kill_tree(process: subprocess.Popen) -> None:
 class _Repository:
     """The work tree holding a scan root, as git sees it."""
 
-    def __init__(self, root: str, git: str | None = None) -> None:
+    def __init__(self, root: str, git: str | None = None, env: Mapping[str, str] | None = None) -> None:
         from spellwarden_cli.files import work_tree_top
 
+        self.env = dict(os.environ) if env is None else dict(env)  # every git call below gets this environment
         self.root = os.path.abspath(root)
         self.executable = _which_git() if git is None else git
         if not self.executable:
@@ -416,7 +418,8 @@ class _Repository:
             raise RevisionUnavailable(f"git cannot read the work tree ({exc})") from exc
 
     def _git(self, *args: str, timeout: float = GIT_TIMEOUT, env: Mapping[str, str] | None = None) -> bytes:
-        return _run_git(self.executable, self.top, self.root, *args, timeout=timeout, env=env)
+        return _run_git(self.executable, self.top, self.root, *args, timeout=timeout,
+                        env=self.env if env is None else env)
 
     def has_commit(self, sha: str) -> bool:
         try:
@@ -483,7 +486,7 @@ class _Repository:
 
 
 def read_at_revision(root: str, sha: str, relative: str, *, max_bytes: int, fetch: bool = False,
-                     git: str | None = None) -> bytes | None:
+                     git: str | None = None, env: Mapping[str, str] | None = None) -> bytes | None:
     """The content of the scan-root-relative file `relative` at commit `sha`, or None when that revision holds no
     such file. Raises `RevisionUnavailable` (no git, no work tree, `sha` not a commit id or not present after the
     one fetch `fetch` allows), `paths.UnsafePath` (a link, a directory, a submodule), `paths.TooLarge` and `OSError`.
@@ -491,7 +494,7 @@ def read_at_revision(root: str, sha: str, relative: str, *, max_bytes: int, fetc
     commit = _object_id(sha)
     if commit is None:
         raise RevisionUnavailable("the base commit is not a commit id")
-    repository = _Repository(root, git)
+    repository = _Repository(root, git, env)
     repository.ensure(commit, fetch=fetch)
     return repository.read(commit, relative, max_bytes)
 
@@ -512,7 +515,8 @@ def _base_hint(ctx: CiContext) -> str:
             "the base commit.")
 
 
-def revision_source(root: str, ctx: CiContext, *, config: bool, baseline: bool, git: str | None = None) -> RevisionSource:
+def revision_source(root: str, ctx: CiContext, *, config: bool, baseline: bool, git: str | None = None,
+                    env: Mapping[str, str] | None = None) -> RevisionSource:
     """Spec 6.3, 6.7 and D35. On a pull or merge request in CI, the files the operator did not name (`config`: the
     settings file, `baseline`: the baseline) are read from the base revision, with the notice `settings_from_base`;
     when that revision cannot be read, from nowhere (the defaults and no baseline), with the notice
@@ -528,7 +532,7 @@ def revision_source(root: str, ctx: CiContext, *, config: bool, baseline: bool, 
     try:
         if ctx.base_sha is None:
             raise RevisionUnavailable(f"the {ctx.event or 'unknown'} event names no base commit")
-        repository = _Repository(root, git)
+        repository = _Repository(root, git, env)
         repository.ensure(ctx.base_sha, fetch=True)
     except RevisionUnavailable as exc:
         used = [text for text, wanted in (("the default settings", config), ("no baseline", baseline)) if wanted]

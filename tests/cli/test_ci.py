@@ -3,6 +3,7 @@ environment and the event file, the trust rule for private probing, and the pseu
 from __future__ import annotations
 
 import json
+import os
 
 import pytest
 
@@ -322,3 +323,38 @@ def merge_request(**more: str):
 ])
 def test_the_base_sha_of_each_event(ctx, base_sha):
     assert ctx().base_sha == base_sha
+
+
+def test_git_remote_of_gets_an_explicit_environment(make_repo, tmp_path, monkeypatch):
+    """O3 invariant 2: the subprocess of `git_remote_of` gets the environment it was given, not ours by inheritance."""
+    repo = make_repo(tmp_path / "r", {"README.md": "x\n"})
+    seen: list = []
+    real = ci.subprocess.run
+
+    def spy(command, *args, **kwargs):
+        seen.append(kwargs.get("env"))
+        return real(command, *args, **kwargs)
+
+    monkeypatch.setattr(ci.subprocess, "run", spy)
+    given = {**os.environ, "MARKER_FOR_TEST": "1"}
+    ci.git_remote_of(str(repo), env=given)
+    assert len(seen) == 1 and seen[0]["MARKER_FOR_TEST"] == "1" and seen[0] is not given
+    ci.git_remote_of(str(repo))
+    assert isinstance(seen[1], dict) and "MARKER_FOR_TEST" not in seen[1]
+
+
+def test_the_base_revision_reads_run_git_with_the_given_environment(make_repo, tmp_path, monkeypatch):
+    repo = make_repo(tmp_path / "r", {"README.md": "x\n"})
+    seen: list = []
+    real = ci._run_git
+
+    def spy(*args, **kwargs):
+        seen.append(kwargs.get("env"))
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(ci, "_run_git", spy)
+    sha = ci.subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"], capture_output=True, text=True,
+                            check=True).stdout.strip()
+    given = {**os.environ, "MARKER_FOR_TEST": "1"}
+    assert ci.read_at_revision(str(repo), sha, "README.md", max_bytes=100, env=given) == b"x\n"
+    assert seen and all(env is not None and env.get("MARKER_FOR_TEST") == "1" for env in seen)

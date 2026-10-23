@@ -13,6 +13,17 @@
     "exclude": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 4096}, "maxItems": 10000},
     "fail-on": {"enum": ["critical", "high", "medium", "low", "never"]},
     "probe": {"type": "boolean"},
-    "telemetry": {"type": "boolean"}
+    "telemetry": {"type": "boolean"},
+    "connected": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Connected mode (needs scanner 1.2.0 or later; older scanners refuse the file). pack and required are the repository's statement: no flag, no environment variable, and on a pull or merge request they are read from the base revision.",
+      "properties": {
+        "pack": {"type": "string", "pattern": "^(baseline|[0-9a-f]{32})(@[0-9]+\\.[0-9]+)?$",
+                 "description": "A pack id (baseline or 32 hex), optionally @version (N.N), from the organisation's allowed list."},
+        "upload": {"type": "boolean", "description": "Upload results in CI. Default true. --upload, --no-upload and SPELLWARDEN_UPLOAD override it."},
+        "required": {"type": "boolean", "description": "A run that cannot connect exits 2 instead of falling back to free mode. Default false."}
+      }
+    }
   }
 }

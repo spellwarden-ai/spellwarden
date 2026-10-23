@@ -18,9 +18,54 @@
     "notices": {"type": "array", "items": {"$ref": "#/$defs/notice"}},
     "errors": {"type": "array", "items": {"$ref": "#/$defs/error"}},
     "fail_on": {"enum": ["critical", "high", "medium", "low", "never"]},
-    "exit_code": {"enum": [0, 1, 2, 3]}
+    "exit_code": {"enum": [0, 1, 2, 3]},
+    "connected": {"$ref": "#/$defs/connected"},
+    "upload_truncated": {"type": "integer", "minimum": 0, "description": "Findings left out of the upload body to fit its caps."},
+    "upload_truncated_fields": {"type": "array", "items": {"type": "string"}, "description": "Fields of the upload body that were cut."}
   },
   "$defs": {
+    "connected": {
+      "type": "object",
+      "description": "Present only when connected mode established its session. Never carries a credential.",
+      "required": ["credential", "org", "run", "policy"],
+      "properties": {
+        "credential": {"enum": ["oidc", "key"]},
+        "org": {"type": "object", "required": ["slug", "name"],
+                "properties": {"slug": {"type": "string"}, "name": {"type": "string"}}},
+        "run": {"type": "object",
+                "properties": {"identity": {"type": ["string", "null"]}, "scope": {"type": ["string", "null"]},
+                               "kind": {"type": ["string", "null"]}, "event": {"type": ["string", "null"]},
+                               "sha": {"type": ["string", "null"]}, "head_sha": {"type": ["string", "null"]},
+                               "ref_name": {"type": ["string", "null"]}}},
+        "policy": {"type": "object",
+                   "properties": {"source": {"type": "string"}, "chosen_by": {"type": "string"},
+                                  "pack_id": {"type": ["string", "null"]}, "version": {"type": ["string", "null"]},
+                                  "sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+                                  "org_rule_ids": {"type": "array", "items": {"type": "string"}},
+                                  "skipped": {"type": "array", "items": {
+                                    "type": "object", "required": ["id", "why"],
+                                    "properties": {"id": {"type": "string"}, "why": {"type": "string"},
+                                                   "version": {"type": ["string", "null"]}}}}}},
+        "registry": {"oneOf": [{"type": "null"}, {
+          "type": "object",
+          "properties": {"gate": {"type": "boolean"}, "scope": {"type": "string"}, "scope_applied": {"type": "string"},
+                         "stdio": {"type": "boolean"}, "plugins": {"type": "boolean"},
+                         "checked": {"type": "integer", "minimum": 0}, "not_admitted": {"type": "integer", "minimum": 0},
+                         "unidentified": {"type": "integer", "minimum": 0}, "out_of_scope": {"type": "integer", "minimum": 0},
+                         "items": {"type": "array", "items": {
+                           "type": "object", "required": ["kind", "path", "name"],
+                           "properties": {"kind": {"type": "string"}, "path": {"type": "string"}, "name": {"type": "string"},
+                                          "identity": {"type": ["string", "null"]}, "reason": {"type": "string"},
+                                          "in_scope": {"type": "boolean"}, "admitted": {"type": ["boolean", "null"]},
+                                          "request_url": {"type": ["string", "null"]}}}}}}]},
+        "upload": {"oneOf": [{"type": "null"}, {
+          "type": "object", "required": ["status"],
+          "properties": {"status": {"enum": ["uploaded", "failed", "skipped"]}, "attested": {"type": "boolean"},
+                         "url": {"type": "string"}, "error": {"type": "string"},
+                         "reason": {"enum": ["branch", "event_not_reportable", "default_branch_unconfirmed", "no_run_id",
+                                             "local", "disabled"]}}}]}
+      }
+    },
     "item": {
       "type": "object",
       "required": ["kind", "path", "name", "plugin"],
@@ -90,7 +135,11 @@
       "properties": {
         "code": {"enum": ["too_large", "not_utf8", "not_json", "duplicate_key", "too_deep", "not_an_object", "truncated",
                           "unsafe_path", "case_collision", "unreadable", "package_too_large", "path_not_directory",
-                          "settings_invalid", "baseline_invalid", "lock_unreadable", "invalid_input", "crash"]},
+                          "settings_invalid", "baseline_invalid", "lock_unreadable", "invalid_input", "crash",
+                          "connected_config", "connected_key_invalid", "connected_no_credential", "connected_auth",
+                          "connected_subscription", "connected_ci_key_required", "connected_forbidden",
+                          "connected_rate_limited", "connected_unavailable", "connected_required", "policy_not_found",
+                          "policy_invalid", "org_rules_incomplete", "registry_check_failed", "registry_check_too_large"]},
         "path": {"type": "string"},
         "message": {"type": "string"}
       }

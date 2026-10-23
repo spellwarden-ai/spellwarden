@@ -229,3 +229,22 @@ def test_submodule_entries_are_not_entered(make_repo, tmp_path):
     blob = git(repo, "rev-parse", "HEAD").strip()
     git(repo, "update-index", "--add", "--cacheinfo", f"160000,{blob},vendor/sub")
     assert _paths(list_files(str(repo), Settings())) == ["a.md"]
+
+
+def test_git_gets_an_explicit_environment_and_never_ours_by_reference(make_repo, tmp_path, monkeypatch):
+    """O3 invariant 2: every subprocess receives an explicit environment, the one `list_files` was given."""
+    repo = make_repo(tmp_path / "r", {"README.md": "x\n"})
+    seen: list = []
+    real = files.subprocess.run
+
+    def spy(command, *args, **kwargs):
+        seen.append(kwargs.get("env"))
+        return real(command, *args, **kwargs)
+
+    monkeypatch.setattr(files.subprocess, "run", spy)
+    given = {**os.environ, "MARKER_FOR_TEST": "1"}
+    files.list_files(str(repo), Settings(), env=given)
+    assert seen and all(env is not None and env.get("MARKER_FOR_TEST") == "1" and env is not given for env in seen)
+    seen.clear()
+    files.list_files(str(repo), Settings())
+    assert seen and all(isinstance(env, dict) and "MARKER_FOR_TEST" not in env for env in seen)
