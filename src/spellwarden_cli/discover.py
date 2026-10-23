@@ -8,13 +8,21 @@ import ntpath
 import os
 import posixpath
 import sys
-import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from typing import NamedTuple
 
 from spellwarden_scan.agentconfig import ConfigDocument, parse_document, reference_kind
 from spellwarden_scan.archive import DEFAULT_LIMITS
+# The skill-file rule and the folding of names live in the engine (O3 plan P52): the gate's package identity and this
+# module must call a file a skill file for the same reasons. `_fold`: NFC, then case folding, as macOS and Windows open
+# names and as the `case_collision` check of the file set compares paths (6.4); targets and references are never
+# resolved through it (`_Builder.twin`), and outputs keep each path as written.
+from spellwarden_scan.identity import fold_skill_name as _fold
+from spellwarden_scan.identity import is_loaded_variant as _is_loaded_variant
+from spellwarden_scan.identity import is_skill_file as _is_skill_file
+from spellwarden_scan.identity import is_skill_name_variant as _is_skill_name_variant
+from spellwarden_scan.identity import nested_skill_roots
 from spellwarden_scan.relpath import UnsafePath, contain
 
 from spellwarden_cli import paths
@@ -50,6 +58,9 @@ class SkillPackage:
     variant: str | None = None
     # member links followed to the lock itself (`lockfile.LOCK_PATH`): scanned, left out of the lock hash
     own: frozenset[str] = frozenset()
+    # the skill directories inside this one (`identity.nested_skill_roots` over the file set), scan-root paths: their
+    # files are not part of this package's identity
+    nested: tuple[str, ...] = ()
 
     def engine_key(self) -> str:
         """The key the engine reads the skill file under (`frontmatter.skill_md_path`)."""
@@ -89,36 +100,8 @@ class Discovery:
     errors: tuple[Notice, ...]
 
 
-def _fold(path: str) -> str:
-    """The form agent-content names are recognised in (global configuration names, the `skills/` variant rule): NFC,
-    then case folding, as macOS and Windows open them and as the `case_collision` check of the file set compares paths
-    (6.4). Targets and references are never resolved through it (`_Builder.twin`). Outputs keep each path as written."""
-    return unicodedata.normalize("NFC", path).casefold()
-
-
 def _named(path: str, suffix: str) -> bool:
     return path == suffix or path.endswith("/" + suffix)
-
-
-def _is_skill_file(path: str) -> bool:
-    """A skill is a directory holding a file named exactly `SKILL.md` (spec 6.5): the engine reads that one name
-    (`frontmatter.skill_md_path`), and an agent on a case-sensitive file system loads no other (r2:F2). A case
-    variant is a skill file too where agents load skills, `skills/<name>/<variant>` (`_is_loaded_variant`)."""
-    return posixpath.basename(path) == SKILL_FILE or _is_loaded_variant(path)
-
-
-def _is_loaded_variant(path: str) -> bool:
-    """A case variant of `SKILL.md` whose directory's parent is named `skills` in any case (`.claude/skills/x/`, a
-    plugin's or a skill repository's `skills/x/`): an agent on macOS or Windows loads it as that skill's SKILL.md,
-    so it is judged as one (orchestrator decision after r2:F2). Elsewhere a variant is ordinary content."""
-    parts = path.split("/")
-    return len(parts) >= 3 and _fold(parts[-3]) == "skills" and _is_skill_name_variant(path)
-
-
-def _is_skill_name_variant(path: str) -> bool:
-    """A file whose name folds to `skill.md` but is not exactly `SKILL.md`: notice `skill_name_case`, else content."""
-    name = posixpath.basename(path)
-    return name != SKILL_FILE and _fold(name) == _fold(SKILL_FILE)
 
 
 def _global_kind(path: str) -> str | None:
@@ -676,9 +659,9 @@ def _skills(builder: _Builder, plugin_of_dir: dict[str, str]) -> list[SkillPacka
     directories = sorted({posixpath.dirname(p) or "." for p in builder.paths if _is_skill_file(p)})
     packages: list[SkillPackage] = []
     for directory in directories:
-        nested = [d for d in directories if d != directory and _under(d, directory)]
+        nested = nested_skill_roots(builder.paths, "" if directory == "." else directory)
         before = len(builder.errors)
-        package = _package(builder, directory, _inside(directory, nested), "skill package")
+        package = _package(builder, directory, _inside(directory, list(nested)), "skill package")
         if package is None:
             continue
         members, links = package
@@ -693,7 +676,7 @@ def _skills(builder: _Builder, plugin_of_dir: dict[str, str]) -> list[SkillPacka
         # one skill file per directory: two names that fold alike are a `case_collision` and left out of the set
         variant = next((p for p in members if posixpath.dirname(p) == directory and _is_loaded_variant(p)), None)
         packages.append(SkillPackage(directory, name, files, frozenset(p for p in members if entries[p].executable), plugin,
-                                     links, variant, frozenset(p for p in members if p in builder.own)))
+                                     links, variant, frozenset(p for p in members if p in builder.own), nested))
     return packages
 
 

@@ -63,7 +63,7 @@ def engine_findings(found: Discovery, rules: RuleSet, notices: list[Notice]) -> 
     for skill in found.skills:
         # a case variant of SKILL.md is read under the engine's SKILL.md key and reported as written (spec 6.5)
         result = scan_skill_package(skill.engine_files(), rules, root="" if skill.path == "." else skill.path,
-                                    executable_paths=skill.engine_executable())
+                                    executable_paths=skill.engine_executable(), nested_roots=skill.nested)
         findings.extend(ReportFinding(_as_written(skill, finding), skill.path) for finding in result.findings)
         if result.truncated:
             notices.append(Notice("findings_truncated", skill.path, f"{result.truncated} more findings were not kept"))

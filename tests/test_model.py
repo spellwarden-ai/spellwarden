@@ -68,3 +68,13 @@ def test_every_1_0_0_probe_fixture_still_loads_and_round_trips():
         probe = model.ProbeResult.from_dict(document["probe"])
         assert all(tool.input_schema is None for tool in probe.tools), path.name
         assert model.ProbeResult.from_dict(json.loads(json.dumps(probe.to_dict()))) == probe, path.name
+
+
+def test_skill_scan_result_package_sha256_round_trips_and_a_1_1_1_dict_loads():
+    metadata = model.Metadata("n", "d", None, None, None, frozenset(), True, ())
+    result = model.SkillScanResult((), 0, "a" * 64, metadata, 1, "r", "s", package_sha256="b" * 64)
+    data = json.loads(json.dumps(result.to_dict()))
+    assert data["package_sha256"] == "b" * 64 and model.SkillScanResult.from_dict(data) == result
+    old = {key: value for key, value in data.items() if key != "package_sha256"}
+    assert model.SkillScanResult.from_dict(old).package_sha256 is None
+    assert model.SkillScanResult((), 0, "a" * 64, metadata, 1, "r", "s").to_dict()["package_sha256"] is None

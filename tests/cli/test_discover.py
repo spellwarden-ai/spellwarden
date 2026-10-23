@@ -46,6 +46,30 @@ def test_nested_skills_are_separate_packages(make_repo, tmp_path):
     ]
 
 
+def test_a_skill_records_its_nested_skill_roots(make_repo, tmp_path):
+    repo = make_repo(tmp_path / "repo", {"skills/outer/SKILL.md": SKILL, "skills/outer/inner/SKILL.md": SKILL,
+                                "skills/outer/skills/x/skill.md": SKILL, "skills/outer/deep/y/skill.md": SKILL})
+    found = _discover(repo)
+    nested = {skill.path: skill.nested for skill in found.skills}
+    assert nested["skills/outer"] == ("skills/outer/inner", "skills/outer/skills/x")
+    assert nested["skills/outer/inner"] == ()
+
+
+def test_the_root_skill_records_every_other_skill_as_nested(make_repo, tmp_path):
+    repo = make_repo(tmp_path / "repo", {"SKILL.md": SKILL, "a/SKILL.md": SKILL, "b/c/SKILL.md": SKILL})
+    found = _discover(repo)
+    assert [(skill.path, skill.nested) for skill in found.skills] == [(".", ("a", "b/c")), ("a", ()), ("b/c", ())]
+
+
+def test_the_skill_file_rule_is_the_engines():
+    from spellwarden_scan import identity
+
+    assert discover_module._is_skill_file is identity.is_skill_file
+    assert discover_module._is_loaded_variant is identity.is_loaded_variant
+    assert discover_module._is_skill_name_variant is identity.is_skill_name_variant
+    assert discover_module._fold is identity.fold_skill_name
+
+
 def test_skill_at_the_scan_root(make_repo, tmp_path):
     repo = make_repo(tmp_path / "repo", {"SKILL.md": SKILL, "scripts/run.sh": "echo"})
     found = _discover(repo)
@@ -1178,3 +1202,21 @@ def test_an_ascii_sibling_of_the_root_is_still_skipped_and_a_non_ascii_root_stil
     assert found.errors == ()
     assert found.skills[0].links == {"skills/x/a.sh": b"../../../n5/x.sh"}
     assert found.skills[0].files["skills/x/b.sh"] == SAFE_SCRIPT.encode()
+
+
+def test_engine_findings_passes_the_nested_roots_to_the_engine(make_repo, tmp_path, monkeypatch):
+    from spellwarden_scan.rules import RuleSet
+
+    from spellwarden_cli import run
+
+    repo = make_repo(tmp_path / "repo", {"skills/outer/SKILL.md": SKILL, "skills/outer/inner/SKILL.md": SKILL})
+    seen = {}
+    real = run.scan_skill_package
+
+    def spy(files, rules, **kwargs):
+        seen[kwargs["root"]] = tuple(kwargs["nested_roots"])
+        return real(files, rules, **kwargs)
+
+    monkeypatch.setattr(run, "scan_skill_package", spy)
+    run.engine_findings(_discover(repo), RuleSet.baseline(), [])
+    assert seen == {"skills/outer": ("skills/outer/inner",), "skills/outer/inner": ()}

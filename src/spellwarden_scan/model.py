@@ -101,6 +101,9 @@ class SkillScanResult(_Model):
     files_scanned: int
     rules_version: str
     scanner_version: str
+    # O3 spec 5.1: `identity.package_sha256` of the package as a forge archive of its directory holds it, None when the
+    # package is unhashable (a `node_modules`-like directory). Written by `to_dict` always.
+    package_sha256: str | None = None
     # Phase C spec 5.2.2: the org rules the time budget stopped; written by `to_dict` only when non-empty, so every
     # 1.0.0 output stays byte-identical (plan decision P-ORG-3).
     org_rules_incomplete: tuple[str, ...] = ()

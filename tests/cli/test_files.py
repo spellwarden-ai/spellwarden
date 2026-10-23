@@ -93,6 +93,12 @@ def test_a_failing_git_falls_back_to_the_walk_with_a_notice(make_repo, tmp_path)
     assert fileset.repo_prefix == ""
 
 
+def test_skip_dirs_are_the_engines_after_git():
+    from spellwarden_scan import identity
+
+    assert files.SKIP_DIRS == (".git", *identity.SKIP_DIRS)
+
+
 def test_the_walk_skips_dependency_and_cache_directories(tmp_path):
     write_tree(tmp_path, {"a.md": "a", "node_modules/x/SKILL.md": "x", ".venv/y": "y", "venv/z": "z",
                           "__pycache__/c.pyc": "c", ".git/config": "g", "b/c.md": "c"})

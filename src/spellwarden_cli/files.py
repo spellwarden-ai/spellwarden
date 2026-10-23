@@ -11,13 +11,15 @@ import sys
 import unicodedata
 from dataclasses import dataclass
 
+from spellwarden_scan import identity
+
 from spellwarden_cli import paths
 from spellwarden_cli.report import Notice
 from spellwarden_cli.settings import Settings, glob_match
 
 FILE_MAX = 10 * 2**20
 LINK_MAX = 4096  # the longest symbolic link target read (PATH_MAX on Linux)
-SKIP_DIRS = (".git", "node_modules", ".venv", "venv", "__pycache__")
+SKIP_DIRS = (".git", *identity.SKIP_DIRS)
 _GIT_TIMEOUT = 120
 
 

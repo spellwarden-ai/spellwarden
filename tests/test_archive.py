@@ -243,3 +243,21 @@ def test_under_the_root_case_and_windows_names_are_refused_but_sharp_s_is_not_ss
         unpack_zip(raw_zip([("skill/SKILL.md", b"a"), ("skill/run.sh ", b"b"), ("README.md", b"r")]), root="skill")
     kept = unpack_zip(raw_zip([("SKILL.md", b"a"), ("stra\u00dfe.md", b"b"), ("strasse.md", b"c")]))
     assert len(kept) == 3  # NTFS and APFS fold case, not `\u00df` to `ss`
+
+
+def test_strip_ignores_macosx_and_ds_store():
+    from spellwarden_scan.archive import _strip_common_top
+
+    assert _strip_common_top(["skill/SKILL.md", "__MACOSX/._skill", ".DS_Store"]) == "skill"
+    assert _strip_common_top(["skill/SKILL.md", "skill/lib/.DS_Store", "__MACOSX/skill/._SKILL.md"]) == "skill"
+    assert _strip_common_top(["a/SKILL.md", "b/x"]) == ""
+    assert _strip_common_top(["__MACOSX/._x", ".DS_Store"]) == ""
+
+
+def test_a_hand_made_zip_with_finder_leftovers_strips_like_a_forge_archive():
+    data = build({"SKILL.md": b"a", "lib/x.py": b"b", ".DS_Store": b"f"}, top="skill")
+    macosx = io.BytesIO(data)
+    with zipfile.ZipFile(macosx, "a") as zf:
+        zf.writestr("__MACOSX/skill/._SKILL.md", b"fork")
+    files = unpack_zip(macosx.getvalue())
+    assert {"SKILL.md", "lib/x.py"} <= set(files) and "skill/SKILL.md" not in files
