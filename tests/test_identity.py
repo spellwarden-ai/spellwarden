@@ -636,3 +636,24 @@ def test_the_env_key_names_enter_the_identity_and_the_values_never_do():
 ])
 def test_the_added_override_names_refuse_the_launch(command, args, name):
     assert command_identity(command, args, {name: "x"}) == CommandIdentity(None, "launch_override")
+
+
+@pytest.mark.parametrize("command, flagged, plain", [
+    ("bunx", ["-bp", "pkg@1.0.0"], ["-p", "pkg@1.0.0"]),
+    ("uvx", ["-Uw", "a==1.0", "b==2.0"], ["-w", "a==1.0", "b==2.0"]),
+    ("uvx", ["-ni", "https://i.example.com/simple", "pkg==1.0"], ["-i", "https://i.example.com/simple", "pkg==1.0"]),
+    ("npx", ["-fp", "pkg@1.0.0"], ["-p", "pkg@1.0.0"]),
+    ("npx", ["-dp", "pkg@1.0.0"], ["-p", "pkg@1.0.0"]),
+])
+def test_a_boolean_letter_before_an_artefact_or_source_letter_enters_the_args_hash(command, flagged, plain):
+    got = command_identity(command, flagged, {}).identity
+    assert got is not None and " args=" in got
+    assert got != command_identity(command, plain, {}).identity
+    # the same flag as a separate token hashes alike (the letters join in one element, as a flags only cluster does)
+    letters = flagged[0][1:-1]
+    assert got == command_identity(command, [flagged[0][:1] + letters, *plain], {}).identity
+
+
+def test_a_quiet_letter_before_an_artefact_letter_is_still_dropped():
+    assert command_identity("npx", ["-yp", "pkg@1.0.0"], {}).identity == "cmd:npx pkg@1.0.0"
+    assert command_identity("npx", ["-yfp", "pkg@1.0.0"], {}) == command_identity("npx", ["-fp", "pkg@1.0.0"], {})

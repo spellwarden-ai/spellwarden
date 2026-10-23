@@ -421,12 +421,17 @@ def command_identity(command: str, args: Sequence[str], env: Mapping[str, str]) 
             # `-w foo`), or the next token when nothing is left, so no value hides inside a cluster as an argument; any
             # other letter leaves the launch unresolved
             option, equals, value = token, "", ""
+            letters = ""  # the boolean letters seen before a value, artefact or source letter: they change the launch
             for cut in range(1, len(token)):
                 short = "-" + token[cut]
                 if short in spec.values or short in spec.artefacts or short in spec.sources:
                     attached = token[cut + 1:].removeprefix("=")
                     option, equals, value = short, ("=" if attached else ""), attached
+                    if letters and option not in spec.values:
+                        rest.append("-" + letters)  # a value option keeps the whole token below
                     break
+                if short not in quiet:
+                    letters += token[cut]
                 if short not in quiet and short not in spec.flags:
                     return CommandIdentity(None, "unresolved")
             else:

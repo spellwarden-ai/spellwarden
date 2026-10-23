@@ -1210,5 +1210,31 @@
    "UV_CONFIG_FILE": "x"
   },
   "reason": "launch_override"
+ },
+ {
+  "command": "bunx",
+  "args": [
+   "-bp",
+   "pkg@1.0.0"
+  ],
+  "identity": "cmd:bunx pkg@1.0.0 args=2fff510891125232449d7715e5d4a9a8"
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "-Uw",
+   "a==1.0",
+   "b==2.0"
+  ],
+  "identity": "cmd:uvx a==1.0 b==2.0 args=eadc1e2f3255debccde822ceaa23b0d3"
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "-ni",
+   "https://i.example.com/simple",
+   "pkg==1.0"
+  ],
+  "identity": "cmd:uvx pkg==1.0 src=https://i.example.com/simple args=aaf540f487ef9cda64b0cf416044a00e"
  }
 ]
