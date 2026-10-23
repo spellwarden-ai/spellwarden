@@ -255,6 +255,28 @@ class MarketplacePlugin(_Model):
     name: str
     line: int
     source: PluginSource
+    # O3 spec 5.1: sha256 of the canonical JSON of the entry as parsed; the binding of an SW-REG-003 acceptance (P48).
+    # Not a lock input.
+    raw_sha256: str
+
+
+@dataclass(frozen=True, slots=True)
+class MarketplaceDecl(_Model):
+    """One `extraKnownMarketplaces` entry of a Claude Code settings file (O3 spec 5.1): the marketplace's name, its
+    source and the hash of the entry as parsed."""
+    name: str
+    source: PluginSource
+    line: int
+    raw_sha256: str
+
+
+@dataclass(frozen=True, slots=True)
+class EnabledPlugin(_Model):
+    """One `enabledPlugins` entry, `"<plugin>@<marketplace>": bool` (O3 spec 5.1)."""
+    plugin: str
+    marketplace: str
+    enabled: bool
+    line: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -272,6 +294,17 @@ class ConfigDocument(_Model):
     references: tuple[str, ...]
     truncated: bool
     sha256: str
+    # O3 spec 5.1: settings documents only; written by `to_dict` only when non-empty, so every 1.0.0 output stays
+    # byte-identical.
+    marketplaces: tuple[MarketplaceDecl, ...] = ()
+    enabled_plugins: tuple[EnabledPlugin, ...] = ()
+
+    def to_dict(self) -> dict:
+        data = _Model.to_dict(self)
+        for name in ("marketplaces", "enabled_plugins"):
+            if not data.get(name):
+                data.pop(name, None)
+        return data
 
 
 @dataclass(frozen=True, slots=True)
@@ -296,6 +329,9 @@ _NESTED: dict[tuple[str, str], tuple[str, type]] = {
     ("CurationInputs", "open_findings"): ("many", Finding),
     ("CurationInputs", "accepted_findings"): ("many", Finding),
     ("MarketplacePlugin", "source"): ("one", PluginSource),
+    ("MarketplaceDecl", "source"): ("one", PluginSource),
+    ("ConfigDocument", "marketplaces"): ("many", MarketplaceDecl),
+    ("ConfigDocument", "enabled_plugins"): ("many", EnabledPlugin),
     ("ConfigDocument", "servers"): ("many", McpServerEntry),
     ("ConfigDocument", "hooks"): ("many", HookCommand),
     ("ConfigDocument", "settings"): ("many", SettingFlag),

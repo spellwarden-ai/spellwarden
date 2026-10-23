@@ -15,6 +15,7 @@ RULES = RuleSet.baseline()
 SKILL_IDS = [rule.id for rule in RULES.by_area("skill")]
 MCP_IDS = [rule.id for rule in RULES.by_area("mcp")]
 CONFIG_IDS = [rule.id for rule in RULES.by_area("config")]
+INVENTORY_FIXTURES = frozenset({"plugins-settings"})
 
 
 def _normalised(result) -> set[tuple[str, str, str, int | None]]:
@@ -84,7 +85,8 @@ def test_every_fixture_directory_belongs_to_a_rule():
     # A fresh checkout has no `fixtures/skills` until a rule commits one (git keeps no empty directory): r0:F4.
     on_disk = sorted(p.name for p in SKILL_FIXTURES.iterdir() if p.is_dir()) if SKILL_FIXTURES.is_dir() else []
     assert set(on_disk) <= set(SKILL_IDS)
-    assert {p.name for p in CONFIG_FIXTURES.iterdir() if p.is_dir()} <= set(CONFIG_IDS)
+    # `plugins-settings` is the one inventory fixture (O3 spec 5.1): no rule fires on it, so it has no expected.json.
+    assert {p.name for p in CONFIG_FIXTURES.iterdir() if p.is_dir()} <= set(CONFIG_IDS) | INVENTORY_FIXTURES
     for path in (PROBE_FIXTURES / "rules").glob("*.json"):
         assert path.name.rsplit("-", 1)[0] in MCP_IDS, path.name
         json.loads(path.read_text())

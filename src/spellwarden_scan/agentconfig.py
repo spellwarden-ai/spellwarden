@@ -17,7 +17,8 @@ from json.decoder import scanstring
 from typing import Any, NamedTuple
 
 from spellwarden_scan.model import (
-    ConfigDocument, HookCommand, MarketplacePlugin, McpServerEntry, PluginSource, SettingFlag,
+    ConfigDocument, EnabledPlugin, HookCommand, MarketplaceDecl, MarketplacePlugin, McpServerEntry, PluginSource,
+    SettingFlag,
 )
 from spellwarden_scan.relpath import UnsafePath, contain
 
@@ -223,6 +224,8 @@ class _Parts:
         self.hooks: list[HookCommand] = []
         self.settings: list[SettingFlag] = []
         self.plugins: list[MarketplacePlugin] = []
+        self.marketplaces: list[MarketplaceDecl] = []
+        self.enabled_plugins: list[EnabledPlugin] = []
         self.references: list[str] = []
         self.truncated = False
 
@@ -245,6 +248,7 @@ def _parse(kind: str, path: str, content: bytes, build) -> ConfigDocument:
         path=path, kind=kind, error="truncated" if parts.truncated else None, servers=tuple(parts.servers),
         hooks=tuple(parts.hooks), settings=tuple(parts.settings), plugins=tuple(parts.plugins),
         references=tuple(parts.references), truncated=parts.truncated, sha256=_sha256(_canonical(root)),
+        marketplaces=tuple(parts.marketplaces), enabled_plugins=tuple(parts.enabled_plugins),
     )
 
 
@@ -345,7 +349,33 @@ def _build_settings(parts: _Parts, root: _Obj, _path: str) -> None:
     enable_all = root.get("enableAllProjectMcpServers")
     if isinstance(enable_all, bool):
         parts.settings.append(SettingFlag("enableAllProjectMcpServers", enable_all, root.lines["enableAllProjectMcpServers"]))
+    _plugin_settings(parts, root)
     _hooks(parts, root.get("hooks"))
+
+
+def _plugin_settings(parts: _Parts, root: _Obj) -> None:
+    """`extraKnownMarketplaces` (`{name: {"source": {...}}}`) and `enabledPlugins` (`{"<plugin>@<marketplace>": bool}`)
+    as inventory (O3 spec 5.1): an entry of another shape is skipped, `MAX_PLUGINS` caps each list."""
+    known = root.get("extraKnownMarketplaces")
+    if isinstance(known, _Obj):
+        for name, entry in known.items():
+            if not isinstance(entry, _Obj) or "source" not in entry:
+                continue
+            if len(parts.marketplaces) >= MAX_PLUGINS:
+                parts.truncated = True
+                break
+            parts.marketplaces.append(MarketplaceDecl(name, plugin_source(entry["source"], marketplace_root=""),
+                                                      known.lines[name], _sha256(_canonical(entry))))
+    enabled = root.get("enabledPlugins")
+    if isinstance(enabled, _Obj):
+        for key, value in enabled.items():
+            plugin, _, marketplace = key.rpartition("@")
+            if not plugin or not marketplace or not isinstance(value, bool):
+                continue
+            if len(parts.enabled_plugins) >= MAX_PLUGINS:
+                parts.truncated = True
+                break
+            parts.enabled_plugins.append(EnabledPlugin(plugin, marketplace, value, enabled.lines[key]))
 
 
 def _build_hooks(parts: _Parts, root: _Obj, _path: str) -> None:
@@ -376,7 +406,8 @@ def _build_marketplace(parts: _Parts, root: _Obj, path: str) -> None:
             parts.truncated = True
             continue
         parts.plugins.append(MarketplacePlugin(item["name"], item.lines["name"],
-                                               plugin_source(item.get("source"), marketplace_root=base)))
+                                               plugin_source(item.get("source"), marketplace_root=base),
+                                               _sha256(_canonical(item))))
 
 
 def _build_plugin(parts: _Parts, root: _Obj, _path: str) -> None:
