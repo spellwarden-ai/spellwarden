@@ -19,6 +19,8 @@ result takes into that table. The rules version is `2026.10.3`; the 1.0.0 golden
   `insecure`, `unpinned`, `unknown_launcher`, `launch_override`, `resolver_override`), severity high. A request is judged on
   what it adds or changes; the default-branch run judges everything. A finding may be accepted in the baseline for at most
   90 days, and on a request only by the base revision's baseline.
+  An option the scanner does not know before the package makes the launch `unresolved`, the names of an entry's `env` keys
+  (never their values) enter its identity, and `--userconfig` and its relatives are launch overrides.
 - The engine: `spellwarden_scan.identity` (package hashes, normalised server addresses, pinned command identities,
   plugin and marketplace identities, resolver files), `spellwarden_scan.gate`, `SkillScanResult.package_sha256`,
   `org_rule_min_version` and `PREDICATE_SINCE`. Claude Code settings are parsed for `extraKnownMarketplaces` and
