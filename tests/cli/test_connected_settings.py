@@ -209,8 +209,9 @@ def test_under_config_a_base_mapping_that_says_required_with_a_defect_is_setting
     assert "packs" in report["errors"][0]["message"]
 
 
+@pytest.mark.usefixtures("api_double")
 def test_under_config_with_a_credential_an_invalid_base_connected_mapping_or_base_file_is_settings_invalid(
-        make_repo, run_cli, tmp_path, api_double):
+        make_repo, run_cli, tmp_path):
     """With a key present the base connected mapping is refused when invalid, as it is without `--config`; the
     repository's pack is never dropped silently."""
     repo = make_repo(tmp_path / "repo", {"README.md": "x\n", ".spellwarden/config.yml":
