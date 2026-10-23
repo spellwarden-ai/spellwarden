@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import io
 import json
+import ssl
 
 import pytest
 from conftest import credential
@@ -460,6 +461,11 @@ class _FakeSocket:
 
 
 class _FakeTls:
+    # the attributes http.client.HTTPSConnection reads from a context on Python 3.11
+    verify_mode = ssl.CERT_REQUIRED
+    check_hostname = True
+    post_handshake_auth = None
+
     def __init__(self) -> None:
         self.wrapped: list[tuple] = []
 
@@ -478,7 +484,8 @@ def test_proxy_connect_and_tls_to_target(monkeypatch):
     connection.connect()
     assert dialled == [("proxy.corp", 3128)]  # the proxy by name: its address is not pinned or checked
     first_line = plain.sent.split(b"\r\n", 1)[0]
-    assert first_line == b"CONNECT dash.spellwarden.ai:443 HTTP/1.1"
+    # the protocol version of the request line is the standard library's: HTTP/1.0 up to Python 3.11, HTTP/1.1 after
+    assert first_line in (b"CONNECT dash.spellwarden.ai:443 HTTP/1.0", b"CONNECT dash.spellwarden.ai:443 HTTP/1.1")
     assert b"Proxy-Authorization: Basic " + base64.b64encode(b"user:pw") in plain.sent
     assert tls.wrapped == [(plain, "dash.spellwarden.ai")]  # TLS is verified against the target, end to end
     no_auth = _FakeSocket()
