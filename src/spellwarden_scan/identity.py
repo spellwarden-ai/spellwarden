@@ -260,7 +260,7 @@ class _Spec:
     sources: frozenset[str]
 
 
-_NPM_VALUES = frozenset({"--cache", "--prefix", "--userconfig", "-w", "--workspace", "--loglevel", "--node-arg"})
+_NPM_VALUES = frozenset({"--cache", "-C", "--prefix", "--userconfig", "-w", "--workspace", "--loglevel", "--node-arg"})
 _UVX_VALUES = frozenset({
     "-p", "--python", "--with-requirements", "--with-editable", "--env-file", "--index-strategy", "-c", "--constraints",
     "-b", "-C", "--config-setting", "--config-settings-package",
@@ -385,6 +385,8 @@ def command_identity(command: str, args: Sequence[str], env: Mapping[str, str]) 
                 if short in spec.values or short in spec.artefacts or short in spec.sources:
                     attached = token[cut + 1:].removeprefix("=")
                     option, equals, value = short, ("=" if attached else ""), attached
+                    break
+                if short not in quiet:  # a letter this table does not know: the whole token stays an argument, as before
                     break
         takes_value = option in spec.values or option in spec.artefacts or option in spec.sources
         consumed = [token]

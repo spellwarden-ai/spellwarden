@@ -479,6 +479,11 @@ def test_attached_short_option_values_are_the_option_and_its_value():
     assert command_identity("uvx", ["-qwevil", "pkg==1.0"], {}) == CommandIdentity(None, "unpinned")
     assert command_identity("uvx", ["-qw", "x==1.0", "pkg==1.0"], {}) == command_identity("uvx", ["--with", "x==1.0", "pkg==1.0"], {})
     assert command_identity("uvx", ["-yqi", "https://i.example.com/simple", "pkg==1.0"], {}) == attached
+    # a letter the table does not know before the value option: the token stays an argument and consumes nothing
+    unknown = command_identity("uvx", ["-Xw", "a==1.0", "b==2.0"], {})
+    assert unknown.identity is not None and unknown.identity.startswith("cmd:uvx a==1.0 args=")
+    prefixed = command_identity("npx", ["-C", "dir", "pkg@1.0.0"], {}).identity  # npm's `-C dir`: `dir` is a value, not the package
+    assert prefixed is not None and prefixed.startswith("cmd:npx pkg@1.0.0 args=")
     image = "ghcr.io/acme/server@sha256:" + "a" * 64
     clustered = command_identity("docker", ["run", "-itp80:80", image], {}).identity  # `-i -t -p 80:80`: the image stays the image
     assert clustered is not None and clustered.startswith(f"cmd:docker run {image}")
