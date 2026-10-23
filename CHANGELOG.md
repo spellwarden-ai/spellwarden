@@ -1,5 +1,45 @@
 # Changelog
 
+## 1.2.0 (RELEASE_DATE)
+
+Connected mode: the `spellwarden` command can link a scan to a Spellwarden organisation. Without a credential, without
+`SPELLWARDEN_ORG` and without `connected.required`, nothing connected happens and every output is what 1.1.1 wrote, apart
+from the rules version, the three gate rules in the SARIF rule table and in `spellwarden rules`, and the index each SARIF
+result takes into that table. The rules version is `2026.10.3`; the 1.0.0 golden files are unchanged.
+
+- Connected mode (README, "Connected mode"). `SPELLWARDEN_ORG` with the OIDC token of GitHub Actions (or
+  `SPELLWARDEN_ID_TOKEN`, for GitLab's `id_tokens`), or a CI key in `SPELLWARDEN_API_KEY`. The organisation's CI policy
+  decides the rules or the policy pack the run applies, the registry gate checks the run against the private registry,
+  and the results are uploaded in CI. The settings file gains `connected: {pack, upload, required}`; `--upload` and
+  `--no-upload`, `SPELLWARDEN_UPLOAD`, `SPELLWARDEN_DEFAULT_BRANCH`, `SPELLWARDEN_RUN_ID` and the test hook
+  `SPELLWARDEN_API_URL` are new. A credential is never a flag or a setting, is read once, printed as `***`, removed from the
+  environment and never written to an output, a notice or an upload body.
+- The registry gate: three rules, `SW-REG-001` (a skill package, plugin or marketplace the registry does not admit),
+  `SW-REG-002` (an MCP server it does not admit) and `SW-REG-003` (content it cannot judge: `unhashable`, `unresolved`,
+  `insecure`, `unpinned`, `unknown_launcher`, `launch_override`, `resolver_override`), severity high. A request is judged on
+  what it adds or changes; the default-branch run judges everything. A finding may be accepted in the baseline for at most
+  90 days, and on a request only by the base revision's baseline.
+- The engine: `spellwarden_scan.identity` (package hashes, normalised server addresses, pinned command identities,
+  plugin and marketplace identities, resolver files), `spellwarden_scan.gate`, `SkillScanResult.package_sha256`,
+  `org_rule_min_version` and `PREDICATE_SINCE`. Claude Code settings are parsed for `extraKnownMarketplaces` and
+  `enabledPlugins` as inventory, and the rule-id grammar is `SW-(SKL|MCP|CFG|REG|ORG)-NNN`. The archive reader ignores
+  `__MACOSX/` entries and `.DS_Store` files before it looks for a common top directory.
+- The report gains an optional `connected` block, `upload_truncated` and `upload_truncated_fields`; the notice codes
+  `connected`, `connected_fallback`, `dependabot_free_mode`, `fork_free_mode`, `api_url_override`, `reg_baseline_from_base`,
+  `gate_scope_all`, `org_rules_skipped`, `plugin_marketplace_unknown`, `uploaded`, `upload_failed`, `upload_skipped`,
+  `upload_ci_only`, `upload_disabled`, `registry_gate_off`, `mcp_rules_need_probe` and `policy_newer_than_scanner`; and
+  the error codes `connected_config`, `connected_key_invalid`, `connected_no_credential`, `connected_auth`,
+  `connected_subscription`, `connected_ci_key_required`, `connected_forbidden`, `connected_rate_limited`,
+  `connected_unavailable`, `connected_required`, `policy_not_found`, `policy_invalid`, `org_rules_incomplete`,
+  `registry_check_failed` and `registry_check_too_large`. Exit codes do not change.
+- The command: `api.py` is the fourth module that reaches the network (the Spellwarden API, the code host's token
+  endpoint, a proxy from `HTTPS_PROXY`); `net.Fetcher.get` takes `redirects=`. The CI context gains the repository, commit,
+  branch, run link and default branch, and `ci-run gitlab` maps `SW_ORG` and `SW_UPLOAD`.
+- Releases: `release.yml` runs the built wheel against a loopback fake of the service (`fixtures/ci/fake_api.py`) with a CI
+  connection and with a CI key before it publishes.
+- The README: "Connected mode", the rules table's three new rows, and the Action and the component releasing at the
+  engine's version again.
+
 ## 1.1.1 (2026-10-22)
 
 A fix release of the MCP prober: no rule, fingerprint, report or command changes. The rules version stays `2026.10.2`.

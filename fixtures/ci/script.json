@@ -1,0 +1,167 @@
+{
+ "routes": [
+  {
+   "method": "GET",
+   "path": "/idtoken",
+   "status": 200,
+   "body": {
+    "value": "fake.provider.token"
+   }
+  },
+  {
+   "method": "POST",
+   "path": "/api/public/ci/token",
+   "status": 201,
+   "body": {
+    "token": "{ci_token}",
+    "expires_at": "2099-01-01T00:15:00Z",
+    "org": {
+     "slug": "acme",
+     "name": "Acme",
+     "plan": "enterprise"
+    },
+    "run": {
+     "identity": "github:github.com/acme/tools",
+     "event": "push",
+     "sha": "1111111111111111111111111111111111111111"
+    }
+   }
+  },
+  {
+   "method": "GET",
+   "path": "/api/v1/orgs",
+   "status": 200,
+   "body": {
+    "orgs": [
+     {
+      "slug": "acme",
+      "name": "Acme",
+      "plan": "enterprise",
+      "billing_state": "active",
+      "reachable": true
+     }
+    ],
+    "caller": {
+     "kind": "api_key",
+     "access": "ci"
+    }
+   }
+  },
+  {
+   "method": "GET",
+   "path": "/api/v1/orgs/acme/ci/policy",
+   "status": 200,
+   "body": {
+    "org": {
+     "slug": "acme",
+     "name": "Acme",
+     "plan": "enterprise"
+    },
+    "dashboard_url": "https://dash.spellwarden.ai/acme",
+    "ci_policy": {
+     "gate": {
+      "enabled": true,
+      "scope": "changed",
+      "stdio": true,
+      "plugins": true
+     }
+    },
+    "policy": {
+     "source": "org_rules",
+     "chosen_by": "organisation",
+     "pack_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "version": "1.3",
+     "sha256": "1b71d39140453550c018d0be2de5cfaeb37568299e05ace44b126bbd53ee6eb0",
+     "document": {
+      "schema": 1,
+      "pack": {
+       "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+       "name": "Organisation rules",
+       "version": "1.3",
+       "description": "The eight Spellwarden baseline enforcement rules, mapped to OWASP and NIST."
+      },
+      "engine": {
+       "version": "1.2.0",
+       "rules_version": "2026.10.3"
+      },
+      "rules": [
+       {
+        "id": "SW-HK-001",
+        "enabled": true
+       },
+       {
+        "id": "SW-HK-002",
+        "enabled": true
+       },
+       {
+        "id": "SW-GW-003",
+        "enabled": true
+       },
+       {
+        "id": "SW-GW-004",
+        "enabled": true
+       },
+       {
+        "id": "SW-EG-005",
+        "enabled": true
+       },
+       {
+        "id": "SW-GW-006",
+        "enabled": true
+       },
+       {
+        "id": "SW-RG-007",
+        "enabled": true
+       },
+       {
+        "id": "SW-OB-008",
+        "enabled": true
+       }
+      ],
+      "org_rules": []
+     },
+     "skipped": []
+    },
+    "registry": {
+     "name": "acme"
+    },
+    "limits": {
+     "upload_max_bytes": 1048576,
+     "upload_max_findings": 500,
+     "upload_max_items": 2000,
+     "upload_max_probes": 200,
+     "check_max": {
+      "skills": 2000,
+      "servers": 500,
+      "stdio": 500,
+      "plugins": 500,
+      "marketplaces": 100
+     }
+    }
+   }
+  },
+  {
+   "method": "POST",
+   "path": "/api/v1/orgs/acme/ci/registry-check",
+   "status": 200,
+   "body": {
+    "$check": {
+     "dashboard": "https://dash.spellwarden.ai/acme",
+     "refuse": [
+      "skills"
+     ]
+    }
+   }
+  },
+  {
+   "method": "POST",
+   "path": "/api/v1/orgs/acme/ci/scans",
+   "status": 201,
+   "body": {
+    "scan": "s1",
+    "repository": "r1",
+    "url": "https://dash.spellwarden.ai/acme/repositories/r1"
+   }
+  }
+ ]
+}

@@ -120,7 +120,7 @@ Ids 016 to 018 and 020 to 030 are reserved. `RuleSet.baseline()` returns these r
 
 ## Org rules, packs and exports
 
-Since 1.1.0 the engine also holds what the hosted product calls Ward: rules an organisation writes as data (org rules), policy packs, and the exports that turn a pack into enforcement for Claude Code hooks and Kong. All of it is pure, like the rest of the engine. The `spellwarden` command does not load org rules or packs yet; it scans with the baseline rules only.
+Since 1.1.0 the engine also holds what the hosted product calls Ward: rules an organisation writes as data (org rules), policy packs, and the exports that turn a pack into enforcement for Claude Code hooks and Kong. All of it is pure, like the rest of the engine. In connected mode the command applies the organisation's CI policy (see Connected mode).
 
 ### Org rules
 
@@ -324,7 +324,7 @@ followed by one entry that joins the nine prompt-injection patterns, `(?i:ignore
 ```
 spellwarden scan [PATH] [--format FMT [--output FILE]]... [--fail-on LEVEL] [--locked] [--probe | --no-probe]
                  [--probe-private | --no-probe-private] [--baseline FILE] [--config FILE] [--as-of YYYY-MM-DD]
-                 [--no-telemetry] [--quiet] [--verbose]
+                 [--no-telemetry] [--upload | --no-upload] [--quiet] [--verbose]
 spellwarden lock [PATH] [--check]
 spellwarden baseline add [PATH] (--fingerprint FP... | --all) --reason TEXT [--expires YYYY-MM-DD | --days N]
 spellwarden baseline prune [PATH]
@@ -374,7 +374,7 @@ probe: false
 telemetry: true
 ```
 
-The file is optional. An unknown key or a `version` other than 1 is an error (exit 2), so a typo never silently weakens a gate. A flag wins over the environment (`SPELLWARDEN_FAIL_ON`, `SPELLWARDEN_PROBE`, `SPELLWARDEN_TELEMETRY`), which wins over the file. Private probing is deliberately not a setting (see "Probing MCP servers").
+The file is optional. An unknown key or a `version` other than 1 is an error (exit 2), so a typo never silently weakens a gate. A flag wins over the environment (`SPELLWARDEN_FAIL_ON`, `SPELLWARDEN_PROBE`, `SPELLWARDEN_TELEMETRY`), which wins over the file. Private probing is deliberately not a setting (see "Probing MCP servers"). The `connected` mapping (`pack`, `upload`, `required`) is described under "Connected mode".
 
 **On a pull or merge request, this file and the baseline are read from the base revision**, the commit the request targets, never from the request itself. Otherwise a request could add a malicious `.mcp.json` together with `exclude: [".mcp.json"]`, or accept its own finding in the baseline, and pass its own check. A request that changes either file therefore sees the change apply only once it is merged, and the report says so with the notice `settings_from_base`. The lock file is still read from the request: a request that changes agent content must update it, and reviewers see that change. Under `--locked` the lock is computed with the base's `include` and `exclude`, so a request that changes those patterns and the lock together is reported stale until the settings change is merged first. Local runs, pushes, schedules and manual runs read the working tree as before. A `--config` or `--baseline` file named on the command line is read as given: whoever runs the scanner chose it.
 
@@ -439,9 +439,214 @@ The server keeps one row per hashed identity and ISO week: the number of runs, t
 
 Switch it off with any of: `--no-telemetry`, `SPELLWARDEN_TELEMETRY=off` (or `0`, `false`, `no`), `DO_NOT_TRACK=1`, `telemetry: false` in `.spellwarden/config.yml`, or the `telemetry: false` input of the Action or the GitLab component. A failed or slow ping never changes a report or an exit code.
 
+### Connected mode
+
+Connected mode links a scan to a Spellwarden organisation. The organisation's CI policy decides which rules and which policy pack the run applies, the registry gate (Enterprise) fails a run that adds or changes a skill, MCP server, plugin or marketplace the private registry does not admit, and the results go to the Repositories page of the dashboard. It needs a Team plan (a trial counts); the gate needs the Enterprise plan. Without a credential, without `SPELLWARDEN_ORG` and without `connected.required` the command is the free scanner of every section above, unchanged apart from the rules version and the three gate rules in the rules table. A `connected:` key in `.spellwarden/config.yml` is refused by a 1.0 or 1.1 scanner, so requiring connected mode presupposes 1.2.0 everywhere the repository is scanned.
+
+#### Turning it on
+
+There are two credentials, and a run uses one of them. Both set is the error `connected_config`.
+
+- **A CI connection** (recommended). An administrator adds a CI connection for your GitHub account or organisation, or your GitLab group, under Settings, CI connections. The pipeline then proves who it is with the OIDC token its code host issues, and nothing secret is stored in the repository. Set `SPELLWARDEN_ORG` to the organisation's slug (`^[a-z0-9-]{2,64}$`, the part of the dashboard address after `dash.spellwarden.ai/`). On GitHub the job needs `permissions: id-token: write`, and the command asks the Actions token endpoint itself for a token whose audience is `https://dash.spellwarden.ai/ci/<slug>`. On GitLab the job declares `id_tokens` with that audience and passes it as `SPELLWARDEN_ID_TOKEN`. The GitHub Action takes the slug as its `org` input and the GitLab component as its `org` input.
+- **A CI key.** For a pipeline that cannot use a CI connection, create a key with access CI under Settings, API keys, and pass it as the secret `SPELLWARDEN_API_KEY` (`swk_` and 40 characters). The key is a secret that every workflow of the repository can read, which a CI connection avoids. Results uploaded with a key are shown as reported with a CI key: they are not the repository's attested state and do not count in the trust score. The first upload binds the repository to the key; after the old key is revoked, the next upload rebinds it. A key for read or write access, a connector token (`swc_`) or a CI token (`swt_`) is refused.
+
+The command reads these variables once, keeps them as secrets that print as `***`, removes them from its environment, and gives every program it starts an explicit environment. There is no flag and no settings key for a credential, and no message, report or upload body ever holds one.
+
+```yaml
+# .spellwarden/config.yml
+connected:
+  pack: 3f2a0c9d4b7e4d1f8a6b5c2e9d0f1a37@1.4   # optional: a pack id (baseline or 32 hex), optionally @version, from the organisation's allowed list
+  upload: true                                  # optional, default true: upload the results in CI
+  required: false                               # optional, default false: a run that cannot connect exits 2 instead of falling back to free mode
+```
+
+`upload` has the flags `--upload` and `--no-upload` and the variable `SPELLWARDEN_UPLOAD`; a flag wins over the variable, which wins over the file. `pack` and `required` are the repository's statement: they have no flag and no variable, and on a pull or merge request they are read from the base revision's `.spellwarden/config.yml`, even when `--config FILE` names another file (the notice `settings_from_base` says so). `--as-of` is refused in connected mode, because the server works out when baseline entries expire. In free mode the `connected` mapping is read, validated and ignored.
+
+#### What is sent
+
+Only these leave the runner: the token request to your code host, the exchange, the session and policy requests, the registry check and the upload. No whole file is ever sent. A finding carries an excerpt of at most 300 characters of the matched line, with credentials masked. An MCP server's address leaves only as a hash, and the link that asks for its admission carries the address without user name, query or fragment.
+
+- The exchange sends the organisation slug, the code host's OIDC token (once, to be verified; it is not stored) and the display fields of the run: the scan root, the pull request number, the head commit and the default branch.
+- The registry check sends, for each item in scope, its path, line, name and identity: a skill's package hash, a server's address hash, the pinned form of a stdio command, a plugin's or marketplace's repository URL and commit.
+- The upload sends the run (repository, scope, kind, event, commits, branch names, run link) and the JSON report, reduced: no `connected.upload`, no probe findings or checklist, at most 50 notices and 50 errors with messages masked and cut to 300 characters, and the caps the organisation's policy states for findings (500, the highest severity first, accepted ones included with their baseline entry), items (2000) and probes (200). If the body is still over its limit, items, then probes, then the lowest findings are dropped. Every cut is recorded in the report's `upload_truncated` and `upload_truncated_fields`.
+
+#### The calls
+
+At most six requests and their retries, all to `https://dash.spellwarden.ai/api` (or your proxy, see "Proxies"). The Spellwarden API accepts HTTPS only, resolves the host and uses public addresses only, and follows no redirect.
+
+| Call | When |
+|---|---|
+| `GET $ACTIONS_ID_TOKEN_REQUEST_URL&audience=...` | the OIDC token, on GitHub, to your code host's own token endpoint |
+| `POST /public/ci/token` | the exchange of that token for a CI token that lasts 15 minutes |
+| `GET /orgs` | with a CI key: the organisation the key belongs to, which must hold the CI access |
+| `GET /orgs/{slug}/ci/policy` | the CI policy: rules or pack, the gate's posture, the registry name, the limits |
+| `POST /orgs/{slug}/ci/registry-check` | the items in scope, only when there is one the gate can identify |
+| `POST /orgs/{slug}/ci/scans` | the results, after the exit code is decided and before any output file is written |
+
+Each request has 10 seconds including its body and may answer at most 2 MiB. A 429 is retried once after `Retry-After` (at most 20 seconds); a connection failure before the request was sent, or a 5xx, is retried once after 2 seconds. The upload is not retried after a timeout, because it may still be running. The calls share a budget of 150 seconds counted as time spent inside requests and their waits; the scan, the probes and the organisation rules do not count. A request that would start more than 840 seconds after the exchange is `connected_unavailable`, because the CI token's fifteen minutes are over.
+
+After the first authenticated answer, every failure exits 2, whatever `connected.required` says: an organisation whose pipelines reached Spellwarden has set connected mode up, and an outage then is an incomplete scan, never a pass. An upload that fails is only a notice and never changes the exit code.
+
+#### Run kinds and which events report
+
+The command classes each run:
+
+| Kind | When | Uploaded |
+|---|---|---|
+| `request` | a pull or merge request (GitHub `pull_request`, `pull_request_target`, `merge_group`; GitLab `merge_request_event`) | yes |
+| `default_branch` | a push, schedule or manual run on the default branch (any run of other CI whose branch is `SPELLWARDEN_DEFAULT_BRANCH`) | yes |
+| `branch` | any other run | no (the notice `upload_skipped`, reason `branch`) |
+
+The default branch is `SPELLWARDEN_DEFAULT_BRANCH` when set (the Action fills it from the repository or its `default-branch` input), else the event payload's, else GitLab's `CI_DEFAULT_BRANCH`. The server decides in the end and may answer that a run is not reportable: `event_not_reportable` (a `workflow_run` or `issue_comment` run is treated as a request for its settings and gate, but a two-stage workflow that wants results in the dashboard runs the Action in the first stage), `default_branch_unconfirmed` (the repository's default branch is not confirmed yet in the dashboard) or `branch`. Only a CI token's default-branch run changes what the dashboard shows as the repository's current state; a run with a CI key is a key report. In other CI the upload needs a run id: set `SPELLWARDEN_RUN_ID`, or the upload is skipped with the reason `no_run_id`.
+
+#### Pull requests from forks: the two-job recipe
+
+GitHub gives a pull request from a fork no secrets and no OIDC token. A `pull_request` run from a fork is therefore `connected_no_credential`, and `connected.required` decides (see below); if a key is present anyway it is ignored with the notice `fork_free_mode`. To scan outside contributions with the organisation's policy, use two jobs, so that each request is scanned once, by the job that has a credential. The second job runs on `pull_request_target`, with the base repository's secrets and token: check out the head commit with `persist-credentials: false`, run nothing but the Spellwarden Action, and grant only these permissions. The command treats `pull_request_target` as a request of the base repository, never as a fork run: it connects, gates and uploads, takes `head_sha` and `head_ref` from the event payload, and pins `head_sha` in the request links.
+
+```yaml
+on:
+  pull_request:
+  pull_request_target:
+jobs:
+  same-repository:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@<commit>
+        with:
+          fetch-depth: 0
+      - uses: spellwarden-ai/scan@<commit of v1.2.0>  # v1.2.0
+        with:
+          org: acme
+  outside-contribution:
+    if: github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@<commit>
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: spellwarden-ai/scan@<commit of v1.2.0>  # v1.2.0
+        with:
+          org: acme
+```
+
+Dependabot pull requests run in the `same-repository` job and use the exemption below. On GitLab, a merge request whose pipeline runs in a fork's project carries the fork's identity, which no CI connection names unless it lists the fork, so `connected.required` decides. A pipeline run in the parent project for a merge request from a fork is refused at the exchange (`fork_pipeline_unsupported`), see "Unsupported setups".
+
+#### The gate
+
+The gate runs when the organisation's plan has a private registry and its CI policy has the gate on (the default). With the gate off the notice `registry_gate_off` says so; on a plan without a registry nothing is said. The CI policy sets the posture: `scope` (`changed` or `all`), and whether stdio servers and plugins are judged.
+
+| Kind | Judged | Identity |
+|---|---|---|
+| Skill | every skill package the scan found | the hash of its files (`package_sha256`) |
+| Remote MCP server | every server with an `http` or `sse` transport | the hash of its normalised address, query included |
+| Stdio MCP server | every `command` server, when the policy judges stdio | the pinned form of the launch, `cmd:...` |
+| Plugin | every entry of the repository's own `marketplace.json` with a remote source, when the policy judges plugins | `git:<repository URL>@<commit>` |
+| Marketplace | every `extraKnownMarketplaces` declaration of `.claude/settings.json`, when the policy judges plugins; the `enabledPlugins` entries naming it are listed under it | `git:<repository URL>@<commit>` |
+
+An entry that is neither (a server with neither `command` nor `url`, a plugin with a local path as its source) is not judged. An `enabledPlugins` entry whose marketplace is not declared in the repository is listed with the notice `plugin_marketplace_unknown`: the marketplace lives in the user's own settings, which no repository scan sees.
+
+**Scope.** On a request with `scope: changed`, the gate judges what the request added or changed, computed without needing a merge base: a skill when any path under it, or any file one of its followed links points at, changed; a server, stdio entry, plugin or marketplace when its configuration document changed and the base revision's version of that document holds no entry with the same identity (or, for an entry that cannot be identified, the same entry hash); a stdio entry also when a resolver file of its launcher family changed; a marketplace also when an `enabledPlugins` entry under it is new. A new document puts all its entries in scope. On GitHub `pull_request`, when the checkout is the test merge commit, the diff is against its first parent. In every other case, a workflow that checks out the head commit included, the diff is the two-dot `git diff --name-only <base> HEAD`, so a checkout of the head commit compares against the base tip, and files changed on the base branch since the branch point are in scope too. The gate fails closed, so the wider set is safe. Use `fetch-depth: 0` to make the diff cheaper. When the base cannot be read, every item is in scope with the notice `gate_scope_all`. Default-branch runs, other branch runs and `scope: all` judge everything; items out of scope are counted in `registry.out_of_scope` and never become findings on that run, and the default-branch run reports them.
+
+**The check.** One call sends the items in scope that could be identified. Each item the registry does not admit becomes an `SW-REG-001` finding (skill, plugin, marketplace) or `SW-REG-002` finding (server, stdio) at the item's location, severity high, with a link to request its admission in the Markdown report (the section "Not admitted in the private registry"). Each item in scope that could not be identified becomes an `SW-REG-003` finding without any call. With no identifiable item in scope no call is made. If the check cannot be made or answered, the run exits 2 with `registry_check_failed` and writes no `SW-REG` finding.
+
+**Pinned command forms.** A stdio server is identified when it launches one of `npx`, `bunx`, `pnpm dlx`, `uvx`, `pipx run` or `docker run` with every package at an exact version (`npx -y @acme/mcp-fs@1.2.3`, `uvx mcp-server-git==0.6.2`, `pipx run --spec pkg==1.0.0 pkg`, an image as `name@sha256:<64 hex>`). The identity is `cmd:<launcher> <packages>`, then ` src=<registries>` when the launch names a registry or index, then ` args=<32 hex>` when it has any other argument: quiet flags (`-y`, `--yes`, `-q`, `--quiet`, `--silent` for the package launchers; `--rm`, `-i`, `-t`, `--init`, `--name` for Docker) are dropped, every other option and argument goes into the hash, and a registry is reduced to scheme, host and path. Pass index credentials through the launcher's credential store, never on the command line: a credential in the command line would be an argument, and it is never uploaded or put in a link, but it would make the launch differ from run to run.
+
+**Plugins and marketplaces.** A plugin or marketplace is identified when its source is a GitHub repository or a URL that names a full 40-character commit (`sha`, or a `ref` that is one). Admitting a marketplace at a commit admits the catalogue at that commit.
+
+**The baseline.** An `SW-REG` finding may be accepted in `.spellwarden/baseline.yml` for at most 90 days, a third cap next to 365 and 30. On a request, `SW-REG` entries are honoured only from the base revision's baseline, even when `--baseline FILE` points elsewhere (the notice `reg_baseline_from_base`). The fingerprint of an `SW-REG-003` finding binds the acceptance to the entry as it stands: a second unpinned entry in the same file, a changed resolver file or an edited unhashable skill is a new finding.
+
+##### Gate reason: unhashable
+
+A skill's package cannot be hashed the way the registry hashes a forge archive of it: a `node_modules`, `.venv`, `venv` or `__pycache__` directory is under it, the walk skipped such a directory, `include` or `exclude` in the settings drops one of its files, one of its links could not be followed, or a file under it has the git attribute `export-ignore` or `export-subst`. The finding names the first offending path. Remove the directory or the attribute, keep every file of the skill in the scan, or accept the finding in the baseline.
+
+##### Gate reason: unresolved
+
+The address or the command holds a `${...}` reference, or the address cannot be read (a port out of range, control characters), so its identity would differ on every machine. Write the value out.
+
+##### Gate reason: insecure
+
+The server's address starts with `http://`. This is also `SW-CFG-001`. Use `https://`.
+
+##### Gate reason: unpinned
+
+A package is given as a range, a tag, `latest` or without a version, or a plugin or marketplace is not pinned to a full commit. Pin an exact version (or a full commit, or an image digest).
+
+##### Gate reason: unknown launcher
+
+The command is not one of the recognised launchers (`node server.js`, `python -m x`, a path to a program). The registry can admit only a launch it can pin. Launch the server through a pinned `npx`, `uvx` or `docker run` form.
+
+##### Gate reason: launch override
+
+The launch changes what the launcher runs or where it fetches from: `docker run --entrypoint`, or an `env` entry in the list of names that redirect a launcher (`NODE_OPTIONS`, `NODE_PATH`, `PYTHONPATH`, `PYTHONSTARTUP`, `PYTHONHOME`, `PYTHONUSERBASE`, `LD_PRELOAD`, `LD_LIBRARY_PATH`, `DYLD_INSERT_LIBRARIES`, `DYLD_LIBRARY_PATH`, any `npm_config_*`, `UV_INDEX`, `UV_INDEX_URL`, `UV_DEFAULT_INDEX`, `UV_EXTRA_INDEX_URL`, `UV_FIND_LINKS`, `PIP_INDEX_URL`, `PIP_EXTRA_INDEX_URL`, `PIP_FIND_LINKS`, `PIPX_DEFAULT_PYTHON`, `BUN_CONFIG_REGISTRY`, `DOCKER_HOST`, `DOCKER_CONFIG`). Remove it from the launch.
+
+##### Gate reason: resolver override
+
+A file of the repository redirects package resolution for the launcher's family: `.npmrc`, `.yarnrc.yml` or `bunfig.toml` with a registry or scope registry line (`npx`, `bunx`, `pnpm dlx`), `uv.toml`, `pip.conf` or `pyproject.toml` with an index entry (`uvx`, `pipx run`). The pinned version would not say which registry serves it. Remove the redirect, or accept the finding in the baseline; a change to any resolver file is a new finding. A resolver file on a developer's own machine is not seen.
+
+#### connected.required and the Dependabot exemption
+
+Everything that stops the command before the first authenticated answer is one of `connected_no_credential` (a fork or Dependabot request, where GitHub withholds secrets; a job without `id-token: write`; an empty key secret), `fork_free_mode`, `connected_auth`, `connected_subscription`, `connected_ci_key_required`, `connected_rate_limited` or `connected_unavailable` on the token request, the exchange or `GET /orgs`. If the settings in force say `connected.required: true`, the run ends with exit code 2 and the error `connected_required` carrying the underlying code. Otherwise it continues in free mode with the notice `connected_fallback` ("Connected mode was not available (<code>); this run applied the baseline rules only and uploaded nothing."), and the first line of the text output says so.
+
+`required` is the repository's statement and cannot live in the organisation's policy, because a run without a credential cannot read the policy. One exemption: a Dependabot pull request whose diff puts no item the gate would judge in scope runs in free mode with the notice `dependabot_free_mode`, so routine dependency updates do not need the `pull_request_target` job. The check assumes every kind, `scope: changed` and a registry; a base that cannot be read puts everything in scope.
+
+#### Errors and their fixes
+
+Every error exits 2.
+
+| Code | What to do |
+|---|---|
+| `connected_config` | `SPELLWARDEN_ORG` and `SPELLWARDEN_API_KEY` are both set, the slug is not a slug, `--as-of` was given, or the scan root's path cannot be a scan root (its characters must be letters, digits, `.`, `_` and `-`). Set one credential, fix the slug, drop the flag. |
+| `connected_key_invalid` | `SPELLWARDEN_API_KEY` is not a CI key. A CI key starts with `swk_`. Create one under Settings, API keys, with access CI. |
+| `connected_no_credential` | This job has no OIDC token. Grant `permissions: id-token: write` on GitHub, add the `id_tokens` entry on GitLab, or use a CI key. |
+| `connected_auth` | The organisation did not accept this pipeline's identity: <server message>. Check the CI connection under Settings, CI connections, or the SPELLWARDEN_API_KEY secret. |
+| `connected_subscription` | The organisation's subscription is not active. Machine access is paused until billing is restored; people can still sign in. |
+| `connected_ci_key_required` | Connected mode needs a CI key. Create one under Settings, API keys, with access CI. |
+| `connected_forbidden` | The credential is not allowed to do this call. Check the access of the key or the CI connection. |
+| `connected_rate_limited` | A Spellwarden limit, not an outage, stopped this call: <server message>. Wait for the time the message names and run again. |
+| `connected_unavailable` | Connected mode is not available: the service could not be reached, answered with an error, or has no such route yet. Run again; the budget and the 840 second limit are described above. |
+| `connected_required` | This repository requires connected mode (.spellwarden/config.yml) and the run could not connect: <detail>. Fix what the detail names, or set `required: false`. |
+| `policy_not_found` | The pack named in .spellwarden/config.yml is not one this organisation allows for CI: <detail>. Name another pack or remove `pack`. |
+| `policy_invalid` | The organisation's rules are not a valid pack, or an organisation rule cannot be compiled. Tell an administrator of the organisation; this is a defect on the service. |
+| `org_rules_incomplete` | Organisation rule(s) <ids> did not finish on <path> within 10 seconds. The scan is incomplete. Simplify the rule or split the skill. |
+| `registry_check_failed` | The private registry could not be checked (<code>). The scan is incomplete. Run again. |
+| `registry_check_too_large` | The run has more items to check than one call may carry. Narrow the scan with `include` and `exclude`, or split the repository into scan roots. |
+
+Rules the server left out for this scanner version are the notice `org_rules_skipped`; the exit code does not change, and the dashboard marks the scan incomplete. A pack made for newer rules than the scanner knows is applied when it validates, with the notice `policy_newer_than_scanner`. Organisation rules for MCP servers run on probed servers only: without `--probe` the notice `mcp_rules_need_probe` says so.
+
+#### Proxies
+
+The Spellwarden API and the token endpoint honour `HTTPS_PROXY` (or `https_proxy`) and `NO_PROXY`, with `CONNECT` and the TLS certificate verified end to end against the target host. The proxy's own address is not checked against the public-address rule, because an enterprise proxy is set by the runner's operator; a `user:password@` in the proxy address becomes `Proxy-Authorization: Basic`. Probes and the usage ping keep their own rules and ignore the proxy.
+
+#### Line endings and archives
+
+A package's identity is a hash over its bytes, as a forge archive of its directory holds them. A checkout that rewrites line endings (Windows `core.autocrlf`) is a different package from the one the registry admitted. A forge archive is `git archive` output, which honours `export-ignore` and `export-subst`: a path under a skill with either attribute makes the skill's identity `unhashable`. Inside a work tree the command asks `git check-attr`; outside one, any `.gitattributes` under the scan root that names either attribute makes every skill unhashable.
+
+#### The test hook
+
+`SPELLWARDEN_API_URL` is for tests. It is honoured only for `http://127.0.0.1:<port>/<path>`, `http://[::1]:<port>/<path>` and `http://localhost:<port>/<path>`; any other value is ignored (`--verbose` says so). When it is honoured the notice `api_url_override` is always printed, and a loopback `ACTIONS_ID_TOKEN_REQUEST_URL` is honoured as well.
+
+#### Unsupported setups
+
+- GitHub Enterprise Server versions without Actions OIDC.
+- GitLab versions before 15.7 (no `id_tokens`).
+- CI systems other than GitHub and GitLab; they use a CI key.
+- An issuer kind whose tokens do not have the recorded shape (the first exchange is refused with `shape_mismatch`).
+- A forge whose keys rotate faster than an administrator re-pastes them, when it is not reachable from the internet.
+- GitLab pipelines run in the parent project for a merge request from a fork, until such a token has been recorded.
+
 ### Schemas and compatibility
 
-`schemas/` holds JSON Schemas (draft 2020-12) for the settings, the baseline, the lock file and the JSON report, including every closed list of values. Readers of the report must ignore fields they do not know; the settings and the baseline refuse them. From 1.0.0, removing or renaming a field or a value, or changing an exit code, is a major version; adding an optional field, a notice code or a rule is a minor one.
+`schemas/` holds JSON Schemas (draft 2020-12) for the settings, the baseline, the lock file and the JSON report, including every closed list of values. Readers of the report must ignore fields they do not know; the settings and the baseline refuse them. From 1.0.0, removing or renaming a field or a value, or changing an exit code, is a major version; adding an optional field, a notice code or a rule is a minor one. Since 1.2.0 the report holds an optional `connected` block when a run was connected (the credential kind, the organisation, the run, the policy applied, the registry gate's counts and items, and the upload outcome), and `upload_truncated` and `upload_truncated_fields` after an upload that was cut; a free run adds none of them.
 
 ## Versions
 
@@ -457,11 +662,11 @@ Releases are built and published by GitHub Actions through PyPI trusted publishi
 make check     # ruff, pytest, uv build
 ```
 
-`tests/test_pure.py` fails the build if any module of `spellwarden_scan` reaches for the network, the file system or the environment; `tests/test_network_boundary.py` fails it if any module of `spellwarden_cli` other than the prober's fetcher (`net.py`), the usage ping (`ping.py`) and the comment poster (`forge.py`) can reach the network; `tests/test_fixture_coverage.py` fails it if a rule lacks a positive or a negative fixture. Every test runs offline: HTTP exchanges are recorded under `tests/recorded/` and git repositories are made by the tests.
+`tests/test_pure.py` fails the build if any module of `spellwarden_scan` reaches for the network, the file system or the environment; `tests/test_network_boundary.py` fails it if any module of `spellwarden_cli` other than the prober's fetcher (`net.py`), the usage ping (`ping.py`), the comment poster (`forge.py`) and the API client of connected mode (`api.py`) can reach the network; `tests/test_fixture_coverage.py` fails it if a rule lacks a positive or a negative fixture. Every test runs offline: HTTP exchanges are recorded under `tests/recorded/` and git repositories are made by the tests.
 
 ## Use it in CI
 
-The same scanner runs in three wrappers, released with one version number. The engine release 1.1.0 (org rules, packs and exports) changes nothing the scanner does, so the Action and the component stay at 1.0.0.
+The same scanner runs in three wrappers, released with one version number. The Action and the component release at the same version.
 
 **GitHub Actions.** Pin the Action by commit and keep the version in a comment. The workflow, not the Action, grants the permissions:
 

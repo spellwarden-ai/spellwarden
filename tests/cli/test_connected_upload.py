@@ -402,7 +402,7 @@ def test_the_notice_texts_hold_no_dash_and_no_exclamation_mark():
                   {"status": "skipped", "reason": "default_branch_unconfirmed"}, {"status": "skipped", "reason": "no_run_id"},
                   {"status": "skipped", "reason": "local"}, {"status": "skipped", "reason": "disabled"}):
         notice_ = connected.upload_notice(block)
-        assert isinstance(notice_, Notice) and not any(mark in notice_.message for mark in "!–—")
+        assert isinstance(notice_, Notice) and not any(mark in notice_.message for mark in "!\u2013\u2014")
     assert text.connected_lines and markdown.connected_section
 
 
