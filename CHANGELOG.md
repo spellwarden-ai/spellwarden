@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.2.0 (RELEASE_DATE)
+## 1.2.0 (2026-10-23)
 
 Connected mode: the `spellwarden` command can link a scan to a Spellwarden organisation. Without a credential, without
 `SPELLWARDEN_ORG` and without `connected.required`, nothing connected happens and every output is what 1.1.1 wrote, apart
