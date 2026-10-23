@@ -135,3 +135,42 @@ def test_the_changelog_has_the_1_2_0_section_with_the_release_date_left_to_the_o
     body = release_manifest.changelog_section(changelog, "1.2.0")
     assert "Connected mode" in body and "SW-REG-003" in body and "2026.10.3" in body
     assert not re.search("[\u2013\u2014!]", body)
+
+
+def _table_options() -> dict[tuple[str, str], set[str]]:
+    """The 'Pinned command forms' table: `(launcher, kind)` to the options in its cell."""
+    text = section()
+    start = text.index("**Pinned command forms.**")
+    found: dict[tuple[str, str], set[str]] = {}
+    for line in text[start:].split("\n\n")[2].split("\n"):
+        cells = [cell.strip() for cell in line.strip("|").split(" | ")]
+        if len(cells) == 3 and cells[0].startswith("`"):
+            found[(cells[0].strip("`"), cells[1])] = set(re.findall(r"`([^`]+)`", cells[2]))
+    return found
+
+
+def test_the_pinned_command_forms_table_lists_each_launchers_closed_option_sets():
+    from spellwarden_scan.identity import _SPECS, QUIET_FLAGS
+
+    expected: dict[tuple[str, str], set[str]] = {}
+    for launcher, spec in _SPECS.items():
+        overrides = set(spec.overrides)
+        if launcher == "docker run":
+            overrides.add("--entrypoint")
+        if spec.override_prefix:
+            overrides.add(spec.override_prefix + "<key>")
+        for kind, options in (("Quiet flags (dropped)", QUIET_FLAGS[launcher]), ("On/off flags (hashed)", spec.flags),
+                              ("Value options (hashed)", spec.values), ("Artefact options", spec.artefacts),
+                              ("Registry and index options", spec.sources), ("Overrides (launch override)", overrides)):
+            if options:
+                expected[(launcher, kind)] = set(options)
+    assert _table_options() == expected
+
+
+def test_the_launch_override_reason_lists_every_override_env_name():
+    from spellwarden_scan.identity import LAUNCH_OVERRIDE_ENV
+
+    gate = section()
+    body = gate[gate.index("##### Gate reason: launch override"):gate.index("##### Gate reason: resolver override")]
+    listed = set(re.findall(r"`([A-Z][A-Z0-9_]+)`", body[body.index("an `env` entry"):]))
+    assert listed == LAUNCH_OVERRIDE_ENV

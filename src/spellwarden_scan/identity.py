@@ -386,7 +386,12 @@ def command_identity(command: str, args: Sequence[str], env: Mapping[str, str]) 
     and so do the sorted names of the `env` keys (one `env:<names>` element). An option before the first positional that
     the launcher's table does not know leaves the launch `unresolved`; `--userconfig`, `--globalconfig`,
     `--node-options`, `--script-shell` (and pnpm's `--config.*`) and docker's `--entrypoint` are a `launch_override`. No
-    credential of a source and no value of the arguments or of `env` is ever in the identity."""
+    credential of a source and no value of the arguments or of `env` is ever in the identity.
+
+    The closed lists are `QUIET_FLAGS` (dropped), per launcher in `_SPECS` the on/off `flags`, the `values`, the
+    `artefacts` and `sources` options and the `overrides` (plus docker's `--entrypoint` and pnpm's `--config.` prefix),
+    and `LAUNCH_OVERRIDE_ENV` with any `npm_config_*`. The README's "Pinned command forms" table and its "Gate reason:
+    launch override" list repeat them, and `tests/test_readme_connected.py` fails when either differs from these."""
     if "${" in command:
         return CommandIdentity(None, "unresolved")
     found = _launcher_of(command, args)
