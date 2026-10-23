@@ -78,6 +78,7 @@ class _Connection:
         self._api = api
         self.host, self.ip, self.port, self.timeout, self.options = host, ip, port, timeout, options
         self._answer: _Answer | None = None
+        self._sent: object = None
 
     def connect(self) -> None:
         """A status-0 answer fails the connection that is opened while it is the first answer not yet used."""
@@ -91,7 +92,8 @@ class _Connection:
     def request(self, method: str, path: str, body: bytes | None = None, headers: dict[str, str] | None = None) -> None:
         sent = dict(headers or {})
         sent.setdefault("Host", self.host if self.port in (80, 443) else f"{self.host}:{self.port}")
-        self._api.requests.append((method, path, sent, json.loads(body) if body else None))
+        self._sent = json.loads(body) if body else None
+        self._api.requests.append((method, path, sent, self._sent))
         bare = path.split("?", 1)[0]
         for answer in self._api._answers:
             if answer.method == method and answer.path == bare and answer.left > 0 and answer.status != 0:
@@ -109,7 +111,8 @@ class _Connection:
             raise TimeoutError("timed out")
         clock.advance(answer.delay)
         headers = {"Content-Type": "application/json", **answer.headers}
-        return _Response(answer.status, headers, _bytes_of(answer.body))
+        content = answer.body(self._sent) if callable(answer.body) else answer.body
+        return _Response(answer.status, headers, _bytes_of(content))
 
     def close(self) -> None:
         return None

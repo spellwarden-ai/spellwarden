@@ -1,0 +1,13 @@
+{
+  "name": "team-plugins",
+  "plugins": [
+    {
+      "name": "lint",
+      "source": {
+        "source": "github",
+        "repo": "acme/lint",
+        "sha": "0123456789abcdef0123456789abcdef01234567"
+      }
+    }
+  ]
+}

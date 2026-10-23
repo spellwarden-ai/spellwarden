@@ -322,3 +322,48 @@ def test_apply_is_idempotent():
     once, _n, _e = baseline.apply(loaded, found, as_of=date(2026, 12, 15))
     twice, _n, _e = baseline.apply(loaded, once, as_of=date(2026, 12, 15))
     assert once == twice and once[0].suppressed
+
+
+# --- the registry gate's third cap (O3 spec 6.6, claim E10) ------------------------------------------------------------
+
+def _reg_finding():
+    from spellwarden_scan.gate import gate_finding
+
+    from spellwarden_cli.report import ReportFinding
+
+    return ReportFinding(gate_finding("skill", "skills/setup", None, "setup", "a" * 64, "not_admitted"), "skills/setup")
+
+
+def test_the_registry_gate_caps_an_acceptance_at_90_days():
+    assert baseline.REG_SPAN_DAYS == 90
+    document = {"version": 1, "accepted": [
+        {"fingerprint": "a" * 64, "rule": "SW-REG-001", "path": "skills/setup", "reason": "ok", "added": date(2026, 12, 1),
+         "expires": date(2027, 3, 1)},     # 90 days
+        {"fingerprint": "b" * 64, "rule": "SW-REG-003", "path": "skills/setup", "reason": "ok", "added": date(2026, 12, 1),
+         "expires": date(2027, 3, 2)}]}    # 91 days
+    loaded = baseline.parse_baseline(document)
+    assert [entry.fingerprint[0] for entry in loaded.entries] == ["a"]
+    assert [(n.code, "SW-REG-003 is a registry gate rule" in n.message) for n in loaded.invalid] == [("baseline_invalid", True)]
+
+
+def test_an_entry_without_a_rule_that_matches_a_gate_finding_is_held_to_the_same_cap():
+    finding = _reg_finding()
+    fingerprint = finding.finding.fingerprint
+    entry = baseline.Entry(fingerprint, "", "", "ok", date(2026, 12, 1), date(2027, 3, 2))   # 91 days, no rule named
+    kept, _notices, errors = baseline.apply(baseline.Baseline((entry,), ()), [finding], as_of=date(2026, 12, 15))
+    assert not kept[0].suppressed and [e.code for e in errors] == ["baseline_invalid"]
+    ok = baseline.Entry(fingerprint, "", "", "ok", date(2026, 12, 1), date(2027, 3, 1))     # 90 days
+    kept, _notices, errors = baseline.apply(baseline.Baseline((ok,), ()), [finding], as_of=date(2026, 12, 15))
+    assert kept[0].suppressed and errors == []
+
+
+def test_baseline_add_caps_a_gate_acceptance_at_90_days():
+    import argparse
+
+    from spellwarden_cli import commands
+
+    finding = _reg_finding().finding
+    args = argparse.Namespace(expires=date(2027, 3, 2), days=None)
+    with pytest.raises(commands.CommandError, match="at most 90 days"):
+        baseline._expiry(args, finding, date(2026, 12, 1))
+    assert baseline._expiry(argparse.Namespace(expires=None, days=None), finding, date(2026, 12, 1)) == date(2027, 3, 1)

@@ -139,11 +139,34 @@ def _check_report(expect: dict, report: dict) -> list[str]:
                 got = sorted(change["path"] for change in lock[key])
                 if got != sorted(expect["lock"][key]):
                     problems.append(f"lock {key} {got}, expected {sorted(expect['lock'][key])}")
+    problems += _check_connected(expect, report)
     if expect["probes"] is not None:
         got = {p["item"]: (p["status"], p["skip_reason"]) for p in report["probes"]}
         for wanted in expect["probes"]:
             if got.get(wanted["item"]) != (wanted["status"], wanted["skip_reason"]):
                 problems.append(f"probe {wanted['item']}: {got.get(wanted['item'])}, expected {(wanted['status'], wanted['skip_reason'])}")
+    return problems
+
+
+def _check_connected(expect: dict, report: dict) -> list[str]:
+    """The `connected` key of a case (O3 spec 6.9): the report's connected block holds the credential kind, the gate's
+    counts and the upload outcome the case names; a case without the key must produce no block at all (free mode adds
+    nothing to the report)."""
+    block, wanted = report.get("connected"), expect["connected"]
+    if wanted is None:
+        return [] if block is None else ["the report holds a connected block although the case runs in free mode"]
+    if not isinstance(block, dict):
+        return ["the report holds no connected block"]
+    problems = []
+    if block.get("credential") != wanted["credential"]:
+        problems.append(f"connected credential {block.get('credential')!r}, expected {wanted['credential']!r}")
+    registry = block.get("registry") or {}
+    for key in ("checked", "not_admitted", "unidentified"):
+        if key in wanted and registry.get(key) != wanted[key]:
+            problems.append(f"connected registry {key} is {registry.get(key)!r}, expected {wanted[key]}")
+    upload = (block.get("upload") or {}).get("status")
+    if "upload" in wanted and upload != wanted["upload"]:
+        problems.append(f"connected upload is {upload!r}, expected {wanted['upload']!r}")
     return problems
 
 

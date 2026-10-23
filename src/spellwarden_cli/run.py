@@ -132,13 +132,22 @@ def scan(options: ScanOptions) -> Report:
     for probe in probes:
         if probe.result is not None and probe.result.org_rules_incomplete:
             errors.append(connected.org_rules_incomplete_error(probe.result.org_rules_incomplete, probe.item))
-    findings = apply_baseline(options, findings, notices, errors)
+    registry = None
+    if state is not None and context is not None:
+        try:  # O3 spec 6.6: the SW-REG findings join the others before the baseline, which may accept them
+            gate_findings, registry = connected.run_gate(state, found, probes, context, options, notices)
+            findings.extend(gate_findings)
+        except connected.ConnectedFail as failed:  # the check could not be made: exit 2, no SW-REG findings
+            errors.append(Notice(failed.code, "", failed.message))
+    findings = apply_baseline(options, findings, notices, errors, base_gate=state is not None and context is not None
+                              and context.is_request)
     lock = check_lock(options, found, errors)
     report = Report(
         scanner_version=__version__, rules_version=RULES_VERSION, as_of=options.as_of.isoformat(),
         fail_on=options.settings.fail_on, items=found.items, findings=tuple(findings), probes=tuple(probes), lock=lock,
         notices=tuple(notices), errors=tuple(errors), repo_prefix=fileset.repo_prefix, rules=rules,
-        connected=connected.report_block(state, context) if state is not None and context is not None else None)
+        connected=({**connected.report_block(state, context), "registry": registry}
+                   if state is not None and context is not None else None))
     return report.sorted()
 
 
@@ -177,10 +186,13 @@ def _as_written(skill: SkillPackage, finding: Finding) -> Finding:
     return dataclasses.replace(finding, location=dataclasses.replace(finding.location, path=path))
 
 
-def apply_baseline(options: ScanOptions, findings: list[ReportFinding], notices: list[Notice], errors: list[Notice]) -> list[ReportFinding]:  # noqa: E501
+def apply_baseline(options: ScanOptions, findings: list[ReportFinding], notices: list[Notice], errors: list[Notice], *,
+                   base_gate: bool = False) -> list[ReportFinding]:
     """Spec 6.7: findings that a valid, current entry accepts are suppressed; an invalid entry or an unusable
     file is an error (exit 2) and suppresses nothing. The default file is read where `options.revision` says (on a
-    pull or merge request, the base revision, D35); a `--baseline` file from the working tree, as the operator named it."""
+    pull or merge request, the base revision, D35); a `--baseline` file from the working tree, as the operator named it.
+    `base_gate` (a connected request, O3 spec 6.6): the findings of the registry gate are accepted by the base
+    revision's baseline only, so a `--baseline` file never accepts them (notice `reg_baseline_from_base`)."""
     from spellwarden_cli import baseline  # here, not at the top: baseline's commands import this module
 
     relative = options.baseline or baseline.BASELINE_PATH
@@ -190,10 +202,32 @@ def apply_baseline(options: ScanOptions, findings: list[ReportFinding], notices:
     except baseline.BaselineError as exc:
         errors.append(Notice("baseline_invalid", relative, str(exc)))
         return findings
-    kept, more_notices, more_errors = baseline.apply(loaded, findings, as_of=options.as_of, name=relative)
-    notices.extend(more_notices)
-    errors.extend(more_errors)
-    return kept
+    gate = [item for item in findings if item.finding.rule_id.startswith(baseline.REG_PREFIX)] if base_gate else []
+    if not base_gate or options.baseline is None:  # the default file of a request is the base revision's already
+        kept, more_notices, more_errors = baseline.apply(loaded, findings, as_of=options.as_of, name=relative)
+        notices.extend(more_notices)
+        errors.extend(more_errors)
+        return kept
+    # a request that names its own baseline file: the gate's findings are accepted by the base revision's default file
+    from spellwarden_cli import ci
+
+    notices.append(Notice("reg_baseline_from_base", relative, f"On a pull or merge request, the acceptances of the registry "
+                          f"gate's findings (SW-REG) are read from the base revision's {baseline.BASELINE_PATH}, never from "
+                          f"{relative}: the request cannot accept its own findings."))
+    context = options.context
+    source = (ci.revision_source(options.root, context, config=False, baseline=True, env=options.env)
+              if context is not None else None)
+    try:
+        base_loaded = baseline.load_baseline(options.root, baseline.BASELINE_PATH, read=source.read if source else None)
+    except baseline.BaselineError as exc:
+        errors.append(Notice("baseline_invalid", baseline.BASELINE_PATH, str(exc)))
+        base_loaded = baseline.Baseline()
+    others = [item for item in findings if item not in gate]
+    kept, more_notices, more_errors = baseline.apply(loaded, others, as_of=options.as_of, name=relative)
+    kept_gate, gate_notices, gate_errors = baseline.apply(base_loaded, gate, as_of=options.as_of, name=baseline.BASELINE_PATH)
+    notices.extend([*more_notices, *gate_notices])
+    errors.extend([*more_errors, *gate_errors])
+    return [*kept, *kept_gate]
 
 
 def check_lock(options: ScanOptions, found: Discovery, errors: list[Notice]) -> LockState:

@@ -248,3 +248,26 @@ def test_git_gets_an_explicit_environment_and_never_ours_by_reference(make_repo,
     seen.clear()
     files.list_files(str(repo), Settings())
     assert seen and all(isinstance(env, dict) and "MARKER_FOR_TEST" not in env for env in seen)
+
+
+def test_the_walk_records_the_skip_dirs_it_did_not_enter(tmp_path):
+    # O3 spec 6.6, P48: a directory the walk skipped under a skill makes the skill unhashable.
+    write_tree(tmp_path, {"a.md": "a", "s/SKILL.md": "x", "s/node_modules/x/y.js": "y", "s/sub/.venv/z": "z", ".git/config": "g",
+                          "venv/q": "q"})
+    fileset = list_files(str(tmp_path), Settings(), git="")
+    assert fileset.skipped_dirs == ("s/node_modules", "s/sub/.venv", "venv")  # `.git` is no skill content: not recorded
+
+
+def test_git_mode_lists_dependency_directories_through_the_index_and_records_no_skipped_dir(make_repo, tmp_path):
+    repo = make_repo(tmp_path / "repo", {"s/SKILL.md": "x", "s/node_modules/x.js": "y"})
+    fileset = list_files(str(repo), Settings())
+    assert "s/node_modules/x.js" in _paths(fileset) and fileset.skipped_dirs == ()
+
+
+def test_deselected_holds_every_path_include_or_exclude_dropped(make_repo, tmp_path):
+    repo = make_repo(tmp_path / "repo", {"s/SKILL.md": "x", "s/run.js": "y", "docs/a.md": "a"})
+    fileset = list_files(str(repo), Settings(exclude=("**/*.js",)))
+    assert fileset.deselected == ("s/run.js",) and "s/run.js" not in _paths(fileset)
+    narrowed = list_files(str(repo), Settings(include=("**/*.md",)))
+    assert narrowed.deselected == ("s/run.js",)
+    assert list_files(str(repo), Settings()).deselected == ()

@@ -1,0 +1,45 @@
+{
+  "exit_code": 1,
+  "findings": 2,
+  "report": "required",
+  "inputs": {
+    "org": "acme",
+    "upload": "true",
+    "default-branch": "main"
+  },
+  "connected": {
+    "credential": "oidc",
+    "checked": 6,
+    "not_admitted": 1,
+    "unidentified": 1,
+    "upload": "uploaded"
+  },
+  "variants": {
+    "key": {
+      "inputs": {
+        "org": ""
+      },
+      "connected": {
+        "credential": "key",
+        "checked": 6,
+        "not_admitted": 1,
+        "unidentified": 1,
+        "upload": "uploaded"
+      }
+    },
+    "reasons": {
+      "findings": 10,
+      "files": {
+        ".mcp.json": "{\n  \"mcpServers\": {\n    \"docs\": {\n      \"url\": \"https://mcp.example.com/docs\"\n    },\n    \"git\": {\n      \"command\": \"uvx\",\n      \"args\": [\n        \"mcp-server-git==0.6.2\"\n      ]\n    },\n    \"fs\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"@acme/mcp-fs@1.2.3\"\n      ]\n    },\n    \"hosted\": {\n      \"url\": \"https://${MCP_HOST}/mcp\"\n    },\n    \"plain\": {\n      \"url\": \"http://mcp.example.com/mcp\"\n    },\n    \"loose\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"lint-server\"\n      ]\n    },\n    \"node\": {\n      \"command\": \"node\",\n      \"args\": [\n        \"server.js\"\n      ]\n    },\n    \"override\": {\n      \"command\": \"uvx\",\n      \"args\": [\n        \"mcp-server-git==0.6.2\"\n      ],\n      \"env\": {\n        \"PYTHONPATH\": \"./vendor\"\n      }\n    }\n  }\n}\n",
+        "skills/review/node_modules/dep/index.js": "module.exports = 1;\n"
+      },
+      "connected": {
+        "credential": "oidc",
+        "checked": 5,
+        "not_admitted": 1,
+        "unidentified": 7,
+        "upload": "uploaded"
+      }
+    }
+  }
+}

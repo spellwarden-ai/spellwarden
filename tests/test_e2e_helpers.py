@@ -78,3 +78,47 @@ def test_sarif_validates_against_the_vendored_schema(tmp_path):
     broken = tmp_path / "broken.sarif"
     broken.write_text(json.dumps({"version": "2.1.0", "runs": "not a list"}), encoding="utf-8")
     assert e2e.main(["sarif", str(broken)]) == 1
+
+
+# --- the connected fixture case (O3 Task 9) ------------------------------------------------------------------------------
+
+def _fixture_tools():
+    import importlib
+
+    root = str(Path(__file__).resolve().parents[1] / "fixtures" / "repos")
+    sys.path.insert(0, root)
+    for name in ("make_repo", "check"):
+        sys.modules.pop(name, None)
+    try:
+        return importlib.import_module("make_repo"), importlib.import_module("check")
+    finally:
+        sys.path.remove(root)
+        for name in ("make_repo", "check"):
+            sys.modules.pop(name, None)
+
+
+def test_the_case_loader_knows_the_connected_inputs_and_key():
+    make_repo, _ = _fixture_tools()
+    case = make_repo.load_case("connected")
+    assert case["inputs"]["org"] == "acme" and case["inputs"]["upload"] == "true" and case["inputs"]["api-key"] == ""
+    assert case["connected"]["credential"] == "oidc"
+    assert make_repo.load_case("connected@key")["inputs"]["org"] == ""            # a variant merges its inputs key by key
+    assert make_repo.load_case("connected@key")["connected"]["credential"] == "key"
+    free = make_repo.load_case("findings")
+    assert free["connected"] is None and free["inputs"]["org"] == "" and free["inputs"]["default-branch"] == ""
+    assert make_repo.GITLAB_VARIABLES["org"] == "SW_ORG" and make_repo.GITLAB_VARIABLES["upload"] == "SW_UPLOAD"
+
+
+def test_the_connected_check_asserts_credential_counts_and_upload_and_a_free_case_has_no_block():
+    make_repo, check = _fixture_tools()
+    expect = make_repo.load_case("connected")
+    block = {"credential": "oidc", "registry": {"checked": 6, "not_admitted": 1, "unidentified": 1},
+             "upload": {"status": "uploaded"}}
+    assert check._check_connected(expect, {"connected": block}) == []
+    assert len(check._check_connected(expect, {})) == 1                            # no block at all
+    wrong = {**block, "credential": "key", "registry": {"checked": 5, "not_admitted": 1, "unidentified": 1},
+             "upload": {"status": "failed"}}
+    assert len(check._check_connected(expect, {"connected": wrong})) == 3
+    free = make_repo.load_case("findings")
+    assert check._check_connected(free, {}) == []
+    assert check._check_connected(free, {"connected": block}) != []               # free mode adds nothing to the report

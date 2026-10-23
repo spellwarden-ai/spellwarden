@@ -20,6 +20,8 @@ BASELINE_PATH = ".spellwarden/baseline.yml"
 MALICIOUS_RULES = frozenset({"SW-SKL-004", "SW-SKL-008", "SW-CFG-006", "SW-CFG-007"})
 MAX_SPAN_DAYS = 365
 MALICIOUS_SPAN_DAYS = 30
+REG_SPAN_DAYS = 90  # O3 spec 6.6: a third cap, for the registry gate's rules (SW-REG-001 to SW-REG-003)
+REG_PREFIX = "SW-REG-"
 DEFAULT_DAYS = 90
 PRUNE_GRACE_DAYS = 30
 REASON_MAX = 1000
@@ -89,6 +91,8 @@ def _entry_of(raw: Mapping) -> tuple[Entry | None, str | None]:
     rule = raw.get("rule") or ""
     if rule in MALICIOUS_RULES and span > MALICIOUS_SPAN_DAYS:
         return None, f"{rule} is a malicious-indicator rule: at most {MALICIOUS_SPAN_DAYS} days between added and expires"
+    if rule.startswith(REG_PREFIX) and span > REG_SPAN_DAYS:
+        return None, f"{rule} is a registry gate rule: at most {REG_SPAN_DAYS} days between added and expires"
     return Entry(fingerprint.lower(), rule, raw.get("path") or "", reason, added, expires), None
 
 
@@ -166,6 +170,9 @@ def _problem_at(entry: Entry, finding: Finding, as_of: date) -> str | None:
     if finding.malicious_indicator and _span(entry) > MALICIOUS_SPAN_DAYS:
         return (f"{finding.rule_id} is a malicious indicator: at most {MALICIOUS_SPAN_DAYS} days between added and "
                 f"expires, this entry has {_span(entry)}")
+    if finding.rule_id.startswith(REG_PREFIX) and _span(entry) > REG_SPAN_DAYS:
+        return (f"{finding.rule_id} is a registry gate rule: at most {REG_SPAN_DAYS} days between added and expires, "
+                f"this entry has {_span(entry)}")
     return None
 
 
@@ -291,7 +298,8 @@ def _prepare(args: argparse.Namespace, *, rewrite: bool) -> tuple[str, date, Bas
 
 def _expiry(args: argparse.Namespace, finding: Finding, as_of: date) -> date:
     malicious = finding.malicious_indicator or finding.rule_id in MALICIOUS_RULES
-    limit = MALICIOUS_SPAN_DAYS if malicious else MAX_SPAN_DAYS
+    gate = finding.rule_id.startswith(REG_PREFIX)
+    limit = MALICIOUS_SPAN_DAYS if malicious else REG_SPAN_DAYS if gate else MAX_SPAN_DAYS
     if args.expires is not None:
         expires = args.expires
     elif args.days is not None:
@@ -302,7 +310,7 @@ def _expiry(args: argparse.Namespace, finding: Finding, as_of: date) -> date:
     if span < 0:
         raise commands.CommandError(f"the expiry {expires.isoformat()} is before the addition date {as_of.isoformat()}")
     if span > limit:
-        kind = "a malicious indicator" if malicious else "a finding"
+        kind = "a malicious indicator" if malicious else "a registry gate finding" if gate else "a finding"
         raise commands.CommandError(f"{finding.rule_id} {finding.fingerprint[:12]}: {kind} can be accepted for at most "
                                     f"{limit} days; {expires.isoformat()} is {span} days after {as_of.isoformat()}")
     return expires

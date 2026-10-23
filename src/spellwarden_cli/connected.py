@@ -7,28 +7,36 @@ the `required` setting decides when it cannot be, and the organisation's policy 
 discovery, in `decide_stop`) and `ConnectedFail` for everything after it (exit 2, whatever `required` says). It never
 decides and never writes: the report block and the notices are built from its result.
 
-Imports `api` and `ci`, the engine and nothing else network-shaped (`tests/test_network_boundary.py`); a credential
-is a `Secret` from start to end and no message built here holds one."""
+`run_gate` is the registry gate of 6.6: the candidates of the run, which of them the request changes, the one check,
+and the SW-REG findings. Imports `api` and `ci`, the engine and nothing else network-shaped
+(`tests/test_network_boundary.py`; `urllib.parse` is no network module, P21); a credential is a `Secret` from start
+to end and no message built here holds one."""
 from __future__ import annotations
 
+import posixpath
+import re
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
+from urllib.parse import quote
 
 from spellwarden_scan import (RULES_VERSION, OrgRuleBudget, OrgRuleError, PackDocument, PackError, Rule, __version__,
                               compile_org_rule, validate_pack)
+from spellwarden_scan import gate as gates
+from spellwarden_scan import identity as ident
 
-from spellwarden_cli import api, escape
+from spellwarden_cli import api, ci, discover, escape
 from spellwarden_cli.api import ApiClient, ApiError, Session
 from spellwarden_cli.ci import ORG_RE
-from spellwarden_cli.report import Notice
+from spellwarden_cli.report import Notice, ProbeReport, ReportFinding
 from spellwarden_cli.secret import Credentials
 from spellwarden_cli.settings import Settings
 
 if TYPE_CHECKING:
     from spellwarden_cli.ci import CiContext
-    from spellwarden_cli.discover import Discovery
+    from spellwarden_cli.discover import Discovery, SkillPackage
+    from spellwarden_cli.files import FileSet
     from spellwarden_cli.run import ScanOptions
 
 ORG_RULE_SECONDS = 10.0
@@ -346,6 +354,367 @@ def decide_stop(stop: ConnectedStop, settings: Settings, ctx: CiContext, found: 
     return None, Notice("connected_fallback", "", said)
 
 
+
+# --- the registry gate (6.6) -----------------------------------------------------------------------------------------
+
+# The check body's list for each gate kind, in the order the answer is read.
+LISTS = {"skill": "skills", "server": "servers", "stdio": "stdio", "plugin": "plugins", "marketplace": "marketplaces"}
+ITEMS_MAX = 3600  # the report's `registry.items` (8.4): the sum of the check caps
+_EXPORT_ATTRIBUTE = re.compile(r"(?<![\w-])-?export-(?:ignore|subst)\b")
+_LAUNCHER_FAMILY = {**ident.LAUNCHER_FAMILY, "pnpm": "npm", "pipx": "python", "docker": "docker"}
+
+
+@dataclass
+class _Candidate:
+    """One thing the gate judges. `identity` is None when it cannot be judged (`reason` says why, `binding` ties an
+    acceptance to the entry as it stands, P48). `url` is a server's own URL: it completes a request link and never
+    leaves the runner."""
+    kind: str
+    path: str
+    line: int | None
+    name: str
+    item: str
+    identity: str | None = None
+    reason: str | None = None
+    binding: str | None = None
+    label: str | None = None                 # the name the evidence of an SW-REG-003 finding carries (first offending path)
+    raw: str | None = None                   # the entry's raw_sha256 (configuration entries)
+    links: bool = False                      # skills: the package followed a member link
+    source_url: str | None = None            # plugins and marketplaces
+    pin: str | None = None
+    url: str | None = None                   # servers
+    family: str | None = None                # stdio: the launcher family (5.1)
+    skill: SkillPackage | None = None
+    enabled: tuple[str, ...] = ()            # marketplaces: the enabledPlugins entries naming it
+    in_scope: bool = True
+    admitted: bool | None = None
+    request_url: str | None = None
+
+    def body(self) -> dict:
+        entry: dict = {"path": self.path, "name": self.name, "identity": self.identity}
+        if self.kind == "skill":
+            entry["links"] = self.links
+            return entry
+        if self.line is not None:
+            entry["line"] = self.line
+        if self.kind in ("plugin", "marketplace"):
+            entry["source_url"], entry["pin"] = self.source_url, self.pin
+        return entry
+
+    def report_item(self) -> dict:
+        item: dict = {"kind": self.kind, "path": self.path, "name": self.name, "identity": self.identity,
+                      "in_scope": self.in_scope, "admitted": self.admitted, "request_url": self.request_url}
+        if self.identity is None and self.reason is not None:
+            item["reason"] = self.reason
+        if self.kind == "marketplace" and self.enabled:
+            item["enabled_plugins"] = list(self.enabled)
+        return item
+
+
+def _under(path: str, directory: str, nested: tuple[str, ...] = ()) -> bool:
+    """`path` is in the package at `directory` ("." is the scan root) and not in a skill nested in it."""
+    inside = directory == "." or path == directory or path.startswith(directory + "/")
+    return inside and not any(path == inner or path.startswith(inner + "/") for inner in nested)
+
+
+def _reader(fileset: FileSet) -> Callable[[str], bytes]:
+    def read(path: str) -> bytes:
+        try:
+            return fileset.read(path)
+        except (OSError, ValueError) as exc:  # too large, a link: `resolver_files` counts what it cannot read
+            raise OSError(str(exc)) from exc
+    return read
+
+
+def _gitattributes_hits(fileset: FileSet, read: Callable[[str], bytes]) -> list[str]:
+    """Outside a work tree (or where git cannot answer): the `.gitattributes` files under the scan root whose text names
+    `export-ignore` or `export-subst` (P55). A file that cannot be read counts: a gate that cannot look says no."""
+    hits = []
+    for path in sorted(fileset.paths()):
+        if path.rpartition("/")[2] != ".gitattributes":
+            continue
+        try:
+            text = read(path).decode("utf-8", errors="replace")
+        except OSError:
+            hits.append(path)
+            continue
+        if any(_EXPORT_ATTRIBUTE.search(line) for line in text.splitlines() if not line.lstrip().startswith("#")):
+            hits.append(path)
+    return hits
+
+
+def _skill_candidates(found: Discovery, options: ScanOptions, read: Callable[[str], bytes] | None) -> list[_Candidate]:
+    fileset = found.fileset
+    members = sorted({path for skill in found.skills for path in skill.files})
+    attributed = ci.export_attribute_paths(options.root, members, git=None, env=options.env) if members else []
+    fallback = ([] if attributed is not None or fileset is None or read is None else _gitattributes_hits(fileset, read))
+    candidates = []
+    for skill in found.skills:
+        root = "" if skill.path == "." else skill.path
+        package = ident.package_files(skill.files, root, skill.nested)
+        offending = set(package.unhashable)
+        if fileset is not None:
+            offending |= {path for path in fileset.skipped_dirs if _under(path, skill.path, skill.nested)}
+            offending |= {path for path in fileset.deselected if _under(path, skill.path, skill.nested)}
+        offending |= set(skill.links)  # member links that could not be followed
+        offending |= {path for path in (attributed or ()) if path in skill.files}
+        offending |= set(fallback)
+        candidate = _Candidate("skill", skill.path, None, skill.name, skill.path, links=bool(skill.targets), skill=skill)
+        if offending:
+            candidate.reason = "unhashable"
+            candidate.binding = gates.unhashable_binding(package.files, offending)
+            candidate.label = f"{skill.name} ({sorted(offending)[0]})"
+        else:
+            candidate.identity = ident.package_sha256(package.files)
+        candidates.append(candidate)
+    return sorted(candidates, key=lambda candidate: candidate.path)
+
+
+def _family_of(command: str, parsed_launcher: str | None) -> str | None:
+    if parsed_launcher is not None:
+        return ident.LAUNCHER_FAMILY.get(parsed_launcher)
+    name = posixpath.basename(command.replace("\\", "/")).lower()
+    for suffix in (".cmd", ".exe", ".bat"):
+        name = name.removesuffix(suffix)
+    return _LAUNCHER_FAMILY.get(name)
+
+
+def _config_candidates(found: Discovery, gate: dict, resolvers: dict[str, tuple[str, ...]], read: Callable[[str], bytes] | None,
+                       notices: list[Notice]) -> list[_Candidate]:
+    candidates: list[_Candidate] = []
+    declared = {decl.name for doc in found.documents if doc.error in (None, "truncated") for decl in doc.marketplaces}
+    for doc in found.documents:
+        if doc.error not in (None, "truncated"):
+            continue
+        for server in doc.servers:
+            item = f"{doc.path}#{server.name}"
+            if server.transport in ("http", "sse") and server.url is not None:
+                candidate = _Candidate("server", doc.path, server.line, server.name, item, raw=server.raw_sha256, url=server.url)
+                if "${" in server.url:
+                    candidate.reason = "unresolved"
+                elif server.url.lower().startswith("http://"):
+                    candidate.reason = "insecure"
+                else:
+                    candidate.identity = ident.server_identity(server.url)
+                    candidate.reason = None if candidate.identity is not None else "unresolved"
+            elif server.transport == "stdio" and gate["stdio"] and server.command is not None:
+                candidate = _Candidate("stdio", doc.path, server.line, server.name, item, raw=server.raw_sha256)
+                result = ident.command_identity(server.command, server.args, server.env)
+                launcher = ident.parse_command_identity(result.identity).launcher if result.identity else None
+                candidate.family = _family_of(server.command, launcher)
+                candidate.identity, candidate.reason = result.identity, result.reason
+                if result.identity is not None and candidate.family in resolvers:
+                    bound = {}
+                    for path in resolvers[candidate.family]:
+                        try:
+                            bound[path] = read(path) if read is not None else b""
+                        except OSError:
+                            bound[path] = b"\0unreadable"
+                    candidate.identity, candidate.reason = None, "resolver_override"
+                    candidate.binding = gates.resolver_binding(server.raw_sha256, bound)
+            else:
+                continue
+            if candidate.identity is None and candidate.binding is None:
+                candidate.binding = server.raw_sha256
+            candidates.append(candidate)
+        if not gate["plugins"]:
+            continue
+        for plugin in doc.plugins:
+            if plugin.source.kind == "local":
+                continue
+            candidate = _Candidate("plugin", doc.path, plugin.line, plugin.name, f"{doc.path}#{plugin.name}",
+                                   raw=plugin.raw_sha256)
+            _remote_identity(candidate, plugin.source, plugin.raw_sha256)
+            candidates.append(candidate)
+        for decl in doc.marketplaces:
+            if decl.source.kind == "local":
+                continue
+            candidate = _Candidate("marketplace", doc.path, decl.line, decl.name, f"{doc.path}#{decl.name}", raw=decl.raw_sha256,
+                                   enabled=tuple(sorted(entry.plugin for entry in doc.enabled_plugins
+                                                        if entry.marketplace == decl.name and entry.enabled)))
+            _remote_identity(candidate, decl.source, decl.raw_sha256)
+            candidates.append(candidate)
+        for entry in doc.enabled_plugins:
+            if entry.marketplace not in declared:
+                notices.append(Notice("plugin_marketplace_unknown", doc.path, f"{entry.plugin}@{entry.marketplace} is enabled, "
+                                      "but its marketplace is not declared in this repository: it lives in the user's own "
+                                      "settings, which no repository scan sees."))
+    return candidates
+
+
+def _remote_identity(candidate: _Candidate, source, raw: str) -> None:
+    identity = ident.plugin_identity(source)
+    if identity is None:
+        candidate.reason, candidate.binding = "unpinned", raw
+        return
+    candidate.identity = identity
+    candidate.source_url = ident.canonical_repo_url(source)
+    candidate.pin = identity.rsplit("@", 1)[1]
+
+
+@dataclass
+class _Base:
+    """What the base revision's version of one configuration document holds."""
+    identities: set[str] = field(default_factory=set)
+    raws: set[str] = field(default_factory=set)
+    enabled: set[tuple[str, str]] = field(default_factory=set)
+
+
+def _base_view(options: ScanOptions, ctx: CiContext, doc_path: str, kind: str) -> _Base:
+    content = ci.read_at_base(options.root, ctx, doc_path, env=options.env)
+    view = _Base()
+    if content is None:  # a new document: every entry of it is new
+        return view
+    for parse_as in dict.fromkeys((kind, "mcp")):  # the settings parser and the MCP parser both read a file, 5.2
+        parsed = discover._parse(parse_as, doc_path, content)
+        if parsed.error not in (None, "truncated"):
+            continue
+        for server in parsed.servers:
+            if server.transport in ("http", "sse") and server.url is not None:
+                view.identities.add(f"server:{ident.server_identity(server.url)}")
+            elif server.transport == "stdio" and server.command is not None:
+                view.identities.add(f"stdio:{ident.command_identity(server.command, server.args, server.env).identity}")
+            view.raws.add(server.raw_sha256)
+        for plugin in parsed.plugins:
+            view.identities.add(f"plugin:{ident.plugin_identity(plugin.source)}")
+            view.raws.add(plugin.raw_sha256)
+        for decl in parsed.marketplaces:
+            view.identities.add(f"marketplace:{ident.marketplace_identity(decl.source)}")
+            view.raws.add(decl.raw_sha256)
+        view.enabled |= {(entry.plugin, entry.marketplace) for entry in parsed.enabled_plugins if entry.enabled}
+    return view
+
+
+def _scope(candidates: list[_Candidate], changed: set[str], resolvers: dict[str, tuple[str, ...]], options: ScanOptions,
+           ctx: CiContext, kinds: dict[str, str]) -> None:
+    """Spec 6.6 "Scope": a candidate is in scope when this request added or changed it."""
+    views: dict[str, _Base] = {}
+    for candidate in candidates:
+        if candidate.kind == "skill":
+            skill = candidate.skill
+            candidate.in_scope = skill is not None and (
+                any(_under(path, skill.path, skill.nested) for path in changed) or bool(skill.targets & changed))
+            continue
+        candidate.in_scope = False
+        if candidate.path in changed:
+            if candidate.path not in views:
+                views[candidate.path] = _base_view(options, ctx, candidate.path, kinds[candidate.path])
+            view = views[candidate.path]
+            if candidate.identity is not None:
+                new = f"{candidate.kind}:{candidate.identity}" not in view.identities
+            else:
+                new = candidate.raw not in view.raws
+            if candidate.kind == "marketplace":
+                new = new or any((plugin, candidate.name) not in view.enabled for plugin in candidate.enabled)
+            candidate.in_scope = new
+        if not candidate.in_scope and candidate.kind == "stdio" and candidate.family is not None:
+            candidate.in_scope = any(path in changed for path in resolvers.get(candidate.family, ()))
+
+
+def _check_failed(error: ApiError) -> ConnectedFail:
+    if error.code == "connected_rate_limited":
+        return ConnectedFail(error.code, _explain(error), error.message)
+    return ConnectedFail("registry_check_failed", f"The private registry could not be checked ({error.code}). The scan is "
+                         "incomplete.", error.message)
+
+
+def _malformed(what: str) -> ConnectedFail:
+    return ConnectedFail("registry_check_failed", "The private registry could not be checked (malformed_answer). The scan "
+                         "is incomplete.", what)
+
+
+def _verdicts(answer: dict, sent: dict[str, list[_Candidate]], dashboard_url: str) -> None:
+    prefix = dashboard_url.rstrip("/") + "/"
+    for kind, candidates in sent.items():
+        entries = answer.get(LISTS[kind], [])
+        if not isinstance(entries, list) or len(entries) != len(candidates):
+            raise _malformed(f"the answer holds {len(entries) if isinstance(entries, list) else 'no list of'} "
+                             f"{LISTS[kind]} for {len(candidates)} sent")
+        for candidate, entry in zip(candidates, entries, strict=True):
+            if not isinstance(entry, dict) or not isinstance(entry.get("admitted"), bool):
+                raise _malformed(f"an item of {LISTS[kind]} has no admitted verdict")
+            candidate.admitted = entry["admitted"]
+            if candidate.admitted:
+                continue
+            if kind == "server":
+                template = entry.get("request_url_template")
+                complete = quote(ident.request_link_url(candidate.url or ""), safe="")
+                link = template + complete if isinstance(template, str) else None
+            else:
+                link = entry.get("request_url")
+            # a request link is printed only when it is under the dashboard address of the policy answer (6.10)
+            if isinstance(link, str) and link.startswith(prefix) and link.isascii() and " " not in link:
+                candidate.request_url = link
+
+
+def run_gate(state: ConnectedState, found: Discovery, probes: list[ProbeReport],  # noqa: ARG001 -- the registry's signature
+             ctx: CiContext, options: ScanOptions, notices: list[Notice]) -> tuple[list[ReportFinding], dict | None]:
+    """O3 spec 6.6: `(the SW-REG findings, the report's registry block)`, the block None when the gate did not run (no
+    registry in the plan, or the organisation turned the gate off). Raises `ConnectedFail` when the check cannot be made
+    or answered: the run then exits 2 and writes no SW-REG finding."""
+    if state.registry_name is None:
+        return [], None
+    gate = state.ci_policy["gate"]
+    if not gate["enabled"]:
+        notices.append(Notice("registry_gate_off", "", "The organisation turned the registry gate off for CI runs: nothing "
+                              "was checked against the private registry."))
+        return [], None
+    fileset = found.fileset
+    read = _reader(fileset) if fileset is not None else None
+    resolvers = ident.resolver_files(fileset.paths(), read) if fileset is not None and read is not None else {}
+    candidates = [*_skill_candidates(found, options, read), *_config_candidates(found, gate, resolvers, read, notices)]
+    applied = "all"
+    if gate["scope"] == "changed" and ctx.run_kind() == "request":
+        changed = ci.changed_paths(options.root, ctx, env=options.env)
+        if changed is None:
+            notices.append(Notice("gate_scope_all", "", "The base revision of this request could not be read, so the registry "
+                                  "gate judged every item, not only the ones this request changes."))
+        else:
+            applied = "changed"
+            kinds = {doc.path: doc.kind for doc in found.documents}
+            _scope(candidates, set(changed), resolvers, options, ctx, kinds)
+    in_scope = [candidate for candidate in candidates if candidate.in_scope]
+    sent: dict[str, list[_Candidate]] = {
+        kind: [c for c in in_scope if c.kind == kind and c.identity is not None] for kind in LISTS}
+    caps = state.limits["check_max"]
+    over = [f"{len(sent[kind])} {LISTS[kind]} (at most {caps[LISTS[kind]]})" for kind in LISTS
+            if len(sent[kind]) > caps[LISTS[kind]]]
+    if over:
+        raise ConnectedFail("registry_check_too_large", "This run has more items to check against the private registry than "
+                            f"one call may carry: {', '.join(over)}. Narrow the scan with include or exclude, or split the "
+                            "repository into scan roots. The scan is incomplete.")
+    checked = sum(len(items) for items in sent.values())
+    if checked:
+        slug = state.session.org["slug"]
+        identity = (state.session.run or {}).get("identity") or ctx.repository_identity
+        body = {"schema": 1, "repository": {"identity": identity, "scope": state.scope, "head_sha": ctx.head_sha or ctx.sha,
+                                            "visibility": ctx.visibility or "private"},
+                **{LISTS[kind]: [candidate.body() for candidate in items] for kind, items in sent.items()}}
+        try:
+            answer = state.client.post(f"/v1/orgs/{slug}/ci/registry-check", body)
+        except ApiError as error:
+            raise _check_failed(error) from None
+        _verdicts(answer, sent, state.dashboard_url)
+    findings = []
+    for candidate in in_scope:
+        if candidate.identity is None:
+            finding = gates.gate_finding(candidate.kind, candidate.path, candidate.line, candidate.label or candidate.name, None,
+                                         candidate.reason or "unpinned", candidate.binding)
+        elif candidate.admitted is False:
+            finding = gates.gate_finding(candidate.kind, candidate.path, candidate.line, candidate.name, candidate.identity,
+                                         gates.NOT_ADMITTED)
+        else:
+            continue
+        findings.append(ReportFinding(finding, candidate.item))
+    registry = {"gate": True, "scope": gate["scope"], "scope_applied": applied, "stdio": gate["stdio"],
+                "plugins": gate["plugins"], "checked": checked,
+                "not_admitted": sum(1 for c in in_scope if c.admitted is False),
+                "unidentified": sum(1 for c in in_scope if c.identity is None),
+                "out_of_scope": len(candidates) - len(in_scope),
+                "items": [candidate.report_item() for candidate in candidates[:ITEMS_MAX]]}
+    return findings, registry
+
+
 # --- notices and the report block ------------------------------------------------------------------------------------
 
 def _version(text: str) -> tuple[int, ...]:
@@ -401,4 +770,5 @@ def org_rules_incomplete_error(ids: tuple[str, ...], path: str) -> Notice:
 
 
 __all__ = ["ConnectedFail", "ConnectedState", "ConnectedStop", "activation", "decide_stop",
-           "dependabot_candidates_in_scope", "establish", "make_client", "org_rule_budget", "report_block", "state_notices"]
+           "dependabot_candidates_in_scope", "establish", "make_client", "org_rule_budget", "report_block", "run_gate",
+           "state_notices"]

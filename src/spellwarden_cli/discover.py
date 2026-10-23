@@ -100,6 +100,9 @@ class Discovery:
     plugin_dirs: tuple[PluginDir, ...]
     notices: tuple[Notice, ...]
     errors: tuple[Notice, ...]
+    # The file set this discovery came from (O3 Task 9): the connected gate reads the directories the walk skipped, the
+    # paths the settings dropped and the resolver files from it. None for a discovery built by hand.
+    fileset: FileSet | None = field(default=None, compare=False, repr=False)
 
 
 def _named(path: str, suffix: str) -> bool:
@@ -591,7 +594,7 @@ def discover(fileset: FileSet) -> Discovery:
     if not items:
         builder.notices.append(Notice("no_agent_content", "", "No agent content found"))
     return Discovery(tuple(items), tuple(skills), tuple(builder.documents[p] for p in sorted(builder.documents)),
-                     tuple(dirs), tuple(builder.notices), tuple(builder.errors))
+                     tuple(dirs), tuple(builder.notices), tuple(builder.errors), fileset)
 
 
 def _owns(plugin: str, skill: str) -> bool:

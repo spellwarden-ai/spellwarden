@@ -49,6 +49,11 @@ class FileSet:
     notices: tuple[Notice, ...]
     errors: tuple[Notice, ...]
     links: tuple[LinkEntry, ...] = ()
+    # O3 spec 6.6, P48: what the connected gate needs to say that a skill's package cannot be hashed as a forge archive
+    # holds it. `skipped_dirs`: the SKIP_DIRS directories the walk did not enter (git mode lists them through the index,
+    # so it records none); `deselected`: every path `include` or `exclude` dropped. Scan-root paths, sorted.
+    skipped_dirs: tuple[str, ...] = ()
+    deselected: tuple[str, ...] = ()
 
     def paths(self) -> frozenset[str]:
         return frozenset(entry.path for entry in self.entries)
@@ -102,8 +107,9 @@ def list_files(root: str, settings: Settings, *, git: str | None = None, platfor
             prefix, listed = _git_listing(executable, top, root, notices, env)
         except _GitFailed as exc:
             notices.append(Notice("git_unavailable", "", f"git could not list the files ({exc}); the directory was walked"))
+    skipped: list[str] = []
     if listed is None:
-        listed = _walk(root, notices)
+        listed = _walk(root, notices, skipped)
         if top is not None:
             relative = os.path.relpath(root, top).replace(os.sep, "/")
             prefix = "" if relative == "." else relative + "/"
@@ -112,13 +118,14 @@ def list_files(root: str, settings: Settings, *, git: str | None = None, platfor
                                                              "paths are relative to the scan root, and code scanning or "
                                                              "Code Quality uploads need a scan inside a repository"))
     entries, links = _entries(root, listed, platform, notices, errors)
+    deselected = sorted({item.path for item in (*entries, *links) if not _selected(item.path, settings)})
     entries = [e for e in entries if _selected(e.path, settings)]
     links = [link for link in links if _selected(link.path, settings)]
     if platform == "win32" and any(not entry.tracked for entry in entries):
         notices.append(Notice("exec_bits_unknown", "", "Windows records no executable bit; untracked files were "
                                                        "judged not executable"))
     return FileSet(root, tuple(sorted(entries, key=lambda e: e.path)), prefix, tuple(notices), tuple(errors),
-                   tuple(sorted(links, key=lambda link: link.path)))
+                   tuple(sorted(links, key=lambda link: link.path)), tuple(sorted(skipped)), tuple(deselected))
 
 
 def _selected(path: str, settings: Settings) -> bool:
@@ -176,7 +183,7 @@ def _git_listing(executable: str, top: str, root: str, notices: list[Notice],
     return prefix, sorted(listed.items())
 
 
-def _walk(root: str, notices: list[Notice]) -> list[tuple[str, str | None]]:
+def _walk(root: str, notices: list[Notice], skipped: list[str]) -> list[tuple[str, str | None]]:
     found: list[tuple[str, str | None]] = []
     for directory, dirnames, filenames in os.walk(root, followlinks=False):
         base = os.path.relpath(directory, root).replace(os.sep, "/")
@@ -184,6 +191,8 @@ def _walk(root: str, notices: list[Notice]) -> list[tuple[str, str | None]]:
         kept = []
         for name in sorted(dirnames):
             if name in SKIP_DIRS:
+                if name != ".git":  # a repository's own metadata is no package content
+                    skipped.append(base + name)
                 continue
             if os.path.islink(os.path.join(directory, name)):
                 found.append((base + name, None))  # a linked directory is a listed link, never entered (r2:F6)

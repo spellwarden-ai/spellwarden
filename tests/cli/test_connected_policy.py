@@ -8,7 +8,7 @@ from pathlib import Path
 
 import jsonschema
 import pytest
-from conftest import (EXCHANGE_PATH, KEY_PATH, POLICY_PATH, connected_gitlab, credential, orgs_answer, org_rule, policy_answer,
+from conftest import (CHECK_PATH, EXCHANGE_PATH, KEY_PATH, POLICY_PATH, admit_all, connected_gitlab, credential, orgs_answer, org_rule, policy_answer,
                       probe_rule, scan_json, session_answer)
 
 from spellwarden_scan import __version__
@@ -31,6 +31,7 @@ def skill_repo(make_repo, tmp_path: Path, files: dict | None = None) -> Path:
 def serve(fake, answer: dict) -> None:
     fake.script("POST", EXCHANGE_PATH, 201, session_answer(run={"identity": "gitlab:gitlab.com/acme/tools", "event": "push"}))
     fake.script("GET", POLICY_PATH, 200, answer)
+    fake.script("POST", CHECK_PATH, 200, admit_all, times=5)  # these repositories hold skills: the gate checks them (6.6)
 
 
 def notice(report: dict, code: str) -> dict:
@@ -60,7 +61,7 @@ def test_org_rules_document_is_applied_and_reported(make_repo, run_cli, tmp_path
     lines = text.rstrip("\n").splitlines()
     assert lines[-2].endswith("failed at high")
     assert lines[-1] == ("Connected to Acme as gitlab:gitlab.com/acme/tools (oidc): 1 organisation rules (organisation rules, "
-                         "chosen by the organisation), registry gate on, scope changed")
+                         "chosen by the organisation), registry gate on, scope all")
     # SARIF carries the rule and the result, Markdown the section, Code Quality the check name
     document = json.loads(outputs["sarif"].read_text(encoding="utf-8"))
     (sarif_run,) = document["runs"]
@@ -88,7 +89,7 @@ def test_repository_pack_is_requested_and_reported(make_repo, run_cli, tmp_path,
     assert fake.requests[1][1] == f"{POLICY_PATH}?scanner={__version__}&pack={PACK}@1.4"
     assert out.rstrip("\n").splitlines()[-1] == ("Connected to Acme as gitlab:gitlab.com/acme/tools (oidc): 1 organisation "
                                                    "rules (pack Team pack 1.4, chosen by this repository), registry gate on, "
-                                                   "scope changed")
+                                                   "scope all")
 
 
 def test_a_pack_answer_with_no_org_rules_applies_the_baseline_only(make_repo, run_cli, tmp_path, api_double):
@@ -230,6 +231,7 @@ def test_the_key_path_reads_the_same_policy(make_repo, run_cli, tmp_path, api_do
     fake, _ = api_double
     fake.script("GET", KEY_PATH, 200, orgs_answer())
     fake.script("GET", POLICY_PATH, 200, policy_answer([org_rule()]))
+    fake.script("POST", CHECK_PATH, 200, admit_all)
     env = connected_gitlab(SPELLWARDEN_API_KEY=credential("swk"))
     code, report, _, _ = scan_json(run_cli, skill_repo(make_repo, tmp_path), env)
     assert code == 1 and report["connected"]["credential"] == "key"

@@ -127,6 +127,7 @@ HEAD = "2" * 40
 KEY_PATH = "/api/v1/orgs"
 POLICY_PATH = "/api/v1/orgs/acme/ci/policy"
 EXCHANGE_PATH = "/api/public/ci/token"
+CHECK_PATH = "/api/v1/orgs/acme/ci/registry-check"
 
 
 @pytest.fixture
@@ -193,6 +194,19 @@ def session_answer(token: str | None = None, run: dict | None = None) -> dict:
 def orgs_answer(*, access: str = "ci", orgs=None) -> dict:
     listing = [{"slug": "acme", "name": "Acme", "plan": "enterprise", "billing_state": "active", "reachable": True}]
     return {"orgs": listing if orgs is None else orgs, "caller": {"kind": "api_key", "access": access}}
+
+
+def admit_all(body: dict, *, refuse_server: bool = False, dashboard: str = "https://dash.spellwarden.ai/acme") -> dict:
+    """A registry-check answer computed from the request body (`FakeApi.script` takes it as the answer): every item
+    admitted, the first server not with `refuse_server`."""
+    answer: dict = {"schema": 1}
+    for name in ("skills", "servers", "stdio", "plugins", "marketplaces"):
+        answer[name] = [{"path": item["path"], "admitted": True, "exported_name": None, "request_url": None}
+                        for item in body.get(name, [])]
+    if refuse_server and answer["servers"]:
+        answer["servers"][0] = {"path": body["servers"][0]["path"], "admitted": False, "exported_name": None,
+                                "request_url_template": f"{dashboard}/mcp-servers?add=1&url="}
+    return answer
 
 
 def connected_github(tmp_path: Path, event: str = "push", payload: dict | None = None, **more: str) -> dict[str, str]:

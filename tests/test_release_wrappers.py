@@ -247,3 +247,46 @@ def test_tag_refuses_an_existing_release_tag(tmp_path):
     runner = Fake(_tag_answers({("git", "rev-parse", "--verify", "--quiet"): (0, ACTION_SHA)}))
     with pytest.raises(rw.ReleaseError, match="exists"):
         rw.tag(_ctx(tmp_path, runner, _gitlab_http()))
+
+
+# --- the three fixture trees (O3 plan P13) ------------------------------------------------------------------------------
+# `release-wrappers.py` copies scan-action/fixtures over scan-gitlab/fixtures and this repository's fixtures/repos, so
+# before a release the three trees are byte-equal. The connected fixtures (`connected/`, `make_repo.py`, `check.py`) are
+# committed here first and reach the wrappers in O3 Tasks 26 and 27: until a checkout holds `connected/`, it has not
+# received the 1.2.0 fixtures, and comparing it would only repeat that it is behind.
+
+FIXTURES = SCRIPTS.parents[0] / "fixtures" / "repos"
+
+
+def _fixture_gap(own: Path, other: Path) -> str | None:
+    """Why `other` is not compared with `own` (a reason to skip), or None when it is."""
+    if not other.is_dir():
+        return f"no checkout at {other}"
+    if (own / "connected").is_dir() and not (other / "connected").is_dir():
+        return f"{other} has not received the 1.2.0 fixtures yet (no connected/): O3 Tasks 26 and 27 copy them"
+    return None
+
+
+@pytest.mark.parametrize("sibling", ["scan-action", "scan-gitlab"])
+def test_fixtures_repos_equals_each_wrapper_checkout_that_has_the_1_2_0_fixtures(sibling):
+    other = FIXTURES.parents[2] / sibling / "fixtures"
+    reason = _fixture_gap(FIXTURES, other)
+    if reason is not None:
+        pytest.skip(reason)
+    own, theirs = rw._tree(FIXTURES), rw._tree(other)
+    assert sorted(own) == sorted(theirs)
+    assert [path for path in own if own[path] != theirs[path]] == []
+
+
+def test_a_sibling_is_compared_when_it_holds_the_connected_fixtures_and_skipped_before(tmp_path):
+    own, other = tmp_path / "own", tmp_path / "other"
+    (own / "connected").mkdir(parents=True)
+    assert _fixture_gap(own, tmp_path / "absent") is not None            # no checkout: nothing to compare
+    other.mkdir()
+    assert "has not received" in _fixture_gap(own, other)               # a checkout from before 1.2.0: skipped, with a reason
+    (other / "connected").mkdir()
+    assert _fixture_gap(own, other) is None                             # it has them: the trees must be equal
+    (own / "connected").rmdir()
+    other_without = tmp_path / "older"
+    other_without.mkdir()
+    assert _fixture_gap(own, other_without) is None                     # nothing connected to receive: compared as ever

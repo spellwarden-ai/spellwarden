@@ -20,7 +20,7 @@ import stat
 import subprocess
 import sys
 import tempfile
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from urllib.parse import urlsplit
 
@@ -485,9 +485,10 @@ class _TemporaryUnusable(OSError):
 
 
 def _run_git(executable: str, top: str, root: str, *args: str, timeout: float = GIT_TIMEOUT,
-             env: Mapping[str, str] | None = None) -> bytes:
+             env: Mapping[str, str] | None = None, stdin: bytes | None = None) -> bytes:
     """`git -c safe.directory=<top> -c core.fsmonitor=false -C <root> <args>` (the form of `files._git`, spec 6.4), with
-    a timeout per call and no prompt; raises `OSError` naming the failure."""
+    a timeout per call and no prompt; raises `OSError` naming the failure. `stdin` is the bytes git reads (through a
+    temporary file, like its output), else nothing."""
     command = [executable, "-c", f"safe.directory={top.replace(os.sep, '/')}", "-c", "core.fsmonitor=false",
                "-C", root, *args]
     environment = {**(env if env is not None else os.environ), "GIT_TERMINAL_PROMPT": "0"}
@@ -497,13 +498,16 @@ def _run_git(executable: str, top: str, root: str, *args: str, timeout: float = 
              else {"start_new_session": True})
     try:
         out, err = tempfile.TemporaryFile(), tempfile.TemporaryFile()
+        given = tempfile.TemporaryFile()
+        given.write(stdin or b"")
+        given.seek(0)
     except OSError as exc:
         raise _TemporaryUnusable(f"the temporary directory is unusable ({type(exc).__name__}), so git's output cannot be "
                                  "captured") from exc
-    with out, err:
+    with out, err, given:
         try:
-            process = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=out, stderr=err, env=environment,
-                                       **group)
+            process = subprocess.Popen(command, stdin=given if stdin is not None else subprocess.DEVNULL, stdout=out,
+                                       stderr=err, env=environment, **group)
         except (OSError, ValueError, subprocess.SubprocessError) as exc:
             raise OSError(f"git could not run ({type(exc).__name__})") from exc
         try:
@@ -578,9 +582,10 @@ class _Repository:
         except (OSError, UnicodeDecodeError) as exc:
             raise RevisionUnavailable(f"git cannot read the work tree ({exc})") from exc
 
-    def _git(self, *args: str, timeout: float = GIT_TIMEOUT, env: Mapping[str, str] | None = None) -> bytes:
+    def _git(self, *args: str, timeout: float = GIT_TIMEOUT, env: Mapping[str, str] | None = None,
+             stdin: bytes | None = None) -> bytes:
         return _run_git(self.executable, self.top, self.root, *args, timeout=timeout,
-                        env=self.env if env is None else env)
+                        env=self.env if env is None else env, stdin=stdin)
 
     def has_commit(self, sha: str) -> bool:
         try:
@@ -734,6 +739,26 @@ def changed_paths(root: str, ctx: CiContext, *, git: str | None = None, env: Map
     except (RevisionUnavailable, OSError):
         return None
     return sorted({name.decode("utf-8", "surrogateescape") for name in listing.split(b"\0") if name})
+
+
+def export_attribute_paths(root: str, paths: Iterable[str], *, git: str | None, env: Mapping[str, str]) -> list[str] | None:
+    """O3 spec 5.1, P55: forge archives are `git archive` output, which honours `export-ignore` and `export-subst`. In a
+    git work tree, `git check-attr export-ignore export-subst --stdin` over the scan-root-relative `paths`: the sorted
+    paths whose value for either attribute is anything but `unspecified` (`unset` and `set` count). None outside a work
+    tree, or when git cannot answer: the caller then falls back to the `.gitattributes` text."""
+    names = sorted(set(paths))
+    try:
+        repository = _Repository(root, git, env)
+        if not names:
+            return []
+        out = repository._git("check-attr", "-z", "--stdin", "export-ignore", "export-subst",
+                              stdin=b"".join(name.encode("utf-8", "surrogateescape") + b"\0" for name in names))
+    except (RevisionUnavailable, OSError):
+        return None
+    fields = out.split(b"\0")
+    found = {fields[index].decode("utf-8", "surrogateescape") for index in range(0, len(fields) - 2, 3)
+             if fields[index + 2] != b"unspecified"}
+    return sorted(found)
 
 
 def read_at_base(root: str, ctx: CiContext, path: str, *, git: str | None = None, env: Mapping[str, str]) -> bytes | None:

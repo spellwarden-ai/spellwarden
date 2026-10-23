@@ -71,7 +71,7 @@ def test_org_with_gitlab_id_token_exchanges_and_uses_the_ci_token(make_repo, run
     assert block["credential"] == "oidc" and block["org"] == {"slug": "acme", "name": "Acme"}
     assert block["run"]["identity"] == "gitlab:gitlab.com/acme/tools" and block["run"]["scope"] == ""  # the server's run
     assert (block["run"]["kind"], block["run"]["event"], block["run"]["ref_name"]) == ("default_branch", "push", "main")
-    assert block["registry"] is None and block["upload"] is None
+    assert block["registry"]["checked"] == 0 and block["registry"]["items"] == [] and block["upload"] is None  # the gate ran
     assert [e for e in report["errors"]] == [] and "connected_fallback" not in codes(report["notices"])
     for secret in (swt, ID_TOKEN):
         assert secret not in out + err
