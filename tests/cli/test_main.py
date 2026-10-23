@@ -177,3 +177,180 @@ def test_hostile_names_are_escaped_in_text_and_json(make_repo, run_cli, tmp_path
     assert "‮" not in out and "\x1b" not in out and "evil\\u{202E}\\x1b[31m" in out
     code, out, _ = run_cli(["scan", str(repo), "--format", "json"])
     assert "‮" not in out and "\x1b" not in out and "\\u202e" in out
+
+
+# --- O3 spec 6.2, invariant 2, claims E5 and E6 ------------------------------------------------------------------------
+
+from conftest import credential  # noqa: E402
+
+CREDENTIAL_VARIABLES = ("SPELLWARDEN_API_KEY", "SPELLWARDEN_ID_TOKEN", "ACTIONS_ID_TOKEN_REQUEST_URL",
+                        "ACTIONS_ID_TOKEN_REQUEST_TOKEN")
+
+
+def _json(run_cli, repo, *args, env=None, as_of="2026-12-01"):
+    given = ["--as-of", as_of] if as_of else []
+    code, out, err = run_cli(["scan", str(repo), "--format", "json", "--no-telemetry", *given, *args], env=env)
+    return code, (json.loads(out) if out else None), err
+
+
+def test_both_credentials_is_connected_config_exit_2_and_no_request(make_repo, run_cli, tmp_path, monkeypatch):
+    repo = _repo(make_repo, tmp_path)
+    listed = []
+    monkeypatch.setattr(files, "list_files", lambda *_a, **_k: listed.append(1))  # nothing is read once the run is refused
+    code, report, err = _json(run_cli, repo, env={"SPELLWARDEN_ORG": "acme", "SPELLWARDEN_API_KEY": credential("swk")})
+    assert code == 2 and [e["code"] for e in report["errors"]] == ["connected_config"] and listed == []
+    assert report["findings"] == [] and "connected" not in report
+    assert credential("swk") not in json.dumps(report) + err
+
+
+@pytest.mark.parametrize("value", [credential("swc"), credential("swt"), "sw" + "k_" + "a" * 39, "sw" + "k_" + "a" * 41,
+                                   "sw" + "k_" + "a" * 39 + "!", "not a key"])
+def test_invalid_key_shape_is_connected_key_invalid_with_no_request(make_repo, run_cli, tmp_path, value, monkeypatch):
+    repo = _repo(make_repo, tmp_path)
+    monkeypatch.setattr(files, "list_files", lambda *_a, **_k: pytest.fail("a refused key must stop the run first"))
+    code, report, err = _json(run_cli, repo, env={"SPELLWARDEN_API_KEY": value})
+    assert code == 2 and [e["code"] for e in report["errors"]] == ["connected_key_invalid"]
+    assert value not in json.dumps(report) + err
+
+
+def test_a_valid_key_shape_is_accepted_and_the_run_goes_on(make_repo, run_cli, tmp_path):
+    repo = _repo(make_repo, tmp_path)
+    code, report, err = _json(run_cli, repo, env={"SPELLWARDEN_API_KEY": credential("swk")}, as_of=None)
+    assert code == 1 and report["errors"] == [] and [f["rule_id"] for f in report["findings"]] == ["SW-SKL-007"]
+    assert credential("swk") not in json.dumps(report) + err
+
+
+def test_as_of_in_connected_mode_is_connected_config(make_repo, run_cli, tmp_path):
+    repo = _repo(make_repo, tmp_path)
+    code, report, _ = _json(run_cli, repo, env={"SPELLWARDEN_ORG": "acme"})
+    assert code == 2 and [e["code"] for e in report["errors"]] == ["connected_config"]
+    assert "--as-of" in report["errors"][0]["message"]
+    code, report, _ = _json(run_cli, repo, env={"SPELLWARDEN_API_KEY": credential("swk")})
+    assert [e["code"] for e in report["errors"]] == ["connected_config"]
+    # free mode: --as-of is as before
+    code, report, _ = _json(run_cli, repo)
+    assert code == 1 and report["errors"] == []
+    # without --as-of the connected variables alone do not stop the scan
+    code, out, _ = run_cli(["scan", str(repo), "--format", "json", "--no-telemetry"], env={"SPELLWARDEN_ORG": "acme"})
+    assert json.loads(out)["errors"] == []
+
+
+def test_as_of_with_required_true_in_ci_is_connected_config(make_repo, run_cli, tmp_path):
+    repo = _repo(make_repo, tmp_path, {".spellwarden/config.yml": "version: 1\nconnected:\n  required: true\n"})
+    event = tmp_path / "event.json"
+    event.write_text('{"ref": "refs/heads/main"}', encoding="utf-8")
+    ci_env = {"CI": "true", "GITHUB_ACTIONS": "true", "GITHUB_EVENT_NAME": "push", "GITHUB_EVENT_PATH": str(event),
+              "GITHUB_REPOSITORY": "acme/agents"}
+    code, report, _ = _json(run_cli, repo, env=ci_env)
+    assert code == 2 and [e["code"] for e in report["errors"]] == ["connected_config"]
+    code, report, _ = _json(run_cli, repo)  # local: required without CI does not turn connected mode on
+    assert report["errors"] == []
+
+
+def test_the_four_variables_are_gone_from_the_environment_the_scan_receives(make_repo, run_cli, tmp_path, monkeypatch):
+    repo = _repo(make_repo, tmp_path)
+    captured: list = []
+    real = run.scan
+
+    def spy(options):
+        captured.append((options, dict(os.environ)))
+        return real(options)
+
+    monkeypatch.setattr(run, "scan", spy)
+    values = {"SPELLWARDEN_API_KEY": credential("swk"), "SPELLWARDEN_ID_TOKEN": "idt0ken",
+              "ACTIONS_ID_TOKEN_REQUEST_URL": "http://127.0.0.1:1/t", "ACTIONS_ID_TOKEN_REQUEST_TOKEN": "r3qt0k",
+              "SPELLWARDEN_ORG": "acme"}
+    values.pop("SPELLWARDEN_ORG")  # org and key together are refused before the scan reads anything
+    _json(run_cli, repo, env=values, as_of=None)
+    options, environment = captured[0]
+    assert not set(CREDENTIAL_VARIABLES) & set(options.env) and not set(CREDENTIAL_VARIABLES) & set(environment)
+    creds = options.credentials
+    assert (creds.key.value, creds.id_token.value, creds.request_url.value, creds.request_token.value) == (
+        values["SPELLWARDEN_API_KEY"], "idt0ken", "http://127.0.0.1:1/t", "r3qt0k")
+    assert repr(creds).count("***") >= 4 and "idt0ken" not in repr(creds)
+
+
+def test_every_git_call_of_a_scan_gets_an_explicit_environment_without_the_credentials(make_repo, run_cli, tmp_path, monkeypatch):
+    from spellwarden_cli import ci
+
+    repo = _repo(make_repo, tmp_path)
+    environments: list = []
+    real_run = files.subprocess.run
+
+    def spy(command, *args, **kwargs):
+        name = str(command[0]).replace("\\", "/").rsplit("/", 1)[-1].lower().removesuffix(".exe")  # Windows runs git.exe
+        if command and name == "git":
+            environments.append(kwargs.get("env"))
+        return real_run(command, *args, **kwargs)
+
+    monkeypatch.setattr(files.subprocess, "run", spy)
+    _json(run_cli, repo, env={"SPELLWARDEN_API_KEY": credential("swk"), "ACTIONS_ID_TOKEN_REQUEST_TOKEN": "r3qt0k"},
+          as_of=None)
+    assert environments and all(env is not None for env in environments)
+    assert all(not set(CREDENTIAL_VARIABLES) & set(env) for env in environments)
+    assert ci.git_remote_of  # the remote lookup takes the same explicit environment (tests/cli/test_ci.py)
+
+
+@pytest.mark.parametrize("raw, honoured", [
+    ("http://127.0.0.1:8123/api", "http://127.0.0.1:8123/api"), ("http://[::1]:8123/api", "http://[::1]:8123/api"),
+    ("http://localhost:8123/api", "http://127.0.0.1:8123/api"),
+    ("https://example.com/api", None), ("http://example.com:80/api", None), ("http://127.0.0.1/api", None),
+    ("http://127.0.0.1:0/api", None), ("ftp://127.0.0.1:21/", None)])
+def test_api_url_is_honoured_for_loopback_forms_only_and_prints_api_url_override(make_repo, run_cli, tmp_path, monkeypatch,
+                                                                              raw, honoured):
+    repo = _repo(make_repo, tmp_path)
+    captured: list = []
+    real = run.scan
+    monkeypatch.setattr(run, "scan", lambda options: (captured.append(options), real(options))[1])
+    code, report, err = _json(run_cli, repo, "--verbose", env={"SPELLWARDEN_API_URL": raw})
+    assert captured[0].api_url == honoured
+    notices = [n["code"] for n in report["notices"]]
+    if honoured is None:
+        assert "api_url_override" not in notices and "SPELLWARDEN_API_URL ignored" in err
+    else:
+        assert "api_url_override" in notices and "SPELLWARDEN_API_URL ignored" not in err
+
+
+def test_without_the_variable_there_is_no_override_notice_and_no_line(make_repo, run_cli, tmp_path):
+    code, report, err = _json(run_cli, _repo(make_repo, tmp_path), "--verbose")
+    assert "api_url_override" not in [n["code"] for n in report["notices"]] and "SPELLWARDEN_API_URL" not in err
+
+
+def test_no_credential_appears_in_any_artefact(make_repo, run_cli, tmp_path):
+    repo = _repo(make_repo, tmp_path)
+    secrets = {"SPELLWARDEN_API_KEY": credential("swk"), "SPELLWARDEN_ID_TOKEN": "idt0ken-" + "x" * 12,
+               "ACTIONS_ID_TOKEN_REQUEST_URL": "http://127.0.0.1:9/token-endpoint-url",
+               "ACTIONS_ID_TOKEN_REQUEST_TOKEN": "r3qt0ken-" + "y" * 12}
+    outputs = {fmt: tmp_path / f"out.{fmt}" for fmt in ("json", "sarif", "markdown", "gitlab-codequality", "text")}
+    args = ["scan", str(repo), "--no-telemetry", "--verbose"]
+    for fmt, path in outputs.items():
+        args += ["--format", fmt, "--output", str(path)]
+    code, out, err = run_cli(args, env={**secrets, "SPELLWARDEN_API_URL": "http://127.0.0.1:9/api"})
+    haystack = out + err + "".join(path.read_text(encoding="utf-8") for path in outputs.values())
+    assert haystack
+    for value in secrets.values():
+        assert value not in haystack
+
+
+def _captured_options(monkeypatch):
+    captured: list = []
+    real = run.scan
+    monkeypatch.setattr(run, "scan", lambda options: (captured.append(options), real(options))[1])
+    return captured
+
+
+@pytest.mark.parametrize(("sub", "scope"), [("", ""), ("services/agent", "services/agent"), ("a b", None)])
+def test_the_scan_scope_is_computed_once_in_cmd_scan_and_passed_on_the_options(make_repo, run_cli, tmp_path, monkeypatch,
+                                                                              sub, scope):
+    """O3 P41: the grammar of 8.4 decides; a root outside it is None, which connected mode refuses before any request."""
+    repo = make_repo(tmp_path / "repo", {"README.md": "x\n", **({f"{sub}/README.md": "x\n"} if sub else {})})
+    captured = _captured_options(monkeypatch)
+    code, _, _ = _json(run_cli, repo / sub if sub else repo)
+    assert code == 0 and [options.scope for options in captured] == [scope]
+
+
+def test_the_scope_outside_a_repository_is_empty(run_cli, tmp_path, monkeypatch):
+    (tmp_path / "plain").mkdir()
+    captured = _captured_options(monkeypatch)
+    _json(run_cli, tmp_path / "plain")
+    assert captured[0].scope == ""

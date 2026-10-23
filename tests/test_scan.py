@@ -86,3 +86,48 @@ def test_a_nul_byte_does_not_turn_a_text_file_into_binary():
     ids = {(f.rule_id, f.location.path) for f in result.findings}
     assert ("SW-SKL-001", "SKILL.md") in ids
     assert any(path == "scripts/run.sh" and rule == "SW-SKL-004" for rule, path in ids), ids
+
+
+def test_scan_skill_package_sets_package_sha256():
+    from spellwarden_scan.identity import package_files, package_sha256
+
+    files = make_package({"skills/a/SKILL.md": clean_md(), "skills/a/x.py": "print()\n", "skills/a/inner/SKILL.md": clean_md("inner"),
+                          "skills/a/inner/y.py": "print(1)\n", "skills/a/.DS_Store": b"f"})
+    result = scan_skill_package(files, RULES, root="skills/a", nested_roots=["skills/a/inner"])
+    expected = package_sha256(package_files(files, "skills/a", ["skills/a/inner"]).files)
+    assert result.package_sha256 == expected == canonical_sha256({"SKILL.md": files["skills/a/SKILL.md"], "x.py": b"print()\n"})
+    assert result.sha256 == canonical_sha256(files)   # the existing hash is unchanged: every file as given
+    assert result.to_dict()["package_sha256"] == expected
+
+
+def test_package_sha256_is_none_when_the_package_is_unhashable():
+    files = make_package({"SKILL.md": clean_md(), "node_modules/x/index.js": "x\n"})
+    result = scan_skill_package(files, RULES)
+    assert result.package_sha256 is None and result.to_dict()["package_sha256"] is None
+    assert result.sha256 == canonical_sha256(files)
+
+
+def test_package_sha256_without_a_root_equals_sha256_for_a_plain_package():
+    files = make_package({"SKILL.md": clean_md(), "scripts/run.sh": "echo hi\n"})
+    result = scan_skill_package(files, RULES)
+    assert result.package_sha256 == result.sha256
+
+
+def test_scan_results_differ_from_1_1_1_only_by_package_sha256():
+    """`tests/golden/scan-results-1.1.1.json` is every skill fixture's result recorded by 1.1.1 before `package_sha256`
+    existed. The two version stamps move with each release, so they are not compared."""
+    import json
+    from pathlib import Path
+
+    from conftest import load_skill_fixture
+
+    recorded = json.loads((Path(__file__).resolve().parent / "golden" / "scan-results-1.1.1.json").read_text())
+    assert len(recorded) >= 34
+    for key, row in recorded.items():
+        rule_id, side = key.split("/")
+        files, expected = load_skill_fixture(rule_id, side)
+        result = scan_skill_package(files, RULES, root=expected.get("root", "")).to_dict()
+        assert "package_sha256" in result, key
+        for stamp in ("package_sha256", "rules_version", "scanner_version"):
+            result.pop(stamp), row["result"].pop(stamp, None)
+        assert result == row["result"], key

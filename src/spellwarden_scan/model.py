@@ -7,7 +7,7 @@ from dataclasses import dataclass, field, fields
 from typing import Any, Literal
 
 Severity = Literal["critical", "high", "medium", "low"]
-Area = Literal["skill", "mcp", "config"]
+Area = Literal["skill", "mcp", "config", "registry"]
 SEVERITY_RANK: dict[str, int] = {"critical": 0, "high": 1, "medium": 2, "low": 3}
 
 
@@ -101,6 +101,9 @@ class SkillScanResult(_Model):
     files_scanned: int
     rules_version: str
     scanner_version: str
+    # O3 spec 5.1: `identity.package_sha256` of the package as a forge archive of its directory holds it, None when the
+    # package is unhashable (a `node_modules`-like directory). Written by `to_dict` always.
+    package_sha256: str | None = None
     # Phase C spec 5.2.2: the org rules the time budget stopped; written by `to_dict` only when non-empty, so every
     # 1.0.0 output stays byte-identical (plan decision P-ORG-3).
     org_rules_incomplete: tuple[str, ...] = ()
@@ -252,6 +255,28 @@ class MarketplacePlugin(_Model):
     name: str
     line: int
     source: PluginSource
+    # O3 spec 5.1: sha256 of the canonical JSON of the entry as parsed; the binding of an SW-REG-003 acceptance (P48).
+    # Not a lock input. Defaults to "" so a dict written by 1.1.x still loads through `from_dict` (minor release).
+    raw_sha256: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class MarketplaceDecl(_Model):
+    """One `extraKnownMarketplaces` entry of a Claude Code settings file (O3 spec 5.1): the marketplace's name, its
+    source and the hash of the entry as parsed."""
+    name: str
+    source: PluginSource
+    line: int
+    raw_sha256: str
+
+
+@dataclass(frozen=True, slots=True)
+class EnabledPlugin(_Model):
+    """One `enabledPlugins` entry, `"<plugin>@<marketplace>": bool` (O3 spec 5.1)."""
+    plugin: str
+    marketplace: str
+    enabled: bool
+    line: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -269,6 +294,17 @@ class ConfigDocument(_Model):
     references: tuple[str, ...]
     truncated: bool
     sha256: str
+    # O3 spec 5.1: settings documents only; written by `to_dict` only when non-empty, so every 1.0.0 output stays
+    # byte-identical.
+    marketplaces: tuple[MarketplaceDecl, ...] = ()
+    enabled_plugins: tuple[EnabledPlugin, ...] = ()
+
+    def to_dict(self) -> dict:
+        data = _Model.to_dict(self)
+        for name in ("marketplaces", "enabled_plugins"):
+            if not data.get(name):
+                data.pop(name, None)
+        return data
 
 
 @dataclass(frozen=True, slots=True)
@@ -293,6 +329,9 @@ _NESTED: dict[tuple[str, str], tuple[str, type]] = {
     ("CurationInputs", "open_findings"): ("many", Finding),
     ("CurationInputs", "accepted_findings"): ("many", Finding),
     ("MarketplacePlugin", "source"): ("one", PluginSource),
+    ("MarketplaceDecl", "source"): ("one", PluginSource),
+    ("ConfigDocument", "marketplaces"): ("many", MarketplaceDecl),
+    ("ConfigDocument", "enabled_plugins"): ("many", EnabledPlugin),
     ("ConfigDocument", "servers"): ("many", McpServerEntry),
     ("ConfigDocument", "hooks"): ("many", HookCommand),
     ("ConfigDocument", "settings"): ("many", SettingFlag),

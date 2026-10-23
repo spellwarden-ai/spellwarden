@@ -20,7 +20,7 @@ HOOK_PATH, HOOK_LINE = ".claude/settings.json", 7
 
 
 def test_the_config_area_and_its_ids_are_accepted():
-    assert AREAS == ("skill", "mcp", "config")
+    assert AREAS == ("skill", "mcp", "config", "registry")
     assert RULE_ID_RE.match("SW-CFG-001") and RULE_ID_RE.match("SW-SKL-001") and RULE_ID_RE.match("SW-MCP-011")
     assert not RULE_ID_RE.match("SW-CFG-01") and not RULE_ID_RE.match("SW-XYZ-001")
     extra = make_rule("SW-CFG-999", "Test rule", "low", "config", owasp=("ASI04",), nist=("SR-3",), detect=lambda _c: iter(()))

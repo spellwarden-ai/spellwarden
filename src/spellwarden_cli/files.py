@@ -9,7 +9,10 @@ import stat
 import subprocess
 import sys
 import unicodedata
+from collections.abc import Mapping
 from dataclasses import dataclass
+
+from spellwarden_scan import identity
 
 from spellwarden_cli import paths
 from spellwarden_cli.report import Notice
@@ -17,7 +20,7 @@ from spellwarden_cli.settings import Settings, glob_match
 
 FILE_MAX = 10 * 2**20
 LINK_MAX = 4096  # the longest symbolic link target read (PATH_MAX on Linux)
-SKIP_DIRS = (".git", "node_modules", ".venv", "venv", "__pycache__")
+SKIP_DIRS = (".git", *identity.SKIP_DIRS)
 _GIT_TIMEOUT = 120
 
 
@@ -46,6 +49,11 @@ class FileSet:
     notices: tuple[Notice, ...]
     errors: tuple[Notice, ...]
     links: tuple[LinkEntry, ...] = ()
+    # O3 spec 6.6, P48: what the connected gate needs to say that a skill's package cannot be hashed as a forge archive
+    # holds it. `skipped_dirs`: the SKIP_DIRS directories the walk did not enter (git mode lists them through the index,
+    # so it records none); `deselected`: every path `include` or `exclude` dropped. Scan-root paths, sorted.
+    skipped_dirs: tuple[str, ...] = ()
+    deselected: tuple[str, ...] = ()
 
     def paths(self) -> frozenset[str]:
         return frozenset(entry.path for entry in self.entries)
@@ -83,8 +91,10 @@ def work_tree_top(root: str) -> str | None:
         current = parent
 
 
-def list_files(root: str, settings: Settings, *, git: str | None = None, platform: str = sys.platform) -> FileSet:
-    """`git=None` looks git up on `PATH`; `git=""` disables it (the walk). Entries are sorted by path."""
+def list_files(root: str, settings: Settings, *, git: str | None = None, platform: str = sys.platform,
+               env: Mapping[str, str] | None = None) -> FileSet:
+    """`git=None` looks git up on `PATH`; `git=""` disables it (the walk). Entries are sorted by path. Git runs with
+    the explicit environment `env` (else a copy of ours; O3 invariant 2)."""
     root = os.path.abspath(root)
     notices: list[Notice] = []
     errors: list[Notice] = []
@@ -94,11 +104,12 @@ def list_files(root: str, settings: Settings, *, git: str | None = None, platfor
     prefix: str | None = None
     if top is not None and executable:
         try:
-            prefix, listed = _git_listing(executable, top, root, notices)
+            prefix, listed = _git_listing(executable, top, root, notices, env)
         except _GitFailed as exc:
             notices.append(Notice("git_unavailable", "", f"git could not list the files ({exc}); the directory was walked"))
+    skipped: list[str] = []
     if listed is None:
-        listed = _walk(root, notices)
+        listed = _walk(root, notices, skipped)
         if top is not None:
             relative = os.path.relpath(root, top).replace(os.sep, "/")
             prefix = "" if relative == "." else relative + "/"
@@ -107,13 +118,14 @@ def list_files(root: str, settings: Settings, *, git: str | None = None, platfor
                                                              "paths are relative to the scan root, and code scanning or "
                                                              "Code Quality uploads need a scan inside a repository"))
     entries, links = _entries(root, listed, platform, notices, errors)
+    deselected = sorted({item.path for item in (*entries, *links) if not _selected(item.path, settings)})
     entries = [e for e in entries if _selected(e.path, settings)]
     links = [link for link in links if _selected(link.path, settings)]
     if platform == "win32" and any(not entry.tracked for entry in entries):
         notices.append(Notice("exec_bits_unknown", "", "Windows records no executable bit; untracked files were "
                                                        "judged not executable"))
     return FileSet(root, tuple(sorted(entries, key=lambda e: e.path)), prefix, tuple(notices), tuple(errors),
-                   tuple(sorted(links, key=lambda link: link.path)))
+                   tuple(sorted(links, key=lambda link: link.path)), tuple(sorted(skipped)), tuple(deselected))
 
 
 def _selected(path: str, settings: Settings) -> bool:
@@ -122,11 +134,12 @@ def _selected(path: str, settings: Settings) -> bool:
     return not any(glob_match(path, pattern) for pattern in settings.exclude)
 
 
-def _git(executable: str, top: str, root: str, *args: str) -> bytes:
+def _git(executable: str, top: str, root: str, *args: str, env: Mapping[str, str] | None = None) -> bytes:
     command = [executable, "-c", f"safe.directory={top.replace(os.sep, '/')}", "-c", "core.fsmonitor=false",
                "-C", root, *args]
     try:
-        done = subprocess.run(command, capture_output=True, check=False, timeout=_GIT_TIMEOUT, stdin=subprocess.DEVNULL)
+        done = subprocess.run(command, capture_output=True, check=False, timeout=_GIT_TIMEOUT, stdin=subprocess.DEVNULL,
+                              env=dict(os.environ) if env is None else dict(env))
     except (OSError, subprocess.SubprocessError) as exc:
         raise _GitFailed(type(exc).__name__) from exc
     if done.returncode != 0:
@@ -143,10 +156,11 @@ def _decode(raw: bytes, notices: list[Notice]) -> str | None:
         return None
 
 
-def _git_listing(executable: str, top: str, root: str, notices: list[Notice]) -> tuple[str, list[tuple[str, str | None]]]:
-    prefix = _git(executable, top, root, "rev-parse", "--show-prefix").decode("utf-8", "replace").strip()
-    staged = _git(executable, top, root, "ls-files", "-z", "--stage", "--full-name")
-    others = _git(executable, top, root, "ls-files", "-z", "--others", "--exclude-standard", "--full-name")
+def _git_listing(executable: str, top: str, root: str, notices: list[Notice],
+                 env: Mapping[str, str] | None = None) -> tuple[str, list[tuple[str, str | None]]]:
+    prefix = _git(executable, top, root, "rev-parse", "--show-prefix", env=env).decode("utf-8", "replace").strip()
+    staged = _git(executable, top, root, "ls-files", "-z", "--stage", "--full-name", env=env)
+    others = _git(executable, top, root, "ls-files", "-z", "--others", "--exclude-standard", "--full-name", env=env)
     listed: dict[str, str | None] = {}
     for record in staged.split(b"\0"):
         if not record:
@@ -169,7 +183,7 @@ def _git_listing(executable: str, top: str, root: str, notices: list[Notice]) ->
     return prefix, sorted(listed.items())
 
 
-def _walk(root: str, notices: list[Notice]) -> list[tuple[str, str | None]]:
+def _walk(root: str, notices: list[Notice], skipped: list[str]) -> list[tuple[str, str | None]]:
     found: list[tuple[str, str | None]] = []
     for directory, dirnames, filenames in os.walk(root, followlinks=False):
         base = os.path.relpath(directory, root).replace(os.sep, "/")
@@ -177,6 +191,8 @@ def _walk(root: str, notices: list[Notice]) -> list[tuple[str, str | None]]:
         kept = []
         for name in sorted(dirnames):
             if name in SKIP_DIRS:
+                if name != ".git":  # a repository's own metadata is no package content
+                    skipped.append(base + name)
                 continue
             if os.path.islink(os.path.join(directory, name)):
                 found.append((base + name, None))  # a linked directory is a listed link, never entered (r2:F6)

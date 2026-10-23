@@ -3,6 +3,7 @@ environment and the event file, the trust rule for private probing, and the pseu
 from __future__ import annotations
 
 import json
+import os
 
 import pytest
 
@@ -322,3 +323,225 @@ def merge_request(**more: str):
 ])
 def test_the_base_sha_of_each_event(ctx, base_sha):
     assert ctx().base_sha == base_sha
+
+
+def test_git_remote_of_gets_an_explicit_environment(make_repo, tmp_path, monkeypatch):
+    """O3 invariant 2: the subprocess of `git_remote_of` gets the environment it was given, not ours by inheritance."""
+    repo = make_repo(tmp_path / "r", {"README.md": "x\n"})
+    seen: list = []
+    real = ci.subprocess.run
+
+    def spy(command, *args, **kwargs):
+        seen.append(kwargs.get("env"))
+        return real(command, *args, **kwargs)
+
+    monkeypatch.setattr(ci.subprocess, "run", spy)
+    given = {**os.environ, "MARKER_FOR_TEST": "1"}
+    ci.git_remote_of(str(repo), env=given)
+    assert len(seen) == 1 and seen[0]["MARKER_FOR_TEST"] == "1" and seen[0] is not given
+    ci.git_remote_of(str(repo))
+    assert isinstance(seen[1], dict) and "MARKER_FOR_TEST" not in seen[1]
+
+
+def test_the_base_revision_reads_run_git_with_the_given_environment(make_repo, tmp_path, monkeypatch):
+    repo = make_repo(tmp_path / "r", {"README.md": "x\n"})
+    seen: list = []
+    real = ci._run_git
+
+    def spy(*args, **kwargs):
+        seen.append(kwargs.get("env"))
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(ci, "_run_git", spy)
+    sha = ci.subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"], capture_output=True, text=True,
+                            check=True).stdout.strip()
+    given = {**os.environ, "MARKER_FOR_TEST": "1"}
+    assert ci.read_at_revision(str(repo), sha, "README.md", max_bytes=100, env=given) == b"x\n"
+    assert seen and all(env is not None and env.get("MARKER_FOR_TEST") == "1" for env in seen)
+
+
+# --- O3 spec 6.8: the run context (claim E12) -----------------------------------------------------------------------
+
+SHA = "1" * 40
+HEAD = "2" * 40
+
+
+def push_payload(**repository: object) -> dict:
+    return {"repository": {"default_branch": "main", "visibility": "private", **repository}}
+
+
+GITHUB_RUN = {"GITHUB_SHA": SHA, "GITHUB_REF_NAME": "main", "GITHUB_RUN_ID": "9001", "GITHUB_RUN_ATTEMPT": "2",
+              "GITHUB_JOB": "scan", "GITHUB_REPOSITORY": "Acme/Tools"}
+
+
+def test_github_run_context_on_push():
+    ctx = github("push", payload=push_payload(visibility="internal"), **GITHUB_RUN)
+    assert ctx.repository_url == "https://github.com/Acme/Tools"  # the URL keeps its case, the identity does not
+    assert ctx.repository_identity == "github:github.com/acme/tools"
+    assert (ctx.sha, ctx.ref_name, ctx.default_branch) == (SHA, "main", "main")
+    assert ctx.visibility == "private"  # `internal` is not public everywhere
+    assert ctx.run_url == "https://github.com/Acme/Tools/actions/runs/9001"
+    assert (ctx.job, ctx.attempt) == ("scan", 2)
+    assert (ctx.head_sha, ctx.head_ref) == (None, None)
+    assert github("push", payload=push_payload(visibility="public"), **GITHUB_RUN).visibility == "public"
+    assert github("push", payload=push_payload(visibility="private"), **GITHUB_RUN).visibility == "private"
+    assert github("push", payload={}, **GITHUB_RUN).visibility == "private"  # an unreadable payload is not public
+    assert github("push", payload={}, **GITHUB_RUN).default_branch is None
+
+
+def test_github_enterprise_identity_keeps_a_non_default_port_and_attempt_defaults_to_one():
+    ctx = github("push", payload={}, GITHUB_SERVER_URL="https://GHE.acme.example:8443", GITHUB_REPOSITORY="acme/tools")
+    assert ctx.repository_identity == "github:ghe.acme.example:8443/acme/tools"
+    assert ctx.repository_url == "https://GHE.acme.example:8443/acme/tools"
+    assert ctx.attempt == 1 and ctx.job is None and ctx.run_url is None  # no run id: no run URL
+    assert github("push", payload={}, GITHUB_SERVER_URL="https://ghe.acme.example:443").repository_identity == \
+        "github:ghe.acme.example/acme/agents"
+
+
+def test_github_request_context():
+    payload = {"pull_request": {**pull()["pull_request"], "head": {"repo": {"full_name": "acme/agents"}, "sha": HEAD,
+                                                                   "ref": "feature/x"}},
+               **push_payload()}
+    for event in ("pull_request", "pull_request_target"):
+        ctx = github(event, payload=payload, **{**GITHUB_RUN, "GITHUB_HEAD_REF": "feature/x", "GITHUB_REF_NAME": "7/merge"})
+        assert ctx.is_request and ctx.ref_name == "feature/x"
+        assert (ctx.head_sha, ctx.head_ref) == (HEAD, "feature/x") and ctx.request_number == 7
+    review = github("pull_request_review", payload=payload, **GITHUB_RUN)
+    assert (review.head_sha, review.head_ref) == (HEAD, "feature/x")
+    queue = github("merge_group", payload={"merge_group": {"base_sha": BASE}}, **GITHUB_RUN)
+    assert queue.is_request and queue.ref_name == "main" and queue.head_sha is None  # no GITHUB_HEAD_REF in a merge queue
+    bad = github("pull_request", payload={"pull_request": {"head": {"repo": {"full_name": "acme/agents"}, "sha": "abc"}}})
+    assert bad.head_sha is None
+
+
+def test_spellwarden_default_branch_wins_over_the_payload():
+    ctx = github("push", payload=push_payload(default_branch="trunk"), SPELLWARDEN_DEFAULT_BRANCH="release", **GITHUB_RUN)
+    assert ctx.default_branch == "release"
+    assert github("push", payload=push_payload(default_branch="trunk"), SPELLWARDEN_DEFAULT_BRANCH="", **GITHUB_RUN
+                  ).default_branch == "trunk"
+    assert gitlab("push", SPELLWARDEN_DEFAULT_BRANCH="release", CI_DEFAULT_BRANCH="main").default_branch == "release"
+    assert ci.detect({"CI": "true", "SPELLWARDEN_DEFAULT_BRANCH": "release"}, git_remote=lambda: None
+                     ).default_branch == "release"
+
+
+GITLAB_RUN = {"CI_PROJECT_URL": "https://gitlab.com/Acme/Group/Tools", "CI_COMMIT_SHA": SHA, "CI_COMMIT_REF_NAME": "main",
+              "CI_DEFAULT_BRANCH": "main", "CI_PROJECT_VISIBILITY": "internal",
+              "CI_JOB_URL": "https://gitlab.com/Acme/Group/Tools/-/jobs/77", "CI_JOB_NAME": "spellwarden"}
+
+
+def test_gitlab_run_context():
+    ctx = gitlab("push", **GITLAB_RUN)
+    assert ctx.repository_url == "https://gitlab.com/Acme/Group/Tools"
+    assert ctx.repository_identity == "gitlab:gitlab.com/acme/group/tools"
+    assert (ctx.sha, ctx.ref_name, ctx.default_branch, ctx.visibility) == (SHA, "main", "main", "private")
+    assert (ctx.run_url, ctx.job, ctx.attempt) == ("https://gitlab.com/Acme/Group/Tools/-/jobs/77", "spellwarden", 1)
+    assert gitlab("push", **{**GITLAB_RUN, "CI_PROJECT_VISIBILITY": "public"}).visibility == "public"
+    request = gitlab("merge_request_event", CI_MERGE_REQUEST_IID="5", CI_MERGE_REQUEST_SOURCE_PROJECT_ID="42",
+                     CI_MERGE_REQUEST_SOURCE_BRANCH_NAME="feature/x", CI_MERGE_REQUEST_SOURCE_BRANCH_SHA=HEAD, **GITLAB_RUN)
+    assert request.ref_name == "feature/x" and (request.head_sha, request.head_ref) == (HEAD, "feature/x")
+    merged = gitlab("merge_request_event", CI_MERGE_REQUEST_IID="5", CI_MERGE_REQUEST_SOURCE_PROJECT_ID="42",
+                    CI_MERGE_REQUEST_SOURCE_BRANCH_NAME="feature/x", **GITLAB_RUN)
+    assert merged.head_sha == SHA  # no source branch sha: CI_COMMIT_SHA
+    assert (gitlab("push", **GITLAB_RUN).head_sha, gitlab("push", **GITLAB_RUN).head_ref) == (None, None)
+
+
+def test_gitlab_relative_url_is_kept_in_repository_url_and_identity():
+    ctx = gitlab("push", **{**GITLAB_RUN, "CI_PROJECT_URL": "https://git.corp.example:8443/gitlab/Group/Sub/Tools"})
+    assert ctx.repository_url == "https://git.corp.example:8443/gitlab/Group/Sub/Tools"
+    assert ctx.repository_identity == "gitlab:git.corp.example:8443/gitlab/group/sub/tools"
+    bare = gitlab("push", CI_SERVER_URL="https://git.corp.example/gitlab", CI_PROJECT_PATH="group/tools")
+    assert bare.repository_url == "https://git.corp.example/gitlab/group/tools"
+    assert bare.repository_identity == "gitlab:git.corp.example/gitlab/group/tools"
+    assert gitlab("push").repository_url is None and gitlab("push").repository_identity is None
+
+
+@pytest.mark.parametrize(("remote", "url", "identity"), [
+    ("git@bitbucket.org:Acme/agents.git", "https://bitbucket.org/Acme/agents", "other:bitbucket.org/acme/agents"),
+    ("git@bitbucket.org:/acme/agents.git", "https://bitbucket.org/acme/agents", "other:bitbucket.org/acme/agents"),
+    ("ssh://u:t0ken@git.corp.example:2222/x/y.git", "https://git.corp.example/x/y", "other:git.corp.example/x/y"),
+    ("ssh://git@git.corp.example/x/y", "https://git.corp.example/x/y", "other:git.corp.example/x/y"),
+    ("https://git.corp.example:8443/x/y.git", "https://git.corp.example:8443/x/y", "other:git.corp.example:8443/x/y"),
+    ("https://user:tok@Git.Corp.Example/x/y/z?x=1#frag", "https://git.corp.example/x/y/z", "other:git.corp.example/x/y/z"),
+    ("https://git.corp.example:443/x/y", "https://git.corp.example/x/y", "other:git.corp.example/x/y"),
+    ("https://git.corp.example/x/y/", "https://git.corp.example/x/y", "other:git.corp.example/x/y"),
+    ("/srv/git/agents.git", None, None), ("not a url", None, None), ("https://git.corp.example/solo", None, None),
+    (None, None, None),
+])
+def test_other_ci_from_the_origin_remote(remote, url, identity):
+    ctx = ci.detect({"CI": "true"}, git_remote=lambda: remote)
+    assert (ctx.repository_url, ctx.repository_identity) == (url, identity)
+    assert "t0ken" not in repr(ctx) and "tok@" not in repr(ctx)
+    assert ctx.visibility == "private" and ctx.run_url is None and ctx.job is None and ctx.attempt == 1
+    assert ctx.default_branch is None
+
+
+def test_other_ci_takes_sha_and_branch_from_git():
+    ctx = ci.detect({"CI": "true", "SPELLWARDEN_DEFAULT_BRANCH": "main"}, git_remote=lambda: None, git_head=lambda: SHA,
+                    git_branch=lambda: "main")
+    assert (ctx.sha, ctx.ref_name) == (SHA, "main") and ctx.run_kind() == "default_branch"
+    assert ci.detect({"CI": "true"}, git_remote=lambda: None).sha is None  # no lookup unless asked for
+
+
+def test_github_sha_falls_back_to_git_head_only_when_the_variable_is_missing():
+    env = {"GITHUB_ACTIONS": "true", "GITHUB_EVENT_NAME": "push", "GITHUB_SHA": SHA}
+    assert ci.detect(env, read_text=lambda _p: "{}", git_head=lambda: HEAD).sha == SHA
+    assert ci.detect({**env, "GITHUB_SHA": ""}, read_text=lambda _p: "{}", git_head=lambda: HEAD).sha == HEAD
+    assert ci.detect({**env, "GITHUB_SHA": "nonsense"}, read_text=lambda _p: "{}", git_head=lambda: None).sha is None
+
+
+def test_scan_scope_has_no_trailing_slash_and_refuses_the_grammar(make_repo, tmp_path):
+    env = dict(os.environ)
+    repo = make_repo(tmp_path / "repo", {"services/agent/README.md": "x\n", "a b/c/README.md": "x\n", "top.md": "x\n",
+                                         "x/.hidden/f.md": "x\n"})
+    assert ci.scan_scope(str(repo / "services" / "agent"), git=None, env=env) == "services/agent"
+    assert ci.scan_scope(str(repo / "services" / "agent") + os.sep, git=None, env=env) == "services/agent"
+    assert ci.scan_scope(str(repo), git=None, env=env) == ""
+    assert ci.scan_scope(str(repo / "x" / ".hidden"), git=None, env=env) == "x/.hidden"
+    assert ci.scan_scope(str(repo / "a b" / "c"), git=None, env=env) is None
+    bare = tmp_path / "outside"
+    bare.mkdir()
+    assert ci.scan_scope(str(bare), git=None, env=env) == ""  # outside a repository
+    assert ci.scan_scope(str(repo / "services" / "agent"), git="", env=env) == "services/agent"  # git is not needed
+
+
+@pytest.mark.parametrize(("ctx", "kind"), [
+    pytest.param(lambda: github("pull_request", payload=pull(), **GITHUB_RUN), "request", id="pull_request"),
+    pytest.param(lambda: github("merge_group", payload={}, **GITHUB_RUN), "request", id="merge_group"),
+    pytest.param(lambda: gitlab("merge_request_event", CI_MERGE_REQUEST_IID="5", CI_MERGE_REQUEST_SOURCE_PROJECT_ID="42",
+                                **GITLAB_RUN), "request", id="merge request"),
+    pytest.param(lambda: github("push", payload=push_payload(), **GITHUB_RUN), "default_branch", id="push to the default"),
+    pytest.param(lambda: github("schedule", payload=push_payload(), **GITHUB_RUN), "default_branch", id="schedule"),
+    pytest.param(lambda: github("workflow_dispatch", payload=push_payload(), **GITHUB_RUN), "default_branch",
+                 id="workflow_dispatch"),
+    pytest.param(lambda: github("push", payload=push_payload(), **{**GITHUB_RUN, "GITHUB_REF_NAME": "dev"}), "branch",
+                 id="push to another branch"),
+    pytest.param(lambda: github("push", payload={}, **GITHUB_RUN), "branch", id="unknown default branch"),
+    pytest.param(lambda: github("release", payload=push_payload(), **GITHUB_RUN), "branch", id="untrusted event on main"),
+    pytest.param(lambda: gitlab("push", **GITLAB_RUN), "default_branch", id="gitlab push"),
+    pytest.param(lambda: gitlab("web", **GITLAB_RUN), "default_branch", id="gitlab web"),
+    pytest.param(lambda: gitlab("api", **GITLAB_RUN), "branch", id="gitlab api"),
+    pytest.param(lambda: gitlab("push", **{**GITLAB_RUN, "CI_COMMIT_REF_NAME": "dev"}), "branch", id="gitlab other branch"),
+    pytest.param(lambda: ci.detect({"CI": "true", "SPELLWARDEN_DEFAULT_BRANCH": "main"}, git_remote=lambda: None,
+                                   git_branch=lambda: "main"), "default_branch", id="other on the named branch"),
+    pytest.param(lambda: ci.detect({"CI": "true", "SPELLWARDEN_DEFAULT_BRANCH": "main"}, git_remote=lambda: None,
+                                   git_branch=lambda: "dev"), "branch", id="other on another branch"),
+    pytest.param(lambda: ci.detect({"CI": "true"}, git_remote=lambda: None, git_branch=lambda: "main"), "branch",
+                 id="other with no default branch"),
+    pytest.param(lambda: ci.LOCAL, "branch", id="local"),
+])
+def test_run_kinds(ctx, kind):
+    assert ctx().run_kind() == kind
+
+
+def test_workflow_run_and_issue_comment_are_requests_for_the_command():
+    run = github("workflow_run", payload={**run_of("pull_request", "acme/agents"), **push_payload()}, **GITHUB_RUN)
+    comment = github("issue_comment", payload={"issue": {"number": 7, "pull_request": {}}, **push_payload()}, **GITHUB_RUN)
+    assert run.run_kind() == "request" and comment.run_kind() == "request"
+    plain = github("workflow_run", payload={"workflow_run": {"event": "push"}, **push_payload()}, **GITHUB_RUN)
+    assert plain.is_request is False and plain.run_kind() == "branch"  # an event outside the trusted list is never a default run
+
+
+def test_fork_and_dependabot_flags_unchanged_by_the_new_fields():
+    ctx = github("pull_request", payload=pull(head="mallory/agents"), GITHUB_ACTOR="dependabot[bot]", **GITHUB_RUN)
+    assert (ctx.fork, ctx.dependabot, ctx.identity, ctx.base_sha) == (True, True, "github:github.com:1234567", None)
+    assert ci.LOCAL.attempt == 1 and ci.LOCAL.repository_url is None and ci.LOCAL.run_kind() == "branch"

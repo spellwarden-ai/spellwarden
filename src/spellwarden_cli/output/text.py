@@ -4,8 +4,10 @@ string from the scanned revision is escaped with `escape.terminal`, and no line 
 command (`escape.log_lines`)."""
 from __future__ import annotations
 
+import re
+
 from spellwarden_cli.escape import log_lines, terminal
-from spellwarden_cli.report import Report
+from spellwarden_cli.report import FREE_MODE_NOTICES, Report
 
 _VERDICT = {0: "passed", 2: "incomplete: see the errors above"}
 
@@ -26,8 +28,53 @@ def _summary(report: Report) -> str:
             f"{counts['medium']} medium, {counts['low']} low), {accepted} accepted; {verdict}")
 
 
+_UNAVAILABLE = re.compile(r"Connected mode was not available \(([a-z_]+)\)")
+
+
+def _gate(block: dict) -> str:
+    policy = block.get("policy") or {}
+    gate = policy.get("gate") or {}
+    if policy.get("registry_name") is None:
+        return "not in plan"
+    if not gate.get("enabled", True):
+        return "off"
+    applied = (block.get("registry") or {}).get("scope_applied") or gate.get("scope") or "changed"
+    return f"on, scope {applied}"
+
+
+def connected_lines(report: Report) -> list[str]:
+    """O3 spec 6.10, a pure function of the report's `connected` block and notices (P28). In connected mode: the
+    `Connected to` line, `Results:` once uploaded and the line for rules that need a newer scanner; after a fallback
+    to free mode: the one line saying so. Free mode: nothing."""
+    block = report.connected
+    if block is None:
+        for notice in report.notices:
+            found = _UNAVAILABLE.search(notice.message) if notice.code in FREE_MODE_NOTICES else None
+            if found is not None:
+                return [f"Connected mode unavailable ({found.group(1)}): baseline rules only, nothing uploaded."]
+        return []
+    policy = block.get("policy") or {}
+    run = block.get("run") or {}
+    chosen = "the organisation" if policy.get("chosen_by") == "organisation" else "this repository"
+    name, version = terminal(str(policy.get("pack_name") or policy.get("pack_id"))), terminal(str(policy.get("version")))
+    source = "organisation rules" if policy.get("source") == "org_rules" else f"pack {name} {version}"
+    lines = [f"Connected to {terminal(block['org']['name'])} as {terminal(str(run.get('identity') or 'an unnamed repository'))} "
+             f"({block['credential']}): {len(policy.get('org_rule_ids') or [])} organisation rules ({source}, chosen by "
+             f"{chosen}), registry gate {_gate(block)}"]
+    upload = block.get("upload") or {}
+    if upload.get("status") == "uploaded" and isinstance(upload.get("url"), str):
+        lines.append(f"Results: {terminal(upload['url'])}")
+    skipped = policy.get("skipped") or []
+    if skipped:
+        ids = ", ".join(terminal(str(entry["id"])) for entry in skipped)
+        lines.append(f"{len(skipped)} organisation rules need a newer scanner and were not applied: {ids}")
+    return lines
+
+
 def render(report: Report) -> str:
     lines: list[str] = []
+    if report.connected is None:
+        lines.extend(connected_lines(report))  # the first line says that connected mode was not used
     by_item: dict[str, list] = {}
     for rf in report.findings:
         by_item.setdefault(rf.item, []).append(rf)
@@ -55,4 +102,6 @@ def render(report: Report) -> str:
     for error in report.errors:
         lines.append(f"error {error.code} {terminal(error.path)}: {terminal(error.message)}")
     lines.append(_summary(report))
+    if report.connected is not None:
+        lines.extend(connected_lines(report))
     return log_lines("\n".join(lines) + "\n")

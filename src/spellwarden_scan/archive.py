@@ -86,8 +86,15 @@ def _is_executable(info: zipfile.ZipInfo) -> bool:
     return bool(mode & stat.S_IXUSR)
 
 
+def _is_junk(name: str) -> bool:
+    """What macOS adds to a hand-made zip of a directory: a `__MACOSX/` tree beside it and `.DS_Store` files."""
+    return name.startswith("__MACOSX/") or name.rpartition("/")[2] == ".DS_Store"
+
+
 def _strip_common_top(names: list[str]) -> str:
-    """The single top-level directory every entry shares, or an empty string."""
+    """The single top-level directory every entry shares, or an empty string. `__MACOSX/` entries and `.DS_Store` files
+    are not looked at, so a hand-made zip of one skill directory strips like a forge archive."""
+    names = [name for name in names if not _is_junk(name)]
     tops = {name.split("/", 1)[0] for name in names}
     if len(tops) != 1:
         return ""
@@ -134,7 +141,7 @@ def unpack_zip(data: bytes, limits: ArchiveLimits = DEFAULT_LIMITS, *, with_mode
     folded: set[str] = set()
     total = 0
     for info in entries:
-        name = info.filename[len(top) + 1:] if top else info.filename
+        name = info.filename[len(top) + 1:] if top and info.filename.startswith(top + "/") else info.filename
         if _unsafe(name, limits) or posixpath.normpath(name) != name or name in files:
             raise ArchiveError("unsafe_path", info.filename)
         if _under(name, scope):

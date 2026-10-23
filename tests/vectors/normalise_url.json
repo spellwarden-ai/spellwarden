@@ -1,0 +1,169 @@
+[
+ {
+  "input": "HTTPS://Host.example:443/mcp/#x",
+  "output": "https://host.example/mcp"
+ },
+ {
+  "input": "https://host.example/mcp",
+  "output": "https://host.example/mcp"
+ },
+ {
+  "input": "https://host.example:8443/mcp?x=1",
+  "output": "https://host.example:8443/mcp?x=1"
+ },
+ {
+  "input": "http://host.example:80/",
+  "output": "http://host.example"
+ },
+ {
+  "input": "https://x.example.com",
+  "output": "https://x.example.com"
+ },
+ {
+  "input": "https://x.example.com/",
+  "output": "https://x.example.com"
+ },
+ {
+  "input": "https://x.example.com//",
+  "output": "https://x.example.com"
+ },
+ {
+  "input": "https://X.Example.COM:8443/a/b/",
+  "output": "https://x.example.com:8443/a/b"
+ },
+ {
+  "input": "https://u:p@x.example.com/mcp",
+  "output": "https://x.example.com/mcp"
+ },
+ {
+  "input": "https://u@x.example.com:443/mcp",
+  "output": "https://x.example.com/mcp"
+ },
+ {
+  "input": "https://x.example.com/a/./b/../c",
+  "output": "https://x.example.com/a/./b/../c"
+ },
+ {
+  "input": "https://x.example.com/a/../",
+  "output": "https://x.example.com/a/.."
+ },
+ {
+  "input": "https://b\u00fccher.example/mcp",
+  "output": "https://b\u00fccher.example/mcp"
+ },
+ {
+  "input": "https://B\u00dcCHER.example:443/",
+  "output": "https://b\u00fccher.example"
+ },
+ {
+  "input": "https://xn--bcher-kva.example/",
+  "output": "https://xn--bcher-kva.example"
+ },
+ {
+  "input": "https://[::1]:8080/mcp",
+  "output": "https://::1:8080/mcp"
+ },
+ {
+  "input": "http://[::1]/mcp",
+  "output": "http://::1/mcp"
+ },
+ {
+  "input": "https://[2001:DB8::1]:443/x/",
+  "output": "https://2001:db8::1/x"
+ },
+ {
+  "input": "https://%61.example/mcp",
+  "output": "https://%61.example/mcp"
+ },
+ {
+  "input": "https://x.example.com/%7Euser/",
+  "output": "https://x.example.com/%7Euser"
+ },
+ {
+  "input": "https://x.example.com/?b=2&a=1",
+  "output": "https://x.example.com?b=2&a=1"
+ },
+ {
+  "input": "https://x.example.com/?",
+  "output": "https://x.example.com"
+ },
+ {
+  "input": "https://x.example.com/#",
+  "output": "https://x.example.com"
+ },
+ {
+  "input": "https://x.example.com:/mcp",
+  "output": "https://x.example.com/mcp"
+ },
+ {
+  "input": "https://x.example.com:0/mcp",
+  "output": "https://x.example.com:0/mcp"
+ },
+ {
+  "input": "https://x.example.com:00443/mcp",
+  "output": "https://x.example.com/mcp"
+ },
+ {
+  "input": "  https://x.example.com/mcp  ",
+  "output": "https://x.example.com/mcp"
+ },
+ {
+  "input": "ftp://x.example.com:21/f",
+  "output": "ftp://x.example.com:21/f"
+ },
+ {
+  "input": "HTTP://x.example.com:443/",
+  "output": "http://x.example.com:443"
+ },
+ {
+  "input": "https://x.example.com/mcp?a=1#f?g",
+  "output": "https://x.example.com/mcp?a=1"
+ },
+ {
+  "input": "https://x.example.com?x=1",
+  "output": "https://x.example.com?x=1"
+ },
+ {
+  "input": "https://x.example.com/mcp/?a=%2F",
+  "output": "https://x.example.com/mcp?a=%2F"
+ },
+ {
+  "input": "https://${HOST}/mcp",
+  "output": "https://${host}/mcp"
+ },
+ {
+  "input": "https://x.example.com:99999/",
+  "output": null,
+  "hosted": "error"
+ },
+ {
+  "input": "https://x.exam\tple.com/",
+  "output": null,
+  "hosted": "https://x.example.com"
+ },
+ {
+  "input": "https://x.example.com/ab\ncd",
+  "output": null,
+  "hosted": "https://x.example.com/abcd"
+ },
+ {
+  "input": "https://x.example.com/ab\u0000cd",
+  "output": null,
+  "hosted": "https://x.example.com/ab\u0000cd"
+ },
+ {
+  "input": "https://[::1/mcp",
+  "output": null,
+  "hosted": "error"
+ },
+ {
+  "input": "https://x.example.com:abc/",
+  "output": null,
+  "hosted": "error"
+ },
+ {
+  "input": "https://x.example.com:65536/",
+  "output": null,
+  "hosted": "error"
+ }
+]

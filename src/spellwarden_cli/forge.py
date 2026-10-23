@@ -5,7 +5,7 @@ A comment never fails the check: every outcome other than success is a `Notice`,
 forge refused for want of a permission (403, 404: fork and Dependabot tokens are read-only, or `pull-requests:
 write` was not granted), `comment_failed` for anything else, `comment_token_missing` without a token.
 
-One of the three modules of `spellwarden_cli` that may reach the network (`tests/test_network_boundary.py`)."""
+One of the four modules of `spellwarden_cli` that may reach the network (`tests/test_network_boundary.py`)."""
 from __future__ import annotations
 
 import json
@@ -14,8 +14,7 @@ import urllib.request
 from collections.abc import Callable, Mapping
 from urllib.parse import quote, urlsplit
 
-from spellwarden_scan.version import __version__
-
+from spellwarden_cli.net import USER_AGENT
 from spellwarden_cli.output.markdown import MARKER  # one marker: the report's first line is what this module finds
 from spellwarden_cli.report import Notice
 
@@ -39,7 +38,7 @@ class _Refused(Exception):
 def _call(opener: Callable[..., object], method: str, url: str, headers: dict[str, str], body: object = None):
     data = json.dumps(body).encode("utf-8") if body is not None else None
     request = urllib.request.Request(url, data=data, method=method, headers={
-        **headers, "User-Agent": f"Spellwarden/{__version__} (+https://spellwarden.ai)",
+        **headers, "User-Agent": USER_AGENT,
         **({"Content-Type": "application/json"} if data is not None else {})})
     try:
         with opener(request, timeout=TIMEOUT_SECONDS) as response:

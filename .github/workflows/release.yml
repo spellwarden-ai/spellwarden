@@ -276,8 +276,99 @@ jobs:
           SW_PING_FILE: ${{ runner.temp }}/ping.json
         run: python fixtures/repos/check.py telemetry "$RUNNER_TEMP/spellwarden.json" "$SW_OUT_EXIT" env
 
+  e2e-connected:
+    # O3 spec 7 and plan P23: the built wheel's `spellwarden scan` over `fixtures/repos/make_repo.py findings@connected`
+    # against fixtures/ci/fake_api.py, a loopback fake of the code host's token endpoint, the exchange and the routes the
+    # command calls, once with an OIDC token (SPELLWARDEN_ORG) and once with a CI key. fixtures/ci/check_connected.py asserts
+    # the requests each run sent and the report's `connected` block. The scan runs under `env -i`: the runner's own GITHUB_*
+    # values would win over a step's `env:`. It does not go through the Action, which `e2e` checks out at wrappers/scan-action.ref.
+    name: e2e connected on Python ${{ matrix.python }}
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.13"]
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        with:
+          name: dist
+          path: dist/
+      - name: Install this run's wheel and its hash-pinned dependencies
+        run: |
+          set -euo pipefail
+          python -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/python" -m pip install --require-hashes -r docker/requirements.deps.txt
+          "$RUNNER_TEMP/venv/bin/python" -m pip install --no-deps dist/spellwarden-*-py3-none-any.whl
+      - name: Build the fixture repository
+        run: python fixtures/repos/make_repo.py findings@connected "$RUNNER_TEMP/fx"
+      - name: Scan with an OIDC token (a CI connection)
+        run: |
+          set -euo pipefail
+          python fixtures/ci/fake_api.py --script fixtures/ci/script.json --port 0 --record "$RUNNER_TEMP/oidc-record.json" --ready "$RUNNER_TEMP/oidc.port" &
+          fake=$!
+          trap 'kill "$fake"' EXIT
+          for _ in $(seq 50); do
+            if [ -f "$RUNNER_TEMP/oidc.port" ]; then break; fi
+            sleep 0.2
+          done
+          port="$(cat "$RUNNER_TEMP/oidc.port")"
+          event="$RUNNER_TEMP/oidc-event.json"
+          printf '%s\n' '{"repository": {"default_branch": "main", "visibility": "private"}}' > "$event"
+          sha="$(git -C "$RUNNER_TEMP/fx" rev-parse HEAD)"
+          set +e
+          env -i PATH="$PATH" HOME="$HOME" CI=true GITHUB_ACTIONS=true GITHUB_EVENT_NAME=push GITHUB_EVENT_PATH="$event" \
+            GITHUB_REPOSITORY=acme/tools GITHUB_SERVER_URL=https://github.com GITHUB_REF_NAME=main GITHUB_SHA="$sha" \
+            GITHUB_RUN_ID=9 GITHUB_RUN_ATTEMPT=1 GITHUB_JOB=scan GITHUB_REPOSITORY_OWNER_ID=1 GITHUB_REF_PROTECTED=true \
+            SPELLWARDEN_ORG=acme SPELLWARDEN_API_URL="http://127.0.0.1:${port}/api" \
+            ACTIONS_ID_TOKEN_REQUEST_URL="http://127.0.0.1:${port}/idtoken?api-version=2.0" \
+            ACTIONS_ID_TOKEN_REQUEST_TOKEN=runner-request-token \
+            "$RUNNER_TEMP/venv/bin/python" -I -m spellwarden_cli scan "$RUNNER_TEMP/fx" --no-telemetry \
+            --format json --output "$RUNNER_TEMP/oidc-report.json" --format text
+          code=$?
+          set -e
+          test "$code" = 1 || { echo "exit code $code, expected 1 (the findings of the fixture and the gate)"; exit 1; }
+          python fixtures/ci/check_connected.py "$RUNNER_TEMP/oidc-record.json" "$RUNNER_TEMP/oidc-report.json" --credential oidc
+      - name: Scan with a CI key
+        run: |
+          set -euo pipefail
+          python fixtures/ci/fake_api.py --script fixtures/ci/script.json --port 0 --record "$RUNNER_TEMP/key-record.json" --ready "$RUNNER_TEMP/key.port" &
+          fake=$!
+          trap 'kill "$fake"' EXIT
+          for _ in $(seq 50); do
+            if [ -f "$RUNNER_TEMP/key.port" ]; then break; fi
+            sleep 0.2
+          done
+          port="$(cat "$RUNNER_TEMP/key.port")"
+          event="$RUNNER_TEMP/key-event.json"
+          printf '%s\n' '{"repository": {"default_branch": "main", "visibility": "private"}}' > "$event"
+          sha="$(git -C "$RUNNER_TEMP/fx" rev-parse HEAD)"
+          # a key-shaped value built here, never written in the repository
+          prefix=sw
+          key="${prefix}k_$(head -c 40 /dev/zero | tr '\0' a)"
+          set +e
+          env -i PATH="$PATH" HOME="$HOME" CI=true GITHUB_ACTIONS=true GITHUB_EVENT_NAME=push GITHUB_EVENT_PATH="$event" \
+            GITHUB_REPOSITORY=acme/tools GITHUB_SERVER_URL=https://github.com GITHUB_REF_NAME=main GITHUB_SHA="$sha" \
+            GITHUB_RUN_ID=9 GITHUB_RUN_ATTEMPT=1 GITHUB_JOB=scan GITHUB_REPOSITORY_OWNER_ID=1 GITHUB_REF_PROTECTED=true \
+            SPELLWARDEN_API_KEY="$key" SPELLWARDEN_API_URL="http://127.0.0.1:${port}/api" \
+            "$RUNNER_TEMP/venv/bin/python" -I -m spellwarden_cli scan "$RUNNER_TEMP/fx" --no-telemetry \
+            --format json --output "$RUNNER_TEMP/key-report.json" --format text
+          code=$?
+          set -e
+          test "$code" = 1 || { echo "exit code $code, expected 1 (the findings of the fixture and the gate)"; exit 1; }
+          python fixtures/ci/check_connected.py "$RUNNER_TEMP/key-record.json" "$RUNNER_TEMP/key-report.json" --credential key
+
   publish:
-    needs: [build, e2e, e2e-no-python, e2e-permissions, e2e-telemetry]
+    needs: [build, e2e, e2e-no-python, e2e-permissions, e2e-telemetry, e2e-connected]
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
@@ -305,7 +396,7 @@ jobs:
           attestations: true
 
   image:
-    needs: [build, e2e, e2e-no-python, e2e-permissions, e2e-telemetry]
+    needs: [build, e2e, e2e-no-python, e2e-permissions, e2e-telemetry, e2e-connected]
     runs-on: ubuntu-latest
     permissions:
       contents: read

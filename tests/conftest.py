@@ -54,6 +54,9 @@ def credential(kind: str) -> str:
         return "github_" + "pat_" + "11AAAAAAA0" + "bbbbbbbbbbbbbbbbbbbbbb"
     if kind == "password":
         return 'password = "' + "hunter2hunter2" + '"'
+    # Spellwarden's own credentials (O3 spec 6.2): a pipeline key, a connector token and a CI token, each 40 characters.
+    if kind in ("swk", "swc", "swt"):
+        return "sw" + kind[2] + "_" + "a" * 40
     raise ValueError(kind)
 
 
@@ -176,6 +179,13 @@ _RUNNER_VARIABLES = (
     "CI_MERGE_REQUEST_DIFF_BASE_SHA", "CI_MERGE_REQUEST_TARGET_BRANCH_SHA", "CI_EXTERNAL_PULL_REQUEST_TARGET_BRANCH_SHA",
     "SPELLWARDEN_FAIL_ON", "SPELLWARDEN_PROBE", "SPELLWARDEN_PROBE_PRIVATE", "SPELLWARDEN_TELEMETRY",
     "SPELLWARDEN_PING_URL", "SPELLWARDEN_GITHUB_TOKEN", "SPELLWARDEN_GITLAB_TOKEN", "DO_NOT_TRACK",
+    # O3 spec 6.2, 6.8: what connected mode reads (Task 7 adds any other name it reads)
+    "SPELLWARDEN_ORG", "SPELLWARDEN_API_KEY", "SPELLWARDEN_ID_TOKEN", "SPELLWARDEN_API_URL", "SPELLWARDEN_UPLOAD",
+    "SPELLWARDEN_DEFAULT_BRANCH", "SPELLWARDEN_RUN_ID", "SW_ORG", "SW_UPLOAD", "ACTIONS_ID_TOKEN_REQUEST_URL", "ACTIONS_ID_TOKEN_REQUEST_TOKEN",
+    "HTTPS_PROXY", "https_proxy", "NO_PROXY", "no_proxy", "GITHUB_HEAD_REF", "GITHUB_REF", "GITHUB_REF_NAME", "GITHUB_SHA",
+    "GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT", "GITHUB_JOB", "CI_DEFAULT_BRANCH", "CI_COMMIT_SHA", "CI_COMMIT_REF_NAME",
+    "CI_JOB_URL", "CI_JOB_NAME", "CI_PROJECT_URL", "CI_PROJECT_PATH", "CI_PROJECT_VISIBILITY", "CI_SERVER_URL",
+    "CI_MERGE_REQUEST_SOURCE_BRANCH_SHA", "CI_MERGE_REQUEST_SOURCE_BRANCH_NAME",
     # the markers of CI systems that need not set CI=true (spellwarden_cli.ci.CI_MARKERS)
     "JENKINS_URL", "TF_BUILD", "TEAMCITY_VERSION", "BUILDKITE", "CIRCLECI", "BITBUCKET_BUILD_NUMBER",
     "CODEBUILD_BUILD_ID", "DRONE", "TRAVIS", "CI_SYSTEM_NAME",

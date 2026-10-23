@@ -486,3 +486,106 @@ def test_an_unusable_temporary_directory_is_named_in_base_unavailable(make_repo,
     assert "TMPDIR" in message and "fetch-depth" not in message
     with pytest.raises(FileNotFoundError):
         source.read(".spellwarden/config.yml", safe_yaml.CONFIG_MAX)
+
+
+# --- O3 spec 6.6 "Scope", P15: the changed paths of a request, without a merge base --------------------------------
+
+def _ctx(env: dict[str, str]) -> ci.CiContext:
+    return ci.detect(env, read_text=lambda path: Path(path).read_text(encoding="utf-8"))
+
+
+def _recording_git(monkeypatch) -> list[tuple[str, ...]]:
+    """Every argument list `ci._run_git` is called with (the single seam of the module's git calls)."""
+    seen: list[tuple[str, ...]] = []
+    real = ci._run_git
+
+    def spy(executable, top, root, *args, **kwargs):
+        seen.append(args)
+        return real(executable, top, root, *args, **kwargs)
+
+    monkeypatch.setattr(ci, "_run_git", spy)
+    return seen
+
+
+def _test_merge(tmp_path: Path, make_repo) -> tuple[Path, dict[str, str]]:
+    """An upstream repository with the history a GitHub `pull_request` checks out: `base` (A), a base branch that moved
+    on (C: main-only.txt) and a pull request branch (B: feature.txt), merged with `--no-ff` into the test merge commit M
+    whose parents are (C, B). Returns the upstream and `{"A", "C", "B", "M"}`."""
+    upstream = make_repo(tmp_path / "upstream", {**README})
+    shas = {"A": git(upstream, "rev-parse", "HEAD").strip()}
+    git(upstream, "checkout", "-q", "-b", "feature")
+    shas["B"] = commit(upstream, {"feature.txt": "pr\n"}, "pr")
+    git(upstream, "checkout", "-q", "main")
+    shas["C"] = commit(upstream, {"main-only.txt": "base moved\n"}, "base moved")
+    git(upstream, "checkout", "-q", "-b", "merge")
+    git(upstream, "merge", "-q", "--no-ff", "-m", "test merge", "feature")
+    shas["M"] = git(upstream, "rev-parse", "HEAD").strip()
+    return upstream, shas
+
+
+def test_changed_paths_on_pull_request_uses_the_first_parent_of_a_depth_1_clone(make_repo, tmp_path, monkeypatch):
+    upstream, shas = _test_merge(tmp_path, make_repo)
+    clone = tmp_path / "clone"
+    git(tmp_path, "clone", "-q", "--depth", "1", upstream.as_uri(), str(clone))
+    assert not _has(clone, shas["C"]) and not _has(clone, shas["B"])  # a depth-1 clone holds neither parent
+    # the payload names an older base (A): the two-dot diff against it would hold main-only.txt too
+    ctx = _ctx({**pull_request(tmp_path, shas["A"]), "GITHUB_SHA": shas["M"]})
+    seen = _recording_git(monkeypatch)
+    assert ci.changed_paths(str(clone), ctx, env=dict(os.environ)) == ["feature.txt"]
+    assert _has(clone, shas["C"])  # the first parent was fetched by id
+    flat = [" ".join(args) for args in seen]
+    assert not any("HEAD^" in call or "%P" in call for call in flat), flat
+    assert ("rev-parse", "HEAD") in seen and ("cat-file", "-p", "HEAD") in seen
+    assert any("diff" in args and "--name-only" in args for args in seen)
+
+
+def test_changed_paths_on_a_head_checkout_diffs_against_the_base(make_repo, tmp_path):
+    repo, base = two_commits(make_repo, tmp_path, {}, {"first.txt": "1\n"})
+    commit(repo, {"second.txt": "2\n"}, "second")  # a two-commit branch, checked out at its head: one parent
+    head = git(repo, "rev-parse", "HEAD").strip()
+    ctx = _ctx({**pull_request(tmp_path, base), "GITHUB_SHA": "f" * 40})  # GITHUB_SHA is the test merge commit, not HEAD
+    assert head != ctx.sha
+    # the file added by the first commit is in the diff: the first parent would have scoped the gate to the last commit
+    assert ci.changed_paths(str(repo), ctx, env=dict(os.environ)) == ["first.txt", "second.txt"]
+    same = _ctx({**pull_request(tmp_path, base), "GITHUB_SHA": head})  # HEAD == GITHUB_SHA but a single parent
+    assert ci.changed_paths(str(repo), same, env=dict(os.environ)) == ["first.txt", "second.txt"]
+
+
+def test_changed_paths_two_dot_against_base_elsewhere(make_repo, tmp_path):
+    repo, base = two_commits(make_repo, tmp_path, {"keep.txt": "k\n", "gone.txt": "g\n", "old/name.txt": "n\n"},
+                             {"added.txt": "a\n", "keep.txt": "changed\n", "gone.txt": None, "dir/with space.txt": "s\n"})
+    git(repo, "mv", "old/name.txt", "old/renamed.txt")
+    git(repo, "commit", "-q", "-m", "rename")
+    expected = ["added.txt", "dir/with space.txt", "gone.txt", "keep.txt", "old/name.txt", "old/renamed.txt"]
+    assert ci.changed_paths(str(repo), _ctx(merge_request(base)), env=dict(os.environ)) == expected  # a rename is both names
+    queue = _ctx({**github_env(tmp_path, "merge_group", {"merge_group": {"base_sha": base}})})
+    assert ci.changed_paths(str(repo), queue, env=dict(os.environ)) == expected
+
+
+def test_changed_paths_are_relative_to_the_scan_root(make_repo, tmp_path):
+    repo, base = two_commits(make_repo, tmp_path, {"sub/a.txt": "a\n"}, {"sub/b.txt": "b\n", "other/c.txt": "c\n"})
+    ctx = _ctx(pull_request(tmp_path, base))
+    assert ci.changed_paths(str(repo / "sub"), ctx, env=dict(os.environ)) == ["b.txt"]
+    assert ci.changed_paths(str(repo), ctx, env=dict(os.environ)) == ["other/c.txt", "sub/b.txt"]
+
+
+def test_changed_paths_is_none_when_base_unavailable(make_repo, tmp_path):
+    repo, base = two_commits(make_repo, tmp_path, {}, {"x.txt": "x\n"})
+    env = dict(os.environ)
+    assert ci.changed_paths(str(repo), _ctx(pull_request(tmp_path, None)), env=env) is None  # the event names no base
+    assert ci.changed_paths(str(repo), _ctx(pull_request(tmp_path, "9" * 40)), env=env) is None  # not in the clone, no origin
+    assert ci.changed_paths(str(repo), _ctx(pull_request(tmp_path, base)), git="", env=env) is None  # no git
+    assert ci.changed_paths(str(tmp_path), _ctx(pull_request(tmp_path, base)), env=env) is None  # not a work tree
+    assert ci.changed_paths(str(repo), ci.LOCAL, env=env) is None and ci.changed_paths(str(repo), _ctx(push(tmp_path)), env=env) is None
+
+
+def test_read_at_base_returns_bytes_or_none(make_repo, tmp_path):
+    repo, base = two_commits(make_repo, tmp_path, {".mcp.json": "{}\n", "sub/x.md": "x\n"}, {".mcp.json": '{"a": 1}\n'})
+    ctx = _ctx(pull_request(tmp_path, base))
+    env = dict(os.environ)
+    assert ci.read_at_base(str(repo), ctx, ".mcp.json", env=env) == b"{}\n"
+    assert ci.read_at_base(str(repo / "sub"), ctx, "x.md", env=env) == b"x\n"
+    assert ci.read_at_base(str(repo), ctx, "missing.json", env=env) is None
+    assert ci.read_at_base(str(repo), ctx, "../outside", env=env) is None
+    assert ci.read_at_base(str(repo), _ctx(pull_request(tmp_path, None)), ".mcp.json", env=env) is None
+    assert ci.read_at_base(str(repo), ctx, ".mcp.json", git="", env=env) is None

@@ -5,9 +5,10 @@ rules worst severity first, keeps at most `max_per_rule` findings per rule and
 configuration documents."""
 from __future__ import annotations
 
-from collections.abc import Collection, Mapping, Sequence
+from collections.abc import Collection, Iterable, Mapping, Sequence
 
 from spellwarden_scan.canonical import canonical_sha256
+from spellwarden_scan.identity import package_files, package_sha256
 from spellwarden_scan.model import SEVERITY_RANK, ConfigDocument, ConfigScanResult, Finding, SkillScanResult
 from spellwarden_scan.orgrules import BudgetMeter, OrgRuleBudget, is_org_rule
 from spellwarden_scan.package import Package
@@ -44,16 +45,20 @@ def run_rules(rules, subject, *, max_findings: int, max_per_rule: int,
 
 def scan_skill_package(files: Mapping[str, bytes], rules: RuleSet, *, root: str = "",
                        executable_paths: Collection[str] = frozenset(), max_findings: int = 500,
-                       max_per_rule: int = 100, org_rule_budget: OrgRuleBudget | None = None) -> SkillScanResult:
+                       max_per_rule: int = 100, org_rule_budget: OrgRuleBudget | None = None,
+                       nested_roots: Iterable[str] = ()) -> SkillScanResult:
     """`org_rule_budget` bounds the time org rules may take (Phase C spec 5.2.2); a non-empty
-    `org_rules_incomplete` on the result is an incomplete policy evaluation, never a clean one."""
+    `org_rules_incomplete` on the result is an incomplete policy evaluation, never a clean one. `nested_roots` are the
+    skill directories inside `root` (`identity.nested_skill_roots`); the result's `package_sha256` leaves them out."""
     package = Package.build(files, root=root, executable_paths=executable_paths)
     meter = BudgetMeter(org_rule_budget)
     retained, truncated = run_rules(rules.ordered_for_scan("skill"), package, max_findings=max_findings,
                                     max_per_rule=max_per_rule, meter=meter)
+    identified = package_files(files, root, nested_roots)
     return SkillScanResult(
         findings=tuple(retained), truncated=truncated, sha256=canonical_sha256(files), metadata=package.metadata,
         files_scanned=package.files_scanned, rules_version=RULES_VERSION, scanner_version=__version__,
+        package_sha256=None if identified.unhashable else package_sha256(identified.files),
         org_rules_incomplete=tuple(sorted(meter.incomplete)),
     )
 

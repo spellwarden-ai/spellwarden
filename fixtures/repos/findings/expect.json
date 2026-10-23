@@ -1,5 +1,13 @@
 {
   "exit_code": 1,
   "findings": 1,
-  "report": "required"
+  "report": "required",
+  "variants": {
+    "connected": {
+      "files": {
+        "skills/deploy/SKILL.md": "---\nname: deploy\ndescription: Runs the deploy routine for the team.\nversion: 1.0.0\nlicense: Apache-2.0\n---\n\n# deploy\n\nFollow the steps in order and report the result.\n"
+      },
+      "findings": 3
+    }
+  }
 }

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import importlib.util
 import io
+import json
 import os
 import subprocess
 import sys
@@ -117,3 +118,130 @@ def run_cli():
     process with stdout and stderr captured, the working directory set to `cwd`, and an environment without CI or
     Spellwarden variables (so no test pings) plus `env`; everything is restored afterwards."""
     return _run_cli
+
+
+# --- connected mode (O3 Task 8): the API double, the CI environments and the answers it gives --------------------------
+
+SHA = "1" * 40
+HEAD = "2" * 40
+KEY_PATH = "/api/v1/orgs"
+POLICY_PATH = "/api/v1/orgs/acme/ci/policy"
+EXCHANGE_PATH = "/api/public/ci/token"
+CHECK_PATH = "/api/v1/orgs/acme/ci/registry-check"
+SCANS_PATH = "/api/v1/orgs/acme/ci/scans"
+
+
+@pytest.fixture
+def api_double(monkeypatch):
+    """A `FakeApi` behind the transport seams of `connected.py`, with its clock: no test of connected mode opens a
+    socket or waits. Returns `(fake, clock)`."""
+    from fake_api import FakeApi, FakeClock
+
+    from spellwarden_cli import connected
+
+    clock = FakeClock()
+    fake = FakeApi(clock)
+    monkeypatch.setitem(connected.TRANSPORT, "opener", fake.opener)
+    monkeypatch.setitem(connected.TRANSPORT, "resolver", fake.resolver)
+    monkeypatch.setitem(connected.TRANSPORT, "clock", clock)
+    return fake, clock
+
+
+def pack_document(org_rules=(), *, pack_id: str = "a" * 32, name: str = "Organisation rules", version: str = "1.3") -> dict:
+    from spellwarden_scan import baseline_pack
+
+    document = baseline_pack().to_dict()
+    document["pack"] = {**document["pack"], "id": pack_id, "name": name, "version": version}
+    document["org_rules"] = sorted(org_rules, key=lambda spec: spec["id"])
+    return document
+
+
+def org_rule(rule_id: str = "SW-ORG-010", pattern: str = "bastion\\.staging", *, area: str = "skill") -> dict:
+    return {"id": rule_id, "title": "Mentions the staging bastion", "severity": "high", "area": area,
+            "detection": {"kind": "pattern", "pattern": pattern}}
+
+
+def probe_rule(rule_id: str = "SW-ORG-020") -> dict:
+    return {"id": rule_id, "title": "Server on a legacy transport", "severity": "medium", "area": "mcp",
+            "detection": {"kind": "probe", "predicate": "transport_in", "values": ["sse"]}}
+
+
+def policy_answer(org_rules=(), *, skipped=(), source: str = "org_rules", chosen_by: str = "organisation",
+                  registry: str | None = "acme", gate: dict | None = None, pack_name: str = "Organisation rules",
+                  version: str = "1.3", rules_version: str | None = None) -> dict:
+    from spellwarden_scan import pack_sha256
+
+    document = pack_document(org_rules, name=pack_name, version=version)
+    if rules_version is not None:
+        document["engine"] = {**document["engine"], "rules_version": rules_version}
+    return {
+        "org": {"slug": "acme", "name": "Acme", "plan": "enterprise"}, "dashboard_url": "https://dash.spellwarden.ai/acme",
+        "ci_policy": {"gate": {"enabled": True, "scope": "changed", "stdio": True, "plugins": True, **(gate or {})}},
+        "policy": {"source": source, "chosen_by": chosen_by, "pack_id": document["pack"]["id"], "version": version,
+                   "sha256": pack_sha256(document), "document": document, "skipped": list(skipped)},
+        "registry": {"name": registry} if registry else None,
+        "limits": {"upload_max_bytes": 1048576, "upload_max_findings": 500, "upload_max_items": 2000,
+                   "upload_max_probes": 200,
+                   "check_max": {"skills": 2000, "servers": 500, "stdio": 500, "plugins": 500, "marketplaces": 100}},
+    }
+
+
+def session_answer(token: str | None = None, run: dict | None = None) -> dict:
+    return {"token": token or _root.credential("swt"), "expires_at": "2026-10-23T10:15:00Z",
+            "org": {"slug": "acme", "name": "Acme", "plan": "enterprise"},
+            "run": run if run is not None else {"identity": "github:github.com/acme/tools", "event": "push", "sha": SHA}}
+
+
+def orgs_answer(*, access: str = "ci", orgs=None) -> dict:
+    listing = [{"slug": "acme", "name": "Acme", "plan": "enterprise", "billing_state": "active", "reachable": True}]
+    return {"orgs": listing if orgs is None else orgs, "caller": {"kind": "api_key", "access": access}}
+
+
+@pytest.fixture
+def fixture_tools(monkeypatch):
+    """`make_repo` and `check` of `fixtures/repos` (check.py imports make_repo, so the directory joins the path); the
+    modules leave `sys.modules` afterwards, `scripts/e2e.py` imports another `make_repo`."""
+    import importlib
+    import sys
+
+    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[2] / "fixtures" / "repos"))
+    for name in ("make_repo", "check"):
+        monkeypatch.delitem(sys.modules, name, raising=False)
+    yield importlib.import_module("make_repo"), importlib.import_module("check")
+    for name in ("make_repo", "check"):
+        sys.modules.pop(name, None)
+
+
+def admit_all(body: dict, *, refuse_server: bool = False, dashboard: str = "https://dash.spellwarden.ai/acme") -> dict:
+    """A registry-check answer computed from the request body (`FakeApi.script` takes it as the answer): every item
+    admitted, the first server not with `refuse_server`."""
+    answer: dict = {"schema": 1}
+    for name in ("skills", "servers", "stdio", "plugins", "marketplaces"):
+        answer[name] = [{"path": item["path"], "admitted": True, "exported_name": None, "request_url": None}
+                        for item in body.get(name, [])]
+    if refuse_server and answer["servers"]:
+        answer["servers"][0] = {"path": body["servers"][0]["path"], "admitted": False, "exported_name": None,
+                                "request_url_template": f"{dashboard}/mcp-servers?add=1&url="}
+    return answer
+
+
+def connected_github(tmp_path: Path, event: str = "push", payload: dict | None = None, **more: str) -> dict[str, str]:
+    path = tmp_path / f"event-{event}.json"
+    path.write_text(json.dumps(payload if payload is not None else {"repository": {"default_branch": "main"}}),
+                    encoding="utf-8")
+    return {"CI": "true", "GITHUB_ACTIONS": "true", "GITHUB_EVENT_NAME": event, "GITHUB_EVENT_PATH": str(path),
+            "GITHUB_REPOSITORY": "acme/tools", "GITHUB_SERVER_URL": "https://github.com", "GITHUB_REF_NAME": "main",
+            "GITHUB_REPOSITORY_OWNER_ID": "1", "GITHUB_SHA": SHA, "GITHUB_RUN_ID": "9", "GITHUB_REF_PROTECTED": "true", **more}
+
+
+def connected_gitlab(**more: str) -> dict[str, str]:
+    return {"CI": "true", "GITLAB_CI": "true", "CI_PIPELINE_SOURCE": "push", "CI_COMMIT_REF_PROTECTED": "true",
+            "CI_PROJECT_ID": "42", "CI_PROJECT_URL": "https://gitlab.com/acme/tools", "CI_COMMIT_SHA": SHA,
+            "CI_COMMIT_REF_NAME": "main", "CI_DEFAULT_BRANCH": "main", "CI_SERVER_HOST": "gitlab.com",
+            "CI_PROJECT_ROOT_NAMESPACE": "acme", "CI_JOB_URL": "https://gitlab.com/acme/tools/-/jobs/7", **more}
+
+
+def scan_json(run_cli, repo, env=None, *args: str):
+    """`(exit code, report, stdout, stderr)` of `spellwarden scan` in JSON, with no usage ping."""
+    code, out, err = run_cli(["scan", str(repo), "--format", "json", "--no-telemetry", *args], env=env)
+    return code, (json.loads(out) if out.startswith("{") else None), out, err

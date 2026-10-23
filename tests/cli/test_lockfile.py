@@ -413,3 +413,19 @@ def test_a_member_link_to_the_settings_or_the_baseline_is_locked(own, tmp_path, 
     assert report["lock"]["status"] == "stale"
     assert {"kind": "skill", "path": "skills/x"} in report["lock"]["changed"]
     assert code == 3
+
+
+GOLDEN_REPO = Path(__file__).resolve().parents[1] / "golden" / "1.0.0" / "repo"
+PLUGIN_SETTINGS = Path(__file__).resolve().parents[2] / "fixtures" / "config" / "plugins-settings" / ".claude" / "settings.json"
+
+
+def test_lock_hash_unchanged_by_the_new_fields():
+    """O3 spec 5.1: `raw_sha256` and the two plugin-settings lists are not lock inputs; the 1.0.0 lock still matches."""
+    recorded = json.loads((GOLDEN_REPO / lockfile.LOCK_PATH).read_text(encoding="utf-8"))
+    assert lockfile.compute_lock(discover.discover(files.list_files(str(GOLDEN_REPO), Settings()))) == recorded
+
+
+def test_plugin_settings_add_only_the_document_item_to_the_lock(tmp_path, make_repo):
+    repo = make_repo(tmp_path / "r", {".claude/settings.json": PLUGIN_SETTINGS.read_text(encoding="utf-8")})
+    items = lockfile.compute_lock(_discovery(repo))["items"]
+    assert [(item["kind"], item["path"]) for item in items] == [("document", ".claude/settings.json")]

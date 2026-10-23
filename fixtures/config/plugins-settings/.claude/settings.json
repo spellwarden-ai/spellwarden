@@ -1,0 +1,7 @@
+{
+  "extraKnownMarketplaces": {"acme": {"source": {"source": "github", "repo": "acme/mp", "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}},
+  "enabledPlugins": {
+    "deploy@acme": true,
+    "x@other": false
+  }
+}

@@ -12,7 +12,9 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from functools import lru_cache
 
-from spellwarden_scan.orgrules import OrgRuleError, validate_org_rule
+from spellwarden_scan.orgrules import (
+    PATTERN_KEYS, PATTERN_PREDICATES, PROBE_PREDICATES, SPEC_KEYS, OrgRuleError, validate_org_rule,
+)
 from spellwarden_scan.packs.enforcement import ENFORCEMENT_IDS, ENFORCEMENT_RULES, TARGET_IDS, EnforcementRule
 from spellwarden_scan.text import valid_block, valid_line
 from spellwarden_scan.version import RULES_VERSION, __version__
@@ -41,8 +43,8 @@ BASELINE_JSON = """{
     "description": "The eight Spellwarden baseline enforcement rules, mapped to OWASP and NIST."
   },
   "engine": {
-    "version": "1.1.1",
-    "rules_version": "2026.10.2"
+    "version": "1.2.0",
+    "rules_version": "2026.10.3"
   },
   "rules": [
     {
@@ -121,6 +123,34 @@ class PackDocument:
             "rules": [{"id": rule_id, "enabled": on} for rule_id, on in self.rules],
             "org_rules": [_copy(spec) for spec in self.org_rules],
         }
+
+
+# O3 spec 5.3, P17: the engine version that introduced each name an org rule can use. Every name of 1.1.0 is "1.1.0";
+# 1.2.0 adds none, so every spec that validates today answers "1.1.0". A later engine that adds a predicate adds its row.
+_DETECTION_KEYS = ("kind", "predicate", "values")
+PREDICATE_SINCE: Mapping[str, str] = {
+    name: "1.1.0"
+    for name in (*SPEC_KEYS, *PATTERN_KEYS, *_DETECTION_KEYS, *PROBE_PREDICATES, *PATTERN_PREDICATES)
+}
+_VERSION_DEFAULT = "1.1.0"
+
+
+def _version_key(version: str) -> tuple[int, ...]:
+    return tuple(int(part) for part in version.split("."))
+
+
+def org_rule_min_version(spec: Mapping) -> str:
+    """The oldest engine version that compiles the rule: the maximum of `PREDICATE_SINCE` over the keys of the spec,
+    the keys of its detection and its predicate. A name the table does not know counts as 1.1.0 (a spec the validator
+    refuses never reaches a scanner)."""
+    names: set[str] = set(spec) if isinstance(spec, Mapping) else set()
+    detection = spec.get("detection") if isinstance(spec, Mapping) else None
+    if isinstance(detection, Mapping):
+        names |= {key for key in detection if isinstance(key, str)}
+        if isinstance(detection.get("predicate"), str):
+            names.add(detection["predicate"])
+    versions = [PREDICATE_SINCE.get(name, _VERSION_DEFAULT) for name in names if isinstance(name, str)]
+    return max(versions, key=_version_key, default=_VERSION_DEFAULT)
 
 
 def _copy(value: object):
@@ -236,6 +266,6 @@ def baseline_pack() -> PackDocument:
 
 __all__ = [
     "BASELINE_JSON", "ENFORCEMENT_IDS", "ENFORCEMENT_RULES", "MAX_DOCUMENT_BYTES", "MAX_ORG_RULES", "PACK_ERROR_CODES",
-    "TARGET_IDS", "EnforcementRule", "PackDocument", "PackError", "baseline_pack", "canonical_json",
-    "make_pack_document", "pack_sha256", "validate_pack",
+    "PREDICATE_SINCE", "TARGET_IDS", "EnforcementRule", "PackDocument", "PackError", "baseline_pack", "canonical_json",
+    "make_pack_document", "org_rule_min_version", "pack_sha256", "validate_pack",
 ]

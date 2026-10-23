@@ -10,7 +10,7 @@ import json
 import zipfile
 from pathlib import Path
 
-from spellwarden_cli.net import JSON_MAX, FetchError, Response, without
+from spellwarden_cli.net import JSON_MAX, MAX_REDIRECTS, FetchError, Response, without
 
 RECORDED = Path(__file__).resolve().parents[1] / "recorded"  # tests/recorded/ (spec 6.8)
 
@@ -68,7 +68,8 @@ class FakeFetcher:
             raise FetchError("too_large")
         return Response(answer["status"], dict(answer["headers"]), answer["body"], url)
 
-    def get(self, url: str, *, max_bytes: int, accept: str = "*/*", headers: dict[str, str] | None = None) -> Response:
+    def get(self, url: str, *, max_bytes: int, accept: str = "*/*", headers: dict[str, str] | None = None,
+            redirects: int = MAX_REDIRECTS) -> Response:  # noqa: ARG002 -- the fake never redirects; the shape is the real one's
         return self._answer("GET", url, {**without(headers, "Accept"), "Accept": accept}, None, max_bytes)
 
     def post_json(self, url: str, body: dict, headers: dict[str, str], *, max_bytes: int = JSON_MAX) -> Response:

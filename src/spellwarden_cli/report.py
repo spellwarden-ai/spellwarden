@@ -14,12 +14,27 @@ if TYPE_CHECKING:
 
 ITEM_KINDS = ("skill", "marketplace", "plugin", "mcp-config", "mcp-server", "settings", "hooks", "plugin-manifest")
 ERROR_CODES = (*DOCUMENT_ERRORS, "unsafe_path", "case_collision", "unreadable", "package_too_large", "path_not_directory",
-               "settings_invalid", "baseline_invalid", "lock_unreadable", "invalid_input", "crash")
+               "settings_invalid", "baseline_invalid", "lock_unreadable", "invalid_input", "crash",
+               # O3 spec 6.9: connected mode
+               "connected_config", "connected_key_invalid", "connected_no_credential", "connected_auth",
+               "connected_subscription", "connected_ci_key_required", "connected_forbidden", "connected_rate_limited",
+               "connected_unavailable", "connected_required", "policy_not_found", "policy_invalid", "org_rules_incomplete",
+               "registry_check_failed", "registry_check_too_large")
+# The error codes whose message says what to fix (O3 spec 6.9); the Markdown report prints them whole.
+CONNECTED_ERRORS = ERROR_CODES[ERROR_CODES.index("connected_config"):]
 NOTICE_CODES = ("no_agent_content", "git_unavailable", "exec_bits_unknown", "symlink_skipped", "file_too_large",
                 "non_utf8_path", "upload_paths_scan_root", "findings_truncated", "baseline_mismatch", "baseline_expired",
                 "probe_private_untrusted", "probe_fork_disabled", "probe_skipped", "comment_permission", "comment_failed",
                 "comment_token_missing", "comment_no_request", "ping_url_ignored", "file_missing", "reference_not_config",
-                "settings_from_base", "base_unavailable", "skill_name_case")
+                "settings_from_base", "base_unavailable", "skill_name_case",
+                # O3 spec 6.9: connected mode
+                "connected", "connected_fallback", "dependabot_free_mode", "fork_free_mode", "api_url_override",
+                "reg_baseline_from_base", "gate_scope_all", "org_rules_skipped", "plugin_marketplace_unknown", "uploaded",
+                "upload_failed", "upload_skipped", "upload_ci_only", "upload_disabled", "registry_gate_off",
+                "mcp_rules_need_probe", "policy_newer_than_scanner")
+# The notices that say a run continued in free mode after connected mode could not start (O3 spec 6.4); the text and
+# Markdown outputs derive their "unavailable" line from them.
+FREE_MODE_NOTICES = ("connected_fallback", "fork_free_mode", "dependabot_free_mode")
 PROBE_SKIP_REASONS = ("unresolved", "limit", "budget", "fork", "refused")
 LOCK_STATUSES = ("ok", "stale", "absent", "not_checked")
 LOCK_ITEM_KINDS = ("document", "mcp-server", "plugin", "plugin-dir", "skill")
@@ -32,9 +47,13 @@ class Notice:
     code: str
     path: str
     message: str
+    detail: str | None = None  # O3 spec 6.9: the underlying code of a wrapper error such as `connected_required`
 
     def to_dict(self) -> dict:
-        return {"code": self.code, "path": self.path, "message": self.message}
+        entry = {"code": self.code, "path": self.path, "message": self.message}
+        if self.detail is not None:  # absent otherwise, so free-mode output is unchanged (invariant 1)
+            entry["detail"] = self.detail
+        return entry
 
 
 @dataclass(frozen=True)
@@ -99,6 +118,8 @@ class Report:
     errors: tuple[Notice, ...]
     repo_prefix: str | None
     rules: RuleSet
+    # O3 spec 6.9: the connected block, present only when the session was established; serialised only when not None.
+    connected: dict | None = None
 
     def unsuppressed(self) -> tuple[ReportFinding, ...]:
         return tuple(rf for rf in self.findings if not rf.suppressed)
@@ -129,10 +150,13 @@ class Report:
 
 def to_json_dict(report: Report) -> dict:
     """The JSON format of spec 6.9 (`schemas/report.schema.json`)."""
-    return {
+    document = {
         "schema": 1, "scanner_version": report.scanner_version, "rules_version": report.rules_version,
         "as_of": report.as_of, "items": [item.to_dict() for item in report.items],
         "findings": [rf.to_dict() for rf in report.findings], "probes": [probe.to_dict() for probe in report.probes],
         "lock": report.lock.to_dict(), "notices": [n.to_dict() for n in report.notices],
         "errors": [e.to_dict() for e in report.errors], "fail_on": report.fail_on, "exit_code": report.exit_code(),
     }
+    if report.connected is not None:
+        document["connected"] = report.connected
+    return document

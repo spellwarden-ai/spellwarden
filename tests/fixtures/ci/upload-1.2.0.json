@@ -1,0 +1,240 @@
+{
+  "schema": 1,
+  "run": {
+    "provider": "github",
+    "repository": {
+      "identity": "github:github.com/acme/tools",
+      "url": "https://github.com/acme/tools",
+      "visibility": "private",
+      "scope": ""
+    },
+    "kind": "default_branch",
+    "event": "push",
+    "request_number": null,
+    "head_sha": null,
+    "head_ref": null,
+    "sha": "1111111111111111111111111111111111111111",
+    "ref_name": "main",
+    "default_branch": "main",
+    "run_url": "https://github.com/acme/tools/actions/runs/9",
+    "idempotency_key": "https://github.com/acme/tools/actions/runs/9#scan#1"
+  },
+  "report": {
+    "schema": 1,
+    "scanner_version": "1.2.0",
+    "rules_version": "2026.10.3",
+    "as_of": "2026-10-23",
+    "items": [
+      {
+        "kind": "marketplace",
+        "path": ".claude-plugin/marketplace.json",
+        "name": "marketplace.json",
+        "plugin": null
+      },
+      {
+        "kind": "mcp-config",
+        "path": ".mcp.json",
+        "name": ".mcp.json",
+        "plugin": null
+      },
+      {
+        "kind": "mcp-server",
+        "path": ".mcp.json#docs",
+        "name": "docs",
+        "plugin": null
+      },
+      {
+        "kind": "mcp-server",
+        "path": ".mcp.json#fs",
+        "name": "fs",
+        "plugin": null
+      },
+      {
+        "kind": "mcp-server",
+        "path": ".mcp.json#git",
+        "name": "git",
+        "plugin": null
+      },
+      {
+        "kind": "plugin",
+        "path": ".claude-plugin/marketplace.json#lint",
+        "name": "lint",
+        "plugin": null
+      },
+      {
+        "kind": "settings",
+        "path": ".claude/settings.json",
+        "name": "settings.json",
+        "plugin": null
+      },
+      {
+        "kind": "skill",
+        "path": "skills/deploy",
+        "name": "deploy",
+        "plugin": null
+      },
+      {
+        "kind": "skill",
+        "path": "skills/review",
+        "name": "review",
+        "plugin": null
+      }
+    ],
+    "findings": [
+      {
+        "rule_id": "SW-REG-002",
+        "severity": "high",
+        "title": "MCP server not admitted in the organisation's private registry",
+        "location": {
+          "path": ".mcp.json",
+          "line": 3
+        },
+        "evidence": "docs: bff3***",
+        "fingerprint": "f19f70d7f8ac175a4871731d6df206c37190918525122b11e53389681fdaca22",
+        "malicious_indicator": false,
+        "item": ".mcp.json#docs",
+        "suppressed": false,
+        "baseline": null
+      },
+      {
+        "rule_id": "SW-REG-003",
+        "severity": "high",
+        "title": "Agent content the private registry cannot judge",
+        "location": {
+          "path": ".mcp.json",
+          "line": 12
+        },
+        "evidence": "fs: resolver_override",
+        "fingerprint": "99846482117ec7fed74644ebf2f46b59bb4bdb5dc310f694a4c099f0b2c72c13",
+        "malicious_indicator": false,
+        "item": ".mcp.json#fs",
+        "suppressed": false,
+        "baseline": null
+      }
+    ],
+    "probes": [],
+    "lock": {
+      "status": "not_checked",
+      "added": [],
+      "removed": [],
+      "changed": []
+    },
+    "notices": [],
+    "errors": [],
+    "fail_on": "high",
+    "exit_code": 1,
+    "connected": {
+      "credential": "oidc",
+      "org": {
+        "slug": "acme",
+        "name": "Acme"
+      },
+      "run": {
+        "identity": "github:github.com/acme/tools",
+        "scope": "",
+        "kind": "default_branch",
+        "event": "push",
+        "sha": "1111111111111111111111111111111111111111",
+        "head_sha": null,
+        "ref_name": "main"
+      },
+      "policy": {
+        "source": "org_rules",
+        "chosen_by": "organisation",
+        "pack_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "version": "1.3",
+        "sha256": "1b71d39140453550c018d0be2de5cfaeb37568299e05ace44b126bbd53ee6eb0",
+        "org_rule_ids": [],
+        "skipped": [],
+        "pack_name": "Organisation rules",
+        "gate": {
+          "enabled": true,
+          "scope": "changed",
+          "stdio": true,
+          "plugins": true
+        },
+        "registry_name": "acme"
+      },
+      "registry": {
+        "gate": true,
+        "scope": "changed",
+        "scope_applied": "all",
+        "stdio": true,
+        "plugins": true,
+        "checked": 6,
+        "not_admitted": 1,
+        "unidentified": 1,
+        "out_of_scope": 0,
+        "items": [
+          {
+            "kind": "skill",
+            "path": "skills/deploy",
+            "name": "deploy",
+            "identity": "557526fa2b051da62ed709265b9e96d7770ab69b3688cbb72fd95d312548eecd",
+            "in_scope": true,
+            "admitted": true,
+            "request_url": null
+          },
+          {
+            "kind": "skill",
+            "path": "skills/review",
+            "name": "review",
+            "identity": "92e5226ef8eca926bd50be4f188ef5ff4c5a7a1659a29542c49d6b21c57cb632",
+            "in_scope": true,
+            "admitted": true,
+            "request_url": null
+          },
+          {
+            "kind": "plugin",
+            "path": ".claude-plugin/marketplace.json",
+            "name": "lint",
+            "identity": "git:https://github.com/acme/lint@0123456789abcdef0123456789abcdef01234567",
+            "in_scope": true,
+            "admitted": true,
+            "request_url": null
+          },
+          {
+            "kind": "marketplace",
+            "path": ".claude/settings.json",
+            "name": "acme-tools",
+            "identity": "git:https://github.com/acme/claude-tools@0123456789abcdef0123456789abcdef01234567",
+            "in_scope": true,
+            "admitted": true,
+            "request_url": null,
+            "enabled_plugins": [
+              "lint"
+            ]
+          },
+          {
+            "kind": "server",
+            "path": ".mcp.json",
+            "name": "docs",
+            "identity": "bff38ce185578f2f8d151503c6ec1b7b0da08174c5d197a669e2af8da9082dfc",
+            "in_scope": true,
+            "admitted": false,
+            "request_url": "https://dash.spellwarden.ai/acme/mcp-servers?add=1&url=https%3A%2F%2Fmcp.example.com%2Fdocs"
+          },
+          {
+            "kind": "stdio",
+            "path": ".mcp.json",
+            "name": "git",
+            "identity": "cmd:uvx mcp-server-git==0.6.2",
+            "in_scope": true,
+            "admitted": true,
+            "request_url": null
+          },
+          {
+            "kind": "stdio",
+            "path": ".mcp.json",
+            "name": "fs",
+            "identity": null,
+            "in_scope": true,
+            "admitted": null,
+            "request_url": null,
+            "reason": "resolver_override"
+          }
+        ]
+      }
+    }
+  }
+}

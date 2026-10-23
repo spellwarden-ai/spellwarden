@@ -1,0 +1,343 @@
+[
+ {
+  "path": "schema",
+  "type": "integer",
+  "enum": [
+   1
+  ]
+ },
+ {
+  "path": "run.provider",
+  "type": "string",
+  "enum": [
+   "github",
+   "gitlab",
+   "other"
+  ]
+ },
+ {
+  "path": "run.repository.identity",
+  "type": "string",
+  "max": 512,
+  "pattern": "^(github|gitlab|other):[a-z0-9.-]+(:[0-9]{2,5})?(/[A-Za-z0-9._-]+){1,64}$"
+ },
+ {
+  "path": "run.repository.url",
+  "type": "string|null",
+  "max": 2048,
+  "pattern": "^https://"
+ },
+ {
+  "path": "run.repository.visibility",
+  "type": "string",
+  "enum": [
+   "public",
+   "private"
+  ]
+ },
+ {
+  "path": "run.repository.scope",
+  "type": "string",
+  "max": 512,
+  "pattern": "^([A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*)?$"
+ },
+ {
+  "path": "run.kind",
+  "type": "string",
+  "enum": [
+   "request",
+   "default_branch"
+  ]
+ },
+ {
+  "path": "run.event",
+  "type": "string",
+  "max": 64
+ },
+ {
+  "path": "run.sha",
+  "type": "string|null",
+  "pattern": "^[0-9a-f]{40}$"
+ },
+ {
+  "path": "run.head_sha",
+  "type": "string|null",
+  "pattern": "^[0-9a-f]{40}$"
+ },
+ {
+  "path": "run.ref_name",
+  "type": "string|null",
+  "max": 255
+ },
+ {
+  "path": "run.default_branch",
+  "type": "string|null",
+  "max": 255
+ },
+ {
+  "path": "run.request_number",
+  "type": "integer|null",
+  "min": 1,
+  "max": 2147483648
+ },
+ {
+  "path": "run.run_url",
+  "type": "string|null",
+  "max": 2048,
+  "pattern": "^https://"
+ },
+ {
+  "path": "run.idempotency_key",
+  "type": "string",
+  "pattern": "^[A-Za-z0-9._:#/-]{16,128}$"
+ },
+ {
+  "path": "report.schema",
+  "type": "integer",
+  "enum": [
+   1
+  ]
+ },
+ {
+  "path": "report.scanner_version",
+  "type": "string",
+  "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+([-+][0-9A-Za-z.+-]+)?$"
+ },
+ {
+  "path": "report.rules_version",
+  "type": "string",
+  "max": 32
+ },
+ {
+  "path": "report.exit_code",
+  "type": "integer",
+  "min": 0,
+  "max": 3
+ },
+ {
+  "path": "report.fail_on",
+  "type": "string",
+  "enum": [
+   "critical",
+   "high",
+   "medium",
+   "low",
+   "never"
+  ]
+ },
+ {
+  "path": "report.lock.status",
+  "type": "string",
+  "enum": [
+   "ok",
+   "stale",
+   "absent",
+   "not_checked"
+  ]
+ },
+ {
+  "path": "report.findings",
+  "type": "array",
+  "max": 500
+ },
+ {
+  "path": "report.findings[].rule_id",
+  "type": "string",
+  "pattern": "^SW-(SKL|MCP|CFG|REG|ORG)-[0-9]{3}$"
+ },
+ {
+  "path": "report.findings[].severity",
+  "type": "string",
+  "enum": [
+   "critical",
+   "high",
+   "medium",
+   "low"
+  ]
+ },
+ {
+  "path": "report.findings[].title",
+  "type": "string",
+  "max": 200
+ },
+ {
+  "path": "report.findings[].location.path",
+  "type": "string",
+  "max": 1024
+ },
+ {
+  "path": "report.findings[].location.line",
+  "type": "integer|null",
+  "min": 1,
+  "max": 10000000
+ },
+ {
+  "path": "report.findings[].evidence",
+  "type": "string",
+  "max": 300
+ },
+ {
+  "path": "report.findings[].fingerprint",
+  "type": "string",
+  "pattern": "^[0-9a-f]{64}$"
+ },
+ {
+  "path": "report.findings[].item",
+  "type": "string|null",
+  "max": 1024
+ },
+ {
+  "path": "report.findings[].suppressed",
+  "type": "boolean"
+ },
+ {
+  "path": "report.findings[].baseline",
+  "type": "object|null"
+ },
+ {
+  "path": "report.findings[].baseline.reason",
+  "type": "string",
+  "max": 500
+ },
+ {
+  "path": "report.findings[].baseline.added",
+  "type": "string",
+  "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+ },
+ {
+  "path": "report.findings[].baseline.expires",
+  "type": "string",
+  "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+ },
+ {
+  "path": "report.items",
+  "type": "array",
+  "max": 2000
+ },
+ {
+  "path": "report.items[].kind",
+  "type": "string",
+  "max": 32
+ },
+ {
+  "path": "report.items[].path",
+  "type": "string",
+  "max": 1024
+ },
+ {
+  "path": "report.items[].name",
+  "type": "string",
+  "max": 255
+ },
+ {
+  "path": "report.items[].plugin",
+  "type": "string|null",
+  "max": 255
+ },
+ {
+  "path": "report.probes",
+  "type": "array",
+  "max": 200
+ },
+ {
+  "path": "report.probes[].item",
+  "type": "string",
+  "max": 1024
+ },
+ {
+  "path": "report.probes[].status",
+  "type": "string",
+  "max": 32
+ },
+ {
+  "path": "report.probes[].skip_reason",
+  "type": "string|null",
+  "max": 64
+ },
+ {
+  "path": "report.probes[].transport",
+  "type": "string|null",
+  "max": 32
+ },
+ {
+  "path": "report.probes[].spec_version",
+  "type": "string|null",
+  "max": 32
+ },
+ {
+  "path": "report.probes[].auth_mode",
+  "type": "string|null",
+  "max": 32
+ },
+ {
+  "path": "report.probes[].migration_status",
+  "type": "string|null",
+  "max": 32
+ },
+ {
+  "path": "report.notices",
+  "type": "array",
+  "max": 50
+ },
+ {
+  "path": "report.notices[].code",
+  "type": "string",
+  "max": 64
+ },
+ {
+  "path": "report.notices[].message",
+  "type": "string",
+  "max": 300
+ },
+ {
+  "path": "report.notices[].detail",
+  "type": "string|null",
+  "max": 300
+ },
+ {
+  "path": "report.errors",
+  "type": "array",
+  "max": 50
+ },
+ {
+  "path": "report.errors[].code",
+  "type": "string",
+  "max": 64
+ },
+ {
+  "path": "report.errors[].message",
+  "type": "string",
+  "max": 300
+ },
+ {
+  "path": "report.errors[].detail",
+  "type": "string|null",
+  "max": 300
+ },
+ {
+  "path": "report.connected",
+  "type": "object|null"
+ },
+ {
+  "path": "report.upload_truncated",
+  "type": "integer|null",
+  "min": 0,
+  "max": 1000000
+ },
+ {
+  "path": "report.upload_truncated_fields",
+  "type": "array|null",
+  "max": 5
+ },
+ {
+  "path": "report.upload_truncated_fields[]",
+  "type": "string|null",
+  "enum": [
+   "findings",
+   "items",
+   "probes",
+   "notices",
+   "errors"
+  ]
+ }
+]

@@ -46,6 +46,30 @@ def test_nested_skills_are_separate_packages(make_repo, tmp_path):
     ]
 
 
+def test_a_skill_records_its_nested_skill_roots(make_repo, tmp_path):
+    repo = make_repo(tmp_path / "repo", {"skills/outer/SKILL.md": SKILL, "skills/outer/inner/SKILL.md": SKILL,
+                                "skills/outer/skills/x/skill.md": SKILL, "skills/outer/deep/y/skill.md": SKILL})
+    found = _discover(repo)
+    nested = {skill.path: skill.nested for skill in found.skills}
+    assert nested["skills/outer"] == ("skills/outer/inner", "skills/outer/skills/x")
+    assert nested["skills/outer/inner"] == ()
+
+
+def test_the_root_skill_records_every_other_skill_as_nested(make_repo, tmp_path):
+    repo = make_repo(tmp_path / "repo", {"SKILL.md": SKILL, "a/SKILL.md": SKILL, "b/c/SKILL.md": SKILL})
+    found = _discover(repo)
+    assert [(skill.path, skill.nested) for skill in found.skills] == [(".", ("a", "b/c")), ("a", ()), ("b/c", ())]
+
+
+def test_the_skill_file_rule_is_the_engines():
+    from spellwarden_scan import identity
+
+    assert discover_module._is_skill_file is identity.is_skill_file
+    assert discover_module._is_loaded_variant is identity.is_loaded_variant
+    assert discover_module._is_skill_name_variant is identity.is_skill_name_variant
+    assert discover_module._fold is identity.fold_skill_name
+
+
 def test_skill_at_the_scan_root(make_repo, tmp_path):
     repo = make_repo(tmp_path / "repo", {"SKILL.md": SKILL, "scripts/run.sh": "echo"})
     found = _discover(repo)
@@ -631,6 +655,15 @@ def test_a_link_inside_a_skill_is_followed_scanned_and_locked(make_repo, tmp_pat
     assert code == 1
 
 
+def test_a_skill_records_the_targets_of_the_member_links_it_followed(make_repo, tmp_path):
+    # O3 spec 6.6: a skill is in scope of a request when a file a followed link points at changed
+    repo = make_repo(tmp_path / "repo", {"skills/x/SKILL.md": SKILL, "shared/run.sh": SAFE_SCRIPT, "skills/y/SKILL.md": SKILL})
+    _symlink("../../../shared/run.sh", repo / "skills" / "x" / "scripts" / "run.sh")
+    found = _discover(repo)
+    assert {skill.path: skill.targets for skill in found.skills} == {"skills/x": frozenset({"shared/run.sh"}),
+                                                                       "skills/y": frozenset()}
+
+
 def test_a_member_link_that_cannot_be_followed_is_skipped_and_its_target_text_is_locked(make_repo, tmp_path, run_cli):
     # A skill may legitimately link outside the repository: that is a notice, not an error, but the link's target
     # text is in the package's lock hash, so pointing the link elsewhere makes the lock stale.
@@ -1178,3 +1211,21 @@ def test_an_ascii_sibling_of_the_root_is_still_skipped_and_a_non_ascii_root_stil
     assert found.errors == ()
     assert found.skills[0].links == {"skills/x/a.sh": b"../../../n5/x.sh"}
     assert found.skills[0].files["skills/x/b.sh"] == SAFE_SCRIPT.encode()
+
+
+def test_engine_findings_passes_the_nested_roots_to_the_engine(make_repo, tmp_path, monkeypatch):
+    from spellwarden_scan.rules import RuleSet
+
+    from spellwarden_cli import run
+
+    repo = make_repo(tmp_path / "repo", {"skills/outer/SKILL.md": SKILL, "skills/outer/inner/SKILL.md": SKILL})
+    seen = {}
+    real = run.scan_skill_package
+
+    def spy(files, rules, **kwargs):
+        seen[kwargs["root"]] = tuple(kwargs["nested_roots"])
+        return real(files, rules, **kwargs)
+
+    monkeypatch.setattr(run, "scan_skill_package", spy)
+    run.engine_findings(_discover(repo), RuleSet.baseline(), [])
+    assert seen == {"skills/outer": ("skills/outer/inner",), "skills/outer/inner": ()}

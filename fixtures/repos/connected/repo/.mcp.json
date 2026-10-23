@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "docs": {
+      "url": "https://mcp.example.com/docs"
+    },
+    "git": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-git==0.6.2"
+      ]
+    },
+    "fs": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@acme/mcp-fs@1.2.3"
+      ]
+    }
+  }
+}

@@ -22,7 +22,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from urllib.parse import urlsplit
 
-from spellwarden_scan import Location, ProbeResult, RuleSet, evaluate_probe
+from spellwarden_scan import Location, OrgRuleBudget, ProbeResult, RuleSet, evaluate_probe
 from spellwarden_scan.version import __version__
 
 from spellwarden_cli import escape
@@ -141,7 +141,8 @@ def event_logger(log: Callable[[str], None]) -> Callable[[str, dict], None]:
 
 
 def _probe_one(target: ProbeTarget, rules: RuleSet, budget: _Budget, fetcher_factory: Callable[[], Fetcher],
-               now_iso: str) -> tuple[ProbeReport, list[ReportFinding], str | None]:
+               now_iso: str, org_budget: Callable[[], OrgRuleBudget] | None = None
+               ) -> tuple[ProbeReport, list[ReportFinding], str | None]:
     if budget.spent:
         return ProbeReport(target.item, "skipped", "budget", None), [], None
     refused = threading.Event()
@@ -158,22 +159,25 @@ def _probe_one(target: ProbeTarget, rules: RuleSet, budget: _Budget, fetcher_fac
         return ProbeReport(target.item, "skipped", "budget", None), [], None
     if result.error in REFUSALS and not result.reachable:
         return ProbeReport(target.item, "skipped", "refused", None), [], result.error
-    evaluated = evaluate_probe(bounded_result(result), rules)
+    evaluated = evaluate_probe(bounded_result(result), rules,
+                               **({"org_rule_budget": org_budget()} if org_budget is not None else {}))
     findings = [ReportFinding(dataclasses.replace(finding, location=Location(target.path, target.line)), target.item)
                 for finding in evaluated.findings]
     return ProbeReport(target.item, "probed", None, evaluated), findings, None
 
 
 def run_phase(targets: Sequence[ProbeTarget], rules: RuleSet, *, fetcher_factory: Callable[[], Fetcher],
-              clock: Callable[[], float] = time.monotonic, now_iso: str,
-              notices: list[Notice] | None = None) -> tuple[list[ProbeReport], list[ReportFinding]]:
+              clock: Callable[[], float] = time.monotonic, now_iso: str, notices: list[Notice] | None = None,
+              org_budget: Callable[[], OrgRuleBudget] | None = None) -> tuple[list[ProbeReport], list[ReportFinding]]:
     """Probes `targets` under the budget. Reports are in item order, whatever order the workers finished in;
-    every skip is also a `probe_skipped` notice in `notices` (a refusal names its code and nothing else)."""
+    every skip is also a `probe_skipped` notice in `notices` (a refusal names its code and nothing else). With
+    `org_budget` (connected mode, O3 spec 6.5) each probed server's org rules run under a budget of their own; a rule
+    that did not finish is named by `McpScanResult.org_rules_incomplete`."""
     ordered = sorted(targets, key=lambda target: target.item)
     chosen, over = ordered[:MAX_SERVERS], ordered[MAX_SERVERS:]
     budget = _Budget(clock, seconds=BUDGET_SECONDS, requests=MAX_REQUESTS)
     with ThreadPoolExecutor(max_workers=MAX_WORKERS, thread_name_prefix="spellwarden-probe") as pool:
-        outcomes = list(pool.map(lambda target: _probe_one(target, rules, budget, fetcher_factory, now_iso), chosen))
+        outcomes = list(pool.map(lambda target: _probe_one(target, rules, budget, fetcher_factory, now_iso, org_budget), chosen))
     reports = [report for report, _, _ in outcomes] + [ProbeReport(t.item, "skipped", "limit", None) for t in over]
     findings = [finding for _, found, _ in outcomes for finding in found]
     if notices is not None:

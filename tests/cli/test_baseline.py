@@ -322,3 +322,114 @@ def test_apply_is_idempotent():
     once, _n, _e = baseline.apply(loaded, found, as_of=date(2026, 12, 15))
     twice, _n, _e = baseline.apply(loaded, once, as_of=date(2026, 12, 15))
     assert once == twice and once[0].suppressed
+
+
+# --- the registry gate's third cap (O3 spec 6.6, claim E10) ------------------------------------------------------------
+
+def _reg_finding():
+    from spellwarden_scan.gate import gate_finding
+
+    from spellwarden_cli.report import ReportFinding
+
+    return ReportFinding(gate_finding("skill", "skills/setup", None, "setup", "a" * 64, "not_admitted"), "skills/setup")
+
+
+def test_the_registry_gate_caps_an_acceptance_at_90_days():
+    assert baseline.REG_SPAN_DAYS == 90
+    document = {"version": 1, "accepted": [
+        {"fingerprint": "a" * 64, "rule": "SW-REG-001", "path": "skills/setup", "reason": "ok", "added": date(2026, 12, 1),
+         "expires": date(2027, 3, 1)},     # 90 days
+        {"fingerprint": "b" * 64, "rule": "SW-REG-003", "path": "skills/setup", "reason": "ok", "added": date(2026, 12, 1),
+         "expires": date(2027, 3, 2)}]}    # 91 days
+    loaded = baseline.parse_baseline(document)
+    assert [entry.fingerprint[0] for entry in loaded.entries] == ["a"]
+    assert [(n.code, "SW-REG-003 is a registry gate rule" in n.message) for n in loaded.invalid] == [("baseline_invalid", True)]
+
+
+def test_an_entry_without_a_rule_that_matches_a_gate_finding_is_held_to_the_same_cap():
+    finding = _reg_finding()
+    fingerprint = finding.finding.fingerprint
+    entry = baseline.Entry(fingerprint, "", "", "ok", date(2026, 12, 1), date(2027, 3, 2))   # 91 days, no rule named
+    kept, _notices, errors = baseline.apply(baseline.Baseline((entry,), ()), [finding], as_of=date(2026, 12, 15))
+    assert not kept[0].suppressed and [e.code for e in errors] == ["baseline_invalid"]
+    ok = baseline.Entry(fingerprint, "", "", "ok", date(2026, 12, 1), date(2027, 3, 1))     # 90 days
+    kept, _notices, errors = baseline.apply(baseline.Baseline((ok,), ()), [finding], as_of=date(2026, 12, 15))
+    assert kept[0].suppressed and errors == []
+
+
+def test_baseline_add_caps_a_gate_acceptance_at_90_days():
+    import argparse
+
+    from spellwarden_cli import commands
+
+    finding = _reg_finding().finding
+    args = argparse.Namespace(expires=date(2027, 3, 2), days=None)
+    with pytest.raises(commands.CommandError, match="at most 90 days"):
+        baseline._expiry(args, finding, date(2026, 12, 1))
+    assert baseline._expiry(argparse.Namespace(expires=None, days=None), finding, date(2026, 12, 1)) == date(2027, 3, 1)
+
+
+# --- entries for findings only a connected run produces (O3 spec 6.6, 6.10; finding r0:F2) ------------------------------
+
+def _connected_entries(**fields: str) -> list[dict]:
+    return [
+        _entry("a" * 64, rule="SW-REG-003", path="skills/setup", added="2027-03-01", expires="2027-05-01", **fields),
+        _entry("b" * 64, rule="SW-ORG-001", path=SCRIPT, added="2027-03-01", expires="2027-05-01", **fields),
+    ]
+
+
+def test_list_shows_a_registry_or_organisation_entry_as_connected_not_unmatched(tmp_path, make_repo, run_cli):
+    repo = _repo(tmp_path, make_repo)
+    _write(repo, [*_connected_entries(), _entry("c" * 64, rule="SW-REG-001", path="skills/setup", added="2027-01-01",
+                                               expires="2027-02-01")])
+    code, out, err = run_cli(["baseline", "list", str(repo), "--as-of", "2027-03-15"])
+    assert code == 0, err
+    states = {line.split()[2]: line.split()[0] for line in out.splitlines() if line.strip()}
+    assert states == {"a" * 12: "connected", "b" * 12: "connected", "c" * 12: "expired"}
+
+
+def test_prune_keeps_registry_and_organisation_entries_until_they_expire_and_the_grace_ends(tmp_path, make_repo, run_cli):
+    repo = _repo(tmp_path, make_repo)
+    _write(repo, [*_connected_entries(),
+                  _entry("c" * 64, rule="SW-REG-001", path="skills/setup", added="2027-01-01", expires="2027-02-01"),
+                  _entry("d" * 64, added="2027-03-01", expires="2027-03-31")])   # an offline rule matching nothing
+    code, out, err = run_cli(["baseline", "prune", str(repo), "--as-of", "2027-03-15"])
+    assert code == 0, err
+    assert "Removed 2 entries" in out
+    assert sorted(e.fingerprint[0] for e in baseline.load_baseline(str(repo)).entries) == ["a", "b"]
+
+
+def test_add_accepts_a_connected_finding_by_fingerprint_rule_and_path_under_the_90_day_cap(tmp_path, make_repo, run_cli):
+    repo = _repo(tmp_path, make_repo)
+    fingerprint = "a" * 64
+    code, _out, err = run_cli(["baseline", "add", str(repo), "--fingerprint", fingerprint, "--rule", "SW-REG-003",
+                               "--finding-path", "skills/setup", "--reason", "x", "--as-of", "2027-03-01"])
+    assert code == 0, err
+    (entry,) = baseline.load_baseline(str(repo)).entries
+    assert (entry.fingerprint, entry.rule, entry.path) == (fingerprint, "SW-REG-003", "skills/setup")
+    assert (entry.expires - entry.added).days == 90
+    code, _out, err = run_cli(["baseline", "add", str(repo), "--fingerprint", "b" * 64, "--rule", "SW-REG-001",
+                               "--reason", "x", "--days", "91", "--as-of", "2027-03-01"])
+    assert code == 2 and "at most 90 days" in err
+    code, _out, err = run_cli(["baseline", "add", str(repo), "--fingerprint", "b" * 64, "--rule", "SW-ORG-002",
+                               "--reason", "x", "--days", "365", "--as-of", "2027-03-01"])
+    assert code == 0, err
+
+
+@pytest.mark.parametrize("fingerprints, rule", [
+    (["a" * 64], "SW-SKL-007"),                # an offline rule is judged by the scan: it needs a current finding
+    (["a" * 64], "SW-REG-9"),                  # not a rule id
+    (["a" * 64, "e" * 64], "SW-REG-001"),      # one rule cannot describe two fingerprints
+])
+def test_add_refuses_a_rule_it_cannot_take_for_an_unknown_fingerprint(fingerprints, rule, tmp_path, make_repo, run_cli):
+    repo = _repo(tmp_path, make_repo)
+    code, _out, err = run_cli(["baseline", "add", str(repo), "--fingerprint", *fingerprints, "--rule", rule,
+                               "--reason", "x"])
+    assert code == 2, err
+    assert not (repo / baseline.BASELINE_PATH).exists()
+
+
+def test_add_refuses_rule_or_path_without_fingerprint(tmp_path, make_repo, run_cli):
+    repo = _repo(tmp_path, make_repo)
+    code, _out, err = run_cli(["baseline", "add", str(repo), "--all", "--rule", "SW-REG-001", "--reason", "x"])
+    assert code == 2 and "--fingerprint" in err

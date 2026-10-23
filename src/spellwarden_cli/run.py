@@ -8,17 +8,25 @@ from collections.abc import Callable, Mapping
 import dataclasses
 from dataclasses import dataclass, field
 from datetime import date
+import re
 from typing import TYPE_CHECKING
 
-from spellwarden_scan import RULES_VERSION, Finding, RuleSet, __version__, scan_agent_config, scan_skill_package
+from spellwarden_scan import (RULES_VERSION, Finding, OrgRuleBudget, RuleSet, __version__, scan_agent_config,
+                              scan_skill_package)
 
 from spellwarden_cli import discover, files
+from spellwarden_cli.ci import ORG_RE
 from spellwarden_cli.discover import Discovery, SkillPackage
 from spellwarden_cli.report import LockState, Notice, ProbeReport, Report, ReportFinding
+from spellwarden_cli.secret import Credentials
 from spellwarden_cli.settings import Settings
 
 if TYPE_CHECKING:
     from spellwarden_cli.ci import CiContext, RevisionSource
+
+
+# O3 spec 6.2: the shape of a pipeline key. A connector token (`swc_`) or a CI token (`swt_`) does not match.
+KEY_RE = re.compile(r"swk_[A-Za-z0-9_-]{40}")
 
 
 def _silent(_line: str) -> None:
@@ -36,34 +44,136 @@ class ScanOptions:
     log: Callable[[str], None] = _silent  # --verbose lines (stderr)
     context: CiContext | None = None  # the CI context `main` detected once; None: detected from `env` when needed
     revision: RevisionSource | None = None  # where the default baseline is read (D35); None: the working tree
+    credentials: Credentials | None = None  # read once from the environment by `main` (O3 spec 6.1); None: none
+    api_url: str | None = None  # SPELLWARDEN_API_URL when honoured (loopback HTTP only; O3 spec 6.2), else None
+    as_of_given: bool = False  # `--as-of` was passed; refused in connected mode
+    scope: str | None = ""  # the scan root below its work tree (`ci.scan_scope`, P41); None: outside the grammar of 8.4
+
+
+def connected_config_problem(options: ScanOptions) -> Notice | None:
+    """The checks of O3 spec 6.2 that need no network, in order: both credentials, a key of the wrong shape, `--as-of`
+    in connected mode. The result is an error that stops the run before any file is listed and any request is made.
+    Whether the run is connected is `connected.activation`'s decision (Task 8); here only what the variables and the
+    settings in force already say. No message carries a credential."""
+    credentials = options.credentials
+    if credentials is None:
+        return None
+    if credentials.org and credentials.key:
+        return Notice("connected_config", "", "SPELLWARDEN_ORG and SPELLWARDEN_API_KEY are both set. Use SPELLWARDEN_ORG "
+                      "with the pipeline's identity, or SPELLWARDEN_API_KEY alone, not both.")
+    if credentials.key is not None and KEY_RE.fullmatch(credentials.key.value) is None:
+        return Notice("connected_key_invalid", "", "SPELLWARDEN_API_KEY is not a CI key. A CI key starts with swk_. "
+                      "Create one under Settings, API keys, with access CI.")
+    if credentials.org and ORG_RE.fullmatch(credentials.org) is None:
+        return Notice("connected_config", "", "SPELLWARDEN_ORG is not an organisation slug: use the slug of the dashboard "
+                      "address (2 to 64 lower-case letters, digits and hyphens).")
+    in_ci = options.context is not None and options.context.provider is not None
+    connected = bool(credentials.org) or credentials.key is not None or (options.settings.connected.required and in_ci)
+    if connected and options.as_of_given:
+        return Notice("connected_config", "", "--as-of cannot be used in connected mode: the server works out when "
+                      "baseline entries expire.")
+    if connected and options.scope is None:  # P41: the server binds a CI token to a scope of this grammar
+        from spellwarden_cli import ci
+
+        return Notice("connected_config", "", "the scan root's path cannot be a scan root in connected mode: "
+                      f"{ci.scope_path(options.root)}")
+    return None
+
+
+def _stopped(options: ScanOptions, notices: list[Notice], problem: Notice) -> Report:
+    """A report that holds the one error and the notices that explain where the settings came from."""
+    return Report(scanner_version=__version__, rules_version=RULES_VERSION, as_of=options.as_of.isoformat(),
+                  fail_on=options.settings.fail_on, items=(), findings=(), probes=(), lock=LockState(),
+                  notices=tuple(notices), errors=(problem,), repo_prefix=None, rules=RuleSet.baseline()).sorted()
 
 
 def scan(options: ScanOptions) -> Report:
+    from spellwarden_cli import ci, connected
+
     rules = RuleSet.baseline()
-    fileset = files.list_files(options.root, options.settings)
+    early: list[Notice] = [*(options.revision.notices if options.revision else ())]
+    if options.api_url is not None:
+        early.append(Notice("api_url_override", "", "SPELLWARDEN_API_URL is honoured: the connected calls go to a loopback "
+                                                    "address, not to the Spellwarden service."))
+    problem = connected_config_problem(options)
+    if problem is not None:
+        return _stopped(options, early, problem)
+    # Connected mode (O3 spec 6.2 to 6.5): the session and the policy come first, but a failure before the session is
+    # only kept: `required` decides after discovery, which the Dependabot exemption needs (P35).
+    credentials = options.credentials if options.credentials is not None else Credentials(None, None, None, None, None)
+    context = options.context
+    if context is None and (credentials.org or credentials.key is not None or options.settings.connected.required):
+        context = ci.detect(options.env)
+    state = stop = None
+    if context is not None and connected.activation(options.settings, context, credentials) is not None:
+        try:
+            state = connected.establish(options, context, credentials, options.scope, connected.make_client)
+        except connected.ConnectedStop as caught:
+            stop = caught
+        except connected.ConnectedFail as failed:
+            return _stopped(options, early, Notice(failed.code, "", failed.message))
+    fileset = files.list_files(options.root, options.settings, env=options.env)
     found = discover.discover(fileset)
-    notices: list[Notice] = [*fileset.notices, *found.notices, *(options.revision.notices if options.revision else ())]
+    notices: list[Notice] = [*fileset.notices, *found.notices, *early]
     errors: list[Notice] = [*fileset.errors, *found.errors]
     options.log(f"{len(fileset.entries)} files listed, {len(found.items)} items discovered")
-    findings = engine_findings(found, rules, notices)
-    probes = run_probes(options, found, rules, findings, notices)
-    findings = apply_baseline(options, findings, notices, errors)
+    if stop is not None and context is not None:
+        changed = ci.changed_paths(options.root, context, env=options.env) if context.is_request and context.dependabot else None
+        error, notice = connected.decide_stop(stop, options.settings, context, found, changed)
+        errors.extend([error] if error is not None else [])
+        notices.extend([notice] if notice is not None else [])
+    org_budget = None
+    if state is not None:
+        rules = rules.with_rules(state.compiled)
+        notices.extend(connected.state_notices(state, options.settings))
+        org_budget = connected.org_rule_budget if state.compiled else None
+    findings = engine_findings(found, rules, notices, errors, org_budget=org_budget)
+    probes = run_probes(options, found, rules, findings, notices, org_budget=org_budget)
+    for probe in probes:
+        if probe.result is not None and probe.result.org_rules_incomplete:
+            errors.append(connected.org_rules_incomplete_error(probe.result.org_rules_incomplete, probe.item))
+    registry = None
+    if state is not None and context is not None:
+        try:  # O3 spec 6.6: the SW-REG findings join the others before the baseline, which may accept them
+            gate_findings, registry = connected.run_gate(state, found, probes, context, options, notices)
+            findings.extend(gate_findings)
+        except connected.ConnectedFail as failed:  # the check could not be made: exit 2, no SW-REG findings
+            errors.append(Notice(failed.code, "", failed.message))
+    findings = apply_baseline(options, findings, notices, errors, base_gate=state is not None and context is not None
+                              and context.is_request)
     lock = check_lock(options, found, errors)
     report = Report(
         scanner_version=__version__, rules_version=RULES_VERSION, as_of=options.as_of.isoformat(),
         fail_on=options.settings.fail_on, items=found.items, findings=tuple(findings), probes=tuple(probes), lock=lock,
-        notices=tuple(notices), errors=tuple(errors), repo_prefix=fileset.repo_prefix, rules=rules)
-    return report.sorted()
+        notices=tuple(notices), errors=tuple(errors), repo_prefix=fileset.repo_prefix, rules=rules,
+        connected=({**connected.report_block(state, context), "registry": registry}
+                   if state is not None and context is not None else None))
+    report = report.sorted()
+    if state is not None and context is not None and report.connected is not None:
+        # O3 spec 6.7: after the exit code is decided and before any output is written, so every output carries the
+        # outcome. The upload is a notice; the exit code is what `report` already says.
+        outcome = connected.upload(state, report, context, options)
+        report.connected["upload"] = outcome
+        report = dataclasses.replace(report, notices=(*report.notices, connected.upload_notice(outcome))).sorted()
+    return report
 
 
-def engine_findings(found: Discovery, rules: RuleSet, notices: list[Notice]) -> list[ReportFinding]:
+def engine_findings(found: Discovery, rules: RuleSet, notices: list[Notice], errors: list[Notice] | None = None, *,
+                    org_budget: Callable[[], OrgRuleBudget] | None = None) -> list[ReportFinding]:
     """The engine once per skill (only that package's files, under scan-root keys, so finding paths are scan-root
-    paths) and once for every configuration document that parsed or was truncated (spec 5.5, 6.5)."""
+    paths) and once for every configuration document that parsed or was truncated (spec 5.5, 6.5). In connected mode
+    `org_budget` gives each package a time budget for the org rules; a rule that did not finish is the error
+    `org_rules_incomplete` (O3 spec 6.5)."""
+    from spellwarden_cli import connected
+
     findings: list[ReportFinding] = []
     for skill in found.skills:
         # a case variant of SKILL.md is read under the engine's SKILL.md key and reported as written (spec 6.5)
         result = scan_skill_package(skill.engine_files(), rules, root="" if skill.path == "." else skill.path,
-                                    executable_paths=skill.engine_executable())
+                                    executable_paths=skill.engine_executable(), nested_roots=skill.nested,
+                                    **({"org_rule_budget": org_budget()} if org_budget is not None else {}))
+        if result.org_rules_incomplete and errors is not None:
+            errors.append(connected.org_rules_incomplete_error(result.org_rules_incomplete, skill.path))
         findings.extend(ReportFinding(_as_written(skill, finding), skill.path) for finding in result.findings)
         if result.truncated:
             notices.append(Notice("findings_truncated", skill.path, f"{result.truncated} more findings were not kept"))
@@ -83,10 +193,13 @@ def _as_written(skill: SkillPackage, finding: Finding) -> Finding:
     return dataclasses.replace(finding, location=dataclasses.replace(finding.location, path=path))
 
 
-def apply_baseline(options: ScanOptions, findings: list[ReportFinding], notices: list[Notice], errors: list[Notice]) -> list[ReportFinding]:  # noqa: E501
+def apply_baseline(options: ScanOptions, findings: list[ReportFinding], notices: list[Notice], errors: list[Notice], *,
+                   base_gate: bool = False) -> list[ReportFinding]:
     """Spec 6.7: findings that a valid, current entry accepts are suppressed; an invalid entry or an unusable
     file is an error (exit 2) and suppresses nothing. The default file is read where `options.revision` says (on a
-    pull or merge request, the base revision, D35); a `--baseline` file from the working tree, as the operator named it."""
+    pull or merge request, the base revision, D35); a `--baseline` file from the working tree, as the operator named it.
+    `base_gate` (a connected request, O3 spec 6.6): the findings of the registry gate are accepted by the base
+    revision's baseline only, so a `--baseline` file never accepts them (notice `reg_baseline_from_base`)."""
     from spellwarden_cli import baseline  # here, not at the top: baseline's commands import this module
 
     relative = options.baseline or baseline.BASELINE_PATH
@@ -96,10 +209,32 @@ def apply_baseline(options: ScanOptions, findings: list[ReportFinding], notices:
     except baseline.BaselineError as exc:
         errors.append(Notice("baseline_invalid", relative, str(exc)))
         return findings
-    kept, more_notices, more_errors = baseline.apply(loaded, findings, as_of=options.as_of, name=relative)
-    notices.extend(more_notices)
-    errors.extend(more_errors)
-    return kept
+    gate = [item for item in findings if item.finding.rule_id.startswith(baseline.REG_PREFIX)] if base_gate else []
+    if not base_gate or options.baseline is None:  # the default file of a request is the base revision's already
+        kept, more_notices, more_errors = baseline.apply(loaded, findings, as_of=options.as_of, name=relative)
+        notices.extend(more_notices)
+        errors.extend(more_errors)
+        return kept
+    # a request that names its own baseline file: the gate's findings are accepted by the base revision's default file
+    from spellwarden_cli import ci
+
+    notices.append(Notice("reg_baseline_from_base", relative, f"On a pull or merge request, the acceptances of the registry "
+                          f"gate's findings (SW-REG) are read from the base revision's {baseline.BASELINE_PATH}, never from "
+                          f"{relative}: the request cannot accept its own findings."))
+    context = options.context
+    source = (ci.revision_source(options.root, context, config=False, baseline=True, env=options.env)
+              if context is not None else None)
+    try:
+        base_loaded = baseline.load_baseline(options.root, baseline.BASELINE_PATH, read=source.read if source else None)
+    except baseline.BaselineError as exc:
+        errors.append(Notice("baseline_invalid", baseline.BASELINE_PATH, str(exc)))
+        base_loaded = baseline.Baseline()
+    others = [item for item in findings if item not in gate]
+    kept, more_notices, more_errors = baseline.apply(loaded, others, as_of=options.as_of, name=relative)
+    kept_gate, gate_notices, gate_errors = baseline.apply(base_loaded, gate, as_of=options.as_of, name=baseline.BASELINE_PATH)
+    notices.extend([*more_notices, *gate_notices])
+    errors.extend([*more_errors, *gate_errors])
+    return [*kept, *kept_gate]
 
 
 def check_lock(options: ScanOptions, found: Discovery, errors: list[Notice]) -> LockState:
@@ -116,7 +251,8 @@ def check_lock(options: ScanOptions, found: Discovery, errors: list[Notice]) -> 
         return LockState()
 
 
-def run_probes(options: ScanOptions, found: Discovery, rules: RuleSet, findings: list[ReportFinding], notices: list[Notice]) -> list[ProbeReport]:  # noqa: E501
+def run_probes(options: ScanOptions, found: Discovery, rules: RuleSet, findings: list[ReportFinding], notices: list[Notice],
+               org_budget: Callable[[], OrgRuleBudget] | None = None) -> list[ProbeReport]:
     """Spec 6.8: the opt-in probe phase. Off unless `probe` is set; off on a pull or merge request from a fork or
     Dependabot; private addresses only on a trusted run (`ci.private_probe_trusted`), whatever the flag says, and
     then only at the origins of the configured servers' URLs: a URL a probed server supplies, or a redirect that
@@ -145,6 +281,6 @@ def run_probes(options: ScanOptions, found: Discovery, rules: RuleSet, findings:
     on_event = probing.event_logger(options.log)
     reports, probe_findings = probing.run_phase(
         targets, rules, fetcher_factory=lambda: net.Fetcher(private_origins=private_origins, on_event=on_event),
-        now_iso=f"{options.as_of.isoformat()}T00:00:00Z", notices=notices)
+        now_iso=f"{options.as_of.isoformat()}T00:00:00Z", notices=notices, org_budget=org_budget)
     findings.extend(probe_findings)
     return sorted([*skipped, *reports], key=lambda report: report.item)

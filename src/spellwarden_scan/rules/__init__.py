@@ -10,10 +10,10 @@ from typing import Any
 
 from spellwarden_scan.model import SEVERITY_RANK, Finding
 
-RULE_ID_RE = re.compile(r"^SW-(SKL|MCP|CFG)-\d{3}$")
+RULE_ID_RE = re.compile(r"^SW-(SKL|MCP|CFG|REG|ORG)-[0-9]{3}$")
 ALLOWED_OWASP = ("ASI01", "ASI04", "ASI10", "MCP01", "MCP10")
 ALLOWED_NIST = ("AC-3", "AC-6", "AU-2", "IA-5", "SC-7", "SI-10", "SR-3")
-AREAS = ("skill", "mcp", "config")
+AREAS = ("skill", "mcp", "config", "registry")
 
 
 @dataclass(frozen=True)
@@ -42,6 +42,8 @@ class Rule:
 def make_rule(rule_id: str, title: str, severity: str, area: str, *, owasp: Iterable[str], nist: Iterable[str],
               detect: Callable[[Any], Iterable[Finding]], malicious: bool = False, targets: Iterable[str] = ()) -> Rule:
     """The one constructor of rules; `owasp` holds both ASI and MCP identifiers and is split."""
+    if rule_id.startswith("SW-ORG-"):  # organisation rules are made by `compile_org_rule` only (Phase C spec 5.2.1)
+        raise ValueError(f"bad rule id {rule_id!r}: SW-ORG ids belong to organisation rules")
     if RULE_ID_RE.match(rule_id) is None:
         raise ValueError(f"bad rule id {rule_id!r}")
     if severity not in SEVERITY_RANK:
@@ -77,9 +79,9 @@ class RuleSet:
 
     @classmethod
     def baseline(cls) -> RuleSet:
-        from spellwarden_scan.rules import config, mcp, skill
+        from spellwarden_scan.rules import config, mcp, registry, skill
 
-        return cls(skill.RULES + mcp.RULES + config.RULES)
+        return cls(skill.RULES + mcp.RULES + config.RULES + registry.RULES)
 
     def with_rules(self, extra: Iterable[Rule]) -> RuleSet:
         return RuleSet(self._rules + tuple(extra))

@@ -1,0 +1,14 @@
+{
+  "extraKnownMarketplaces": {
+    "acme-tools": {
+      "source": {
+        "source": "github",
+        "repo": "acme/claude-tools",
+        "sha": "0123456789abcdef0123456789abcdef01234567"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "lint@acme-tools": true
+  }
+}

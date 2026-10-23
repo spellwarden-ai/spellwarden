@@ -203,6 +203,20 @@ def test_more_than_five_redirects_are_refused():
     assert len(net_.calls) == net.MAX_REDIRECTS + 1
 
 
+def test_redirects_zero_refuses_a_3xx_without_a_second_request():
+    net_ = Net(answers={("a.example", "/r"): (302, {"Location": "https://b.example/next"}, b""),
+                        ("b.example", "/next"): (200, {}, b"must not be requested")})
+    with pytest.raises(FetchError) as caught:
+        net_.fetcher.get("https://a.example/r", max_bytes=100, redirects=0)
+    assert caught.value.code == "too_many_redirects"
+    assert [call["host"] for call in net_.calls] == ["a.example"] and "b.example" not in net_.resolved
+    assert net_.fetcher.get("https://a.example/r", max_bytes=100).status == 200  # the default still follows (5 hops)
+
+
+def test_the_user_agent_literal_is_one_constant():
+    assert net.USER_AGENT == f"Spellwarden/{net.__version__} (+https://spellwarden.ai)"
+
+
 def test_the_byte_cap_is_enforced_while_reading():
     net_ = Net(answers={("a.example", "/big"): (200, {}, [b"x" * 60, b"y" * 60, b"z" * 60])})
     with pytest.raises(FetchError) as caught:

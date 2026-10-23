@@ -93,6 +93,12 @@ def test_a_failing_git_falls_back_to_the_walk_with_a_notice(make_repo, tmp_path)
     assert fileset.repo_prefix == ""
 
 
+def test_skip_dirs_are_the_engines_after_git():
+    from spellwarden_scan import identity
+
+    assert files.SKIP_DIRS == (".git", *identity.SKIP_DIRS)
+
+
 def test_the_walk_skips_dependency_and_cache_directories(tmp_path):
     write_tree(tmp_path, {"a.md": "a", "node_modules/x/SKILL.md": "x", ".venv/y": "y", "venv/z": "z",
                           "__pycache__/c.pyc": "c", ".git/config": "g", "b/c.md": "c"})
@@ -223,3 +229,45 @@ def test_submodule_entries_are_not_entered(make_repo, tmp_path):
     blob = git(repo, "rev-parse", "HEAD").strip()
     git(repo, "update-index", "--add", "--cacheinfo", f"160000,{blob},vendor/sub")
     assert _paths(list_files(str(repo), Settings())) == ["a.md"]
+
+
+def test_git_gets_an_explicit_environment_and_never_ours_by_reference(make_repo, tmp_path, monkeypatch):
+    """O3 invariant 2: every subprocess receives an explicit environment, the one `list_files` was given."""
+    repo = make_repo(tmp_path / "r", {"README.md": "x\n"})
+    seen: list = []
+    real = files.subprocess.run
+
+    def spy(command, *args, **kwargs):
+        seen.append(kwargs.get("env"))
+        return real(command, *args, **kwargs)
+
+    monkeypatch.setattr(files.subprocess, "run", spy)
+    given = {**os.environ, "MARKER_FOR_TEST": "1"}
+    files.list_files(str(repo), Settings(), env=given)
+    assert seen and all(env is not None and env.get("MARKER_FOR_TEST") == "1" and env is not given for env in seen)
+    seen.clear()
+    files.list_files(str(repo), Settings())
+    assert seen and all(isinstance(env, dict) and "MARKER_FOR_TEST" not in env for env in seen)
+
+
+def test_the_walk_records_the_skip_dirs_it_did_not_enter(tmp_path):
+    # O3 spec 6.6, P48: a directory the walk skipped under a skill makes the skill unhashable.
+    write_tree(tmp_path, {"a.md": "a", "s/SKILL.md": "x", "s/node_modules/x/y.js": "y", "s/sub/.venv/z": "z", ".git/config": "g",
+                          "venv/q": "q"})
+    fileset = list_files(str(tmp_path), Settings(), git="")
+    assert fileset.skipped_dirs == ("s/node_modules", "s/sub/.venv", "venv")  # `.git` is no skill content: not recorded
+
+
+def test_git_mode_lists_dependency_directories_through_the_index_and_records_no_skipped_dir(make_repo, tmp_path):
+    repo = make_repo(tmp_path / "repo", {"s/SKILL.md": "x", "s/node_modules/x.js": "y"})
+    fileset = list_files(str(repo), Settings())
+    assert "s/node_modules/x.js" in _paths(fileset) and fileset.skipped_dirs == ()
+
+
+def test_deselected_holds_every_path_include_or_exclude_dropped(make_repo, tmp_path):
+    repo = make_repo(tmp_path / "repo", {"s/SKILL.md": "x", "s/run.js": "y", "docs/a.md": "a"})
+    fileset = list_files(str(repo), Settings(exclude=("**/*.js",)))
+    assert fileset.deselected == ("s/run.js",) and "s/run.js" not in _paths(fileset)
+    narrowed = list_files(str(repo), Settings(include=("**/*.md",)))
+    assert narrowed.deselected == ("s/run.js",)
+    assert list_files(str(repo), Settings()).deselected == ()

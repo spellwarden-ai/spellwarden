@@ -15,13 +15,13 @@ VALID = {"SW_PATH": ".", "SW_FAIL_ON": "high", "SW_LOCKED": "auto", "SW_PROBE": 
 
 def test_valid_inputs_become_explicit_flags(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    argv, problems, comment = ci.gitlab_argv(VALID)
-    assert problems == [] and comment is False
+    argv, problems, comment, updates = ci.gitlab_argv(VALID)
+    assert problems == [] and comment is False and updates == {}
     assert argv[:4] == ["scan", ".", "--fail-on", "high"]
     assert "--no-probe" in argv and "--no-probe-private" in argv and "--locked" not in argv and "--no-telemetry" not in argv
     pairs = [(argv[i + 1], argv[i + 3]) for i, token in enumerate(argv[:-3]) if token == "--format" and argv[i + 2] == "--output"]
     assert pairs == list(ci.GITLAB_OUTPUTS) and argv[-2:] == ["--format", "text"]
-    flipped, _, comment = ci.gitlab_argv({**VALID, "SW_PROBE": "true", "SW_PROBE_PRIVATE": "true", "SW_TELEMETRY": "false",
+    flipped, _, comment, _ = ci.gitlab_argv({**VALID, "SW_PROBE": "true", "SW_PROBE_PRIVATE": "true", "SW_TELEMETRY": "false",
                                           "SW_LOCKED": "true", "SW_COMMENT": "true"})
     assert {"--probe", "--probe-private", "--no-telemetry", "--locked"} <= set(flipped) and comment is True
 
@@ -153,3 +153,43 @@ def test_a_reserved_name_that_cannot_be_removed_stops_the_job(tmp_path, monkeypa
     monkeypatch.chdir(tmp_path)
     assert ci.run_gitlab(COMMENTING) == 2
     assert posted == [] and "spellwarden.md" in capsys.readouterr().err
+
+
+# --- O3 spec 11, P12, claim E12: SW_ORG and SW_UPLOAD ------------------------------------------------------------
+
+def test_gitlab_argv_maps_sw_org_and_sw_upload():
+    argv, problems, _, updates = ci.gitlab_argv({**VALID, "SW_ORG": "acme"})
+    assert problems == [] and updates == {"SPELLWARDEN_ORG": "acme"}
+    assert "--upload" not in argv and "--no-upload" not in argv  # an empty or absent SW_UPLOAD adds no flag
+    assert ci.gitlab_argv({**VALID, "SW_ORG": ""})[3] == {} and ci.gitlab_argv({**VALID, "SW_ORG": "  "})[3] == {}
+    off = ci.gitlab_argv({**VALID, "SW_UPLOAD": "false"})[0]
+    on = ci.gitlab_argv({**VALID, "SW_UPLOAD": "true"})[0]
+    assert "--no-upload" in off and "--upload" not in off and "--upload" in on and "--no-upload" not in on
+    assert on.index("--upload") < on.index("--format")  # before the output flags, like the other booleans
+    assert "--upload" not in ci.gitlab_argv({**VALID, "SW_UPLOAD": ""})[0]
+
+
+@pytest.mark.parametrize(("name", "value", "label"), [
+    ("SW_ORG", "Acme", "org"), ("SW_ORG", "a", "org"), ("SW_ORG", "acme corp", "org"), ("SW_ORG", "a" * 65, "org"),
+    ("SW_ORG", "acme\nSPELLWARDEN_API_KEY=x", "org"), ("SW_UPLOAD", "yes", "upload"), ("SW_UPLOAD", "1", "upload")])
+def test_an_invalid_org_or_upload_is_a_problem_naming_the_input(name, value, label):
+    argv, problems, _, updates = ci.gitlab_argv({**VALID, name: value})
+    assert len(problems) == 1 and f"input {label}:" in problems[0] and updates == {}
+
+
+def test_run_gitlab_applies_the_environment_updates_before_the_scan(tmp_path, monkeypatch):
+    import os
+
+    from spellwarden_cli import main as cli
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(os, "environ", dict(os.environ))
+    os.environ.pop("SPELLWARDEN_ORG", None)
+    seen: list = []
+    monkeypatch.setattr(cli, "main", lambda argv: (seen.append((argv, os.environ.get("SPELLWARDEN_ORG"))), 0)[1])
+    assert ci.run_gitlab({**VALID, "SW_ORG": "acme", "SW_UPLOAD": "false"}) == 0
+    assert len(seen) == 1 and seen[0][1] == "acme" and "--no-upload" in seen[0][0]
+    seen.clear()
+    del os.environ["SPELLWARDEN_ORG"]
+    assert ci.run_gitlab(VALID) == 0 and seen[0][1] is None  # an empty org sets nothing
+    assert ci.run_gitlab({**VALID, "SW_ORG": "Not Valid"}) == 2 and len(seen) == 1  # a problem stops the job before the scan

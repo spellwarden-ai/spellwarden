@@ -3,7 +3,9 @@ own line, duplicate keys refuse the document, and every plugin source has one ca
 (BOM, CRLF, `//` inside strings) and 4 (unexpected value types) are pinned here too."""
 from __future__ import annotations
 
+import hashlib
 import json
+from pathlib import Path
 
 import pytest
 
@@ -381,3 +383,65 @@ def test_the_parsers_never_raise_on_arbitrary_bytes():
         content = bytes(rng.choice(alphabet) for _ in range(rng.randint(0, 40)))
         for kind in ac.DOC_KINDS:
             assert ac.parse_document(kind, "x/.claude-plugin/marketplace.json", content).kind == kind
+
+
+# O3 spec 5.1 (last bullet), plan Task 3: Claude Code plugin settings are inventory, not findings.
+PLUGINS_SETTINGS = Path(__file__).resolve().parents[1] / "fixtures" / "config" / "plugins-settings" / ".claude" / "settings.json"
+
+
+def _plugin_settings(text: str) -> ConfigDocument:
+    return ac.parse_settings(".claude/settings.json", text.encode("utf-8"))
+
+
+def test_settings_parse_extra_known_marketplaces_and_enabled_plugins_with_lines():
+    doc = ac.parse_settings(".claude/settings.json", PLUGINS_SETTINGS.read_bytes())
+    assert doc.error is None
+    assert [(m.name, m.source.repo, m.source.sha, m.line) for m in doc.marketplaces] == [("acme", "acme/mp", A40, 2)]
+    assert [(p.plugin, p.marketplace, p.enabled, p.line) for p in doc.enabled_plugins] == [
+        ("deploy", "acme", True, 4), ("x", "other", False, 5)]
+
+
+def test_unparseable_entries_are_skipped_not_fatal():
+    doc = _plugin_settings(json.dumps({
+        "extraKnownMarketplaces": {"a": "not an object", "b": {"no": "source"}, "c": {"source": {"source": "github", "repo": "o/r"}}},
+        "enabledPlugins": {"nomarket": True, "p@m": "yes", "@m": True, "p@": True, "ok@m": False}}))
+    assert doc.error is None
+    assert [m.name for m in doc.marketplaces] == ["c"]
+    assert [(p.plugin, p.marketplace, p.enabled) for p in doc.enabled_plugins] == [("ok", "m", False)]
+    assert _plugin_settings('{"extraKnownMarketplaces": [1], "enabledPlugins": "x"}').marketplaces == ()
+
+
+def test_raw_sha256_is_the_canonical_hash_of_the_entry():
+    one = _plugin_settings('{"extraKnownMarketplaces": {"m": {"source": {"source": "github", "repo": "o/r", "ref": "v1"}}}}')
+    two = _plugin_settings('{"extraKnownMarketplaces": {"m": {"source": {"ref": "v1", "repo": "o/r", "source": "github"}}}}')
+    other = _plugin_settings('{"extraKnownMarketplaces": {"m": {"source": {"source": "github", "repo": "o/r", "ref": "v2"}}}}')
+    assert one.marketplaces[0].raw_sha256 == two.marketplaces[0].raw_sha256 != other.marketplaces[0].raw_sha256
+    assert len(one.marketplaces[0].raw_sha256) == 64
+    entry = {"name": "p", "source": {"source": "github", "repo": "o/r"}, "description": "d"}
+    reordered = {"source": {"repo": "o/r", "source": "github"}, "description": "d", "name": "p"}
+    first = ac.parse_marketplace(".claude-plugin/marketplace.json", json.dumps({"plugins": [entry]}).encode())
+    second = ac.parse_marketplace(".claude-plugin/marketplace.json", json.dumps({"plugins": [reordered]}).encode())
+    assert first.plugins[0].raw_sha256 == second.plugins[0].raw_sha256 == hashlib.sha256(ac._canonical(entry)).hexdigest()
+
+
+def test_plugin_settings_lists_are_capped_and_mark_the_document_truncated():
+    many = {f"p{n}@m": True for n in range(ac.MAX_PLUGINS + 3)}
+    doc = _plugin_settings(json.dumps({"enabledPlugins": many}))
+    assert len(doc.enabled_plugins) == ac.MAX_PLUGINS and doc.error == "truncated"
+
+
+def test_the_new_lists_serialise_only_when_non_empty_and_round_trip():
+    plain = _plugin_settings('{"enableAllProjectMcpServers": true}')
+    assert "marketplaces" not in plain.to_dict() and "enabled_plugins" not in plain.to_dict()
+    doc = ac.parse_settings(".claude/settings.json", PLUGINS_SETTINGS.read_bytes())
+    assert "marketplaces" in doc.to_dict() and "enabled_plugins" in doc.to_dict()
+    assert ConfigDocument.from_dict(json.loads(json.dumps(doc.to_dict()))) == doc
+    assert ConfigDocument.from_dict(json.loads(json.dumps(plain.to_dict()))) == plain
+
+
+def test_no_rule_fires_on_the_new_keys():
+    from spellwarden_scan.rules import RuleSet
+    from spellwarden_scan.scan import scan_agent_config
+
+    doc = ac.parse_settings(".claude/settings.json", PLUGINS_SETTINGS.read_bytes())
+    assert scan_agent_config([doc], RuleSet.baseline()).findings == ()
