@@ -7,13 +7,23 @@ import json
 import zipfile
 from pathlib import Path
 
+import pytest
+
 from spellwarden_scan.agentconfig import plugin_source
 from spellwarden_scan.archive import unpack_zip
 from spellwarden_scan.canonical import canonical_sha256
 from spellwarden_scan.identity import (
+    LAUNCH_OVERRIDE_ENV,
+    LAUNCHER_FAMILY,
+    QUIET_FLAGS,
     SKIP_DIRS,
+    CommandIdentity,
+    ParsedCommandIdentity,
     canonical_repo_url,
+    command_identity,
     fold_skill_name,
+    format_command_identity,
+    is_launch_override_env,
     is_loaded_variant,
     is_skill_file,
     is_skill_name_variant,
@@ -22,8 +32,10 @@ from spellwarden_scan.identity import (
     normalise_url,
     package_files,
     package_sha256,
+    parse_command_identity,
     plugin_identity,
     request_link_url,
+    resolver_files,
     server_identity,
 )
 
@@ -239,3 +251,184 @@ def test_marketplace_identity_is_the_plugin_identity():
     source = github_src("Acme/Market", sha="d" * 40)
     assert marketplace_identity(source) == plugin_identity(source) == "git:https://github.com/acme/market@" + "d" * 40
     assert marketplace_identity(github_src("acme/market")) is None
+
+
+# --- Task 2: command identities (spec 5.1 "Pinned commands") --------------------------------------------------------
+
+def _command_rows() -> list[dict]:
+    return json.loads((VECTORS / "command_identity.json").read_text())
+
+
+def test_command_identity_table():
+    rows = _command_rows()
+    assert len(rows) >= 40
+    for row in rows:
+        got = command_identity(row["command"], row["args"], row.get("env", {}))
+        assert (got.identity, got.reason) == (row.get("identity"), row.get("reason")), row
+
+
+def test_the_table_covers_every_reason_and_every_launcher():
+    rows = _command_rows()
+    assert {row["reason"] for row in rows if "reason" in row} == {"unpinned", "unknown_launcher", "unresolved", "launch_override"}
+    identities = [row["identity"] for row in rows if "identity" in row]
+    for launcher in LAUNCHER_FAMILY:
+        assert any(identity.startswith(f"cmd:{launcher} ") for identity in identities), launcher
+
+
+def test_no_identity_in_the_table_holds_a_userinfo_query_or_env_value():
+    for row in _command_rows():
+        identity = row.get("identity")
+        if identity is None:
+            continue
+        for source in (part for part in identity.split(" ") if part.startswith("src=")):
+            assert "@" not in source and "?" not in source and "#" not in source, identity
+        assert "KEY=v" not in identity and "s3cret" not in identity and "u:p" not in identity and "?x=1" not in identity, identity
+
+
+def test_an_argument_value_changes_the_identity_and_never_appears_in_it():
+    image = "i@sha256:" + "c" * 64
+    one = command_identity("docker", ["run", "-e", "TOKEN=aaa", image], {}).identity
+    two = command_identity("docker", ["run", "-e", "TOKEN=bbb", image], {}).identity
+    assert one != two and "aaa" not in one and "TOKEN" not in one and one.startswith("cmd:docker run " + image + " args=")
+
+
+def test_the_env_value_never_changes_the_identity():
+    base = command_identity("npx", ["pkg@1.0.0"], {}).identity
+    assert command_identity("npx", ["pkg@1.0.0"], {"API_KEY": "one"}).identity == base
+    assert command_identity("npx", ["pkg@1.0.0"], {"API_KEY": "two"}).identity == base
+
+
+def test_a_source_changes_the_identity():
+    plain = command_identity("npx", ["pkg@1.0.0"], {}).identity
+    sourced = command_identity("npx", ["--registry", "https://r.example.com/", "pkg@1.0.0"], {}).identity
+    moved = command_identity("npx", ["--registry", "https://s.example.com/", "pkg@1.0.0"], {}).identity
+    assert len({plain, sourced, moved}) == 3
+
+
+def test_a_comma_in_a_source_path_is_unresolved_so_the_encoding_stays_unambiguous():
+    assert command_identity("npx", ["--registry", "https://r.example.com/a,b", "pkg@1.0.0"], {}) == CommandIdentity(None, "unresolved")
+
+
+def test_command_identity_results_are_data():
+    got = command_identity("npx", ["pkg@1.0.0"], {})
+    assert got == CommandIdentity("cmd:npx pkg@1.0.0", None)
+    with pytest.raises(AttributeError):
+        got.identity = "x"  # type: ignore[misc]
+
+
+def test_round_trip():
+    identities = [row["identity"] for row in _command_rows() if "identity" in row]
+    assert len(identities) >= 40
+    for identity in identities:
+        assert format_command_identity(parse_command_identity(identity)) == identity, identity
+
+
+def test_parse_reads_the_four_parts():
+    digest = "d" * 32
+    parsed = parse_command_identity(f"cmd:pnpm dlx a@1.0.0 b@2.0.0 src=https://r.example.com/x,https://s.example.com args={digest}")
+    assert parsed == ParsedCommandIdentity("pnpm dlx", ("a@1.0.0", "b@2.0.0"), ("https://r.example.com/x", "https://s.example.com"), digest)
+    plain = parse_command_identity("cmd:uvx tool==1.0")
+    assert plain == ParsedCommandIdentity("uvx", ("tool==1.0",), (), None)
+
+
+@pytest.mark.parametrize("bad", [
+    "cmd:npx", "cmd:npx pkg", "cmd:npx pkg@1.0.0 src=", "cmd:npx pkg@1.0.0 args=zz", "cmd:yarn x@1.0.0", "npx pkg@1.0.0",
+    "cmd:npx  pkg@1.0.0", "cmd:npx pkg@1.0.0 ", "", "cmd:", "cmd:npx b@1.0.0 a@1.0.0", "cmd:npx a@1.0.0 a@1.0.0",
+    "cmd:npx pkg@1.0.0 args=" + "A" * 32, "cmd:npx pkg@1.0.0 args=" + "a" * 31, "cmd:npx pkg@1.0.0 args=" + "a" * 33,
+    "cmd:npx pkg@1.0.0 args=" + "a" * 32 + " src=https://r.example.com/", "cmd:npx pkg@1.0.0 src=https://u:p@r.example.com/",
+    "cmd:npx pkg@1.0.0 src=https://r.example.com/?x=1", "cmd:npx pkg@1.0.0 src=https://r.example.com/,", "cmd:npx pkg@1.0.0 src=./local",
+    "cmd:npx pkg@1.0.0 extra", "cmd:npx pkg@latest", "cmd:docker run img:1.2", "cmd:docker run img@sha256:" + "a" * 63,
+    "cmd:uvx tool>=1.0", "cmd:pnpm pkg@1.0.0", "cmd:npx pkg@1.0.0 src=a src=b", "cmd:NPX pkg@1.0.0",
+])
+def test_parse_refuses_hand_edited_strings(bad):
+    with pytest.raises(ValueError):
+        parse_command_identity(bad)
+
+
+def test_parse_errors_name_the_part():
+    with pytest.raises(ValueError, match=r"^args: "):
+        parse_command_identity("cmd:npx pkg@1.0.0 args=zz")
+    with pytest.raises(ValueError, match=r"^launcher: "):
+        parse_command_identity("cmd:yarn x@1.0.0")
+    with pytest.raises(ValueError, match=r"^artefacts: "):
+        parse_command_identity("cmd:npx pkg")
+    with pytest.raises(ValueError, match=r"^src: "):
+        parse_command_identity("cmd:npx pkg@1.0.0 src=")
+
+
+def test_format_orders_the_parts():
+    parsed = ParsedCommandIdentity("docker run", ("i@sha256:" + "a" * 64,), ("https://r.example.com/",), "0" * 32)
+    assert format_command_identity(parsed) == "cmd:docker run i@sha256:" + "a" * 64 + " src=https://r.example.com/ args=" + "0" * 32
+
+
+def test_resolver_files_finds_registry_and_index_lines():
+    files = {".npmrc": b"registry=https://r.example.com/\n", "pyproject.toml": b"[tool.uv]\nindex-url = 'https://i.example.com/simple'\n",
+             "bunfig.toml": b"[install]\nregistry = 'x'\n", "README.md": b"registry"}
+    assert resolver_files(files, files.__getitem__) == {"npm": (".npmrc", "bunfig.toml"), "python": ("pyproject.toml",)}
+    assert resolver_files({".npmrc": b"save-exact=true\n"}, {".npmrc": b"save-exact=true\n"}.__getitem__) == {}
+
+
+@pytest.mark.parametrize("name, content, family", [
+    (".npmrc", b"; a comment\n@acme:registry=https://r.example.com/\n", "npm"),
+    (".npmrc", b"  registry = https://r.example.com/\n", "npm"),
+    (".yarnrc.yml", b"npmRegistryServer: 'https://r.example.com'\n", "npm"),
+    (".yarnrc.yml", b"npmScopes:\n  acme:\n    npmRegistryServer: x\n", "npm"),
+    ("bunfig.toml", b"[install.scopes]\n'@acme' = 'https://r.example.com/'\n", "npm"),
+    ("uv.toml", b"index-url = 'https://i.example.com/simple'\n", "python"),
+    ("uv.toml", b"[[index]]\nurl = 'https://i.example.com/simple'\n", "python"),
+    ("uv.toml", b"find-links = ['https://f.example.com']\n", "python"),
+    ("pip.conf", b"[global]\nextra-index-url = https://i.example.com/simple\n", "python"),
+    ("pyproject.toml", b"[[tool.uv.index]]\nurl = 'https://i.example.com/simple'\n", "python"),
+    ("pyproject.toml", b"[project]\nname = 'x'\n[tool.uv]\ndefault-index = 'https://i.example.com/simple'\n", "python"),
+    ("sub/dir/.npmrc", b"registry=https://r.example.com/\n", "npm"),
+])
+def test_resolver_files_recognises_each_form(name, content, family):
+    assert resolver_files({name: content}, {name: content}.__getitem__) == {family: (name,)}
+
+
+@pytest.mark.parametrize("name, content", [
+    (".npmrc", b"//r.example.com/:_authToken=${TOKEN}\nsave-exact=true\n"),
+    (".npmrc", b"# registry=https://r.example.com/\n"),
+    (".yarnrc.yml", b"nodeLinker: node-modules\n"),
+    ("bunfig.toml", b"[test]\nregistry = 'x'\n"),
+    ("pyproject.toml", b"[project]\nname = 'x'\nindex = 'not uv'\n[tool.ruff]\nindex-url = 'x'\n"),
+    ("pyproject.toml", b"[tool.uv]\nmanaged = true\n"),
+    ("pip.conf", b"[global]\ntimeout = 5\n"),
+    ("registry.txt", b"registry=https://r.example.com/\n"),
+])
+def test_resolver_files_ignores_what_redirects_nothing(name, content):
+    assert resolver_files({name: content}, {name: content}.__getitem__) == {}
+
+
+def test_resolver_files_reads_only_candidates_and_caps_the_read():
+    reads = []
+    contents = {".npmrc": b"registry=x\n", "a.txt": b"registry=x\n", "big/.npmrc": b"#" * (64 * 1024 + 1)}
+
+    def read(name):
+        reads.append(name)
+        return contents[name]
+
+    got = resolver_files(["a.txt", ".npmrc", "big/.npmrc"], read)
+    assert "a.txt" not in reads
+    assert got == {"npm": (".npmrc", "big/.npmrc")}   # the file over the cap is counted without being searched
+
+
+def test_resolver_files_with_an_unreadable_file_fails_closed():
+    def read(_name):
+        raise OSError("gone")
+
+    assert resolver_files([".npmrc"], read) == {"npm": (".npmrc",)}
+
+
+def test_launch_override_env_prefixes():
+    assert is_launch_override_env("npm_config_registry") and is_launch_override_env("NPM_CONFIG_X") and not is_launch_override_env("PATH")
+    assert is_launch_override_env("NODE_OPTIONS") and not is_launch_override_env("NODE_ENV") and not is_launch_override_env("npm_token")
+    assert "DYLD_INSERT_LIBRARIES" in LAUNCH_OVERRIDE_ENV and "npm_config_registry" not in LAUNCH_OVERRIDE_ENV
+
+
+def test_the_registry_constants():
+    assert LAUNCHER_FAMILY == {"npx": "npm", "bunx": "npm", "pnpm dlx": "npm", "uvx": "python", "pipx run": "python", "docker run": "docker"}
+    assert set(QUIET_FLAGS) == set(LAUNCHER_FAMILY)
+    assert QUIET_FLAGS["npx"] >= {"-y", "--yes", "-q", "--quiet", "--silent"}
+    assert QUIET_FLAGS["docker run"] >= {"--rm", "-i", "--interactive", "-t", "--tty", "--init", "--name"}
+    assert len(LAUNCH_OVERRIDE_ENV) == 22   # npm_config_* and NPM_CONFIG_* are matched by prefix

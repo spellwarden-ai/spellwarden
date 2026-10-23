@@ -1,0 +1,1007 @@
+[
+ {
+  "command": "npx",
+  "args": [
+   "-y",
+   "pkg@1.2.3"
+  ],
+  "identity": "cmd:npx pkg@1.2.3"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "--yes",
+   "@scope/name@1.2.3"
+  ],
+  "identity": "cmd:npx @scope/name@1.2.3"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "-p",
+   "a@1.0.0",
+   "-p",
+   "b@2.0.0",
+   "c@3.0.0"
+  ],
+  "identity": "cmd:npx a@1.0.0 b@2.0.0 c@3.0.0"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "--package=z@1.0.0",
+   "--package",
+   "a@1.0.0"
+  ],
+  "identity": "cmd:npx a@1.0.0 z@1.0.0"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "pkg@1.0.0-beta.1"
+  ],
+  "identity": "cmd:npx pkg@1.0.0-beta.1"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "pkg@1"
+  ],
+  "identity": "cmd:npx pkg@1"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "-y",
+   "-q",
+   "--silent",
+   "--quiet",
+   "--yes",
+   "pkg@1.2.3"
+  ],
+  "identity": "cmd:npx pkg@1.2.3"
+ },
+ {
+  "command": "/usr/local/bin/npx",
+  "args": [
+   "-y",
+   "pkg@1.2.3"
+  ],
+  "identity": "cmd:npx pkg@1.2.3"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "pkg@1.0.0",
+   "--flag",
+   "value"
+  ],
+  "identity": "cmd:npx pkg@1.0.0 args=5c51f92b9392f6acfafcb281c61d60f7"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "pkg@1.0.0",
+   "-y"
+  ],
+  "identity": "cmd:npx pkg@1.0.0 args=a31a0dae9ae8e9191db94d863a04aa27"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "--cache",
+   "/x",
+   "pkg@1.0.0"
+  ],
+  "identity": "cmd:npx pkg@1.0.0 args=9c79afe6b28300d896a1ffefd459ee70"
+ },
+ {
+  "command": "bunx",
+  "args": [
+   "pkg@1.2.3"
+  ],
+  "identity": "cmd:bunx pkg@1.2.3"
+ },
+ {
+  "command": "bunx",
+  "args": [
+   "--bun",
+   "pkg@1.2.3"
+  ],
+  "identity": "cmd:bunx pkg@1.2.3 args=1e928fb8e4ad525cf1d08038cd571338"
+ },
+ {
+  "command": "pnpm",
+  "args": [
+   "dlx",
+   "pkg@1.2.3"
+  ],
+  "identity": "cmd:pnpm dlx pkg@1.2.3"
+ },
+ {
+  "command": "pnpm",
+  "args": [
+   "dlx",
+   "-y",
+   "pkg@1.2.3",
+   "serve"
+  ],
+  "identity": "cmd:pnpm dlx pkg@1.2.3 args=4669c1abecb92cbb4de87ef6a564e7c5"
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "--from",
+   "x==1.0",
+   "y"
+  ],
+  "identity": "cmd:uvx x==1.0 args=8fbad084cb7586060f8faea565abbc60"
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "--with",
+   "z==2.0",
+   "tool==1.0"
+  ],
+  "identity": "cmd:uvx tool==1.0 z==2.0"
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "-q",
+   "tool==1.0.0"
+  ],
+  "identity": "cmd:uvx tool==1.0.0"
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "--python",
+   "3.12",
+   "tool==1.0.0"
+  ],
+  "identity": "cmd:uvx tool==1.0.0 args=fd2a2c7d986faf8fac988282bf77f898"
+ },
+ {
+  "command": "pipx",
+  "args": [
+   "run",
+   "--spec",
+   "p==1.0",
+   "p"
+  ],
+  "identity": "cmd:pipx run p==1.0 args=f2c7cdefcae729ac71a98fa285912112"
+ },
+ {
+  "command": "pipx",
+  "args": [
+   "run",
+   "pkg==1.0.0"
+  ],
+  "identity": "cmd:pipx run pkg==1.0.0"
+ },
+ {
+  "command": "docker",
+  "args": [
+   "run",
+   "--rm",
+   "-i",
+   "ghcr.io/acme/server@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  "identity": "cmd:docker run ghcr.io/acme/server@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+ },
+ {
+  "command": "docker",
+  "args": [
+   "run",
+   "-i",
+   "--rm",
+   "--init",
+   "--name",
+   "foo",
+   "-t",
+   "--tty",
+   "--interactive",
+   "ghcr.io/acme/server@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  "identity": "cmd:docker run ghcr.io/acme/server@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+ },
+ {
+  "command": "docker",
+  "args": [
+   "run",
+   "--name=foo",
+   "--rm",
+   "ghcr.io/acme/server@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  "identity": "cmd:docker run ghcr.io/acme/server@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+ },
+ {
+  "command": "docker",
+  "args": [
+   "run",
+   "--privileged",
+   "ghcr.io/acme/server@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  "identity": "cmd:docker run ghcr.io/acme/server@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa args=db4f6e03745a7bbd0feb31acc30be163"
+ },
+ {
+  "command": "docker",
+  "args": [
+   "run",
+   "-v",
+   "/a:/b",
+   "ghcr.io/acme/server@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  "identity": "cmd:docker run ghcr.io/acme/server@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa args=4bea028fba993b0e181b19a346eefcec"
+ },
+ {
+  "command": "docker",
+  "args": [
+   "run",
+   "-v",
+   "/a:/c",
+   "ghcr.io/acme/server@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  "identity": "cmd:docker run ghcr.io/acme/server@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa args=ffa67cb594454b4a117b4da2ba20794f"
+ },
+ {
+  "command": "docker",
+  "args": [
+   "run",
+   "--mount",
+   "type=bind,src=/a,dst=/b",
+   "ghcr.io/acme/server@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  "identity": "cmd:docker run ghcr.io/acme/server@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa args=af69941d2f725b861cccbad641186736"
+ },
+ {
+  "command": "docker",
+  "args": [
+   "run",
+   "-e",
+   "KEY=v",
+   "ghcr.io/acme/server@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  "identity": "cmd:docker run ghcr.io/acme/server@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa args=7141e44b732dbb3545a8444a60463aa3"
+ },
+ {
+  "command": "docker",
+  "args": [
+   "run",
+   "-e",
+   "KEY=w",
+   "ghcr.io/acme/server@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  "identity": "cmd:docker run ghcr.io/acme/server@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa args=80178123ed398fab0e129f5054a283dd"
+ },
+ {
+  "command": "docker",
+  "args": [
+   "run",
+   "-e",
+   "KEY=${KEY}",
+   "ghcr.io/acme/server@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  "identity": "cmd:docker run ghcr.io/acme/server@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa args=6a38855564ceca545de3eee8cfeb4a5b"
+ },
+ {
+  "command": "docker",
+  "args": [
+   "run",
+   "--network",
+   "host",
+   "ghcr.io/acme/server@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  "identity": "cmd:docker run ghcr.io/acme/server@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa args=7b30ad8e29a7aad48266419327f7ecb7"
+ },
+ {
+  "command": "docker",
+  "args": [
+   "run",
+   "--user=1000",
+   "ghcr.io/acme/server@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  "identity": "cmd:docker run ghcr.io/acme/server@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa args=874014a05a8215b1f5609bfde7cceb32"
+ },
+ {
+  "command": "docker",
+  "args": [
+   "run",
+   "--cap-add",
+   "NET_ADMIN",
+   "ghcr.io/acme/server@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  "identity": "cmd:docker run ghcr.io/acme/server@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa args=2f8f97223f4387d7419d1c3ec64d45f6"
+ },
+ {
+  "command": "docker",
+  "args": [
+   "run",
+   "--rm",
+   "-i",
+   "--network",
+   "host",
+   "ghcr.io/acme/server@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "serve",
+   "--port",
+   "3"
+  ],
+  "identity": "cmd:docker run ghcr.io/acme/server@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa args=ad5878b05021a4e2a8f81255c809346f"
+ },
+ {
+  "command": "docker",
+  "args": [
+   "run",
+   "--rm",
+   "-i",
+   "--network",
+   "host",
+   "ghcr.io/acme/server@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "serve",
+   "--port",
+   "4"
+  ],
+  "identity": "cmd:docker run ghcr.io/acme/server@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa args=603adbc42276307ee8d58ba4308ab255"
+ },
+ {
+  "command": "docker",
+  "args": [
+   "run",
+   "ghcr.io/acme/server:1.2@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  ],
+  "identity": "cmd:docker run ghcr.io/acme/server:1.2@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "--registry",
+   "https://u:p@r.example.com:8443/npm/?x=1",
+   "pkg@1.0.0"
+  ],
+  "identity": "cmd:npx pkg@1.0.0 src=https://r.example.com:8443/npm/"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "--registry=https://R.Example.com/#frag",
+   "pkg@1.0.0"
+  ],
+  "identity": "cmd:npx pkg@1.0.0 src=https://r.example.com/"
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "--index-url",
+   "https://a.example.com/simple",
+   "--extra-index-url",
+   "https://b.example.com/simple",
+   "tool==1.0"
+  ],
+  "identity": "cmd:uvx tool==1.0 src=https://a.example.com/simple,https://b.example.com/simple"
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "--default-index",
+   "https://t:s@i.example.com/simple?k=v",
+   "tool==1.0"
+  ],
+  "identity": "cmd:uvx tool==1.0 src=https://i.example.com/simple"
+ },
+ {
+  "command": "pipx",
+  "args": [
+   "run",
+   "--index-url",
+   "https://i.example.com/simple",
+   "pkg==1.0"
+  ],
+  "identity": "cmd:pipx run pkg==1.0 src=https://i.example.com/simple"
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "--find-links",
+   "https://f.example.com/wheels",
+   "--index",
+   "https://i.example.com/s",
+   "tool==1.0"
+  ],
+  "identity": "cmd:uvx tool==1.0 src=https://f.example.com/wheels,https://i.example.com/s"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "--registry",
+   "http://[::1]:4873/",
+   "pkg@1.0.0"
+  ],
+  "identity": "cmd:npx pkg@1.0.0 src=http://[::1]:4873/"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "-y",
+   "pkg@1.2.3"
+  ],
+  "env": {
+   "API_KEY": "s3cret-value",
+   "HOME": "/home/x"
+  },
+  "identity": "cmd:npx pkg@1.2.3"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "pkg"
+  ],
+  "reason": "unpinned"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "pkg@^1"
+  ],
+  "reason": "unpinned"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "pkg@latest"
+  ],
+  "reason": "unpinned"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "pkg@1.x"
+  ],
+  "reason": "unpinned"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "@scope/name"
+  ],
+  "reason": "unpinned"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "-y"
+  ],
+  "reason": "unpinned"
+ },
+ {
+  "command": "npx",
+  "args": [],
+  "reason": "unpinned"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "https://example.com/pkg.tgz"
+  ],
+  "reason": "unpinned"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "-p",
+   "a@1.0.0",
+   "-p",
+   "b",
+   "c@1.0.0"
+  ],
+  "reason": "unpinned"
+ },
+ {
+  "command": "bunx",
+  "args": [
+   "pkg@~1.0.0"
+  ],
+  "reason": "unpinned"
+ },
+ {
+  "command": "pnpm",
+  "args": [
+   "dlx",
+   "pkg"
+  ],
+  "reason": "unpinned"
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "tool"
+  ],
+  "reason": "unpinned"
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "tool>=1.0"
+  ],
+  "reason": "unpinned"
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "--from",
+   "x",
+   "tool"
+  ],
+  "reason": "unpinned"
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "--with",
+   "z",
+   "tool==1.0"
+  ],
+  "reason": "unpinned"
+ },
+ {
+  "command": "pipx",
+  "args": [
+   "run",
+   "pkg"
+  ],
+  "reason": "unpinned"
+ },
+ {
+  "command": "docker",
+  "args": [
+   "run",
+   "--rm",
+   "img:1.2"
+  ],
+  "reason": "unpinned"
+ },
+ {
+  "command": "docker",
+  "args": [
+   "run",
+   "img"
+  ],
+  "reason": "unpinned"
+ },
+ {
+  "command": "docker",
+  "args": [
+   "run",
+   "--rm"
+  ],
+  "reason": "unpinned"
+ },
+ {
+  "command": "docker",
+  "args": [
+   "run",
+   "img@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  "reason": "unpinned"
+ },
+ {
+  "command": "node",
+  "args": [
+   "server.js"
+  ],
+  "reason": "unknown_launcher"
+ },
+ {
+  "command": "python",
+  "args": [
+   "-m",
+   "x"
+  ],
+  "reason": "unknown_launcher"
+ },
+ {
+  "command": "./bin/x",
+  "args": [],
+  "reason": "unknown_launcher"
+ },
+ {
+  "command": "yarn",
+  "args": [
+   "dlx",
+   "pkg@1.0.0"
+  ],
+  "reason": "unknown_launcher"
+ },
+ {
+  "command": "pnpm",
+  "args": [
+   "exec",
+   "pkg@1.0.0"
+  ],
+  "reason": "unknown_launcher"
+ },
+ {
+  "command": "pnpm",
+  "args": [],
+  "reason": "unknown_launcher"
+ },
+ {
+  "command": "pipx",
+  "args": [
+   "install",
+   "pkg==1.0"
+  ],
+  "reason": "unknown_launcher"
+ },
+ {
+  "command": "docker",
+  "args": [
+   "pull",
+   "ghcr.io/acme/server@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  "reason": "unknown_launcher"
+ },
+ {
+  "command": "docker",
+  "args": [
+   "compose",
+   "up"
+  ],
+  "reason": "unknown_launcher"
+ },
+ {
+  "command": "npx -y pkg@1.0.0",
+  "args": [],
+  "reason": "unknown_launcher"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "${PKG}@1.0.0"
+  ],
+  "reason": "unresolved"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "--registry",
+   "${REG}",
+   "pkg@1.0.0"
+  ],
+  "reason": "unresolved"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "--registry=https://${HOST}/",
+   "pkg@1.0.0"
+  ],
+  "reason": "unresolved"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "--registry",
+   "./local-registry",
+   "pkg@1.0.0"
+  ],
+  "reason": "unresolved"
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "--find-links",
+   "./wheels",
+   "tool==1.0"
+  ],
+  "reason": "unresolved"
+ },
+ {
+  "command": "${NPX}",
+  "args": [
+   "pkg@1.0.0"
+  ],
+  "reason": "unresolved"
+ },
+ {
+  "command": "docker",
+  "args": [
+   "run",
+   "${IMAGE}"
+  ],
+  "reason": "unresolved"
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "--from",
+   "x==${V}",
+   "y"
+  ],
+  "reason": "unresolved"
+ },
+ {
+  "command": "docker",
+  "args": [
+   "run",
+   "--entrypoint",
+   "sh",
+   "ghcr.io/acme/server@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  "reason": "launch_override"
+ },
+ {
+  "command": "docker",
+  "args": [
+   "run",
+   "--entrypoint=sh",
+   "ghcr.io/acme/server@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  "reason": "launch_override"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "-y",
+   "pkg@1.2.3"
+  ],
+  "env": {
+   "NODE_OPTIONS": "x"
+  },
+  "reason": "launch_override"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "-y",
+   "pkg@1.2.3"
+  ],
+  "env": {
+   "NODE_PATH": "x"
+  },
+  "reason": "launch_override"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "-y",
+   "pkg@1.2.3"
+  ],
+  "env": {
+   "PYTHONPATH": "x"
+  },
+  "reason": "launch_override"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "-y",
+   "pkg@1.2.3"
+  ],
+  "env": {
+   "PYTHONSTARTUP": "x"
+  },
+  "reason": "launch_override"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "-y",
+   "pkg@1.2.3"
+  ],
+  "env": {
+   "PYTHONHOME": "x"
+  },
+  "reason": "launch_override"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "-y",
+   "pkg@1.2.3"
+  ],
+  "env": {
+   "PYTHONUSERBASE": "x"
+  },
+  "reason": "launch_override"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "-y",
+   "pkg@1.2.3"
+  ],
+  "env": {
+   "LD_PRELOAD": "x"
+  },
+  "reason": "launch_override"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "-y",
+   "pkg@1.2.3"
+  ],
+  "env": {
+   "LD_LIBRARY_PATH": "x"
+  },
+  "reason": "launch_override"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "-y",
+   "pkg@1.2.3"
+  ],
+  "env": {
+   "DYLD_INSERT_LIBRARIES": "x"
+  },
+  "reason": "launch_override"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "-y",
+   "pkg@1.2.3"
+  ],
+  "env": {
+   "DYLD_LIBRARY_PATH": "x"
+  },
+  "reason": "launch_override"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "-y",
+   "pkg@1.2.3"
+  ],
+  "env": {
+   "npm_config_registry": "x"
+  },
+  "reason": "launch_override"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "-y",
+   "pkg@1.2.3"
+  ],
+  "env": {
+   "NPM_CONFIG_CACHE": "x"
+  },
+  "reason": "launch_override"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "-y",
+   "pkg@1.2.3"
+  ],
+  "env": {
+   "UV_INDEX": "x"
+  },
+  "reason": "launch_override"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "-y",
+   "pkg@1.2.3"
+  ],
+  "env": {
+   "UV_INDEX_URL": "x"
+  },
+  "reason": "launch_override"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "-y",
+   "pkg@1.2.3"
+  ],
+  "env": {
+   "UV_DEFAULT_INDEX": "x"
+  },
+  "reason": "launch_override"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "-y",
+   "pkg@1.2.3"
+  ],
+  "env": {
+   "UV_EXTRA_INDEX_URL": "x"
+  },
+  "reason": "launch_override"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "-y",
+   "pkg@1.2.3"
+  ],
+  "env": {
+   "UV_FIND_LINKS": "x"
+  },
+  "reason": "launch_override"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "-y",
+   "pkg@1.2.3"
+  ],
+  "env": {
+   "PIP_INDEX_URL": "x"
+  },
+  "reason": "launch_override"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "-y",
+   "pkg@1.2.3"
+  ],
+  "env": {
+   "PIP_EXTRA_INDEX_URL": "x"
+  },
+  "reason": "launch_override"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "-y",
+   "pkg@1.2.3"
+  ],
+  "env": {
+   "PIP_FIND_LINKS": "x"
+  },
+  "reason": "launch_override"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "-y",
+   "pkg@1.2.3"
+  ],
+  "env": {
+   "PIPX_DEFAULT_PYTHON": "x"
+  },
+  "reason": "launch_override"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "-y",
+   "pkg@1.2.3"
+  ],
+  "env": {
+   "BUN_CONFIG_REGISTRY": "x"
+  },
+  "reason": "launch_override"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "-y",
+   "pkg@1.2.3"
+  ],
+  "env": {
+   "DOCKER_HOST": "x"
+  },
+  "reason": "launch_override"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "-y",
+   "pkg@1.2.3"
+  ],
+  "env": {
+   "DOCKER_CONFIG": "x"
+  },
+  "reason": "launch_override"
+ }
+]

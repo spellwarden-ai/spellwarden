@@ -7,9 +7,10 @@ are shared with the hosted side."""
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 import unicodedata
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 
 from spellwarden_scan.agentconfig import has_declared_pin, url_parts
@@ -221,3 +222,307 @@ def plugin_identity(source: PluginSource) -> str | None:
 def marketplace_identity(source: PluginSource) -> str | None:
     """Admitting a marketplace at a commit admits the catalogue at that commit: the same function as a plugin's."""
     return plugin_identity(source)
+
+
+# --- pinned commands -----------------------------------------------------------------------------------------------
+
+LAUNCHER_FAMILY: Mapping[str, str] = {"npx": "npm", "bunx": "npm", "pnpm dlx": "npm", "uvx": "python", "pipx run": "python",
+                                      "docker run": "docker"}
+LAUNCH_OVERRIDE_ENV = frozenset({
+    "NODE_OPTIONS", "NODE_PATH", "PYTHONPATH", "PYTHONSTARTUP", "PYTHONHOME", "PYTHONUSERBASE", "LD_PRELOAD", "LD_LIBRARY_PATH",
+    "DYLD_INSERT_LIBRARIES", "DYLD_LIBRARY_PATH", "UV_INDEX", "UV_INDEX_URL", "UV_DEFAULT_INDEX", "UV_EXTRA_INDEX_URL",
+    "UV_FIND_LINKS", "PIP_INDEX_URL", "PIP_EXTRA_INDEX_URL", "PIP_FIND_LINKS", "PIPX_DEFAULT_PYTHON", "BUN_CONFIG_REGISTRY",
+    "DOCKER_HOST", "DOCKER_CONFIG",
+})
+_PACKAGE_QUIET = frozenset({"-y", "--yes", "-q", "--quiet", "--silent"})
+_DOCKER_QUIET = frozenset({"--rm", "-i", "--interactive", "-t", "--tty", "--init", "--name"})
+# flags that change no behaviour, per launcher: dropped from the identity when they come before the package or image
+QUIET_FLAGS: Mapping[str, frozenset[str]] = {
+    "npx": _PACKAGE_QUIET, "bunx": _PACKAGE_QUIET, "pnpm dlx": _PACKAGE_QUIET, "uvx": _PACKAGE_QUIET,
+    "pipx run": _PACKAGE_QUIET, "docker run": _DOCKER_QUIET,
+}
+_SOURCE_OPTIONS = frozenset({"--registry", "--index-url", "--extra-index-url", "--index", "--default-index", "--find-links"})
+_VERSION = r"[0-9]+(?:\.[0-9]+){0,2}(?:[-+][0-9A-Za-z.-]+)?"
+_EXACT = {
+    "npm": re.compile(rf"(?:@[A-Za-z0-9._~-]+/)?[A-Za-z0-9._~-]+@{_VERSION}"),
+    "python": re.compile(rf"[A-Za-z0-9][A-Za-z0-9._-]*(?:\[[A-Za-z0-9._,-]+\])?=={_VERSION}"),
+    "docker": re.compile(r"[^\s@]+@sha256:[0-9a-f]{64}"),
+}
+_ARGS_HASH = re.compile(r"[0-9a-f]{32}")
+_EXECUTABLE_SEPARATORS = re.compile(r"[\\/]")
+
+
+@dataclass(frozen=True, slots=True)
+class _Spec:
+    artefacts: frozenset[str]  # options whose value is an artefact (the launch selects that package)
+    primary: frozenset[str]  # of those, the ones after which the positional is the command to run, not a package
+    values: frozenset[str]  # other options that take a value, so that the value is not read as the package or image
+    sources: frozenset[str]
+
+
+_NPM_VALUES = frozenset({"--cache", "--prefix", "--userconfig", "-w", "--workspace", "--loglevel", "--node-arg"})
+_UVX_VALUES = frozenset({
+    "-p", "--python", "--with-requirements", "--with-editable", "--env-file", "--index-strategy", "-c", "--constraints",
+    "--overrides", "--build-constraints", "--directory", "--project", "--config-file", "--cache-dir", "--resolution",
+    "--prerelease", "--fork-strategy", "--keyring-provider", "--link-mode", "--python-preference", "--exclude-newer",
+    "-P", "--upgrade-package", "--reinstall-package", "--refresh-package", "--color", "--allow-insecure-host",
+    "--no-binary-package", "--no-build-package",
+})
+_DOCKER_VALUES = frozenset({
+    "-a", "--attach", "--add-host", "--annotation", "--blkio-weight", "--cap-add", "--cap-drop", "--cgroup-parent", "--cgroupns",
+    "--cidfile", "--cpu-period", "--cpu-quota", "--cpu-rt-period", "--cpu-rt-runtime", "--cpu-shares", "-c", "--cpus",
+    "--cpuset-cpus", "--cpuset-mems", "--detach-keys", "--device", "--device-cgroup-rule", "--device-read-bps",
+    "--device-read-iops", "--device-write-bps", "--device-write-iops", "--dns", "--dns-option", "--dns-search", "--domainname",
+    "--entrypoint", "-e", "--env", "--env-file", "--expose", "--gpus", "--group-add", "--health-cmd", "--health-interval",
+    "--health-retries", "--health-start-period", "--health-timeout", "-h", "--hostname", "--ip", "--ip6", "--ipc",
+    "--isolation", "--kernel-memory", "-l", "--label", "--label-file", "--link", "--link-local-ip", "--log-driver",
+    "--log-opt", "--mac-address", "-m", "--memory", "--memory-reservation", "--memory-swap", "--memory-swappiness",
+    "--mount", "--name", "--network", "--network-alias", "--oom-score-adj", "--pid", "--pids-limit", "--platform", "-p",
+    "--publish", "--pull", "--restart", "--runtime", "--security-opt", "--shm-size", "--stop-signal", "--stop-timeout",
+    "--storage-opt", "--sysctl", "--tmpfs", "-u", "--user", "--ulimit", "--userns", "--uts", "-v", "--volume",
+    "--volume-driver", "--volumes-from", "-w", "--workdir",
+})
+_NONE: frozenset[str] = frozenset()
+_PACKAGE = frozenset({"-p", "--package"})
+_SPECS: dict[str, _Spec] = {
+    "npx": _Spec(_PACKAGE, _NONE, _NPM_VALUES | {"-c", "--call"}, _SOURCE_OPTIONS),
+    "bunx": _Spec(_PACKAGE, _NONE, _NONE, _SOURCE_OPTIONS),
+    "pnpm dlx": _Spec(_PACKAGE, _NONE, _NONE, _SOURCE_OPTIONS),
+    "uvx": _Spec(frozenset({"--from", "--with"}), frozenset({"--from"}), _UVX_VALUES, _SOURCE_OPTIONS),
+    "pipx run": _Spec(frozenset({"--spec"}), frozenset({"--spec"}), frozenset({"--python", "--pip-args", "--path"}),
+                      _SOURCE_OPTIONS),
+    "docker run": _Spec(_NONE, _NONE, _DOCKER_VALUES, _NONE),
+}
+
+
+def is_launch_override_env(name: str) -> bool:
+    """An environment variable that redirects what a launcher runs or from where it fetches (`LAUNCH_OVERRIDE_ENV`, and
+    any `npm_config_*`). Compared case-insensitively: Windows reads environment names that way, and a name that only
+    looks like an override on one platform is refused on all."""
+    upper = name.upper()
+    return upper in LAUNCH_OVERRIDE_ENV or upper.startswith("NPM_CONFIG_")
+
+
+@dataclass(frozen=True, slots=True)
+class CommandIdentity:
+    identity: str | None
+    reason: str | None  # unpinned, unknown_launcher, unresolved or launch_override when identity is None
+
+
+@dataclass(frozen=True, slots=True)
+class ParsedCommandIdentity:
+    launcher: str
+    artefacts: tuple[str, ...]
+    sources: tuple[str, ...]
+    args_hash: str | None
+
+
+def _launcher_of(command: str, args: Sequence[str]) -> tuple[str, list[str]] | None:
+    base = _EXECUTABLE_SEPARATORS.split(command)[-1]
+    if base in ("npx", "bunx", "uvx"):
+        return base, list(args)
+    if args and (base, args[0]) in (("pnpm", "dlx"), ("pipx", "run"), ("docker", "run")):
+        return f"{base} {args[0]}", list(args[1:])
+    return None
+
+
+def _reduce_source(value: str) -> str | None:
+    """`scheme://host[:port]/path`: userinfo, query and fragment removed, scheme and host lower-cased. None for a value
+    that is not an absolute URL (a directory, `file:`), holds `${`, or has a comma in its path (the encoding joins
+    sources with commas)."""
+    if not isinstance(value, str) or "${" in value:
+        return None
+    parts = url_parts(value)
+    if parts is None or "," in parts.path:
+        return None
+    host = f"[{parts.host}]" if ":" in parts.host else parts.host
+    return f"{parts.scheme}://{host}{':' + parts.port if parts.port else ''}{parts.path}"
+
+
+def command_identity(command: str, args: Sequence[str], env: Mapping[str, str]) -> CommandIdentity:
+    """The identity of a pinned stdio launch (spec 5.1): `cmd:<launcher> <artefacts>[ src=<sources>][ args=<hash>]`,
+    or why there is none. The artefacts are the packages or image the launch selects, each at an exact version; the
+    sources are the registries and indexes it names, reduced to `scheme://host[:port]/path`; everything else but the
+    quiet flags (every other option and positional, docker options before the image included) enters `args` as a hash.
+    No credential of a source and no value of the arguments or of `env` is ever in the identity."""
+    if "${" in command:
+        return CommandIdentity(None, "unresolved")
+    found = _launcher_of(command, args)
+    if found is None:
+        return CommandIdentity(None, "unknown_launcher")
+    launcher, tokens = found
+    spec, quiet = _SPECS[launcher], QUIET_FLAGS[launcher]
+    artefacts: list[str] = []
+    sources: list[str] = []
+    rest: list[str] = []
+    override = any(is_launch_override_env(key) for key in env)
+    primary = False
+    index = 0
+    while index < len(tokens):
+        token = tokens[index]
+        index += 1
+        if len(token) < 2 or not token.startswith("-"):
+            # the first positional ends the launcher's own options: the package (or image), then its arguments
+            if LAUNCHER_FAMILY[launcher] == "python" and primary:
+                rest.append(token)
+            else:
+                artefacts.append(token)
+            rest.extend(tokens[index:])
+            break
+        option, equals, value = token.partition("=") if token.startswith("--") else (token, "", "")
+        takes_value = option in spec.values or option in spec.artefacts or option in spec.sources
+        consumed = [token]
+        given: str | None = value if equals else None
+        if not equals and takes_value and index < len(tokens):
+            given = tokens[index]
+            index += 1
+            consumed.append(given)
+        if option == "--entrypoint" and launcher == "docker run":
+            override = True
+        elif option in quiet and (given is not None if option in spec.values else not equals):
+            continue
+        elif option in spec.artefacts:
+            artefacts.append(given if given is not None else "")
+            primary = primary or option in spec.primary
+        elif option in spec.sources:
+            sources.append(given if given is not None else "")
+        else:
+            rest.extend(consumed)
+    if override:
+        return CommandIdentity(None, "launch_override")
+    reduced = [_reduce_source(source) for source in sources]
+    if any("${" in item for item in (*artefacts, *sources)) or None in reduced:
+        return CommandIdentity(None, "unresolved")
+    try:
+        digest = hashlib.sha256(json.dumps(rest, separators=(",", ":"), ensure_ascii=False).encode("utf-8")).hexdigest()[:32]
+    except UnicodeEncodeError:
+        return CommandIdentity(None, "unresolved")
+    family = LAUNCHER_FAMILY[launcher]
+    if not artefacts or not all(_EXACT[family].fullmatch(artefact) for artefact in artefacts):
+        return CommandIdentity(None, "unpinned")
+    parsed = ParsedCommandIdentity(launcher, tuple(sorted(set(artefacts))), tuple(reduced),  # type: ignore[arg-type]
+                                   digest if rest else None)
+    return CommandIdentity(format_command_identity(parsed), None)
+
+
+def format_command_identity(parsed: ParsedCommandIdentity) -> str:
+    """The canonical encoding: `parse_command_identity(format_command_identity(x)) == x` and the other way round."""
+    parts = [f"cmd:{parsed.launcher}", *parsed.artefacts]
+    if parsed.sources:
+        parts.append("src=" + ",".join(parsed.sources))
+    if parsed.args_hash is not None:
+        parts.append("args=" + parsed.args_hash)
+    return " ".join(parts)
+
+
+def parse_command_identity(identity: str) -> ParsedCommandIdentity:
+    """The parts of an identity `command_identity` produced. Strict: ValueError("<part>: <why>") for anything it never
+    produces (one space between tokens, artefacts exact, sorted and distinct, sources reduced and non-empty, `args=`
+    exactly 32 lowercase hex), so a hand-edited string never reaches the registry."""
+    if not isinstance(identity, str) or not identity.startswith("cmd:"):
+        raise ValueError("launcher: an identity starts with cmd:")
+    body = identity[len("cmd:"):]
+    launcher = next((name for name in LAUNCHER_FAMILY if body.startswith(name + " ")), None)
+    if launcher is None:
+        raise ValueError("launcher: not one of " + ", ".join(LAUNCHER_FAMILY))
+    tokens = body[len(launcher) + 1:].split(" ")
+    if "" in tokens:
+        raise ValueError("identity: one space between tokens, none at the end")
+    position = 0
+    while position < len(tokens) and not tokens[position].startswith(("src=", "args=")):
+        position += 1
+    artefacts = tokens[:position]
+    exact = _EXACT[LAUNCHER_FAMILY[launcher]]
+    if not artefacts or not all(exact.fullmatch(artefact) for artefact in artefacts):
+        raise ValueError("artefacts: at least one, each at an exact version")
+    if any(left >= right for left, right in zip(artefacts, artefacts[1:], strict=False)):
+        raise ValueError("artefacts: sorted and distinct")
+    sources: tuple[str, ...] = ()
+    if position < len(tokens) and tokens[position].startswith("src="):
+        listed = tokens[position][len("src="):].split(",")
+        if not all(item and _reduce_source(item) == item for item in listed):
+            raise ValueError("src: each source is scheme://host[:port]/path without userinfo, query or fragment")
+        sources = tuple(listed)
+        position += 1
+    args_hash = None
+    if position < len(tokens) and tokens[position].startswith("args="):
+        args_hash = tokens[position][len("args="):]
+        if _ARGS_HASH.fullmatch(args_hash) is None:
+            raise ValueError("args: 32 lowercase hex characters")
+        position += 1
+    if position < len(tokens):
+        raise ValueError("identity: unexpected " + tokens[position].split("=")[0])
+    return ParsedCommandIdentity(launcher, tuple(artefacts), sources, args_hash)
+
+
+# --- resolver files ------------------------------------------------------------------------------------------------
+
+_RESOLVER_FILES = {".npmrc": "npm", ".yarnrc.yml": "npm", "bunfig.toml": "npm", "uv.toml": "python", "pip.conf": "python",
+                   "pyproject.toml": "python"}
+_RESOLVER_CAP = 64 * 1024
+_NPMRC = re.compile(r"^\s*(?:@[^\s:=]+:)?registry\s*=", re.MULTILINE)
+_YARNRC = re.compile(r"^\s*(?:npmRegistryServer|npmScopes)\s*:", re.MULTILINE)
+_INDEX_KEYS = r"(?:index-url|extra-index-url|find-links|index|default-index|index_url|extra_index_url|find_links|default_index)"
+_INDEX_LINE = re.compile(rf"^\s*{_INDEX_KEYS}\s*[=:]")
+_DOTTED_UV_LINE = re.compile(rf"^\s*tool\.uv(?:\.pip)?\.{_INDEX_KEYS}\s*=")
+_TABLE_HEADER = re.compile(r"^\s*\[\[?([^\[\]]*)\]\]?\s*(?:#.*)?$")
+_REGISTRY_LINE = re.compile(r"^\s*registry\s*=")
+_ANY_KEY_LINE = re.compile(r"^\s*[^#\s\[=][^=]*=")
+
+
+def _tables(text: str):
+    """`(table, line)` for every line of a TOML-like text: the dotted name of the table the line sits in, `""` before the
+    first header. A header yields `(name, None)`."""
+    table = ""
+    for line in text.splitlines():
+        header = _TABLE_HEADER.match(line)
+        if header is not None:
+            table = header.group(1).replace(" ", "").replace('"', "").replace("'", "")
+            yield table, None
+        else:
+            yield table, line
+
+
+def _redirects(name: str, text: str) -> bool:
+    if name == ".npmrc":
+        return _NPMRC.search(text) is not None
+    if name == ".yarnrc.yml":
+        return _YARNRC.search(text) is not None
+    if name == "pip.conf":
+        return any(_INDEX_LINE.match(line) for line in text.splitlines())
+    for table, line in _tables(text):
+        if name == "bunfig.toml":
+            scoped = table.startswith("install.scopes") or table == "install.registry"
+            plain = table == "install" and line is not None and _REGISTRY_LINE.match(line)
+            if plain or (scoped and line is not None and _ANY_KEY_LINE.match(line)):
+                return True
+        elif name == "uv.toml":
+            if (line is None and table == "index") or (line is not None and _INDEX_LINE.match(line)):
+                return True
+        elif (line is None and (table == "tool.uv.index" or table.startswith("tool.uv.index."))) or (
+                line is not None and ((table in ("tool.uv", "tool.uv.pip") and _INDEX_LINE.match(line))
+                                      or (table == "" and _DOTTED_UV_LINE.match(line)))):
+            return True
+    return False
+
+
+def resolver_files(files: Iterable[str], read: Callable[[str], bytes]) -> dict[str, tuple[str, ...]]:
+    """Per launcher family, the files of the tree that redirect package resolution when the command runs there:
+    `.npmrc`, `.yarnrc.yml` and `bunfig.toml` with a registry or scope-registry line (npm family); `uv.toml`,
+    `pip.conf` and `pyproject.toml` with an index entry (python family). Line-based, no TOML parser; `read` is called
+    only for a file of those names, and a file over 64 KiB or one `read` cannot deliver counts as a resolver file (a
+    gate that cannot look says no). A stdio entry of a family that has any is `resolver_override`."""
+    found: dict[str, list[str]] = {}
+    for path in files:
+        name = path.rpartition("/")[2]
+        family = _RESOLVER_FILES.get(name)
+        if family is None:
+            continue
+        try:
+            content = read(path)
+            hit = len(content) > _RESOLVER_CAP or _redirects(name, content.decode("utf-8", errors="replace"))
+        except OSError:
+            hit = True
+        if hit:
+            found.setdefault(family, []).append(path)
+    return {family: tuple(sorted(paths)) for family, paths in found.items()}
