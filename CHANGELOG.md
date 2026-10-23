@@ -32,6 +32,9 @@ result takes into that table. The rules version is `2026.10.3`; the 1.0.0 golden
   `connected_subscription`, `connected_ci_key_required`, `connected_forbidden`, `connected_rate_limited`,
   `connected_unavailable`, `connected_required`, `policy_not_found`, `policy_invalid`, `org_rules_incomplete`,
   `registry_check_failed` and `registry_check_too_large`. Exit codes do not change.
+- `spellwarden baseline`: `add` takes `--rule SW-REG-NNN|SW-ORG-NNN` and `--finding-path PATH` with a fingerprint from a
+  connected report; `list` shows such an entry as `connected` (a fifth state next to active, expired, invalid and
+  unmatched); `prune` keeps it until it has expired and 30 more days, since these commands scan without a connection.
 - The command: `api.py` is the fourth module that reaches the network (the Spellwarden API, the code host's token
   endpoint, a proxy from `HTTPS_PROXY`); `net.Fetcher.get` takes `redirects=`. The CI context gains the repository, commit,
   branch, run link and default branch, and `ci-run gitlab` maps `SW_ORG` and `SW_UPLOAD`.
