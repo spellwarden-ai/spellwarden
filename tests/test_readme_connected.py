@@ -131,7 +131,8 @@ def test_the_changelog_has_the_1_2_0_section_with_the_release_date_left_to_the_o
     finally:
         sys.path.remove(str(README.parent / "scripts"))
     changelog = (README.parent / "CHANGELOG.md").read_text(encoding="utf-8")
-    assert re.match(r"# Changelog\n\n## 1\.2\.0 \((RELEASE_DATE|\d{4}-\d{2}-\d{2})\)\n", changelog)  # dated by Task 12
+    assert re.match(r"# Changelog\n\n## 1\.2\.\d+ \((RELEASE_DATE|\d{4}-\d{2}-\d{2})\)\n", changelog)  # dated by Task 12; 1.2.x patches above
+    assert re.search(r"^## 1\.2\.0 \(\d{4}-\d{2}-\d{2}\)\n", changelog, re.M)
     body = release_manifest.changelog_section(changelog, "1.2.0")
     assert "Connected mode" in body and "SW-REG-003" in body and "2026.10.3" in body
     assert not re.search("[\u2013\u2014!]", body)
