@@ -327,6 +327,7 @@ spellwarden scan [PATH] [--format FMT [--output FILE]]... [--fail-on LEVEL] [--l
                  [--no-telemetry] [--upload | --no-upload] [--quiet] [--verbose]
 spellwarden lock [PATH] [--check]
 spellwarden baseline add [PATH] (--fingerprint FP... | --all) --reason TEXT [--expires YYYY-MM-DD | --days N]
+spellwarden baseline add [PATH] --fingerprint FP --rule SW-REG-NNN|SW-ORG-NNN [--finding-path PATH] --reason TEXT [--expires YYYY-MM-DD | --days N]
 spellwarden baseline prune [PATH]
 spellwarden baseline list [PATH]
 spellwarden rules [--format text|json|markdown]
@@ -397,7 +398,7 @@ accepted:
     expires: 2027-01-31
 ```
 
-An entry accepts one finding, by fingerprint, from `added` to `expires`. It needs a reason, may last at most 365 days, and at most 30 days for a malicious-indicator rule (SW-SKL-004, SW-SKL-008, SW-CFG-006, SW-CFG-007). An invalid entry accepts nothing and fails the scan (exit 2); an expired one stops accepting, and the report says which entry expired on which date. Accepted findings stay in every report, marked as accepted with their reason. `spellwarden baseline add --all --reason "..."` accepts every current finding (90 days by default), `prune` removes entries that no longer match anything, `list` shows each entry's state. These three commands work on the files in your working tree.
+An entry accepts one finding, by fingerprint, from `added` to `expires`. It needs a reason, may last at most 365 days, and at most 30 days for a malicious-indicator rule (SW-SKL-004, SW-SKL-008, SW-CFG-006, SW-CFG-007). An invalid entry accepts nothing and fails the scan (exit 2); an expired one stops accepting, and the report says which entry expired on which date. Accepted findings stay in every report, marked as accepted with their reason. `spellwarden baseline add --all --reason "..."` accepts every current finding (90 days by default), `prune` removes entries that no longer match anything, `list` shows each entry's state. These three commands work on the files in your working tree. They scan without a connection, so they cannot see an `SW-REG` or `SW-ORG` finding: `prune` keeps an entry that names such a rule until it has expired (and 30 more days), `list` shows it as `connected` instead of `unmatched`, and to accept one you give its fingerprint from a connected report with `--rule` (and `--finding-path`): `spellwarden baseline add --fingerprint FP --rule SW-REG-001 --finding-path skills/setup --reason "..."`, at most 90 days for `SW-REG` and 365 for `SW-ORG`.
 
 On a pull or merge request the scan reads the baseline from the base revision, like the settings file (see "Settings"): a request cannot accept its own finding. To accept a finding that a request introduces, merge the baseline entry first, in a request of its own; an entry that matches nothing yet is valid.
 

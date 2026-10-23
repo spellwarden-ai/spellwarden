@@ -11,7 +11,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
 
-from spellwarden_scan.model import Finding
+from spellwarden_scan.model import Finding, Location
 
 from spellwarden_cli import commands, escape, paths, safe_yaml
 from spellwarden_cli.report import Notice, ReportFinding
@@ -22,6 +22,9 @@ MAX_SPAN_DAYS = 365
 MALICIOUS_SPAN_DAYS = 30
 REG_SPAN_DAYS = 90  # O3 spec 6.6: a third cap, for the registry gate's rules (SW-REG-001 to SW-REG-003)
 REG_PREFIX = "SW-REG-"
+# Rules whose findings only a connected run produces (the registry gate, the organisation's rules): an offline
+# command cannot see them, so it cannot judge an entry that names one.
+CONNECTED_PREFIXES = (REG_PREFIX, "SW-ORG-")
 DEFAULT_DAYS = 90
 PRUNE_GRACE_DAYS = 30
 REASON_MAX = 1000
@@ -159,6 +162,10 @@ def load_baseline(root: str, relative: str = BASELINE_PATH, *, required: bool = 
     return parse_baseline(document, name=relative)
 
 
+def is_connected_rule(rule: str) -> bool:
+    return rule.startswith(CONNECTED_PREFIXES)
+
+
 def _span(entry: Entry) -> int:
     return (entry.expires - entry.added).days
 
@@ -226,7 +233,7 @@ def entry_state(entry: Entry, *, as_of: date, current: Mapping[str, Finding]) ->
     if as_of > entry.expires:
         return "expired"
     if finding is None:
-        return "unmatched"
+        return "connected" if is_connected_rule(entry.rule) else "unmatched"
     return "active"
 
 
@@ -270,6 +277,10 @@ def add_parser(commands_: argparse._SubParsersAction) -> None:
     which.add_argument("--fingerprint", nargs="+", metavar="FP", help="The fingerprints of the findings to accept.")
     which.add_argument("--all", action="store_true", help="Accept every current finding not yet accepted.")
     add.add_argument("--reason", required=True, help="Why the finding is acceptable; kept in the file.")
+    add.add_argument("--rule", metavar="RULE", help="With one --fingerprint taken from a connected report: the finding's "
+                     "SW-REG or SW-ORG rule id (a scan without a connection cannot see such a finding).")
+    add.add_argument("--finding-path", metavar="PATH", dest="finding_path", default="",
+                     help="With --rule: the finding's path, kept in the entry.")
     until = add.add_mutually_exclusive_group()
     until.add_argument("--expires", type=commands.iso_date, metavar="YYYY-MM-DD")
     until.add_argument("--days", type=_days, metavar="N", help="Expiry after N days (default 90; 30 for a malicious indicator).")
@@ -316,23 +327,41 @@ def _expiry(args: argparse.Namespace, finding: Finding, as_of: date) -> date:
     return expires
 
 
+def _connected_finding(args: argparse.Namespace) -> Finding:
+    """The finding `--rule` names for the one `--fingerprint`: it comes from a connected report, so this offline scan
+    cannot look it up. Only a registry or organisation rule may be named this way."""
+    if not RULE_ID.fullmatch(args.rule) or not is_connected_rule(args.rule):
+        raise commands.CommandError(f"--rule takes an SW-REG or SW-ORG rule id (SW-REG-001, SW-ORG-012); {args.rule!r} "
+                                    f"is judged by the scan itself, so name it without --rule")
+    if len(args.fingerprint) != 1:
+        raise commands.CommandError("--rule describes one finding: give exactly one --fingerprint")
+    if not _FINGERPRINT.fullmatch(args.fingerprint[0]):
+        raise commands.CommandError("--fingerprint must be 64 hex characters")
+    return Finding(args.rule, "high", "", Location(args.finding_path), "", args.fingerprint[0].lower())
+
+
 def cmd_add(args: argparse.Namespace) -> int:
     reason = args.reason
     if not reason.strip() or len(reason) > REASON_MAX:
         return commands.fail(f"--reason must hold between 1 and {REASON_MAX} characters")
     try:
         root, as_of, existing = _prepare(args, rewrite=True)
-        report = commands.current_report(root, as_of=as_of, env=os.environ)
-        if any(error.code == "baseline_invalid" for error in report.errors):
-            raise commands.CommandError(f"{BASELINE_PATH} has invalid entries; fix them first")
-        if args.all:
-            chosen = [item.finding for item in report.findings if not item.suppressed]
+        if (args.rule or args.finding_path) and not args.fingerprint:
+            raise commands.CommandError("--rule and --finding-path go with --fingerprint")
+        if args.rule is not None:
+            chosen = [_connected_finding(args)]
         else:
-            current = {item.finding.fingerprint: item.finding for item in report.findings}
-            missing = [fp for fp in args.fingerprint if fp.lower() not in current]
-            if missing:
-                raise commands.CommandError(f"no current finding has the fingerprint {missing[0][:12]}")
-            chosen = [current[fp.lower()] for fp in dict.fromkeys(args.fingerprint)]
+            report = commands.current_report(root, as_of=as_of, env=os.environ)
+            if any(error.code == "baseline_invalid" for error in report.errors):
+                raise commands.CommandError(f"{BASELINE_PATH} has invalid entries; fix them first")
+            if args.all:
+                chosen = [item.finding for item in report.findings if not item.suppressed]
+            else:
+                current = {item.finding.fingerprint: item.finding for item in report.findings}
+                missing = [fp for fp in args.fingerprint if fp.lower() not in current]
+                if missing:
+                    raise commands.CommandError(f"no current finding has the fingerprint {missing[0][:12]}")
+                chosen = [current[fp.lower()] for fp in dict.fromkeys(args.fingerprint)]
         entries = {entry.fingerprint: entry for entry in existing.entries}
         for finding in chosen:
             entries[finding.fingerprint] = Entry(finding.fingerprint, finding.rule_id, finding.location.path, reason, as_of,
@@ -356,7 +385,9 @@ def cmd_prune(args: argparse.Namespace) -> int:
         report = commands.current_report(root, as_of=as_of, env=os.environ)
         current = {item.finding.fingerprint for item in report.findings}
         cutoff = as_of - timedelta(days=PRUNE_GRACE_DAYS)
-        kept = [entry for entry in existing.entries if entry.fingerprint in current and entry.expires >= cutoff]
+        # A registry or organisation entry cannot match anything in an offline scan: it stays until it has expired.
+        kept = [entry for entry in existing.entries
+                if (entry.fingerprint in current or is_connected_rule(entry.rule)) and entry.expires >= cutoff]
         removed = len(existing.entries) - len(kept)
         if removed:
             commands.write_in_root(root, BASELINE_PATH, render_baseline(kept))
