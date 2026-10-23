@@ -16,7 +16,7 @@ from spellwarden_scan import RULES_VERSION, RuleSet, __version__
 
 import dataclasses
 
-from spellwarden_cli import run
+from spellwarden_cli import api, run
 from spellwarden_cli.output import FORMATS, write_stdout
 from spellwarden_cli.report import LockState, Notice, Report
 from spellwarden_cli.secret import Credentials, read_credentials
@@ -124,15 +124,6 @@ def _error_report(fail_on: str, as_of: date, code: str, path: str, message: str,
                   errors=(Notice(code, path, message),), repo_prefix=None, rules=RuleSet.baseline()).sorted()
 
 
-def api_url_env(env) -> str | None:
-    """`SPELLWARDEN_API_URL` when it is honoured: loopback HTTP only, the rule of `SPELLWARDEN_PING_URL` (O3 spec 6.2).
-    Task 6's `api.api_url` replaces this stub."""
-    from spellwarden_cli import ping
-
-    raw = env.get("SPELLWARDEN_API_URL")
-    return ping.loopback_url(raw) if raw else None
-
-
 def _scan_report(args: argparse.Namespace, context, credentials: Credentials) -> tuple[Report, bool]:
     """The report and the effective telemetry setting (False when the settings were refused: no ping). On a pull or
     merge request in CI the settings file and the baseline come from the base revision (`ci.revision_source`, D35)."""
@@ -146,9 +137,7 @@ def _scan_report(args: argparse.Namespace, context, credentials: Credentials) ->
     flags = Flags(fail_on=args.fail_on, probe=args.probe, probe_private=args.probe_private,
                   telemetry=False if args.no_telemetry else None, upload=args.upload)
     log = _stderr if args.verbose else run._silent
-    api_url = api_url_env(os.environ)
-    if os.environ.get("SPELLWARDEN_API_URL") and api_url is None:
-        log("SPELLWARDEN_API_URL ignored: it is honoured for loopback HTTP only (127.0.0.1, [::1] or localhost)")
+    api_url, overridden = api.api_url(os.environ, log)  # the ignore line is api_url's own
     try:
         source = ci.revision_source(root, context, config=args.config is None, baseline=args.baseline is None,
                                     env=os.environ)
@@ -171,7 +160,7 @@ def _scan_report(args: argparse.Namespace, context, credentials: Credentials) ->
         telemetry = False
     options = run.ScanOptions(root=root, settings=settings, as_of=as_of, locked=args.locked, baseline=args.baseline,
                               env=dict(os.environ), log=log, context=context, revision=source, credentials=credentials,
-                              api_url=api_url, as_of_given=args.as_of is not None)
+                              api_url=api_url if overridden else None, as_of_given=args.as_of is not None)
     started = time.monotonic()
     try:
         report = run.scan(options)

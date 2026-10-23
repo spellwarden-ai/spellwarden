@@ -29,7 +29,7 @@ a `Location`), gets the full rules. `allow_private=False` is accepted with its o
 connection (the probe phase's request budget, `probing.py`) and may raise
 `FetchError`.
 
-One of the three modules of `spellwarden_cli` that may reach the network
+One of the four modules of `spellwarden_cli` that may reach the network
 (`tests/test_network_boundary.py`). Python 3.11 or newer.
 """
 from __future__ import annotations
@@ -48,6 +48,7 @@ from urllib.parse import urljoin, urlsplit
 from spellwarden_scan.version import __version__
 
 MAX_REDIRECTS = 5
+USER_AGENT = f"Spellwarden/{__version__} (+https://spellwarden.ai)"  # the one literal: ping.py, forge.py and api.py import it
 ARCHIVE_MAX = 20 * 2**20
 JSON_MAX = 2**20
 STREAM_HEAD_MAX = 4096
@@ -257,12 +258,15 @@ class Fetcher:
         self._timeout = timeout
         self._on_event = on_event
         self._clock = clock or time.monotonic
-        self._user_agent = user_agent or f"Spellwarden/{__version__} (+https://spellwarden.ai)"
+        self._user_agent = user_agent or USER_AGENT
         self._private_origins = _origins(private_origins)
         self._gate: Callable[[], None] | None = None
 
-    def get(self, url: str, *, max_bytes: int, accept: str = "*/*", headers: dict[str, str] | None = None) -> Response:
-        return self._request("GET", url, None, {**without(headers, "Accept"), "Accept": accept}, max_bytes)
+    def get(self, url: str, *, max_bytes: int, accept: str = "*/*", headers: dict[str, str] | None = None,
+            redirects: int = MAX_REDIRECTS) -> Response:
+        """`redirects=0` refuses a 3xx answer as `too_many_redirects` and never requests its `Location` (spec 5.4)."""
+        return self._request("GET", url, None, {**without(headers, "Accept"), "Accept": accept}, max_bytes,
+                             redirects=redirects)
 
     def post_json(self, url: str, body: dict, headers: dict[str, str], *, max_bytes: int = JSON_MAX) -> Response:
         # The content headers of a JSON-RPC POST are this module's, whatever the caller's spelling; a caller adds
@@ -284,15 +288,15 @@ class Fetcher:
         return left
 
     def _request(self, method: str, url: str, body: bytes | None, headers: dict[str, str], max_bytes: int,
-                 *, head_only: bool = False) -> Response:
+                 *, head_only: bool = False, redirects: int = MAX_REDIRECTS) -> Response:
         current = url
         sent = dict(headers)
         deadline = self._clock() + self._timeout  # a server that drips bytes cannot hold a request past it
-        for hop in range(MAX_REDIRECTS + 1):
+        for hop in range(redirects + 1):
             response, location = self._one(method, current, body, sent, max_bytes, head_only, deadline)
             if location is None or method == "POST":
                 return response
-            if hop == MAX_REDIRECTS:
+            if hop == redirects:
                 raise FetchError("too_many_redirects")
             try:
                 following = urljoin(current, location)

@@ -12,41 +12,30 @@ outputs or the exit code; with `--verbose` it prints one line.
 (`http://127.0.0.1:<port>/<path>`, `http://[::1]:<port>/<path>`, `http://localhost:<port>/<path>`, the last
 connected to 127.0.0.1), ignored otherwise.
 
-One of the three modules of `spellwarden_cli` that may reach the network (`tests/test_network_boundary.py`)."""
+One of the four modules of `spellwarden_cli` that may reach the network (`tests/test_network_boundary.py`)."""
 from __future__ import annotations
 
 import json
-import re
 import threading
 import urllib.request
 from collections.abc import Callable, Mapping
 
 from spellwarden_scan.version import RULES_VERSION, __version__
 
+from spellwarden_cli.api import loopback_url  # the one acceptance rule of the test hooks (O3 spec 6.2)
 from spellwarden_cli.ci import CiContext, org_hash
+from spellwarden_cli.net import USER_AGENT
 from spellwarden_cli.settings import env_bool
 
 DEFAULT_URL = "https://dash.spellwarden.ai/api/public/ping"
 TIMEOUT_SECONDS = 2
 _urlopen = urllib.request.urlopen  # tests replace it (tests/conftest.py keeps every test off the network)
-_LOOPBACK = re.compile(r"http://(127\.0\.0\.1|\[::1\]|localhost):([0-9]{1,5})(/[A-Za-z0-9._~/-]*)?")
 
 
 def ping_body(ctx: CiContext, *, version: str, rules_version: str) -> dict:
     """The five fields, and nothing else (spec 2 invariant 3)."""
     ci = ctx.provider if ctx.provider in ("github", "gitlab") else "other"
     return {"schema": 1, "version": version, "rules_version": rules_version, "ci": ci, "org": org_hash(ctx.identity)}
-
-
-def loopback_url(raw: str) -> str | None:
-    """`raw` in the form of the test hooks (D25): `http://127.0.0.1:<port>/<path>`, `http://[::1]:<port>/<path>` or
-    `http://localhost:<port>/<path>` (written with 127.0.0.1); None for anything else. `SPELLWARDEN_API_URL` (O3
-    spec 6.2) follows the same rule."""
-    match = _LOOPBACK.fullmatch(raw)
-    if match is None or not 1 <= int(match.group(2)) <= 65535:
-        return None
-    host = "127.0.0.1" if match.group(1) == "localhost" else match.group(1)
-    return f"http://{host}:{int(match.group(2))}{match.group(3) or '/'}"
 
 
 def ping_url(env: Mapping[str, str]) -> tuple[str, bool]:
@@ -73,7 +62,7 @@ def send_ping(ctx: CiContext, *, telemetry: bool, env: Mapping[str, str], log: C
         body = json.dumps(ping_body(ctx, version=__version__, rules_version=RULES_VERSION),
                           separators=(",", ":")).encode("utf-8")
         request = urllib.request.Request(url, data=body, method="POST", headers={
-            "Content-Type": "application/json", "User-Agent": f"Spellwarden/{__version__} (+https://spellwarden.ai)"})
+            "Content-Type": "application/json", "User-Agent": USER_AGENT})
         outcome: dict[str, str] = {}
         send = opener or _urlopen
 
