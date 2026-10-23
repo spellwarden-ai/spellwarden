@@ -8,7 +8,7 @@ from pathlib import Path
 
 import jsonschema
 import pytest
-from conftest import (CHECK_PATH, EXCHANGE_PATH, KEY_PATH, POLICY_PATH, admit_all, connected_gitlab, credential, orgs_answer, org_rule, policy_answer,
+from conftest import (CHECK_PATH, EXCHANGE_PATH, KEY_PATH, POLICY_PATH, SCANS_PATH, admit_all, connected_gitlab, credential, orgs_answer, org_rule, policy_answer,
                       probe_rule, scan_json, session_answer)
 
 from spellwarden_scan import __version__
@@ -32,6 +32,7 @@ def serve(fake, answer: dict) -> None:
     fake.script("POST", EXCHANGE_PATH, 201, session_answer(run={"identity": "gitlab:gitlab.com/acme/tools", "event": "push"}))
     fake.script("GET", POLICY_PATH, 200, answer)
     fake.script("POST", CHECK_PATH, 200, admit_all, times=5)  # these repositories hold skills: the gate checks them (6.6)
+    fake.script("POST", SCANS_PATH, 201, {"scan": "s", "repository": "r", "url": "https://dash.spellwarden.ai/acme/repositories/r"})
 
 
 def notice(report: dict, code: str) -> dict:
@@ -45,7 +46,7 @@ def test_org_rules_document_is_applied_and_reported(make_repo, run_cli, tmp_path
     repo = skill_repo(make_repo, tmp_path)
     outputs = {fmt: tmp_path / f"out.{fmt}" for fmt in ("json", "sarif", "markdown", "gitlab-codequality")}
     args = [arg for fmt, path in outputs.items() for arg in ("--format", fmt, "--output", str(path))]
-    code, text, err = run_cli(["scan", str(repo), "--no-telemetry", *args, "--format", "text"], env=env_of())
+    code, text, err = run_cli(["scan", str(repo), "--no-telemetry", "--no-upload", *args, "--format", "text"], env=env_of())
     assert code == 1, err  # SW-ORG-010 is high
     report = json.loads(outputs["json"].read_text(encoding="utf-8"))
     assert [f["rule_id"] for f in report["findings"]] == ["SW-ORG-010"] and report["findings"][0]["item"] == "skills/deploy"
@@ -84,7 +85,7 @@ def test_repository_pack_is_requested_and_reported(make_repo, run_cli, tmp_path,
     fake, _ = api_double
     serve(fake, policy_answer([org_rule()], source="pack", chosen_by="repository", pack_name="Team pack", version="1.4"))
     repo = skill_repo(make_repo, tmp_path, {".spellwarden/config.yml": f"version: 1\nconnected:\n  pack: {PACK}@1.4\n"})
-    code, out, _ = run_cli(["scan", str(repo), "--no-telemetry"], env=env_of())
+    code, out, _ = run_cli(["scan", str(repo), "--no-telemetry", "--no-upload"], env=env_of())
     assert code == 1
     assert fake.requests[1][1] == f"{POLICY_PATH}?scanner={__version__}&pack={PACK}@1.4"
     assert out.rstrip("\n").splitlines()[-1] == ("Connected to Acme as gitlab:gitlab.com/acme/tools (oidc): 1 organisation "
@@ -105,7 +106,7 @@ def test_skipped_rules_give_the_notice_and_the_text_line_and_keep_the_exit_code(
     skipped = [{"id": "SW-ORG-007", "why": "needs_scanner", "version": "1.3.0"}, {"id": "SW-ORG-009", "why": "compile_error"}]
     serve(fake, policy_answer([], skipped=skipped))
     repo = make_repo(tmp_path / "repo", {"README.md": "x\n"})
-    code, out, _ = run_cli(["scan", str(repo), "--no-telemetry"], env=env_of())
+    code, out, _ = run_cli(["scan", str(repo), "--no-telemetry", "--no-upload"], env=env_of())
     assert code == 0  # the exit code is not changed by a gap the dashboard marks
     lines = out.rstrip("\n").splitlines()
     assert lines[-1] == "2 organisation rules need a newer scanner and were not applied: SW-ORG-007, SW-ORG-009"
@@ -232,6 +233,7 @@ def test_the_key_path_reads_the_same_policy(make_repo, run_cli, tmp_path, api_do
     fake.script("GET", KEY_PATH, 200, orgs_answer())
     fake.script("GET", POLICY_PATH, 200, policy_answer([org_rule()]))
     fake.script("POST", CHECK_PATH, 200, admit_all)
+    fake.script("POST", SCANS_PATH, 201, {"scan": "s", "repository": "r", "url": "https://dash.spellwarden.ai/acme/repositories/r"})
     env = connected_gitlab(SPELLWARDEN_API_KEY=credential("swk"))
     code, report, _, _ = scan_json(run_cli, skill_repo(make_repo, tmp_path), env)
     assert code == 1 and report["connected"]["credential"] == "key"

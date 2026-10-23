@@ -13,6 +13,8 @@ and the SW-REG findings. Imports `api` and `ci`, the engine and nothing else net
 to end and no message built here holds one."""
 from __future__ import annotations
 
+import hashlib
+import json
 import posixpath
 import re
 import time
@@ -23,13 +25,15 @@ from urllib.parse import quote
 
 from spellwarden_scan import (RULES_VERSION, OrgRuleBudget, OrgRuleError, PackDocument, PackError, Rule, __version__,
                               compile_org_rule, validate_pack)
+from spellwarden_scan import SEVERITY_RANK
 from spellwarden_scan import gate as gates
 from spellwarden_scan import identity as ident
+from spellwarden_scan.evidence import mask_credentials
 
 from spellwarden_cli import api, ci, discover, escape
 from spellwarden_cli.api import ApiClient, ApiError, Session
 from spellwarden_cli.ci import ORG_RE
-from spellwarden_cli.report import Notice, ProbeReport, ReportFinding
+from spellwarden_cli.report import Notice, ProbeReport, Report, ReportFinding, to_json_dict
 from spellwarden_cli.secret import Credentials
 from spellwarden_cli.settings import Settings
 
@@ -715,6 +719,191 @@ def run_gate(state: ConnectedState, found: Discovery, probes: list[ProbeReport],
     return findings, registry
 
 
+
+# --- the upload (6.7) ------------------------------------------------------------------------------------------------
+
+UPLOAD_SKIPS = ("branch", "event_not_reportable", "default_branch_unconfirmed")  # what the server may answer 202 with
+STRING_MAX = 1024            # every string of the report's connected block (8.4)
+MESSAGE_MAX = 300            # a notice or error message in the body
+LIST_MAX = 50                # notices and errors in the body
+PROBE_FIELDS = ("item", "status", "skip_reason", "transport", "spec_version", "auth_mode", "migration_status")
+_KEY_UNSAFE = re.compile(r"[^A-Za-z0-9._:#/-]")
+
+
+def idempotency_key(ctx: CiContext, env: dict[str, str] | dict) -> str | None:
+    """Spec 6.7: the key of one run's upload, `^[A-Za-z0-9._:#/-]{16,128}$`: the run URL, the job and the attempt; in
+    `other` CI without a run URL, `SPELLWARDEN_RUN_ID`. None when there is no run id."""
+    job = ctx.job or "job"
+    if ctx.run_url:
+        raw = f"{ctx.run_url}#{job}#{ctx.attempt}"
+    else:
+        run_id = str(env.get("SPELLWARDEN_RUN_ID", "")).strip()
+        if not run_id:
+            return None
+        raw = f"{ctx.provider or 'other'}:{run_id}#{job}#{ctx.attempt}"
+    key = _KEY_UNSAFE.sub("_", raw)
+    digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()
+    if len(key) > 128:
+        return f"{ctx.provider or 'other'}:{digest[:64]}#{ctx.attempt}"
+    return key if len(key) >= 16 else f"{key}#{digest[:16]}"
+
+
+def _clip(value: object) -> object:
+    if isinstance(value, str):
+        return value if len(value) <= STRING_MAX else value[:STRING_MAX - 3] + "..."
+    if isinstance(value, list):
+        return [_clip(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _clip(item) for key, item in value.items()}
+    return value
+
+
+def _message(text: object) -> str:
+    masked = mask_credentials(str(text))
+    return masked if len(masked) <= MESSAGE_MAX else masked[:MESSAGE_MAX - 3] + "..."
+
+
+def _entries(entries: list[dict]) -> list[dict]:
+    return [{**entry, "message": _message(entry.get("message", ""))} for entry in entries]
+
+
+def _cap(report: dict, name: str, limit: int, cut: list[str]) -> None:
+    if len(report[name]) > limit:
+        report[name] = report[name][:limit]
+        cut.append(name)
+
+
+def reduce_report(report_dict: dict, limits: dict) -> tuple[dict, int, list[str]]:
+    """O3 spec 6.7, invariant 3: the report as the body carries it, `(body report, findings dropped, lists cut)`. No
+    `connected.upload`; probes keep the seven fields of 8.4 (no findings, no checklist); at most 50 notices and 50 errors
+    with messages masked and cut to 300 characters; the caps of the policy answer for items, probes and findings
+    (highest severity first, suppressed ones included with their baseline). Over `upload_max_bytes` the items, then the
+    probes, then the lowest findings are dropped. Every cut is in `upload_truncated` and `upload_truncated_fields`.
+    `report_dict` is not changed."""
+    report = {**report_dict}
+    cut: list[str] = []
+    report["findings"] = sorted(report_dict["findings"], key=lambda f: SEVERITY_RANK[f["severity"]])  # stable: report order
+    report["items"] = list(report_dict["items"])
+    report["probes"] = [{name: probe.get(name) for name in PROBE_FIELDS} for probe in report_dict["probes"]]
+    report["notices"] = _entries(report_dict["notices"])
+    report["errors"] = _entries(report_dict["errors"])
+    if report_dict.get("connected") is not None:
+        block = {key: _clip(value) for key, value in report_dict["connected"].items() if key != "upload"}
+        registry = block.get("registry")
+        if isinstance(registry, dict) and len(registry.get("items", [])) > 3600:
+            block["registry"] = {**registry, "items": registry["items"][:3600]}
+        report["connected"] = block
+    before = len(report["findings"])
+    _cap(report, "findings", limits["upload_max_findings"], cut)
+    _cap(report, "items", limits["upload_max_items"], cut)
+    _cap(report, "probes", limits["upload_max_probes"], cut)
+    _cap(report, "notices", LIST_MAX, cut)
+    _cap(report, "errors", LIST_MAX, cut)
+
+    def size() -> int:
+        return len(json.dumps(report, separators=(",", ":")).encode("utf-8"))
+
+    for name in ("items", "probes"):  # still over the limit: these two go whole, in this order
+        if size() > limits["upload_max_bytes"] and report[name]:
+            report[name] = []
+            cut.append(name)
+    while size() > limits["upload_max_bytes"] and len(report["findings"]) > 1:  # last: the lowest findings, in halves
+        report["findings"] = report["findings"][:max(1, len(report["findings"]) // 2)]
+        cut.append("findings")
+    dropped = before - len(report["findings"])
+    cut = [name for name in ("findings", "items", "probes", "notices", "errors") if name in cut]
+    if cut:
+        report["upload_truncated"] = dropped
+        report["upload_truncated_fields"] = cut
+    return report, dropped, cut
+
+
+def _upload_failure(error: ApiError) -> dict:
+    code = error.body.get("error") if isinstance(error.body, dict) and isinstance(error.body.get("error"), str) else error.code
+    block: dict = {"status": "failed", "error": code}
+    if error.request_id:
+        block["request_id"] = error.request_id
+    return block
+
+
+def upload(state: ConnectedState, report: Report, ctx: CiContext, options: ScanOptions) -> dict:
+    """O3 spec 6.7: the report's `upload` block. Posts the run and the reduced report to `/ci/scans` once the exit code is
+    known; never raises and never changes the exit code. `skipped` carries a `reason`, `failed` an `error` (and the
+    `request_id` when the server sent one), `uploaded` the repository page `url` (only when it is under the dashboard
+    address) and whether the scan is `attested` (a CI token's run; a key's is a key report)."""
+    try:
+        return _upload(state, report, ctx, options)
+    except Exception as exc:  # noqa: BLE001 -- an upload failure is a notice, whatever it was
+        return {"status": "failed", "error": type(exc).__name__}
+
+
+def _upload(state: ConnectedState, report: Report, ctx: CiContext, options: ScanOptions) -> dict:
+    if not options.settings.connected.upload:
+        return {"status": "skipped", "reason": "disabled"}
+    if ctx.provider is None:
+        return {"status": "skipped", "reason": "local"}
+    kind = ctx.run_kind()
+    if kind == "branch":
+        return {"status": "skipped", "reason": "branch"}
+    key = idempotency_key(ctx, options.env)
+    if key is None and state.session.credential == "key":
+        return {"status": "skipped", "reason": "no_run_id"}
+    identity = (state.session.run or {}).get("identity") or ctx.repository_identity
+    if not isinstance(identity, str):
+        return {"status": "failed", "error": "repository_unknown"}
+    body_report, _dropped, _cut = reduce_report(to_json_dict(report), state.limits)
+    body = {"schema": 1,
+            "run": {"provider": ctx.provider,
+                    "repository": {"identity": identity, "url": ctx.repository_url, "visibility": ctx.visibility or "private",
+                                   "scope": state.scope},
+                    "kind": kind, "event": ctx.event or "unknown", "request_number": ctx.request_number,
+                    "head_sha": ctx.head_sha, "head_ref": ctx.head_ref, "sha": ctx.sha, "ref_name": ctx.ref_name,
+                    "default_branch": ctx.default_branch, "run_url": ctx.run_url, "idempotency_key": key},
+            "report": body_report}
+    try:
+        answer = state.client.post(f"/v1/orgs/{state.session.org['slug']}/ci/scans", body, retry=False)
+    except ApiError as error:
+        return _upload_failure(error)
+    if "skipped" in answer:
+        reason = answer["skipped"]
+        if reason in UPLOAD_SKIPS:
+            return {"status": "skipped", "reason": reason}
+        return {"status": "failed", "error": "unknown_skip"}
+    result: dict = {"status": "uploaded", "attested": state.session.credential == "oidc"}
+    link = answer.get("url")
+    if isinstance(link, str) and link.startswith(state.dashboard_url.rstrip("/") + "/") and link.isascii() and " " not in link:
+        result["url"] = link
+    return result
+
+
+_SKIPPED_BECAUSE = {
+    "branch": "this run is on a branch that is neither the default branch nor a pull or merge request",
+    "event_not_reportable": "the server does not take results from this kind of event",
+    "default_branch_unconfirmed": "the default branch of this repository is not confirmed; ask someone who can edit the "
+                                  "repository in the dashboard to confirm it",
+    "no_run_id": "there is no run id to make the upload idempotent; set SPELLWARDEN_RUN_ID",
+}
+
+
+def upload_notice(block: dict) -> Notice:
+    """The notice of an upload outcome (6.7): `uploaded`, `upload_failed`, `upload_skipped`, `upload_ci_only` or
+    `upload_disabled`. It never changes the exit code."""
+    if block["status"] == "uploaded":
+        where = f" to {block['url']}" if block.get("url") else ""
+        return Notice("uploaded", "", f"Results were uploaded{where}.")
+    if block["status"] == "failed":
+        request = f" Request id {block['request_id']}." if block.get("request_id") else ""
+        return Notice("upload_failed", "", f"The results could not be uploaded ({block.get('error')}); the scan and its exit "
+                      f"code are unaffected.{request}")
+    reason = block.get("reason")
+    if reason == "local":
+        return Notice("upload_ci_only", "", "Results are uploaded from CI runs only; this local run uploaded nothing.")
+    if reason == "disabled":
+        return Notice("upload_disabled", "", "Uploading is turned off (--no-upload, SPELLWARDEN_UPLOAD or connected.upload); "
+                      "nothing was uploaded.")
+    return Notice("upload_skipped", "", f"The results were not uploaded: {_SKIPPED_BECAUSE.get(reason, reason)}.")
+
+
 # --- notices and the report block ------------------------------------------------------------------------------------
 
 def _version(text: str) -> tuple[int, ...]:
@@ -770,5 +959,5 @@ def org_rules_incomplete_error(ids: tuple[str, ...], path: str) -> Notice:
 
 
 __all__ = ["ConnectedFail", "ConnectedState", "ConnectedStop", "activation", "decide_stop",
-           "dependabot_candidates_in_scope", "establish", "make_client", "org_rule_budget", "report_block", "run_gate",
-           "state_notices"]
+           "dependabot_candidates_in_scope", "establish", "make_client", "org_rule_budget", "reduce_report", "report_block",
+           "run_gate", "state_notices", "upload", "upload_notice"]

@@ -148,7 +148,14 @@ def scan(options: ScanOptions) -> Report:
         notices=tuple(notices), errors=tuple(errors), repo_prefix=fileset.repo_prefix, rules=rules,
         connected=({**connected.report_block(state, context), "registry": registry}
                    if state is not None and context is not None else None))
-    return report.sorted()
+    report = report.sorted()
+    if state is not None and context is not None and report.connected is not None:
+        # O3 spec 6.7: after the exit code is decided and before any output is written, so every output carries the
+        # outcome. The upload is a notice; the exit code is what `report` already says.
+        outcome = connected.upload(state, report, context, options)
+        report.connected["upload"] = outcome
+        report = dataclasses.replace(report, notices=(*report.notices, connected.upload_notice(outcome))).sorted()
+    return report
 
 
 def engine_findings(found: Discovery, rules: RuleSet, notices: list[Notice], errors: list[Notice] | None = None, *,

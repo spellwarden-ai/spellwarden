@@ -128,6 +128,7 @@ KEY_PATH = "/api/v1/orgs"
 POLICY_PATH = "/api/v1/orgs/acme/ci/policy"
 EXCHANGE_PATH = "/api/public/ci/token"
 CHECK_PATH = "/api/v1/orgs/acme/ci/registry-check"
+SCANS_PATH = "/api/v1/orgs/acme/ci/scans"
 
 
 @pytest.fixture
@@ -194,6 +195,21 @@ def session_answer(token: str | None = None, run: dict | None = None) -> dict:
 def orgs_answer(*, access: str = "ci", orgs=None) -> dict:
     listing = [{"slug": "acme", "name": "Acme", "plan": "enterprise", "billing_state": "active", "reachable": True}]
     return {"orgs": listing if orgs is None else orgs, "caller": {"kind": "api_key", "access": access}}
+
+
+@pytest.fixture
+def fixture_tools(monkeypatch):
+    """`make_repo` and `check` of `fixtures/repos` (check.py imports make_repo, so the directory joins the path); the
+    modules leave `sys.modules` afterwards, `scripts/e2e.py` imports another `make_repo`."""
+    import importlib
+    import sys
+
+    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[2] / "fixtures" / "repos"))
+    for name in ("make_repo", "check"):
+        monkeypatch.delitem(sys.modules, name, raising=False)
+    yield importlib.import_module("make_repo"), importlib.import_module("check")
+    for name in ("make_repo", "check"):
+        sys.modules.pop(name, None)
 
 
 def admit_all(body: dict, *, refuse_server: bool = False, dashboard: str = "https://dash.spellwarden.ai/acme") -> dict:

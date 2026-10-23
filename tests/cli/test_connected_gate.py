@@ -693,21 +693,6 @@ def test_a_head_baseline_accepting_sw_reg_is_ignored_on_a_request(make_repo, run
     assert code == 1 and regs(report)[0]["suppressed"] is False and "reg_baseline_from_base" in codes(report["notices"])
 
 
-@pytest.fixture
-def fixture_tools(monkeypatch):
-    """`make_repo` and `check` of `fixtures/repos` (check.py imports make_repo, so the directory joins the path); the
-    modules leave `sys.modules` afterwards, `scripts/e2e.py` imports another `make_repo`."""
-    import importlib
-    import sys
-
-    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[2] / "fixtures" / "repos"))
-    for name in ("make_repo", "check"):
-        monkeypatch.delitem(sys.modules, name, raising=False)
-    yield importlib.import_module("make_repo"), importlib.import_module("check")
-    for name in ("make_repo", "check"):
-        sys.modules.pop(name, None)
-
-
 def test_every_gate_reason_is_reachable_through_the_fixture_variants(run_cli, tmp_path, api_double, fixture_tools):
     """The fixture repository of the wrappers (`fixtures/repos/connected`, built by `make_repo.py`) reaches every
     reason of the closed list, the case itself (a resolver file) and its `reasons` variant (the rest), and its

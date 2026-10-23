@@ -60,7 +60,7 @@ def test_org_with_gitlab_id_token_exchanges_and_uses_the_ci_token(make_repo, run
     fake.script("POST", EXCHANGE_PATH, 201, session_answer(swt, run_of_server))
     fake.script("GET", POLICY_PATH, 200, policy_answer([]))
     code, report, out, err = scan_json(run_cli, repo_of(make_repo, tmp_path), connected_gitlab(
-        SPELLWARDEN_ORG="acme", SPELLWARDEN_ID_TOKEN=ID_TOKEN))
+        SPELLWARDEN_ORG="acme", SPELLWARDEN_ID_TOKEN=ID_TOKEN), "--no-upload")  # the upload is test_connected_upload's
     assert code == 0
     exchange, policy = fake.requests
     assert exchange[:2] == ("POST", EXCHANGE_PATH) and "Authorization" not in exchange[2]
@@ -71,7 +71,8 @@ def test_org_with_gitlab_id_token_exchanges_and_uses_the_ci_token(make_repo, run
     assert block["credential"] == "oidc" and block["org"] == {"slug": "acme", "name": "Acme"}
     assert block["run"]["identity"] == "gitlab:gitlab.com/acme/tools" and block["run"]["scope"] == ""  # the server's run
     assert (block["run"]["kind"], block["run"]["event"], block["run"]["ref_name"]) == ("default_branch", "push", "main")
-    assert block["registry"]["checked"] == 0 and block["registry"]["items"] == [] and block["upload"] is None  # the gate ran
+    assert block["registry"]["checked"] == 0 and block["registry"]["items"] == [] and block["upload"] == {
+        "status": "skipped", "reason": "disabled"}  # the gate ran
     assert [e for e in report["errors"]] == [] and "connected_fallback" not in codes(report["notices"])
     for secret in (swt, ID_TOKEN):
         assert secret not in out + err
@@ -84,7 +85,7 @@ def test_org_on_github_requests_the_token_then_exchanges(make_repo, run_cli, tmp
     fake.script("GET", POLICY_PATH, 200, policy_answer([]))
     env = connected_github(tmp_path, SPELLWARDEN_ORG="acme", ACTIONS_ID_TOKEN_REQUEST_URL=url,
                            ACTIONS_ID_TOKEN_REQUEST_TOKEN="runner-request-token")
-    code, report, out, err = scan_json(run_cli, repo_of(make_repo, tmp_path), env, "--verbose")
+    code, report, out, err = scan_json(run_cli, repo_of(make_repo, tmp_path), env, "--verbose", "--no-upload")
     assert code == 0 and report["connected"]["credential"] == "oidc"
     token_request, exchange, _policy = fake.requests
     assert token_request[:2] == ("GET", "/idtoken?api-version=2.0&audience=https://dash.spellwarden.ai/ci/acme")
@@ -124,7 +125,8 @@ def test_key_session_is_get_orgs_with_caller_access_ci(make_repo, run_cli, tmp_p
     swk = credential("swk")
     fake.script("GET", KEY_PATH, 200, orgs_answer())
     fake.script("GET", POLICY_PATH, 200, policy_answer([]))
-    code, report, out, err = scan_json(run_cli, repo_of(make_repo, tmp_path), connected_github(tmp_path, SPELLWARDEN_API_KEY=swk))
+    code, report, out, err = scan_json(run_cli, repo_of(make_repo, tmp_path), connected_github(tmp_path, SPELLWARDEN_API_KEY=swk),
+                                       "--no-upload")
     assert code == 0 and report["connected"]["credential"] == "key" and report["connected"]["org"]["name"] == "Acme"
     assert [request[0:2] for request in fake.requests] == [("GET", KEY_PATH), ("GET", f"{POLICY_PATH}?scanner={__version__}")]
     assert all(request[2]["Authorization"] == f"Bearer {swk}" for request in fake.requests)
