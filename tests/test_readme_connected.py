@@ -159,8 +159,9 @@ def test_the_pinned_command_forms_table_lists_each_launchers_closed_option_sets(
             overrides.add("--entrypoint")
         if spec.override_prefix:
             overrides.add(spec.override_prefix + "<key>")
+        hashed_values = set(spec.values) - set(QUIET_FLAGS[launcher]) - overrides  # a quiet or override option is never hashed
         for kind, options in (("Quiet flags (dropped)", QUIET_FLAGS[launcher]), ("On/off flags (hashed)", spec.flags),
-                              ("Value options (hashed)", spec.values), ("Artefact options", spec.artefacts),
+                              ("Value options (hashed)", hashed_values), ("Artefact options", spec.artefacts),
                               ("Registry and index options", spec.sources), ("Overrides (launch override)", overrides)):
             if options:
                 expected[(launcher, kind)] = set(options)
