@@ -152,12 +152,17 @@ def is_always_refused_address(ip: str) -> bool:
 
 
 def default_resolver(host: str) -> list[str]:
-    """Every address `host` resolves to (A and AAAA), as strings."""
+    """Every address `host` resolves to (A and AAAA), as strings: the IPv4 addresses first, then the IPv6 ones, each
+    family sorted. `check_host` pins the connection to the first address and nothing falls back to another, so the
+    first must be one the machine can reach: hosted CI runners commonly have no IPv6 route, and a string sort put a
+    `2600:` address ahead of a `3.` one (1.2.1)."""
     try:
         infos = socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)
     except (socket.gaierror, OSError) as exc:
         raise FetchError("fetch_failed", f"resolve {type(exc).__name__}") from None
-    return sorted({info[4][0] for info in infos})
+    addresses = {info[4][0] for info in infos}
+    return sorted(a for a in addresses if ipaddress.ip_address(a).version == 4) + \
+        sorted(a for a in addresses if ipaddress.ip_address(a).version == 6)
 
 
 def check_host(host: str, resolver: Callable[[str], list[str]], *, allow_private: bool = False) -> str:

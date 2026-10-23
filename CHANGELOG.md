@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.1 (2026-10-23)
+
+- Connected mode on a runner without an IPv6 route: the resolver now lists the IPv4 addresses of a host before
+  the IPv6 ones. The connection is pinned to the first resolved address and never falls back to another, and a plain
+  string sort could put a `2600:` address ahead of a `3.` one, so the exchange with dash.spellwarden.ai failed with
+  `connected_unavailable` on GitHub-hosted runners whenever the CDN's rotation returned such a set. Free mode is
+  unchanged; no output changes.
+
 ## 1.2.0 (2026-10-23)
 
 Connected mode: the `spellwarden` command can link a scan to a Spellwarden organisation. Without a credential, without

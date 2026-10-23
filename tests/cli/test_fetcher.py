@@ -589,3 +589,24 @@ def test_the_default_resolver_and_opener_exist_and_the_real_opener_pins_the_addr
     connection = net.pinned_connection("files.example", PUBLIC_IP, 443, 10.0)
     assert connection.host == "files.example" and connection.pinned_ip == PUBLIC_IP and connection.port == 443
     assert callable(net.default_resolver)
+
+
+def test_the_default_resolver_puts_ipv4_before_ipv6_whatever_the_string_order(monkeypatch):
+    """1.2.1: the connection is pinned to the first address and never falls back; a hosted runner without an IPv6
+    route must get an IPv4 address first, which a plain string sort of `2600:...` against `3.x.x.x` did not give."""
+    import socket
+
+    def fake_getaddrinfo(host, port, type=0):
+        assert host == "dash.example.test"
+        return [
+            (socket.AF_INET6, type, 6, "", ("2600:9000:2202:2800::1", 443, 0, 0)),
+            (socket.AF_INET, type, 6, "", ("3.5.7.9", 443)),
+            (socket.AF_INET6, type, 6, "", ("2600:9000:2202:400::1", 443, 0, 0)),
+            (socket.AF_INET, type, 6, "", ("13.227.65.25", 443)),
+            (socket.AF_INET, type, 6, "", ("3.5.7.9", 443)),
+        ]
+
+    monkeypatch.setattr(socket, "getaddrinfo", fake_getaddrinfo)
+    assert net.default_resolver("dash.example.test") == [
+        "13.227.65.25", "3.5.7.9", "2600:9000:2202:2800::1", "2600:9000:2202:400::1"]
+    assert net.check_host("dash.example.test", net.default_resolver) == "13.227.65.25"
