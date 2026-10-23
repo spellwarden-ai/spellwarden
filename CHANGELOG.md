@@ -26,6 +26,8 @@ result takes into that table. The rules version is `2026.10.3`; the 1.0.0 golden
   `org_rule_min_version` and `PREDICATE_SINCE`. Claude Code settings are parsed for `extraKnownMarketplaces` and
   `enabledPlugins` as inventory, and the rule-id grammar is `SW-(SKL|MCP|CFG|REG|ORG)-NNN`. The archive reader ignores
   `__MACOSX/` entries and `.DS_Store` files before it looks for a common top directory.
+  A package hash leaves out `.git/`, `__MACOSX/`, any `.DS_Store` and, at the top of the package, `.spellwarden/lock.json`,
+  `.spellwarden/config.yml` and `.spellwarden/baseline.yml`; every other path under `.spellwarden/` is hashed.
 - The report gains an optional `connected` block, `upload_truncated` and `upload_truncated_fields`; the notice codes
   `connected`, `connected_fallback`, `dependabot_free_mode`, `fork_free_mode`, `api_url_override`, `reg_baseline_from_base`,
   `gate_scope_all`, `org_rules_skipped`, `plugin_marketplace_unknown`, `uploaded`, `upload_failed`, `upload_skipped`,

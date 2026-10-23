@@ -83,6 +83,19 @@ def test_a_spellwarden_script_changes_the_package_hash_and_the_lock_does_not():
     assert with_script != plain and other_script != with_script
 
 
+def test_a_root_skill_keeps_its_identity_when_the_command_files_change():
+    """r0:F2: with the skill at the repository root the command's own files sit at the package top; writing the baseline
+    entry that accepts an SW-REG finding must not change the identity the finding is fingerprinted with."""
+    base = {"SKILL.md": b"a", "lib/a.py": b"b"}
+    plain = package_sha256(package_files(base, "", []).files)
+    for name in (".spellwarden/config.yml", ".spellwarden/baseline.yml", ".spellwarden/lock.json"):
+        assert package_files({**base, name: b"x: 1"}, "", []).files == base
+        assert package_sha256(package_files({**base, name: b"x: 2"}, "", []).files) == plain
+    assert package_sha256(package_files({**base, ".spellwarden/run.sh": b"r"}, "", []).files) != plain
+    nested = {**base, "lib/.spellwarden/baseline.yml": b"x"}
+    assert package_files(nested, "", []).files == nested
+
+
 def test_a_ds_store_in_a_subdirectory_is_dropped_too():
     got = package_files({"s/SKILL.md": b"a", "s/lib/.DS_Store": b"x", "s/lib/a.py": b"b"}, "s", [])
     assert got.files == {"SKILL.md": b"a", "lib/a.py": b"b"}

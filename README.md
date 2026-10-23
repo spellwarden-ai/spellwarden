@@ -630,7 +630,7 @@ The Spellwarden API and the token endpoint honour `HTTPS_PROXY` (or `https_proxy
 
 #### Line endings and archives
 
-A package's identity is a hash over its bytes, as a forge archive of its directory holds them. A checkout that rewrites line endings (Windows `core.autocrlf`) is a different package from the one the registry admitted. A forge archive is `git archive` output, which honours `export-ignore` and `export-subst`: a path under a skill with either attribute makes the skill's identity `unhashable`. Inside a work tree the command asks `git check-attr`; outside one, any `.gitattributes` under the scan root that names either attribute makes every skill unhashable.
+A package's identity is a hash over its bytes, as a forge archive of its directory holds them. The hash leaves out `.git/`, `__MACOSX/`, any `.DS_Store`, and three files the command itself reads or writes at the top of the package: `.spellwarden/lock.json`, `.spellwarden/config.yml` and `.spellwarden/baseline.yml`, so a skill at the repository root keeps its identity when the baseline that accepts it is written. Every other path under `.spellwarden/` is hashed. A checkout that rewrites line endings (Windows `core.autocrlf`) is a different package from the one the registry admitted. A forge archive is `git archive` output, which honours `export-ignore` and `export-subst`: a path under a skill with either attribute makes the skill's identity `unhashable`. Inside a work tree the command asks `git check-attr`; outside one, any `.gitattributes` under the scan root that names either attribute makes every skill unhashable.
 
 #### The test hook
 

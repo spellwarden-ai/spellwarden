@@ -23,9 +23,11 @@ from spellwarden_scan.model import PluginSource
 SKIP_DIRS = ("node_modules", ".venv", "venv", "__pycache__")
 SKILL_FILE = "SKILL.md"
 # dropped at the top of a package: repository metadata and the archive leftovers of macOS; the one file under
-# `.spellwarden/` that is dropped is the lock the command writes (any other path there is package content a skill may run)
+# `.spellwarden/` that are dropped are the three the command itself reads or writes (a repository-root skill would
+# otherwise change identity whenever its baseline, settings or lock change); any other path there is package content a
+# skill may run
 _TOP_DROPPED = (".git", "__MACOSX")
-_LOCK_FILE = ".spellwarden/lock.json"
+_COMMAND_FILES = frozenset({".spellwarden/lock.json", ".spellwarden/config.yml", ".spellwarden/baseline.yml"})
 _DS_STORE = ".DS_Store"
 
 
@@ -76,8 +78,8 @@ class PackageFiles:
 
 def package_files(files: Mapping[str, bytes], root: str, nested_roots: Iterable[str]) -> PackageFiles:
     """The files under `root` keyed relative to it, as a forge archive of the directory holds them: without the files
-    under a nested skill root, `.git/` and `__MACOSX/` at the top, the top `.spellwarden/lock.json` (every other path
-    under `.spellwarden/` is hashed), any `.DS_Store`, and without the
+    under a nested skill root, `.git/` and `__MACOSX/` at the top, the top `.spellwarden/lock.json`, `config.yml` and
+    `baseline.yml` (every other path under `.spellwarden/` is hashed), any `.DS_Store`, and without the
     content of a `SKIP_DIRS` directory, whose presence makes the package `unhashable`. A case variant of `SKILL.md`
     directly under the root is renamed to `SKILL.md` (the name the engine reads it under)."""
     root = root.strip("/")
@@ -90,7 +92,7 @@ def package_files(files: Mapping[str, bytes], root: str, nested_roots: Iterable[
             continue
         relative = path[len(prefix):]
         parts = relative.split("/")
-        if not relative or parts[0] in _TOP_DROPPED or relative == _LOCK_FILE or parts[-1] == _DS_STORE:
+        if not relative or parts[0] in _TOP_DROPPED or relative in _COMMAND_FILES or parts[-1] == _DS_STORE:
             continue
         offending = next((index for index, part in enumerate(parts[:-1]) if part in SKIP_DIRS), None)
         if offending is not None:
