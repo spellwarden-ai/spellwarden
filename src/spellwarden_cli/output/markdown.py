@@ -4,17 +4,21 @@ changes, the probe summary and the accepted findings, and never exceeds 60,000 c
 scanned revision or a probed server is escaped (spec 6.13)."""
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 
 from spellwarden_cli import escape
-from spellwarden_cli.report import Report, ReportFinding
+from spellwarden_cli.output.text import connected_lines
+from spellwarden_cli.report import CONNECTED_ERRORS, Report, ReportFinding
 
 MARKER = "<!-- spellwarden-scan -->"
 MAX_CHARS = 60_000
 MAX_ROWS = 25
 CELL_MAX = 200
+ERROR_FIX_MAX = 1000  # a connected error says what to fix: it is not cut at a table cell's length
 RULES_URL = "https://github.com/spellwarden-ai/spellwarden#the-rules"
 _SEVERITIES = ("critical", "high", "medium", "low")
+_LINK = re.compile(r"https://[A-Za-z0-9._~:/?#@!$&'*+,;=%-]+")
 _CUT = "\n\nThe report was cut at 60,000 characters. The JSON and SARIF reports hold everything.\n"
 
 
@@ -81,7 +85,8 @@ def _errors(report: Report) -> list[str]:
     lines = ["**These problems stopped a complete scan:**", ""]
     for error in report.errors[:MAX_ROWS]:
         where = f" {_code(error.path)}" if error.path else ""
-        lines.append(f"- {error.code}{where}: {_text(error.message)}")
+        message = escape.markdown(error.message[:ERROR_FIX_MAX]) if error.code in CONNECTED_ERRORS else _text(error.message)
+        lines.append(f"- {error.code}{where}: {message}")
     if len(report.errors) > MAX_ROWS:
         lines.append(f"- and {len(report.errors) - MAX_ROWS} more in the JSON report")
     return lines + [""]
@@ -118,10 +123,29 @@ def _probes(report: Report) -> list[str]:
     return lines + [""]
 
 
+def connected_section(report: Report) -> str:
+    """O3 spec 6.10, a pure function of the report's `connected` block and notices (P28): the lines of the text
+    output under a heading, each escaped; a result link only when it is a plain https address. Empty in free mode."""
+    lines = connected_lines(report)
+    if not lines:
+        return ""
+    out = ["**Connected mode**", ""]
+    for line in lines:
+        if line.startswith("Results: "):
+            url = line[len("Results: "):]
+            out += [f"Results: <{url}>" if _LINK.fullmatch(url) else "Results: see the JSON report", ""]
+        else:
+            out += [_text(line), ""]
+    return "\n".join(out)
+
+
 def render(report: Report) -> str:
     open_findings = report.unsuppressed()
     accepted = len(report.findings) - len(open_findings)
     lines = [MARKER, f"**Spellwarden scan {_verdict(report)}.** {_counts(open_findings, accepted)}", ""]
+    section = connected_section(report)
+    if section:
+        lines.append(section)
     lines += _findings(open_findings) + _errors(report) + _lock(report) + _probes(report)
     if accepted:
         lines += [f"{_plural(accepted, 'accepted finding')} with {'its' if accepted == 1 else 'their'} reasons "

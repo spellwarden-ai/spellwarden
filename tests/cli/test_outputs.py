@@ -253,3 +253,122 @@ def test_a_dash_led_password_is_masked_in_json_and_sarif(make_repo, tmp_path, ru
         text = out.read_text(encoding="utf-8")
         assert "--password ***" in text, name
         assert secret not in text, name
+
+
+# --- O3 spec 6.10: the connected lines and the Markdown section (P28) ------------------------------------------------
+
+from dataclasses import replace  # noqa: E402
+
+from spellwarden_cli.output import text  # noqa: E402
+
+
+def connected_block(**more) -> dict:
+    block = {"credential": "oidc", "org": {"slug": "acme", "name": "Acme"},
+             "run": {"identity": "github:github.com/acme/tools", "scope": "", "kind": "request", "event": "pull_request"},
+             "policy": {"source": "org_rules", "chosen_by": "organisation", "pack_id": "a" * 32, "version": "1.57",
+                        "sha256": "b" * 64, "org_rule_ids": ["SW-ORG-001", "SW-ORG-002", "SW-ORG-003"], "skipped": [],
+                        "pack_name": "Organisation rules", "registry_name": "acme",
+                        "gate": {"enabled": True, "scope": "changed", "stdio": True, "plugins": True}},
+             "registry": None, "upload": None}
+    return {**block, **more}
+
+
+def with_connected(**more) -> Report:
+    return replace(make_report(), connected=connected_block(**more))
+
+
+def test_connected_lines_give_the_connected_line_of_6_10():
+    assert text.connected_lines(with_connected()) == [
+        "Connected to Acme as github:github.com/acme/tools (oidc): 3 organisation rules (organisation rules, chosen by the "
+        "organisation), registry gate on, scope changed"]
+
+
+@pytest.mark.parametrize(("policy", "registry", "tail"), [
+    ({"gate": {"enabled": True, "scope": "all", "stdio": True, "plugins": True}}, None, "registry gate on, scope all"),
+    ({"gate": {"enabled": False, "scope": "changed", "stdio": True, "plugins": True}}, None, "registry gate off"),
+    ({"registry_name": None}, None, "registry gate not in plan"),
+    ({}, {"scope": "changed", "scope_applied": "all"}, "registry gate on, scope all"),  # a missing base widened the scope
+])
+def test_connected_line_registry_gate_wording(policy, registry, tail):
+    block = connected_block(registry=registry)
+    block["policy"] = {**block["policy"], **policy}
+    (line,) = text.connected_lines(replace(make_report(), connected=block))
+    assert line.endswith(tail)
+
+
+def test_connected_line_for_a_pack_chosen_by_the_repository():
+    block = connected_block()
+    block["policy"] = {**block["policy"], "source": "pack", "chosen_by": "repository", "pack_name": "Team pack", "version": "1.4"}
+    (line,) = text.connected_lines(replace(make_report(), connected=block))
+    assert "1 organisation rules" not in line and "3 organisation rules (pack Team pack 1.4, chosen by this repository)" in line
+    assert line.startswith("Connected to Acme as ") and "(oidc)" in line
+    assert text.connected_lines(replace(make_report(), connected=connected_block(credential="key")))[0].count("(key)") == 1
+
+
+def test_results_and_the_skipped_line_follow_the_connected_line():
+    block = connected_block(upload={"status": "uploaded", "attested": True, "url": "https://dash.spellwarden.ai/acme/repositories/r1"})
+    block["policy"] = {**block["policy"], "skipped": [{"id": "SW-ORG-007", "why": "needs_scanner", "version": "1.3.0"},
+                                                     {"id": "SW-ORG-009", "why": "compile_error"}]}
+    lines = text.connected_lines(replace(make_report(), connected=block))
+    assert lines[1:] == ["Results: https://dash.spellwarden.ai/acme/repositories/r1",
+                         "2 organisation rules need a newer scanner and were not applied: SW-ORG-007, SW-ORG-009"]
+    for status in ({"status": "failed", "error": "x"}, {"status": "skipped", "reason": "branch"}, None):
+        assert len(text.connected_lines(with_connected(upload=status))) == 1  # no Results line without an upload
+
+
+FALLBACK = Notice("connected_fallback", "", "Connected mode was not available (connected_auth); this run applied the baseline "
+                                             "rules only and uploaded nothing.")
+
+
+@pytest.mark.parametrize("code", ["connected_fallback", "fork_free_mode", "dependabot_free_mode"])
+def test_a_fallback_gives_the_one_line_and_free_mode_gives_none(code):
+    report = make_report(notices=[replace(FALLBACK, code=code)])
+    assert text.connected_lines(report) == ["Connected mode unavailable (connected_auth): baseline rules only, nothing uploaded."]
+    assert text.connected_lines(make_report()) == [] and markdown.connected_section(make_report()) == ""
+    assert text.connected_lines(make_report(notices=[Notice("no_agent_content", "", "x")])) == []
+
+
+def test_the_text_output_puts_the_fallback_first_and_the_connected_lines_after_the_summary():
+    fallback = make_report(mixed_findings(), notices=[FALLBACK]).sorted()
+    lines = text.render(fallback).splitlines()
+    assert lines[0] == "Connected mode unavailable (connected_auth): baseline rules only, nothing uploaded."
+    connected = text.render(replace(make_report(mixed_findings()), connected=connected_block())).splitlines()
+    assert connected[-2].startswith("5 findings (") and connected[-1].startswith("Connected to Acme as ")
+    free = text.render(make_report(mixed_findings()))
+    assert "onnected" not in free and text.render(replace(make_report(mixed_findings()), connected=None)) == free
+
+
+def test_connected_section_is_the_same_lines_under_a_heading_and_escaped():
+    block = connected_block(upload={"status": "uploaded", "attested": False, "url": "https://dash.spellwarden.ai/acme/r/1"})
+    block["org"] = {"slug": "acme", "name": "Acme *Corp* <b>"}
+    section = markdown.connected_section(replace(make_report(), connected=block))
+    assert section.startswith("**Connected mode**\n\n") and "Connected to Acme" in section
+    assert "<b>" not in section and "\\*Corp\\*" in section and "&lt;b&gt;" in section
+    assert "Results: <https://dash.spellwarden.ai/acme/r/1>" in section
+    odd = connected_block(upload={"status": "uploaded", "attested": True, "url": "javascript:alert(1)"})
+    assert "javascript" not in markdown.connected_section(replace(make_report(), connected=odd))
+    rendered = markdown.render(replace(make_report(), connected=block))
+    assert rendered.index("**Connected mode**") < rendered.index("Spellwarden 0.3.0")
+    assert markdown.connected_section(make_report(notices=[FALLBACK])).count("Connected mode unavailable") == 1
+
+
+def test_a_connected_error_is_not_cut_at_a_table_cell_length():
+    long_fix = "Connected mode needs a CI key. " + "Create one under Settings, API keys, with access CI. " * 8
+    report = make_report(errors=[Notice("connected_ci_key_required", "", long_fix), Notice("crash", "", "x" * 400)])
+    rendered = markdown.render(report)
+    assert escape_for_check(long_fix.rstrip()) in rendered
+    assert "x" * 250 not in rendered.split("crash")[1]  # other errors keep the cell limit
+
+
+def escape_for_check(text_: str) -> str:
+    from spellwarden_cli import escape
+
+    return escape.markdown(text_)
+
+
+def test_a_connected_report_validates_against_the_schema():
+    schema = json.loads((Path(__file__).resolve().parents[2] / "schemas" / "report.schema.json").read_text(encoding="utf-8"))
+    document = json.loads(FORMATS["json"](replace(make_report(), connected=connected_block(
+        upload={"status": "uploaded", "attested": True, "url": "https://dash.spellwarden.ai/acme/r/1"}))))
+    jsonschema.validate(document, schema)
+    assert document["connected"]["credential"] == "oidc" and document["exit_code"] == 0

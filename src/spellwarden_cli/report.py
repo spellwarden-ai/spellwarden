@@ -20,6 +20,8 @@ ERROR_CODES = (*DOCUMENT_ERRORS, "unsafe_path", "case_collision", "unreadable", 
                "connected_subscription", "connected_ci_key_required", "connected_forbidden", "connected_rate_limited",
                "connected_unavailable", "connected_required", "policy_not_found", "policy_invalid", "org_rules_incomplete",
                "registry_check_failed", "registry_check_too_large")
+# The error codes whose message says what to fix (O3 spec 6.9); the Markdown report prints them whole.
+CONNECTED_ERRORS = ERROR_CODES[ERROR_CODES.index("connected_config"):]
 NOTICE_CODES = ("no_agent_content", "git_unavailable", "exec_bits_unknown", "symlink_skipped", "file_too_large",
                 "non_utf8_path", "upload_paths_scan_root", "findings_truncated", "baseline_mismatch", "baseline_expired",
                 "probe_private_untrusted", "probe_fork_disabled", "probe_skipped", "comment_permission", "comment_failed",
@@ -30,6 +32,9 @@ NOTICE_CODES = ("no_agent_content", "git_unavailable", "exec_bits_unknown", "sym
                 "reg_baseline_from_base", "gate_scope_all", "org_rules_skipped", "plugin_marketplace_unknown", "uploaded",
                 "upload_failed", "upload_skipped", "upload_ci_only", "upload_disabled", "registry_gate_off",
                 "mcp_rules_need_probe", "policy_newer_than_scanner")
+# The notices that say a run continued in free mode after connected mode could not start (O3 spec 6.4); the text and
+# Markdown outputs derive their "unavailable" line from them.
+FREE_MODE_NOTICES = ("connected_fallback", "fork_free_mode", "dependabot_free_mode")
 PROBE_SKIP_REASONS = ("unresolved", "limit", "budget", "fork", "refused")
 LOCK_STATUSES = ("ok", "stale", "absent", "not_checked")
 LOCK_ITEM_KINDS = ("document", "mcp-server", "plugin", "plugin-dir", "skill")

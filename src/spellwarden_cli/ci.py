@@ -663,10 +663,8 @@ def read_at_revision(root: str, sha: str, relative: str, *, max_bytes: int, fetc
 SCOPE_GRAMMAR = re.compile(r"([A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*)?")
 
 
-def scan_scope(root: str, *, git: str | None, env: Mapping[str, str]) -> str | None:  # noqa: ARG001 -- the registry's shape; no git is needed
-    """O3 spec 6.8, P41: the scan root's path below its work tree, POSIX, with no trailing slash; `""` at the top of the
-    work tree and outside any. None when the path is outside the grammar `^([A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*)?$`:
-    the server binds a CI token to one such scope."""
+def scope_path(root: str) -> str:
+    """The scan root's path below its work tree, POSIX, no trailing slash; `""` at the top and outside any work tree."""
     from spellwarden_cli.files import work_tree_top
 
     absolute = os.path.abspath(root)
@@ -674,7 +672,13 @@ def scan_scope(root: str, *, git: str | None, env: Mapping[str, str]) -> str | N
     if top is None:
         return ""
     relative = os.path.relpath(absolute, top).replace(os.sep, "/")
-    scope = "" if relative == "." else relative.strip("/")
+    return "" if relative == "." else relative.strip("/")
+
+
+def scan_scope(root: str, *, git: str | None, env: Mapping[str, str]) -> str | None:  # noqa: ARG001 -- the registry's shape; no git is needed
+    """O3 spec 6.8, P41: `scope_path` when it is inside the grammar `^([A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*)?$`, else
+    None: the server binds a CI token to one such scope."""
+    scope = scope_path(root)
     return scope if SCOPE_GRAMMAR.fullmatch(scope) else None
 
 

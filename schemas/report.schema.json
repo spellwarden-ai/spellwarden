@@ -45,7 +45,12 @@
                                   "skipped": {"type": "array", "items": {
                                     "type": "object", "required": ["id", "why"],
                                     "properties": {"id": {"type": "string"}, "why": {"type": "string"},
-                                                   "version": {"type": ["string", "null"]}}}}}},
+                                                   "version": {"type": ["string", "null"]}}}},
+                                  "pack_name": {"type": ["string", "null"]},
+                                  "registry_name": {"type": ["string", "null"], "description": "The organisation's private registry; null when its plan has none."},
+                                  "gate": {"type": "object",
+                                           "properties": {"enabled": {"type": "boolean"}, "scope": {"enum": ["changed", "all"]},
+                                                          "stdio": {"type": "boolean"}, "plugins": {"type": "boolean"}}}}},
         "registry": {"oneOf": [{"type": "null"}, {
           "type": "object",
           "properties": {"gate": {"type": "boolean"}, "scope": {"type": "string"}, "scope_applied": {"type": "string"},

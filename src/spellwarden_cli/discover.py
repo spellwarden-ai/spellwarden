@@ -61,6 +61,8 @@ class SkillPackage:
     # the skill directories inside this one (`identity.nested_skill_roots` over the file set), scan-root paths: their
     # files are not part of this package's identity
     nested: tuple[str, ...] = ()
+    # the files the followed member links point at, scan-root paths (O3 spec 6.6: a change to one is a change to the skill)
+    targets: frozenset[str] = frozenset()
 
     def engine_key(self) -> str:
         """The key the engine reads the skill file under (`frontmatter.skill_md_path`)."""
@@ -188,6 +190,7 @@ class _Builder:
         self.resolved: dict[str, _Resolution] = {}  # package member links, resolved once, adopted only when accepted
         self.skipped: set[str] = set()  # member links of an accepted package whose target is outside the scan root
         self.own: dict[str, str] = {}  # member links followed to the lock itself -> the lock's path
+        self.targets: dict[str, str] = {}  # every link followed -> the file it names
         self.directories = {posixpath.dirname(p) for p in (*self.paths, *self.links)}
         for directory in list(self.directories):
             while directory:
@@ -317,6 +320,7 @@ class _Builder:
         content = self.read(target)
         if content is None:
             return False
+        self.targets[path] = target
         entry = self.entries[target]
         self.entries[path] = FileEntry(path, entry.size, entry.executable, self.links[path].tracked)
         self.contents[path] = content
@@ -676,7 +680,8 @@ def _skills(builder: _Builder, plugin_of_dir: dict[str, str]) -> list[SkillPacka
         # one skill file per directory: two names that fold alike are a `case_collision` and left out of the set
         variant = next((p for p in members if posixpath.dirname(p) == directory and _is_loaded_variant(p)), None)
         packages.append(SkillPackage(directory, name, files, frozenset(p for p in members if entries[p].executable), plugin,
-                                     links, variant, frozenset(p for p in members if p in builder.own), nested))
+                                     links, variant, frozenset(p for p in members if p in builder.own), nested,
+                                     frozenset(builder.targets[p] for p in members if p in builder.targets)))
     return packages
 
 

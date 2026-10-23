@@ -11,9 +11,11 @@ from datetime import date
 import re
 from typing import TYPE_CHECKING
 
-from spellwarden_scan import RULES_VERSION, Finding, RuleSet, __version__, scan_agent_config, scan_skill_package
+from spellwarden_scan import (RULES_VERSION, Finding, OrgRuleBudget, RuleSet, __version__, scan_agent_config,
+                              scan_skill_package)
 
 from spellwarden_cli import discover, files
+from spellwarden_cli.ci import ORG_RE
 from spellwarden_cli.discover import Discovery, SkillPackage
 from spellwarden_cli.report import LockState, Notice, ProbeReport, Report, ReportFinding
 from spellwarden_cli.secret import Credentials
@@ -62,11 +64,19 @@ def connected_config_problem(options: ScanOptions) -> Notice | None:
     if credentials.key is not None and KEY_RE.fullmatch(credentials.key.value) is None:
         return Notice("connected_key_invalid", "", "SPELLWARDEN_API_KEY is not a CI key. A CI key starts with swk_. "
                       "Create one under Settings, API keys, with access CI.")
+    if credentials.org and ORG_RE.fullmatch(credentials.org) is None:
+        return Notice("connected_config", "", "SPELLWARDEN_ORG is not an organisation slug: use the slug of the dashboard "
+                      "address (2 to 64 lower-case letters, digits and hyphens).")
     in_ci = options.context is not None and options.context.provider is not None
     connected = bool(credentials.org) or credentials.key is not None or (options.settings.connected.required and in_ci)
     if connected and options.as_of_given:
         return Notice("connected_config", "", "--as-of cannot be used in connected mode: the server works out when "
                       "baseline entries expire.")
+    if connected and options.scope is None:  # P41: the server binds a CI token to a scope of this grammar
+        from spellwarden_cli import ci
+
+        return Notice("connected_config", "", "the scan root's path cannot be a scan root in connected mode: "
+                      f"{ci.scope_path(options.root)}")
     return None
 
 
@@ -78,6 +88,8 @@ def _stopped(options: ScanOptions, notices: list[Notice], problem: Notice) -> Re
 
 
 def scan(options: ScanOptions) -> Report:
+    from spellwarden_cli import ci, connected
+
     rules = RuleSet.baseline()
     early: list[Notice] = [*(options.revision.notices if options.revision else ())]
     if options.api_url is not None:
@@ -86,30 +98,66 @@ def scan(options: ScanOptions) -> Report:
     problem = connected_config_problem(options)
     if problem is not None:
         return _stopped(options, early, problem)
+    # Connected mode (O3 spec 6.2 to 6.5): the session and the policy come first, but a failure before the session is
+    # only kept: `required` decides after discovery, which the Dependabot exemption needs (P35).
+    credentials = options.credentials if options.credentials is not None else Credentials(None, None, None, None, None)
+    context = options.context
+    if context is None and (credentials.org or credentials.key is not None or options.settings.connected.required):
+        context = ci.detect(options.env)
+    state = stop = None
+    if context is not None and connected.activation(options.settings, context, credentials) is not None:
+        try:
+            state = connected.establish(options, context, credentials, options.scope, connected.make_client)
+        except connected.ConnectedStop as caught:
+            stop = caught
+        except connected.ConnectedFail as failed:
+            return _stopped(options, early, Notice(failed.code, "", failed.message))
     fileset = files.list_files(options.root, options.settings, env=options.env)
     found = discover.discover(fileset)
     notices: list[Notice] = [*fileset.notices, *found.notices, *early]
     errors: list[Notice] = [*fileset.errors, *found.errors]
     options.log(f"{len(fileset.entries)} files listed, {len(found.items)} items discovered")
-    findings = engine_findings(found, rules, notices)
-    probes = run_probes(options, found, rules, findings, notices)
+    if stop is not None and context is not None:
+        changed = ci.changed_paths(options.root, context, env=options.env) if context.is_request and context.dependabot else None
+        error, notice = connected.decide_stop(stop, options.settings, context, found, changed)
+        errors.extend([error] if error is not None else [])
+        notices.extend([notice] if notice is not None else [])
+    org_budget = None
+    if state is not None:
+        rules = rules.with_rules(state.compiled)
+        notices.extend(connected.state_notices(state, options.settings))
+        org_budget = connected.org_rule_budget if state.compiled else None
+    findings = engine_findings(found, rules, notices, errors, org_budget=org_budget)
+    probes = run_probes(options, found, rules, findings, notices, org_budget=org_budget)
+    for probe in probes:
+        if probe.result is not None and probe.result.org_rules_incomplete:
+            errors.append(connected.org_rules_incomplete_error(probe.result.org_rules_incomplete, probe.item))
     findings = apply_baseline(options, findings, notices, errors)
     lock = check_lock(options, found, errors)
     report = Report(
         scanner_version=__version__, rules_version=RULES_VERSION, as_of=options.as_of.isoformat(),
         fail_on=options.settings.fail_on, items=found.items, findings=tuple(findings), probes=tuple(probes), lock=lock,
-        notices=tuple(notices), errors=tuple(errors), repo_prefix=fileset.repo_prefix, rules=rules)
+        notices=tuple(notices), errors=tuple(errors), repo_prefix=fileset.repo_prefix, rules=rules,
+        connected=connected.report_block(state, context) if state is not None and context is not None else None)
     return report.sorted()
 
 
-def engine_findings(found: Discovery, rules: RuleSet, notices: list[Notice]) -> list[ReportFinding]:
+def engine_findings(found: Discovery, rules: RuleSet, notices: list[Notice], errors: list[Notice] | None = None, *,
+                    org_budget: Callable[[], OrgRuleBudget] | None = None) -> list[ReportFinding]:
     """The engine once per skill (only that package's files, under scan-root keys, so finding paths are scan-root
-    paths) and once for every configuration document that parsed or was truncated (spec 5.5, 6.5)."""
+    paths) and once for every configuration document that parsed or was truncated (spec 5.5, 6.5). In connected mode
+    `org_budget` gives each package a time budget for the org rules; a rule that did not finish is the error
+    `org_rules_incomplete` (O3 spec 6.5)."""
+    from spellwarden_cli import connected
+
     findings: list[ReportFinding] = []
     for skill in found.skills:
         # a case variant of SKILL.md is read under the engine's SKILL.md key and reported as written (spec 6.5)
         result = scan_skill_package(skill.engine_files(), rules, root="" if skill.path == "." else skill.path,
-                                    executable_paths=skill.engine_executable(), nested_roots=skill.nested)
+                                    executable_paths=skill.engine_executable(), nested_roots=skill.nested,
+                                    **({"org_rule_budget": org_budget()} if org_budget is not None else {}))
+        if result.org_rules_incomplete and errors is not None:
+            errors.append(connected.org_rules_incomplete_error(result.org_rules_incomplete, skill.path))
         findings.extend(ReportFinding(_as_written(skill, finding), skill.path) for finding in result.findings)
         if result.truncated:
             notices.append(Notice("findings_truncated", skill.path, f"{result.truncated} more findings were not kept"))
@@ -162,7 +210,8 @@ def check_lock(options: ScanOptions, found: Discovery, errors: list[Notice]) -> 
         return LockState()
 
 
-def run_probes(options: ScanOptions, found: Discovery, rules: RuleSet, findings: list[ReportFinding], notices: list[Notice]) -> list[ProbeReport]:  # noqa: E501
+def run_probes(options: ScanOptions, found: Discovery, rules: RuleSet, findings: list[ReportFinding], notices: list[Notice],
+               org_budget: Callable[[], OrgRuleBudget] | None = None) -> list[ProbeReport]:
     """Spec 6.8: the opt-in probe phase. Off unless `probe` is set; off on a pull or merge request from a fork or
     Dependabot; private addresses only on a trusted run (`ci.private_probe_trusted`), whatever the flag says, and
     then only at the origins of the configured servers' URLs: a URL a probed server supplies, or a redirect that
@@ -191,6 +240,6 @@ def run_probes(options: ScanOptions, found: Discovery, rules: RuleSet, findings:
     on_event = probing.event_logger(options.log)
     reports, probe_findings = probing.run_phase(
         targets, rules, fetcher_factory=lambda: net.Fetcher(private_origins=private_origins, on_event=on_event),
-        now_iso=f"{options.as_of.isoformat()}T00:00:00Z", notices=notices)
+        now_iso=f"{options.as_of.isoformat()}T00:00:00Z", notices=notices, org_budget=org_budget)
     findings.extend(probe_findings)
     return sorted([*skipped, *reports], key=lambda report: report.item)

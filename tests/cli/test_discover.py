@@ -655,6 +655,15 @@ def test_a_link_inside_a_skill_is_followed_scanned_and_locked(make_repo, tmp_pat
     assert code == 1
 
 
+def test_a_skill_records_the_targets_of_the_member_links_it_followed(make_repo, tmp_path):
+    # O3 spec 6.6: a skill is in scope of a request when a file a followed link points at changed
+    repo = make_repo(tmp_path / "repo", {"skills/x/SKILL.md": SKILL, "shared/run.sh": SAFE_SCRIPT, "skills/y/SKILL.md": SKILL})
+    _symlink("../../../shared/run.sh", repo / "skills" / "x" / "scripts" / "run.sh")
+    found = _discover(repo)
+    assert {skill.path: skill.targets for skill in found.skills} == {"skills/x": frozenset({"shared/run.sh"}),
+                                                                       "skills/y": frozenset()}
+
+
 def test_a_member_link_that_cannot_be_followed_is_skipped_and_its_target_text_is_locked(make_repo, tmp_path, run_cli):
     # A skill may legitimately link outside the repository: that is a notice, not an error, but the link's target
     # text is in the package's lock hash, so pointing the link elsewhere makes the lock stale.
