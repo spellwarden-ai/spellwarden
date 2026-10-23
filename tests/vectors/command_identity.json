@@ -1066,5 +1066,13 @@
    "pkg==1.0"
   ],
   "identity": "cmd:uvx pkg==1.0 src=https://i.example.com/simple"
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "-qwevil",
+   "pkg==1.0"
+  ],
+  "reason": "unpinned"
  }
 ]

@@ -475,6 +475,14 @@ def test_attached_short_option_values_are_the_option_and_its_value():
     attached = command_identity("uvx", ["-ihttps://i.example.com/simple", "pkg==1.0"], {})
     assert attached == command_identity("uvx", ["--index-url", "https://i.example.com/simple", "pkg==1.0"], {})
     assert command_identity("npx", ["-ppkg@1.0.0", "cmd"], {}) == command_identity("npx", ["-p", "pkg@1.0.0", "cmd"], {})
+    # a cluster: booleans first, then the value option takes the rest of the token, or the next token
+    assert command_identity("uvx", ["-qwevil", "pkg==1.0"], {}) == CommandIdentity(None, "unpinned")
+    assert command_identity("uvx", ["-qw", "x==1.0", "pkg==1.0"], {}) == command_identity("uvx", ["--with", "x==1.0", "pkg==1.0"], {})
+    assert command_identity("uvx", ["-yqi", "https://i.example.com/simple", "pkg==1.0"], {}) == attached
+    image = "ghcr.io/acme/server@sha256:" + "a" * 64
+    clustered = command_identity("docker", ["run", "-itp80:80", image], {}).identity  # `-i -t -p 80:80`: the image stays the image
+    assert clustered is not None and clustered.startswith(f"cmd:docker run {image}")
+    assert command_identity("docker", ["run", "-it", image], {}) == command_identity("docker", ["run", "-i", "-t", image], {})
 
 
 @pytest.mark.parametrize("name, content, family", [
@@ -483,6 +491,8 @@ def test_attached_short_option_values_are_the_option_and_its_value():
     ("pyproject.toml", b'tool = { uv = { index-url = "https://i.example.com/simple" } }\n', "python"),
     ("pyproject.toml", b'tool = { poetry = { name = "x" }, uv = { pip = { index-url = "https://i.example.com/simple" } } }\n', "python"),
     ("bunfig.toml", b'install = { cache = { dir = "x" }, registry = "https://r.example.com/" }\n', "npm"),
+    ("bunfig.toml", b'install = { x = "a\\"", registry = "https://r.example.com/" }\n', "npm"),
+    ("bunfig.toml", b"install = { x = 'a\\', registry = 'https://r.example.com/' }\n", "npm"),
 ])
 def test_resolver_files_see_through_multi_line_strings_and_nested_inline_tables(name, content, family):
     assert resolver_files({name: content}, {name: content}.__getitem__) == {family: (name,)}

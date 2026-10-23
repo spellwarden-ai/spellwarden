@@ -373,10 +373,17 @@ def command_identity(command: str, args: Sequence[str], env: Mapping[str, str]) 
             break
         if token.startswith("--"):
             option, equals, value = token.partition("=")
-        elif len(token) > 2 and (token[:2] in spec.values or token[:2] in spec.artefacts or token[:2] in spec.sources):
-            option, equals, value = token[:2], "=", token[2:].removeprefix("=")  # `-wfoo` and `-w=foo` are `-w foo`
         else:
+            # a one-dash cluster as the launchers read it: `-qwfoo` is `-q -w foo`, `-qw foo` is `-q -w foo`, `-w=foo`
+            # is `-w foo`; the first value-taking, artefact or source option takes the rest of the token, or the next
+            # token when nothing is left, so no value hides inside a cluster as an argument
             option, equals, value = token, "", ""
+            for cut in range(1, len(token)):
+                short = "-" + token[cut]
+                if short in spec.values or short in spec.artefacts or short in spec.sources:
+                    attached = token[cut + 1:].removeprefix("=")
+                    option, equals, value = short, ("=" if attached else ""), attached
+                    break
         takes_value = option in spec.values or option in spec.artefacts or option in spec.sources
         consumed = [token]
         given: str | None = value if equals else None
@@ -522,9 +529,14 @@ def _inline_keys(prefix: str, text: str):
     """The dotted keys of an inline table body, nested tables flattened; a quoted string is skipped whole."""
     depth, quote, start = 0, None, 0
     pairs: list[str] = []
+    escaped = False
     for position, char in enumerate(text):
         if quote is not None:
-            if char == quote:
+            if escaped:
+                escaped = False
+            elif char == "\\" and quote == '"':  # a basic string escapes; a literal string does not
+                escaped = True
+            elif char == quote:
                 quote = None
         elif char in '"\'':
             quote = char
