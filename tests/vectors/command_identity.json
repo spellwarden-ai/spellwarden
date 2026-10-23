@@ -430,7 +430,7 @@
    "API_KEY": "s3cret-value",
    "HOME": "/home/x"
   },
-  "identity": "cmd:npx pkg@1.2.3 args=9e981cbff25634d2bc32892bae38504d"
+  "identity": "cmd:npx pkg@1.2.3 args=238342f94cadbf4d3af029c5373bed60"
  },
  {
   "command": "npx",
@@ -1179,7 +1179,7 @@
   "env": {
    "FOO": "1"
   },
-  "identity": "cmd:npx pkg@1.0.0 args=ff647e5785123366bd9a056dcef3e600"
+  "identity": "cmd:npx pkg@1.0.0 args=26ef689ac92643c7c349ea2c0f6274d9"
  },
  {
   "command": "npx",
@@ -1189,7 +1189,7 @@
   "env": {
    "BAR": "1"
   },
-  "identity": "cmd:npx pkg@1.0.0 args=76fe9f5275888b71b0618f445e69f083"
+  "identity": "cmd:npx pkg@1.0.0 args=a9a1cf379ab718427f3a6268c7d31bcf"
  },
  {
   "command": "npx",
@@ -1236,5 +1236,77 @@
    "pkg==1.0"
   ],
   "identity": "cmd:uvx pkg==1.0 src=https://i.example.com/simple args=aaf540f487ef9cda64b0cf416044a00e"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "--node-options",
+   "--require=./x.js",
+   "pkg@1.0.0"
+  ],
+  "reason": "launch_override"
+ },
+ {
+  "command": "pnpm",
+  "args": [
+   "dlx",
+   "--config.registry",
+   "--x",
+   "pkg@1.0.0"
+  ],
+  "reason": "launch_override"
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "--config-file",
+   "alt.toml",
+   "pkg==1.0"
+  ],
+  "reason": "launch_override"
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "--env-file",
+   ".env",
+   "pkg==1.0"
+  ],
+  "reason": "launch_override"
+ },
+ {
+  "command": "pipx",
+  "args": [
+   "run",
+   "--pip-args=-q",
+   "--spec",
+   "pkg==1.0.0",
+   "pkg"
+  ],
+  "reason": "launch_override"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "--",
+   "pkg@1.0.0"
+  ],
+  "identity": "cmd:npx pkg@1.0.0"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "-yf",
+   "pkg@1.0.0"
+  ],
+  "identity": "cmd:npx pkg@1.0.0 args=16e06b8e46c1efa5f71948690c8233a5"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "pkg@1.0.0",
+   "env:FOO"
+  ],
+  "identity": "cmd:npx pkg@1.0.0 args=ff647e5785123366bd9a056dcef3e600"
  }
 ]

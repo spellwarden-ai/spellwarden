@@ -22,12 +22,13 @@ from spellwarden_scan.model import PluginSource
 # too (`spellwarden_cli.files.SKIP_DIRS` is ".git" followed by these).
 SKIP_DIRS = ("node_modules", ".venv", "venv", "__pycache__")
 SKILL_FILE = "SKILL.md"
-# dropped at the top of a package: repository metadata and the archive leftovers of macOS; the one file under
-# `.spellwarden/` that are dropped are the three the command itself reads or writes (a repository-root skill would
-# otherwise change identity whenever its baseline, settings or lock change); any other path there is package content a
-# skill may run
+# dropped at the top of a package: repository metadata, the archive leftovers of macOS and the one file the command
+# writes, `.spellwarden/lock.json` (owner decision S2); any other path under `.spellwarden/` is package content a skill
+# may run. The rule is the same for every root: the hosted side hashes a forge archive (root "") and the command the
+# tree under the skill's directory, and the two must agree. A repository-root skill therefore changes identity when its
+# `.spellwarden/config.yml` or `baseline.yml` changes (raised to the owner, build review r1:F2).
 _TOP_DROPPED = (".git", "__MACOSX")
-_COMMAND_FILES = frozenset({".spellwarden/lock.json", ".spellwarden/config.yml", ".spellwarden/baseline.yml"})
+_LOCK_FILE = ".spellwarden/lock.json"
 _DS_STORE = ".DS_Store"
 
 
@@ -78,8 +79,8 @@ class PackageFiles:
 
 def package_files(files: Mapping[str, bytes], root: str, nested_roots: Iterable[str]) -> PackageFiles:
     """The files under `root` keyed relative to it, as a forge archive of the directory holds them: without the files
-    under a nested skill root, `.git/` and `__MACOSX/` at the top, the top `.spellwarden/lock.json`, `config.yml` and
-    `baseline.yml` (every other path under `.spellwarden/` is hashed), any `.DS_Store`, and without the
+    under a nested skill root, `.git/` and `__MACOSX/` at the top, the top `.spellwarden/lock.json` (every other path
+    under `.spellwarden/` is hashed), any `.DS_Store`, and without the
     content of a `SKIP_DIRS` directory, whose presence makes the package `unhashable`. A case variant of `SKILL.md`
     directly under the root is renamed to `SKILL.md` (the name the engine reads it under)."""
     root = root.strip("/")
@@ -92,7 +93,7 @@ def package_files(files: Mapping[str, bytes], root: str, nested_roots: Iterable[
             continue
         relative = path[len(prefix):]
         parts = relative.split("/")
-        if not relative or parts[0] in _TOP_DROPPED or relative in _COMMAND_FILES or parts[-1] == _DS_STORE:
+        if not relative or parts[0] in _TOP_DROPPED or relative == _LOCK_FILE or parts[-1] == _DS_STORE:
             continue
         offending = next((index for index, part in enumerate(parts[:-1]) if part in SKIP_DIRS), None)
         if offending is not None:
@@ -273,7 +274,9 @@ class _Spec:
 # one-dash cluster that is in none of them leaves the launch `unresolved`, because the launcher could read the next token
 # as that option's value or as the package, and a flag we do not know could change what runs. The sets below come from
 # each launcher's own help (`uvx --help` 0.11, `npx --help` and `npm config ls -l` of npm 11, `docker run --help` of
-# Docker 29); bunx, pnpm dlx and pipx run were not installed here and are listed from their documentation.
+# Docker 29); bunx, pnpm dlx and pipx run were not installed here and are listed from their documentation. Left out on
+# purpose, so they stay `unresolved`: docker `--disable-content-trust` (gone from Docker 29), uv `--native-tls` (0.11 names
+# it `--system-certs`, which is listed) and npm `--strict-ssl` (`--strict-ssl=false` turns TLS verification off).
 _NPM_VALUES = frozenset({"--cache", "-C", "--prefix", "-w", "--workspace", "--loglevel", "--node-arg"})
 # npm's config files, shell and node flags: each changes what the launcher runs, in either `--opt value` or `--opt=value` form
 _NPM_OVERRIDES = frozenset({"--userconfig", "--globalconfig", "--node-options", "--script-shell"})
@@ -285,6 +288,8 @@ _NPM_FLAGS = frozenset({
 })
 _BUNX_FLAGS = frozenset({"-b", "--bun", "--no-install", "--verbose", "--force", "--no-cache", "--no-summary"})
 _PNPM_FLAGS = frozenset({"-c", "--shell-mode", "--offline", "--prefer-offline", "--ignore-scripts", "--use-stderr", "--no-color"})
+_UVX_OVERRIDES = frozenset({"--config-file", "--env-file", "--directory", "--project"})  # another uv.toml, .env or project
+_PIPX_OVERRIDES = frozenset({"--pip-args"})  # carries pip's own --index-url and friends
 _PIPX_FLAGS = frozenset({"--no-cache", "--pypackages", "--system-site-packages", "--verbose", "--fetch-missing-python"})
 _UVX_FLAGS = frozenset({
     "--isolated", "--no-env-file", "--lfs", "--no-index", "-U", "--upgrade", "--no-sources", "--reinstall", "--compile-bytecode",
@@ -297,9 +302,9 @@ _DOCKER_FLAGS = frozenset({
     "--read-only", "--sig-proxy", "--use-api-socket",
 })
 _UVX_VALUES = frozenset({
-    "-p", "--python", "--with-requirements", "--with-editable", "--env-file", "--index-strategy", "-c", "--constraints",
+    "-p", "--python", "--with-requirements", "--with-editable", "--index-strategy", "-c", "--constraints",
     "-b", "-C", "--config-setting", "--config-settings-package",
-    "--overrides", "--build-constraints", "--directory", "--project", "--config-file", "--cache-dir", "--resolution",
+    "--overrides", "--build-constraints", "--cache-dir", "--resolution",
     "--prerelease", "--fork-strategy", "--keyring-provider", "--link-mode", "--python-preference", "--exclude-newer",
     "-P", "--upgrade-package", "--reinstall-package", "--refresh-package", "--color", "--allow-insecure-host",
     "--no-binary-package", "--no-build-package", "--python-platform", "--torch-backend", "--upgrade-group",
@@ -327,9 +332,9 @@ _SPECS: dict[str, _Spec] = {
     "pnpm dlx": _Spec(_PACKAGE, _NONE, _NONE, _SOURCE_OPTIONS, _PNPM_FLAGS, _NPM_OVERRIDES, "--config."),
     # uv's short aliases mean their long forms: `-w` is `--with`, `-i` `--index-url`, `-f` `--find-links`
     "uvx": _Spec(frozenset({"--from", "--with", "-w"}), frozenset({"--from"}), _UVX_VALUES, _SOURCE_OPTIONS | {"-i", "-f"},
-                 _UVX_FLAGS),
-    "pipx run": _Spec(frozenset({"--spec"}), frozenset({"--spec"}), frozenset({"--python", "--pip-args", "--path"}),
-                      _SOURCE_OPTIONS, _PIPX_FLAGS),
+                 _UVX_FLAGS, _UVX_OVERRIDES),
+    "pipx run": _Spec(frozenset({"--spec"}), frozenset({"--spec"}), frozenset({"--python", "--path"}),
+                      _SOURCE_OPTIONS, _PIPX_FLAGS, _PIPX_OVERRIDES),
     "docker run": _Spec(_NONE, _NONE, _DOCKER_VALUES, _NONE, _DOCKER_FLAGS),
 }
 
@@ -401,14 +406,18 @@ def command_identity(command: str, args: Sequence[str], env: Mapping[str, str]) 
     spec, quiet = _SPECS[launcher], QUIET_FLAGS[launcher]
     artefacts: list[str] = []
     sources: list[str] = []
-    rest: list[str] = []
+    rest: list[object] = []
     override = any(is_launch_override_env(key) for key in env)
     primary = False
+    ended = False  # a bare `--` ends the launcher's options: the next token is the package or image
     index = 0
     while index < len(tokens):
         token = tokens[index]
         index += 1
-        if len(token) < 2 or not token.startswith("-"):
+        if token == "--" and not ended:
+            ended = True
+            continue
+        if ended or len(token) < 2 or not token.startswith("-"):
             # the first positional ends the launcher's own options: the package (or image), then its arguments
             if LAUNCHER_FAMILY[launcher] == "python" and primary:
                 rest.append(token)
@@ -422,6 +431,8 @@ def command_identity(command: str, args: Sequence[str], env: Mapping[str, str]) 
                     or option in spec.sources or option in spec.overrides
                     or (spec.override_prefix and option.startswith(spec.override_prefix))):
                 return CommandIdentity(None, "unresolved")  # an option this launcher's table does not know
+            if option in spec.overrides or (spec.override_prefix and option.startswith(spec.override_prefix)):
+                return CommandIdentity(None, "launch_override")  # whatever its value, even one starting with `-`
         else:
             # a one-dash cluster as the launchers read it, letter by letter: a quiet or boolean letter goes on; the first
             # value-taking, artefact or source option takes the rest of the token (`-qwfoo` is `-q -w foo`, `-w=foo` is
@@ -442,8 +453,11 @@ def command_identity(command: str, args: Sequence[str], env: Mapping[str, str]) 
                 if short not in quiet and short not in spec.flags:
                     return CommandIdentity(None, "unresolved")
             else:
-                if len(token) > 2 and all("-" + char in quiet for char in token[1:]):
-                    continue  # `-it` is `-i -t`: quiet flags, dropped as their separate forms are
+                # flags only: the quiet letters are dropped and the on/off letters hash as one token, so `-yf` is `-f`
+                # and `-it` is nothing, as their separate forms are
+                if letters:
+                    rest.append("-" + letters)
+                continue
         takes_value = option in spec.values or option in spec.artefacts or option in spec.sources
         consumed = [token]
         given: str | None = value if equals else None
@@ -466,7 +480,7 @@ def command_identity(command: str, args: Sequence[str], env: Mapping[str, str]) 
     if override:
         return CommandIdentity(None, "launch_override")
     if env:
-        rest.append("env:" + ",".join(sorted(env)))  # the key names only: a new variable is a new identity, no value is in it
+        rest.append(["env", sorted(env)])  # the key names only, as a nested list no argument string can equal; no value is in it
     reduced = [_reduce_source(source) for source in sources]
     if any("${" in item for item in (*artefacts, *sources)) or None in reduced:
         return CommandIdentity(None, "unresolved")
