@@ -181,10 +181,16 @@ def test_request_link_url_keeps_the_path_and_drops_a_default_port_only_when_it_i
 
 
 def test_normalise_url_shares_vectors_with_the_hosted_side():
+    """Every row is `{input, output}`; `output` null is a URL the engine refuses. The hosted `normalise_url` (urlsplit)
+    does not refuse: on those rows `hosted` records its answer, the string it returns or "error" where it raises, so
+    the backend's parity test (plan Task 13) can hold both sides to the file (review finding r0:F8)."""
     cases = json.loads((VECTORS / "normalise_url.json").read_text())
     assert len(cases) >= 20 and any(case["output"] is None for case in cases)
     for case in cases:
         assert normalise_url(case["input"]) == case["output"], case
+        assert set(case) <= {"input", "output", "hosted"} and ("hosted" in case) == (case["output"] is None), case
+        if "hosted" in case:
+            assert case["hosted"] == "error" or isinstance(case["hosted"], str), case
 
 
 def test_normalise_url_refuses_what_the_splitter_refuses():
