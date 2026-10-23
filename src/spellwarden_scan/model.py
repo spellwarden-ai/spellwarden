@@ -256,8 +256,8 @@ class MarketplacePlugin(_Model):
     line: int
     source: PluginSource
     # O3 spec 5.1: sha256 of the canonical JSON of the entry as parsed; the binding of an SW-REG-003 acceptance (P48).
-    # Not a lock input.
-    raw_sha256: str
+    # Not a lock input. Defaults to "" so a dict written by 1.1.x still loads through `from_dict` (minor release).
+    raw_sha256: str = ""
 
 
 @dataclass(frozen=True, slots=True)

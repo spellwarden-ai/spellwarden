@@ -78,3 +78,12 @@ def test_skill_scan_result_package_sha256_round_trips_and_a_1_1_1_dict_loads():
     old = {key: value for key, value in data.items() if key != "package_sha256"}
     assert model.SkillScanResult.from_dict(old).package_sha256 is None
     assert model.SkillScanResult((), 0, "a" * 64, metadata, 1, "r", "s").to_dict()["package_sha256"] is None
+
+
+def test_a_marketplace_plugin_dict_written_by_1_1_loads_without_raw_sha256():
+    """1.1.x wrote `MarketplacePlugin` without `raw_sha256`; a minor release keeps `from_dict` working on it (r0:F7)."""
+    source = {"kind": "github", "local_path": None, "repo": "acme/x", "url": None, "ref": None, "sha": None,
+              "canonical": "github:acme/x", "error": None}
+    plugin = model.MarketplacePlugin.from_dict({"name": "x", "line": 3, "source": source})
+    assert plugin.raw_sha256 == "" and plugin.source.repo == "acme/x"
+    assert model.MarketplacePlugin.from_dict(json.loads(json.dumps(plugin.to_dict()))) == plugin
