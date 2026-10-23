@@ -337,6 +337,20 @@ def test_a_body_over_the_limit_drops_items_then_probes_and_records_them():
     assert body["upload_truncated_fields"] == cut
 
 
+def test_the_whole_body_counts_against_the_limit_not_the_report_alone():
+    """r0:F6: the server caps `{schema, run, report}` at `upload_max_bytes`; a report that fits alone can go over it
+    once the run envelope is added, so the envelope is measured too."""
+    items = [{"kind": "skill", "path": "p" * 900, "name": "n", "plugin": None} for _ in range(50)]
+    report = report_dict(items=items, findings=[finding(1)])
+    alone = len(json.dumps(connected.reduce_report(report, LIMITS)[0], separators=(",", ":")).encode("utf-8"))
+    envelope = {"schema": 1, "run": {"provider": "github", "run_url": "https://example.com/" + "r" * 500}}
+    limits = {**LIMITS, "upload_max_bytes": alone + 100}
+    assert connected.reduce_report(report, limits)[2] == []                                # the report alone fits
+    body, dropped, cut = connected.reduce_report(report, limits, envelope=envelope)         # with the envelope it does not
+    assert cut == ["items"] and dropped == 0 and body["items"] == []
+    assert len(json.dumps({**envelope, "report": body}, separators=(",", ":")).encode("utf-8")) <= limits["upload_max_bytes"]
+
+
 def test_the_body_validates_against_the_field_table_fixture(run_cli, tmp_path, api_double, fixture_tools):
     """`upload-1.2.0.json` is the body of the wrappers' fixture repository (`connected`) on a push to the default branch
     of a GitHub repository, a CI token, one server not admitted; the code repository validates the same file."""

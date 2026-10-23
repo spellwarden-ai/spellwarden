@@ -352,7 +352,7 @@ def decide_stop(stop: ConnectedStop, settings: Settings, ctx: CiContext, found: 
                             "private registry gate would judge.")
     if settings.connected.required:
         detail = f"{stop.code} ({stop.message.rstrip('.')})"
-        return Notice("connected_required", "", REQUIRED.format(detail=detail)), None
+        return Notice("connected_required", "", REQUIRED.format(detail=detail), stop.code), None
     if stop.code == "fork_free_mode":
         return None, Notice("fork_free_mode", "", f"{said} {stop.message}")
     return None, Notice("connected_fallback", "", said)
@@ -764,7 +764,13 @@ def _message(text: object) -> str:
 
 
 def _entries(entries: list[dict]) -> list[dict]:
-    return [{**entry, "message": _message(entry.get("message", ""))} for entry in entries]
+    cut = []
+    for entry in entries:
+        reduced = {**entry, "message": _message(entry.get("message", ""))}
+        if entry.get("detail") is not None:
+            reduced["detail"] = _message(entry["detail"])  # 8.4: at most 300, masked, like the message
+        cut.append(reduced)
+    return cut
 
 
 def _cap(report: dict, name: str, limit: int, cut: list[str]) -> None:
@@ -773,13 +779,14 @@ def _cap(report: dict, name: str, limit: int, cut: list[str]) -> None:
         cut.append(name)
 
 
-def reduce_report(report_dict: dict, limits: dict) -> tuple[dict, int, list[str]]:
+def reduce_report(report_dict: dict, limits: dict, envelope: dict | None = None) -> tuple[dict, int, list[str]]:
     """O3 spec 6.7, invariant 3: the report as the body carries it, `(body report, findings dropped, lists cut)`. No
     `connected.upload`; probes keep the seven fields of 8.4 (no findings, no checklist); at most 50 notices and 50 errors
     with messages masked and cut to 300 characters; the caps of the policy answer for items, probes and findings
     (highest severity first, suppressed ones included with their baseline). Over `upload_max_bytes` the items, then the
     probes, then the lowest findings are dropped. Every cut is in `upload_truncated` and `upload_truncated_fields`.
-    `report_dict` is not changed."""
+    `envelope` is the rest of the body (`schema`, `run`): the server caps the whole body, so the size is measured with
+    it. `report_dict` is not changed."""
     report = {**report_dict}
     cut: list[str] = []
     report["findings"] = sorted(report_dict["findings"], key=lambda f: SEVERITY_RANK[f["severity"]])  # stable: report order
@@ -801,7 +808,8 @@ def reduce_report(report_dict: dict, limits: dict) -> tuple[dict, int, list[str]
     _cap(report, "errors", LIST_MAX, cut)
 
     def size() -> int:
-        return len(json.dumps(report, separators=(",", ":")).encode("utf-8"))
+        body = report if envelope is None else {**envelope, "report": report}
+        return len(json.dumps(body, separators=(",", ":")).encode("utf-8"))
 
     for name in ("items", "probes"):  # still over the limit: these two go whole, in this order
         if size() > limits["upload_max_bytes"] and report[name]:
@@ -851,15 +859,14 @@ def _upload(state: ConnectedState, report: Report, ctx: CiContext, options: Scan
     identity = (state.session.run or {}).get("identity") or ctx.repository_identity
     if not isinstance(identity, str):
         return {"status": "failed", "error": "repository_unknown"}
-    body_report, _dropped, _cut = reduce_report(to_json_dict(report), state.limits)
-    body = {"schema": 1,
-            "run": {"provider": ctx.provider,
-                    "repository": {"identity": identity, "url": ctx.repository_url, "visibility": ctx.visibility or "private",
-                                   "scope": state.scope},
-                    "kind": kind, "event": ctx.event or "unknown", "request_number": ctx.request_number,
-                    "head_sha": ctx.head_sha, "head_ref": ctx.head_ref, "sha": ctx.sha, "ref_name": ctx.ref_name,
-                    "default_branch": ctx.default_branch, "run_url": ctx.run_url, "idempotency_key": key},
-            "report": body_report}
+    run_block = {"provider": ctx.provider,
+                 "repository": {"identity": identity, "url": ctx.repository_url, "visibility": ctx.visibility or "private",
+                                "scope": state.scope},
+                 "kind": kind, "event": ctx.event or "unknown", "request_number": ctx.request_number,
+                 "head_sha": ctx.head_sha, "head_ref": ctx.head_ref, "sha": ctx.sha, "ref_name": ctx.ref_name,
+                 "default_branch": ctx.default_branch, "run_url": ctx.run_url, "idempotency_key": key}
+    body_report, _dropped, _cut = reduce_report(to_json_dict(report), state.limits, envelope={"schema": 1, "run": run_block})
+    body = {"schema": 1, "run": run_block, "report": body_report}
     try:
         answer = state.client.post(f"/v1/orgs/{state.session.org['slug']}/ci/scans", body, retry=False)
     except ApiError as error:

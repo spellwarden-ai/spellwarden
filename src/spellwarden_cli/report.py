@@ -47,9 +47,13 @@ class Notice:
     code: str
     path: str
     message: str
+    detail: str | None = None  # O3 spec 6.9: the underlying code of a wrapper error such as `connected_required`
 
     def to_dict(self) -> dict:
-        return {"code": self.code, "path": self.path, "message": self.message}
+        entry = {"code": self.code, "path": self.path, "message": self.message}
+        if self.detail is not None:  # absent otherwise, so free-mode output is unchanged (invariant 1)
+            entry["detail"] = self.detail
+        return entry
 
 
 @dataclass(frozen=True)

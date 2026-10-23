@@ -187,7 +187,9 @@ def test_required_true_turns_the_decision_into_exit_2_with_detail(make_repo, run
     code, report, out, _ = scan_json(run_cli, repo, env)
     (error,) = report["errors"]
     assert code == 2 and error["code"] == "connected_required" and "connected_no_credential" in error["message"]
+    assert error["detail"] == "connected_no_credential"  # 6.9: `detail` carries the underlying code (r0:F5)
     assert "SPELLWARDEN_ORG" in error["message"] and "SPELLWARDEN_API_KEY" in error["message"]
+    assert all("detail" not in n for n in report["notices"])
     _, markdown, _ = run_cli(["scan", str(repo), "--format", "markdown", "--no-telemetry"], env=env)
     unescaped = markdown.replace("\\", "")
     assert "connected_required" in unescaped and "SPELLWARDEN_API_KEY" in unescaped  # the comment says what to fix

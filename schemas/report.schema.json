@@ -132,7 +132,7 @@
       "type": "object",
       "required": ["code", "path", "message"],
       "properties": {"code": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"}, "path": {"type": "string"},
-                     "message": {"type": "string"}}
+                     "message": {"type": "string"}, "detail": {"type": "string"}}
     },
     "error": {
       "type": "object",
