@@ -716,3 +716,47 @@ def test_every_gate_reason_is_reachable_through_the_fixture_variants(run_cli, tm
         wanted = {key: value for key, value in expect["connected"].items() if key != "upload"}  # the upload is Task 10's
         assert checker._check_connected({**expect, "connected": wanted}, report) == []
     assert seen == set(GATE_REASONS)
+
+
+def test_a_resolver_file_binding_follows_a_link_target_and_an_oversize_file(tmp_path):
+    """Security review S9: an acceptance of `resolver_override` is bound to what the resolver file resolves to. A link
+    binds its target, an oversize file the digest of all of it; a change to either is a new binding, and an unreadable
+    file binds a value nothing stored can match."""
+    from spellwarden_cli import connected
+    root = tmp_path / "repo"
+    root.mkdir()
+    (root / "a.npmrc").write_text("registry=https://a.example/\n", encoding="utf-8")
+    (root / "b.npmrc").write_text("registry=https://b.example/\n", encoding="utf-8")
+    try:
+        os.symlink("a.npmrc", root / ".npmrc")
+    except (OSError, NotImplementedError):
+        pytest.skip("no symlinks here")
+    fileset = files.FileSet(root=str(root), entries=(), repo_prefix=None, notices=(), errors=())
+    first = connected._resolver_bytes(fileset, ".npmrc")
+    assert first == b"\0link\0a.npmrc"
+    (root / ".npmrc").unlink()
+    os.symlink("b.npmrc", root / ".npmrc")
+    assert connected._resolver_bytes(fileset, ".npmrc") != first
+    (root / "big" ).mkdir()
+    (root / "big" / ".npmrc").write_bytes(b"#" * (files.FILE_MAX + 1) + b"\nregistry=https://a.example/\n")
+    large = connected._resolver_bytes(fileset, "big/.npmrc")
+    assert large.startswith(b"\0large\0") and len(large) == len(b"\0large\0") + 64
+    (root / "big" / ".npmrc").write_bytes(b"#" * (files.FILE_MAX + 1) + b"\nregistry=https://b.example/\n")
+    assert connected._resolver_bytes(fileset, "big/.npmrc") != large
+    assert connected._resolver_bytes(fileset, "missing/.npmrc") != connected._resolver_bytes(fileset, "missing/.npmrc")
+
+
+def test_an_enabled_plugin_in_another_settings_document_lists_under_and_scopes_its_marketplace(make_repo, run_cli, tmp_path,
+                                                                                                  api_double):
+    """Security review S11, spec 6.6: `enabledPlugins` entries naming a marketplace are listed under it whichever
+    settings document holds them, and a request that newly enables one elsewhere puts the marketplace in scope."""
+    fake, _ = api_double
+    repo, base = _scoped_repo(make_repo, tmp_path)
+    commit(repo, {".claude/settings.local.json": settings_json(None, {"fmt@acme-tools": True})})
+    serve(fake, check_answer(marketplaces=[None]))
+    _, report, _, _ = scan_json(run_cli, repo, request_env(tmp_path, base))
+    (sent,) = checks(fake)[0]["marketplaces"]
+    assert sent["name"] == "acme-tools"
+    (market,) = [item for item in block(report)["items"] if item["kind"] == "marketplace"]
+    assert market["in_scope"] is True and market["enabled_plugins"] == ["fmt", "lint"]
+    assert not [n for n in report["notices"] if n["code"] == "plugin_marketplace_unknown"]

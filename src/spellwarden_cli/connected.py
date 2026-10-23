@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import posixpath
 import re
 import time
@@ -30,7 +31,7 @@ from spellwarden_scan import gate as gates
 from spellwarden_scan import identity as ident
 from spellwarden_scan.evidence import mask_credentials
 
-from spellwarden_cli import api, ci, discover, escape
+from spellwarden_cli import api, ci, discover, escape, paths
 from spellwarden_cli.api import ApiClient, ApiError, Session
 from spellwarden_cli.ci import ORG_RE
 from spellwarden_cli.report import Notice, ProbeReport, Report, ReportFinding, to_json_dict
@@ -389,7 +390,8 @@ class _Candidate:
     url: str | None = None                   # servers
     family: str | None = None                # stdio: the launcher family (5.1)
     skill: SkillPackage | None = None
-    enabled: tuple[str, ...] = ()            # marketplaces: the enabledPlugins entries naming it
+    enabled: tuple[str, ...] = ()            # marketplaces: the enabledPlugins entries naming it, from every document
+    enabled_in: dict[str, tuple[str, ...]] = field(default_factory=dict)  # marketplaces: those entries per document path
     in_scope: bool = True
     admitted: bool | None = None
     request_url: str | None = None
@@ -419,6 +421,30 @@ def _under(path: str, directory: str, nested: tuple[str, ...] = ()) -> bool:
     """`path` is in the package at `directory` ("." is the scan root) and not in a skill nested in it."""
     inside = directory == "." or path == directory or path.startswith(directory + "/")
     return inside and not any(path == inner or path.startswith(inner + "/") for inner in nested)
+
+
+def _resolver_bytes(fileset: FileSet | None, path: str) -> bytes:
+    """What a `resolver_override` acceptance binds for one resolver file (P48: a changed resolver file is a new finding):
+    its bytes; for a link, its target; for a file over `FILE_MAX`, the digest of all of it; and for a file nobody can
+    read, a value no stored fingerprint matches, so the acceptance fails closed."""
+    if fileset is None:
+        return b""
+    try:
+        return fileset.read(path)
+    except paths.TooLarge:
+        try:
+            digest = hashlib.sha256()
+            with open(os.path.join(fileset.root, path), "rb") as handle:
+                for chunk in iter(lambda: handle.read(65536), b""):
+                    digest.update(chunk)
+            return b"\0large\0" + digest.hexdigest().encode("ascii")
+        except OSError:
+            return b"\0unreadable\0" + os.urandom(16)
+    except (paths.UnsafePath, OSError):
+        try:
+            return b"\0link\0" + fileset.link_target(path)
+        except (paths.UnsafePath, paths.TooLarge, OSError):
+            return b"\0unreadable\0" + os.urandom(16)
 
 
 def _reader(fileset: FileSet) -> Callable[[str], bytes]:
@@ -483,10 +509,17 @@ def _family_of(command: str, parsed_launcher: str | None) -> str | None:
     return _LAUNCHER_FAMILY.get(name)
 
 
-def _config_candidates(found: Discovery, gate: dict, resolvers: dict[str, tuple[str, ...]], read: Callable[[str], bytes] | None,
+def _config_candidates(found: Discovery, gate: dict, resolvers: dict[str, tuple[str, ...]],
                        notices: list[Notice]) -> list[_Candidate]:
     candidates: list[_Candidate] = []
-    declared = {decl.name for doc in found.documents if doc.error in (None, "truncated") for decl in doc.marketplaces}
+    readable = [doc for doc in found.documents if doc.error in (None, "truncated")]
+    declared = {decl.name for doc in readable for decl in doc.marketplaces}
+    # 6.6: the enabledPlugins entries naming a marketplace are listed under it, whichever settings document holds them
+    enabled_in: dict[str, dict[str, tuple[str, ...]]] = {}
+    for doc in readable:
+        for name in {entry.marketplace for entry in doc.enabled_plugins if entry.enabled}:
+            plugins = tuple(sorted(entry.plugin for entry in doc.enabled_plugins if entry.marketplace == name and entry.enabled))
+            enabled_in.setdefault(name, {})[doc.path] = plugins
     for doc in found.documents:
         if doc.error not in (None, "truncated"):
             continue
@@ -508,12 +541,7 @@ def _config_candidates(found: Discovery, gate: dict, resolvers: dict[str, tuple[
                 candidate.family = _family_of(server.command, launcher)
                 candidate.identity, candidate.reason = result.identity, result.reason
                 if result.identity is not None and candidate.family in resolvers:
-                    bound = {}
-                    for path in resolvers[candidate.family]:
-                        try:
-                            bound[path] = read(path) if read is not None else b""
-                        except OSError:
-                            bound[path] = b"\0unreadable"
+                    bound = {path: _resolver_bytes(found.fileset, path) for path in resolvers[candidate.family]}
                     candidate.identity, candidate.reason = None, "resolver_override"
                     candidate.binding = gates.resolver_binding(server.raw_sha256, bound)
             else:
@@ -533,9 +561,10 @@ def _config_candidates(found: Discovery, gate: dict, resolvers: dict[str, tuple[
         for decl in doc.marketplaces:
             if decl.source.kind == "local":
                 continue
+            per_document = enabled_in.get(decl.name, {})
             candidate = _Candidate("marketplace", doc.path, decl.line, decl.name, f"{doc.path}#{decl.name}", raw=decl.raw_sha256,
-                                   enabled=tuple(sorted(entry.plugin for entry in doc.enabled_plugins
-                                                        if entry.marketplace == decl.name and entry.enabled)))
+                                   enabled=tuple(sorted({plugin for plugins in per_document.values() for plugin in plugins})),
+                                   enabled_in=per_document)
             _remote_identity(candidate, decl.source, decl.raw_sha256)
             candidates.append(candidate)
         for entry in doc.enabled_plugins:
@@ -609,8 +638,19 @@ def _scope(candidates: list[_Candidate], changed: set[str], resolvers: dict[str,
             else:
                 new = candidate.raw not in view.raws
             if candidate.kind == "marketplace":
-                new = new or any((plugin, candidate.name) not in view.enabled for plugin in candidate.enabled)
+                new = new or any((plugin, candidate.name) not in view.enabled
+                                 for plugin in candidate.enabled_in.get(candidate.path, ()))
             candidate.in_scope = new
+        if not candidate.in_scope and candidate.kind == "marketplace":
+            # a changed document elsewhere newly enabling one of its plugins puts the marketplace in scope (6.6)
+            for path, plugins in candidate.enabled_in.items():
+                if path == candidate.path or path not in changed:
+                    continue
+                if path not in views:
+                    views[path] = _base_view(options, ctx, path, kinds[path])
+                if any((plugin, candidate.name) not in views[path].enabled for plugin in plugins):
+                    candidate.in_scope = True
+                    break
         if not candidate.in_scope and candidate.kind == "stdio" and candidate.family is not None:
             candidate.in_scope = any(path in changed for path in resolvers.get(candidate.family, ()))
 
@@ -666,7 +706,7 @@ def run_gate(state: ConnectedState, found: Discovery, probes: list[ProbeReport],
     fileset = found.fileset
     read = _reader(fileset) if fileset is not None else None
     resolvers = ident.resolver_files(fileset.paths(), read) if fileset is not None and read is not None else {}
-    candidates = [*_skill_candidates(found, options, read), *_config_candidates(found, gate, resolvers, read, notices)]
+    candidates = [*_skill_candidates(found, options, read), *_config_candidates(found, gate, resolvers, notices)]
     applied = "all"
     if gate["scope"] == "changed" and ctx.run_kind() == "request":
         changed = ci.changed_paths(options.root, ctx, env=options.env)
