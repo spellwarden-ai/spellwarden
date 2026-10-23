@@ -165,3 +165,28 @@ def test_off_a_request_config_names_the_whole_file(make_repo, run_cli, tmp_path,
     repo = make_repo(tmp_path / "repo", {"README.md": "x\n", "other.yml": "version: 1\nconnected:\n  required: true\n"})
     run_cli(["scan", str(repo), "--format", "json", "--no-telemetry", "--config", str(repo / "other.yml")])
     assert seen[-1].settings.connected.required is True
+
+
+def test_under_config_an_invalid_base_file_does_not_change_a_free_mode_scan(make_repo, run_cli, tmp_path, seen):
+    """F3, invariant 1: 1.1.1 never read the base file under `--config`; only its `connected` mapping is read now."""
+    repo = make_repo(tmp_path / "repo", {"README.md": "x\n", ".spellwarden/config.yml": "version: 1\nfail-on: extreme\n"})
+    base = git(repo, "rev-parse", "HEAD").strip()
+    commit(repo, {"ci.yml": "version: 1\n"})
+    env = request_env(tmp_path, base)
+    code, out, _ = run_cli(["scan", str(repo), "--format", "json", "--no-telemetry", "--config", str(repo / "ci.yml")], env=env)
+    report = json.loads(out)
+    assert code == 0 and report["errors"] == [] and "connected" not in report
+    assert seen[-1].settings.connected == Connected()
+    assert not [n for n in report["notices"] if "config.yml" in n["message"]]  # the baseline notice is 1.1.1's own
+
+
+def test_under_config_a_base_connected_pack_adds_no_notice_in_free_mode(make_repo, run_cli, tmp_path, seen):
+    repo = make_repo(tmp_path / "repo", {"README.md": "x\n", ".spellwarden/config.yml":
+                                         f"version: 1\nfail-on: extreme\nconnected:\n  pack: {HEX}\n"})
+    base = git(repo, "rev-parse", "HEAD").strip()
+    commit(repo, {"ci.yml": "version: 1\n"})
+    env = request_env(tmp_path, base)
+    code, out, _ = run_cli(["scan", str(repo), "--format", "json", "--no-telemetry", "--config", str(repo / "ci.yml")], env=env)
+    report = json.loads(out)
+    assert code == 0 and not [n for n in report["notices"] if "config.yml" in n["message"]]
+    assert seen[-1].settings.connected.pack == HEX

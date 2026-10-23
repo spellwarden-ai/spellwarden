@@ -75,9 +75,7 @@ def load_settings(root: str, *, config: str | None, flags: Flags, env: Mapping[s
     values = _validate(document, name) if document is not None else {}
     mapping = values.get("connected", {})
     if config is not None and connected_read is not None:
-        base_document, base_name = _read(root, None, connected_read)
-        base_values = _validate(base_document, base_name) if base_document is not None else {}
-        base_mapping = base_values.get("connected", {})
+        base_mapping = _base_connected(root, connected_read)
     else:
         base_mapping = mapping
     fail_on = flags.fail_on or _env_choice(env, "SPELLWARDEN_FAIL_ON") or values.get("fail-on") or "high"
@@ -91,6 +89,21 @@ def load_settings(root: str, *, config: str | None, flags: Flags, env: Mapping[s
     return Settings(include=tuple(values.get("include", ())), exclude=tuple(values.get("exclude", ())),
                     fail_on=fail_on, probe=probe, probe_private=probe_private, telemetry=not telemetry_off,
                     connected=connected)
+
+
+def _base_connected(root: str, read: Callable[[str, int], bytes]) -> dict:
+    """The `connected` mapping alone of the base revision's file, validated on its own. The rest of that file is not
+    the operator's choice under `--config` (1.1.1 never read it), so a base file that cannot be read or parsed, or
+    whose other keys are invalid, gives the defaults rather than refusing a scan (invariant 1)."""
+    try:
+        document, name = _read(root, None, read)
+        mapping = document.get("connected") if isinstance(document, dict) else None
+        if mapping is None:
+            return {}
+        _validate_connected(mapping, name)
+    except SettingsError:
+        return {}
+    return mapping
 
 
 def _first(*values):

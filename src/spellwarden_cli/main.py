@@ -153,7 +153,8 @@ def _scan_report(args: argparse.Namespace, context, credentials: Credentials,
     except SettingsError as exc:
         return _error_report(fail_on, as_of, "settings_invalid", args.config or ".spellwarden/config.yml", str(exc),
                              source.notices), False
-    if connected_source is not None and connected_source.read is not None and (
+    connected_mode = bool(credentials.org) or credentials.key is not None or settings.connected.required
+    if connected_source is not None and connected_source.read is not None and connected_mode and (
             settings.connected.pack is not None or settings.connected.required):
         source = dataclasses.replace(source, notices=(*source.notices, *connected_source.notices))
     telemetry = settings.telemetry
