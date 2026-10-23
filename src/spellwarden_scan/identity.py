@@ -22,8 +22,10 @@ from spellwarden_scan.model import PluginSource
 # too (`spellwarden_cli.files.SKIP_DIRS` is ".git" followed by these).
 SKIP_DIRS = ("node_modules", ".venv", "venv", "__pycache__")
 SKILL_FILE = "SKILL.md"
-# dropped at the top of a package: repository metadata, the lock and the archive leftovers of macOS
-_TOP_DROPPED = (".git", ".spellwarden", "__MACOSX")
+# dropped at the top of a package: repository metadata and the archive leftovers of macOS; the one file under
+# `.spellwarden/` that is dropped is the lock the command writes (any other path there is package content a skill may run)
+_TOP_DROPPED = (".git", "__MACOSX")
+_LOCK_FILE = ".spellwarden/lock.json"
 _DS_STORE = ".DS_Store"
 
 
@@ -74,7 +76,8 @@ class PackageFiles:
 
 def package_files(files: Mapping[str, bytes], root: str, nested_roots: Iterable[str]) -> PackageFiles:
     """The files under `root` keyed relative to it, as a forge archive of the directory holds them: without the files
-    under a nested skill root, `.git/`, `.spellwarden/` and `__MACOSX/` at the top, any `.DS_Store`, and without the
+    under a nested skill root, `.git/` and `__MACOSX/` at the top, the top `.spellwarden/lock.json` (every other path
+    under `.spellwarden/` is hashed), any `.DS_Store`, and without the
     content of a `SKIP_DIRS` directory, whose presence makes the package `unhashable`. A case variant of `SKILL.md`
     directly under the root is renamed to `SKILL.md` (the name the engine reads it under)."""
     root = root.strip("/")
@@ -87,7 +90,7 @@ def package_files(files: Mapping[str, bytes], root: str, nested_roots: Iterable[
             continue
         relative = path[len(prefix):]
         parts = relative.split("/")
-        if not relative or parts[0] in _TOP_DROPPED or parts[-1] == _DS_STORE:
+        if not relative or parts[0] in _TOP_DROPPED or relative == _LOCK_FILE or parts[-1] == _DS_STORE:
             continue
         offending = next((index for index, part in enumerate(parts[:-1]) if part in SKIP_DIRS), None)
         if offending is not None:
@@ -232,7 +235,7 @@ LAUNCH_OVERRIDE_ENV = frozenset({
     "NODE_OPTIONS", "NODE_PATH", "PYTHONPATH", "PYTHONSTARTUP", "PYTHONHOME", "PYTHONUSERBASE", "LD_PRELOAD", "LD_LIBRARY_PATH",
     "DYLD_INSERT_LIBRARIES", "DYLD_LIBRARY_PATH", "UV_INDEX", "UV_INDEX_URL", "UV_DEFAULT_INDEX", "UV_EXTRA_INDEX_URL",
     "UV_FIND_LINKS", "PIP_INDEX_URL", "PIP_EXTRA_INDEX_URL", "PIP_FIND_LINKS", "PIPX_DEFAULT_PYTHON", "BUN_CONFIG_REGISTRY",
-    "DOCKER_HOST", "DOCKER_CONFIG",
+    "DOCKER_HOST", "DOCKER_CONFIG", "PATH", "BASH_ENV", "ENV", "UV_CONFIG_FILE", "PIP_CONFIG_FILE", "DOCKER_CONTEXT",
 })
 _PACKAGE_QUIET = frozenset({"-y", "--yes", "-q", "--quiet", "--silent"})
 _DOCKER_QUIET = frozenset({"--rm", "-i", "--interactive", "-t", "--tty", "--init", "--name"})
@@ -258,16 +261,47 @@ class _Spec:
     primary: frozenset[str]  # of those, the ones after which the positional is the command to run, not a package
     values: frozenset[str]  # other options that take a value, so that the value is not read as the package or image
     sources: frozenset[str]
+    flags: frozenset[str]  # the closed set of boolean flags (no value) the launcher takes before its package or image
+    overrides: frozenset[str] = frozenset()  # options that redirect what runs or from where: the launch is refused
+    override_prefix: str = ""  # an option starting with this does the same (pnpm's `--config.<key>`)
 
 
-_NPM_VALUES = frozenset({"--cache", "-C", "--prefix", "--userconfig", "-w", "--workspace", "--loglevel", "--node-arg"})
+# The options the parser reads before the first positional. Every option there must be in the launcher's table (the quiet
+# flags, `flags`, the value, artefact and source options, `overrides`, docker's `--entrypoint`); an option or a letter of a
+# one-dash cluster that is in none of them leaves the launch `unresolved`, because the launcher could read the next token
+# as that option's value or as the package, and a flag we do not know could change what runs. The sets below come from
+# each launcher's own help (`uvx --help` 0.11, `npx --help` and `npm config ls -l` of npm 11, `docker run --help` of
+# Docker 29); bunx, pnpm dlx and pipx run were not installed here and are listed from their documentation.
+_NPM_VALUES = frozenset({"--cache", "-C", "--prefix", "-w", "--workspace", "--loglevel", "--node-arg"})
+# npm's config files, shell and node flags: each changes what the launcher runs, in either `--opt value` or `--opt=value` form
+_NPM_OVERRIDES = frozenset({"--userconfig", "--globalconfig", "--node-options", "--script-shell"})
+_NPM_FLAGS = frozenset({
+    "--no", "--ignore-scripts", "--offline", "--prefer-offline", "--prefer-online", "--no-audit", "--no-fund", "--no-progress",
+    "--no-update-notifier", "--force", "-f", "--legacy-peer-deps", "--strict-peer-deps", "--no-package-lock", "--workspaces",
+    "--include-workspace-root", "--foreground-scripts", "--strict-allow-scripts", "--dangerously-allow-all-scripts", "--json",
+    "-s", "-d",
+})
+_BUNX_FLAGS = frozenset({"-b", "--bun", "--no-install", "--verbose", "--force", "--no-cache", "--no-summary"})
+_PNPM_FLAGS = frozenset({"-c", "--shell-mode", "--offline", "--prefer-offline", "--ignore-scripts", "--use-stderr", "--no-color"})
+_PIPX_FLAGS = frozenset({"--no-cache", "--pypackages", "--system-site-packages", "--verbose", "--fetch-missing-python"})
+_UVX_FLAGS = frozenset({
+    "--isolated", "--no-env-file", "--lfs", "--no-index", "-U", "--upgrade", "--no-sources", "--reinstall", "--compile-bytecode",
+    "--no-build-isolation", "--no-build", "--no-binary", "-n", "--no-cache", "--refresh", "--managed-python",
+    "--no-managed-python", "--no-python-downloads", "-v", "--verbose", "--system-certs", "--offline", "--no-progress",
+    "--no-config",
+})
+_DOCKER_FLAGS = frozenset({
+    "-d", "--detach", "--no-healthcheck", "--oom-kill-disable", "--privileged", "-P", "--publish-all", "-q", "--quiet",
+    "--read-only", "--sig-proxy", "--use-api-socket",
+})
 _UVX_VALUES = frozenset({
     "-p", "--python", "--with-requirements", "--with-editable", "--env-file", "--index-strategy", "-c", "--constraints",
     "-b", "-C", "--config-setting", "--config-settings-package",
     "--overrides", "--build-constraints", "--directory", "--project", "--config-file", "--cache-dir", "--resolution",
     "--prerelease", "--fork-strategy", "--keyring-provider", "--link-mode", "--python-preference", "--exclude-newer",
     "-P", "--upgrade-package", "--reinstall-package", "--refresh-package", "--color", "--allow-insecure-host",
-    "--no-binary-package", "--no-build-package",
+    "--no-binary-package", "--no-build-package", "--python-platform", "--torch-backend", "--upgrade-group",
+    "--exclude-newer-package", "--no-sources-package", "--no-build-isolation-package",
 })
 _DOCKER_VALUES = frozenset({
     "-a", "--attach", "--add-host", "--annotation", "--blkio-weight", "--cap-add", "--cap-drop", "--cgroup-parent", "--cgroupns",
@@ -281,19 +315,20 @@ _DOCKER_VALUES = frozenset({
     "--mount", "--name", "--network", "--network-alias", "--oom-score-adj", "--pid", "--pids-limit", "--platform", "-p",
     "--publish", "--pull", "--restart", "--runtime", "--security-opt", "--shm-size", "--stop-signal", "--stop-timeout",
     "--storage-opt", "--sysctl", "--tmpfs", "-u", "--user", "--ulimit", "--userns", "--uts", "-v", "--volume",
-    "--volume-driver", "--volumes-from", "-w", "--workdir",
+    "--volume-driver", "--volumes-from", "-w", "--workdir", "--blkio-weight-device", "--health-start-interval",
 })
 _NONE: frozenset[str] = frozenset()
 _PACKAGE = frozenset({"-p", "--package"})
 _SPECS: dict[str, _Spec] = {
-    "npx": _Spec(_PACKAGE, _NONE, _NPM_VALUES | {"-c", "--call"}, _SOURCE_OPTIONS),
-    "bunx": _Spec(_PACKAGE, _NONE, _NONE, _SOURCE_OPTIONS),
-    "pnpm dlx": _Spec(_PACKAGE, _NONE, _NONE, _SOURCE_OPTIONS),
+    "npx": _Spec(_PACKAGE, _NONE, _NPM_VALUES | {"-c", "--call"}, _SOURCE_OPTIONS, _NPM_FLAGS, _NPM_OVERRIDES),
+    "bunx": _Spec(_PACKAGE, _NONE, _NONE, _SOURCE_OPTIONS, _BUNX_FLAGS, _NPM_OVERRIDES),
+    "pnpm dlx": _Spec(_PACKAGE, _NONE, _NONE, _SOURCE_OPTIONS, _PNPM_FLAGS, _NPM_OVERRIDES, "--config."),
     # uv's short aliases mean their long forms: `-w` is `--with`, `-i` `--index-url`, `-f` `--find-links`
-    "uvx": _Spec(frozenset({"--from", "--with", "-w"}), frozenset({"--from"}), _UVX_VALUES, _SOURCE_OPTIONS | {"-i", "-f"}),
+    "uvx": _Spec(frozenset({"--from", "--with", "-w"}), frozenset({"--from"}), _UVX_VALUES, _SOURCE_OPTIONS | {"-i", "-f"},
+                 _UVX_FLAGS),
     "pipx run": _Spec(frozenset({"--spec"}), frozenset({"--spec"}), frozenset({"--python", "--pip-args", "--path"}),
-                      _SOURCE_OPTIONS),
-    "docker run": _Spec(_NONE, _NONE, _DOCKER_VALUES, _NONE),
+                      _SOURCE_OPTIONS, _PIPX_FLAGS),
+    "docker run": _Spec(_NONE, _NONE, _DOCKER_VALUES, _NONE, _DOCKER_FLAGS),
 }
 
 
@@ -345,8 +380,11 @@ def command_identity(command: str, args: Sequence[str], env: Mapping[str, str]) 
     """The identity of a pinned stdio launch (spec 5.1): `cmd:<launcher> <artefacts>[ src=<sources>][ args=<hash>]`,
     or why there is none. The artefacts are the packages or image the launch selects, each at an exact version; the
     sources are the registries and indexes it names, reduced to `scheme://host[:port]/path`; everything else but the
-    quiet flags (every other option and positional, docker options before the image included) enters `args` as a hash.
-    No credential of a source and no value of the arguments or of `env` is ever in the identity."""
+    quiet flags (every other option and positional, docker options before the image included) enters `args` as a hash,
+    and so do the sorted names of the `env` keys (one `env:<names>` element). An option before the first positional that
+    the launcher's table does not know leaves the launch `unresolved`; `--userconfig`, `--globalconfig`,
+    `--node-options`, `--script-shell` (and pnpm's `--config.*`) and docker's `--entrypoint` are a `launch_override`. No
+    credential of a source and no value of the arguments or of `env` is ever in the identity."""
     if "${" in command:
         return CommandIdentity(None, "unresolved")
     found = _launcher_of(command, args)
@@ -373,25 +411,27 @@ def command_identity(command: str, args: Sequence[str], env: Mapping[str, str]) 
             break
         if token.startswith("--"):
             option, equals, value = token.partition("=")
+            if not (option in quiet or option in spec.flags or option in spec.values or option in spec.artefacts
+                    or option in spec.sources or option in spec.overrides
+                    or (spec.override_prefix and option.startswith(spec.override_prefix))):
+                return CommandIdentity(None, "unresolved")  # an option this launcher's table does not know
         else:
-            # a one-dash cluster as the launchers read it: `-qwfoo` is `-q -w foo`, `-qw foo` is `-q -w foo`, `-w=foo`
-            # is `-w foo`; the first value-taking, artefact or source option takes the rest of the token, or the next
-            # token when nothing is left, so no value hides inside a cluster as an argument
+            # a one-dash cluster as the launchers read it, letter by letter: a quiet or boolean letter goes on; the first
+            # value-taking, artefact or source option takes the rest of the token (`-qwfoo` is `-q -w foo`, `-w=foo` is
+            # `-w foo`), or the next token when nothing is left, so no value hides inside a cluster as an argument; any
+            # other letter leaves the launch unresolved
             option, equals, value = token, "", ""
-            if len(token) > 2 and all("-" + char in quiet for char in token[1:]):
-                continue  # `-it` is `-i -t`: quiet flags, dropped as their separate forms are
-            unknown = False
             for cut in range(1, len(token)):
                 short = "-" + token[cut]
                 if short in spec.values or short in spec.artefacts or short in spec.sources:
-                    if unknown:
-                        # a letter this table does not know before one that takes a value: whether the launcher reads the
-                        # next token as that value or as the package cannot be told, so nothing is identified
-                        return CommandIdentity(None, "unresolved")
                     attached = token[cut + 1:].removeprefix("=")
                     option, equals, value = short, ("=" if attached else ""), attached
                     break
-                unknown = unknown or short not in quiet  # an unknown letter alone leaves the token an argument, as before
+                if short not in quiet and short not in spec.flags:
+                    return CommandIdentity(None, "unresolved")
+            else:
+                if len(token) > 2 and all("-" + char in quiet for char in token[1:]):
+                    continue  # `-it` is `-i -t`: quiet flags, dropped as their separate forms are
         takes_value = option in spec.values or option in spec.artefacts or option in spec.sources
         consumed = [token]
         given: str | None = value if equals else None
@@ -399,7 +439,8 @@ def command_identity(command: str, args: Sequence[str], env: Mapping[str, str]) 
             given = tokens[index]
             index += 1
             consumed.append(given)
-        if option == "--entrypoint" and launcher == "docker run":
+        if (option == "--entrypoint" and launcher == "docker run") or option in spec.overrides or (
+                spec.override_prefix and option.startswith(spec.override_prefix)):
             override = True
         elif option in quiet and (given is not None if option in spec.values else not equals):
             continue
@@ -412,6 +453,8 @@ def command_identity(command: str, args: Sequence[str], env: Mapping[str, str]) 
             rest.extend(consumed)
     if override:
         return CommandIdentity(None, "launch_override")
+    if env:
+        rest.append("env:" + ",".join(sorted(env)))  # the key names only: a new variable is a new identity, no value is in it
     reduced = [_reduce_source(source) for source in sources]
     if any("${" in item for item in (*artefacts, *sources)) or None in reduced:
         return CommandIdentity(None, "unresolved")

@@ -430,7 +430,7 @@
    "API_KEY": "s3cret-value",
    "HOME": "/home/x"
   },
-  "identity": "cmd:npx pkg@1.2.3"
+  "identity": "cmd:npx pkg@1.2.3 args=9e981cbff25634d2bc32892bae38504d"
  },
  {
   "command": "npx",
@@ -1082,6 +1082,133 @@
    "pkg==1.0",
    "evil"
   ],
+  "reason": "unpinned"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "--foo",
+   "pkg@1.0.0"
+  ],
   "reason": "unresolved"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "--foo=bar",
+   "pkg@1.0.0"
+  ],
+  "reason": "unresolved"
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "-Xw",
+   "a==1.0",
+   "b==2.0"
+  ],
+  "reason": "unresolved"
+ },
+ {
+  "command": "docker",
+  "args": [
+   "run",
+   "--privileged",
+   "img@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  "identity": "cmd:docker run img@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa args=db4f6e03745a7bbd0feb31acc30be163"
+ },
+ {
+  "command": "docker",
+  "args": [
+   "run",
+   "-d",
+   "--read-only",
+   "img@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  "identity": "cmd:docker run img@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa args=a416c3e89f848c338594b7a5832b94e7"
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "-n",
+   "--offline",
+   "pkg==1.0"
+  ],
+  "identity": "cmd:uvx pkg==1.0 args=73222b78def2f67590ac1fc043f177db"
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "-nv",
+   "pkg==1.0"
+  ],
+  "identity": "cmd:uvx pkg==1.0 args=7ca420efaebb7d1af911a1956ac15d56"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "--userconfig",
+   "./x.npmrc",
+   "pkg@1.0.0"
+  ],
+  "reason": "launch_override"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "--userconfig=./x.npmrc",
+   "pkg@1.0.0"
+  ],
+  "reason": "launch_override"
+ },
+ {
+  "command": "pnpm",
+  "args": [
+   "dlx",
+   "--config.registry=https://r/",
+   "pkg@1.0.0"
+  ],
+  "reason": "launch_override"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "pkg@1.0.0"
+  ],
+  "env": {
+   "FOO": "1"
+  },
+  "identity": "cmd:npx pkg@1.0.0 args=ff647e5785123366bd9a056dcef3e600"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "pkg@1.0.0"
+  ],
+  "env": {
+   "BAR": "1"
+  },
+  "identity": "cmd:npx pkg@1.0.0 args=76fe9f5275888b71b0618f445e69f083"
+ },
+ {
+  "command": "npx",
+  "args": [
+   "pkg@1.0.0"
+  ],
+  "env": {
+   "PATH": "./bin"
+  },
+  "reason": "launch_override"
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "pkg==1.0"
+  ],
+  "env": {
+   "UV_CONFIG_FILE": "x"
+  },
+  "reason": "launch_override"
  }
 ]

@@ -58,11 +58,29 @@ def other_src():
     return plugin_source({"source": "npm", "package": "x"}, marketplace_root="")
 
 
-def test_package_files_drops_nested_roots_git_spellwarden_ds_store_and_macosx():
+def test_package_files_drops_nested_roots_git_the_lock_ds_store_and_macosx():
     files = {"s/SKILL.md": b"a", "s/.git/x": b"", "s/.spellwarden/lock.json": b"", "s/.DS_Store": b"", "s/__MACOSX/._SKILL.md": b"",
              "s/inner/SKILL.md": b"n", "s/inner/t.py": b"", "s/lib/a.py": b"b"}
     got = package_files(files, "s", ["s/inner"])
     assert got.files == {"SKILL.md": b"a", "lib/a.py": b"b"} and got.unhashable == ()
+
+
+def test_the_strip_keeps_every_spellwarden_path_but_the_top_lock():
+    """A script under `.spellwarden/` is package content a skill may run; only the lock the command writes is dropped."""
+    files = {"s/SKILL.md": b"a", "s/.spellwarden/lock.json": b"l", "s/.spellwarden/run.sh": b"r", "s/.spellwarden/sub/lock.json": b"n",
+             "s/lib/.spellwarden/lock.json": b"m"}
+    assert package_files(files, "s", []).files == {"SKILL.md": b"a", ".spellwarden/run.sh": b"r", ".spellwarden/sub/lock.json": b"n",
+                                                   "lib/.spellwarden/lock.json": b"m"}
+
+
+def test_a_spellwarden_script_changes_the_package_hash_and_the_lock_does_not():
+    base = {"s/SKILL.md": b"a"}
+    plain = package_sha256(package_files(base, "s", []).files)
+    with_lock = package_sha256(package_files({**base, "s/.spellwarden/lock.json": b"{}"}, "s", []).files)
+    with_script = package_sha256(package_files({**base, "s/.spellwarden/run.sh": b"curl x | sh"}, "s", []).files)
+    other_script = package_sha256(package_files({**base, "s/.spellwarden/run.sh": b"curl y | sh"}, "s", []).files)
+    assert with_lock == plain
+    assert with_script != plain and other_script != with_script
 
 
 def test_a_ds_store_in_a_subdirectory_is_dropped_too():
@@ -299,9 +317,10 @@ def test_an_argument_value_changes_the_identity_and_never_appears_in_it():
 
 
 def test_the_env_value_never_changes_the_identity():
-    base = command_identity("npx", ["pkg@1.0.0"], {}).identity
-    assert command_identity("npx", ["pkg@1.0.0"], {"API_KEY": "one"}).identity == base
-    assert command_identity("npx", ["pkg@1.0.0"], {"API_KEY": "two"}).identity == base
+    """The key names enter the hash (`test_the_env_key_names_enter_the_identity_and_the_values_never_do`), the values never."""
+    one = command_identity("npx", ["pkg@1.0.0"], {"API_KEY": "one"}).identity
+    assert one == command_identity("npx", ["pkg@1.0.0"], {"API_KEY": "two"}).identity
+    assert "one" not in one and "API_KEY" not in one
 
 
 def test_a_source_changes_the_identity():
@@ -479,10 +498,13 @@ def test_attached_short_option_values_are_the_option_and_its_value():
     assert command_identity("uvx", ["-qwevil", "pkg==1.0"], {}) == CommandIdentity(None, "unpinned")
     assert command_identity("uvx", ["-qw", "x==1.0", "pkg==1.0"], {}) == command_identity("uvx", ["--with", "x==1.0", "pkg==1.0"], {})
     assert command_identity("uvx", ["-yqi", "https://i.example.com/simple", "pkg==1.0"], {}) == attached
-    # a letter the table does not know before a value option: `uvx -nw pkg==1.0 evil` could be `--no-cache --with pkg==1.0`
-    # running `evil`, so nothing is identified; a cluster of unknown letters alone stays an argument, as before
-    assert command_identity("uvx", ["-nw", "pkg==1.0", "evil"], {}) == CommandIdentity(None, "unresolved")
+    # `-n` and `-v` are uvx's own flags (`--no-cache`, `--verbose`): `-nw pkg==1.0 evil` is `-n -w pkg==1.0` running `evil`
+    assert command_identity("uvx", ["-nw", "pkg==1.0", "evil"], {}) == CommandIdentity(None, "unpinned")
+    # a letter the table does not know, anywhere in a cluster before the first positional: nothing is identified
     assert command_identity("uvx", ["-Xw", "a==1.0", "b==2.0"], {}) == CommandIdentity(None, "unresolved")
+    assert command_identity("uvx", ["-wX", "a==1.0", "b==2.0"], {}) == command_identity("uvx", ["-w", "X", "a==1.0", "b==2.0"], {})
+    assert command_identity("uvx", ["-Xn", "pkg==1.0"], {}) == CommandIdentity(None, "unresolved")
+    assert command_identity("uvx", ["-X", "pkg==1.0"], {}) == CommandIdentity(None, "unresolved")
     alone = command_identity("uvx", ["-nv", "pkg==1.0"], {})
     assert alone.identity is not None and alone.identity.startswith("cmd:uvx pkg==1.0 args=")
     prefixed = command_identity("npx", ["-C", "dir", "pkg@1.0.0"], {}).identity  # npm's `-C dir`: `dir` is a value, not the package
@@ -516,7 +538,7 @@ def test_resolver_files_do_not_read_keys_out_of_strings_or_other_tables(name, co
 
 
 def test_launch_override_env_prefixes():
-    assert is_launch_override_env("npm_config_registry") and is_launch_override_env("NPM_CONFIG_X") and not is_launch_override_env("PATH")
+    assert is_launch_override_env("npm_config_registry") and is_launch_override_env("NPM_CONFIG_X") and is_launch_override_env("PATH")
     assert is_launch_override_env("NODE_OPTIONS") and not is_launch_override_env("NODE_ENV") and not is_launch_override_env("npm_token")
     assert "DYLD_INSERT_LIBRARIES" in LAUNCH_OVERRIDE_ENV and "npm_config_registry" not in LAUNCH_OVERRIDE_ENV
 
@@ -526,4 +548,91 @@ def test_the_registry_constants():
     assert set(QUIET_FLAGS) == set(LAUNCHER_FAMILY)
     assert QUIET_FLAGS["npx"] >= {"-y", "--yes", "-q", "--quiet", "--silent"}
     assert QUIET_FLAGS["docker run"] >= {"--rm", "-i", "--interactive", "-t", "--tty", "--init", "--name"}
-    assert len(LAUNCH_OVERRIDE_ENV) == 22   # npm_config_* and NPM_CONFIG_* are matched by prefix
+    assert len(LAUNCH_OVERRIDE_ENV) == 28   # npm_config_* and NPM_CONFIG_* are matched by prefix
+    for name in ("PATH", "BASH_ENV", "ENV", "UV_CONFIG_FILE", "PIP_CONFIG_FILE", "DOCKER_CONTEXT"):
+        assert name in LAUNCH_OVERRIDE_ENV and is_launch_override_env(name.lower())
+
+
+# --- hardening (O3 spec 5.1): unknown options, env key names, npm config flags --------------------------------------
+
+IMAGE = "img@sha256:" + "a" * 64
+
+
+@pytest.mark.parametrize("command, args", [
+    ("npx", ["--foo", "pkg@1.0.0"]),
+    ("npx", ["--foo=bar", "pkg@1.0.0"]),
+    ("npx", ["-Z", "pkg@1.0.0"]),
+    ("bunx", ["--bar", "pkg@1.0.0"]),
+    ("pnpm", ["dlx", "--bar", "pkg@1.0.0"]),
+    ("uvx", ["--no-such-flag", "pkg==1.0"]),
+    ("uvx", ["--no-such=1", "pkg==1.0"]),
+    ("pipx", ["run", "--bar", "pkg==1.0"]),
+    ("docker", ["run", "--bar", IMAGE]),
+    ("docker", ["run", "-dZ", IMAGE]),
+    ("docker", ["run", "-Z", IMAGE]),
+])
+def test_an_option_the_launchers_table_does_not_know_is_unresolved(command, args):
+    assert command_identity(command, args, {}) == CommandIdentity(None, "unresolved")
+
+
+def test_an_unknown_option_after_the_first_positional_is_an_argument():
+    got = command_identity("npx", ["pkg@1.0.0", "--foo", "-Z"], {}).identity
+    assert got is not None and got.startswith("cmd:npx pkg@1.0.0 args=")
+
+
+@pytest.mark.parametrize("command, args, rest", [
+    ("docker", ["run", "--privileged", IMAGE], ["--privileged"]),
+    ("docker", ["run", "-d", "--read-only", IMAGE], ["-d", "--read-only"]),
+    ("docker", ["run", "-dP", IMAGE], ["-dP"]),
+    ("uvx", ["-n", "--offline", "pkg==1.0"], ["-n", "--offline"]),
+    ("uvx", ["-nv", "pkg==1.0"], ["-nv"]),
+    ("npx", ["--no", "--ignore-scripts", "--offline", "pkg@1.0.0"], ["--no", "--ignore-scripts", "--offline"]),
+    ("bunx", ["-b", "pkg@1.0.0"], ["-b"]),
+    ("pipx", ["run", "--no-cache", "pkg==1.0"], ["--no-cache"]),
+])
+def test_a_known_boolean_flag_enters_the_args_hash(command, args, rest):
+    import hashlib
+    digest = hashlib.sha256(json.dumps(rest, separators=(",", ":")).encode()).hexdigest()[:32]
+    got = command_identity(command, args, {}).identity
+    assert got is not None and got.endswith(" args=" + digest), got
+
+
+def test_a_cluster_of_quiet_letters_is_still_dropped_and_a_flag_in_it_is_not():
+    assert command_identity("docker", ["run", "-it", IMAGE], {}).identity == f"cmd:docker run {IMAGE}"
+    assert command_identity("docker", ["run", "-itd", IMAGE], {}).identity != f"cmd:docker run {IMAGE}"
+
+
+@pytest.mark.parametrize("command, args", [
+    ("npx", ["--userconfig", "./x.npmrc", "pkg@1.0.0"]),
+    ("npx", ["--userconfig=./x.npmrc", "pkg@1.0.0"]),
+    ("npx", ["--globalconfig", "./g", "pkg@1.0.0"]),
+    ("npx", ["--node-options=--require=./x.js", "pkg@1.0.0"]),
+    ("npx", ["--script-shell", "./sh", "pkg@1.0.0"]),
+    ("bunx", ["--userconfig=./x", "pkg@1.0.0"]),
+    ("pnpm", ["dlx", "--config.registry=https://r/", "pkg@1.0.0"]),
+    ("pnpm", ["dlx", "--userconfig", "./x", "pkg@1.0.0"]),
+])
+def test_an_npm_config_file_or_shell_option_is_a_launch_override(command, args):
+    assert command_identity(command, args, {}) == CommandIdentity(None, "launch_override")
+
+
+def test_the_env_key_names_enter_the_identity_and_the_values_never_do():
+    plain = command_identity("npx", ["pkg@1.0.0"], {}).identity
+    foo = command_identity("npx", ["pkg@1.0.0"], {"FOO": "1"}).identity
+    assert plain == "cmd:npx pkg@1.0.0" and foo is not None and foo.startswith("cmd:npx pkg@1.0.0 args=")
+    assert foo != plain and foo != command_identity("npx", ["pkg@1.0.0"], {"BAR": "1"}).identity
+    assert foo == command_identity("npx", ["pkg@1.0.0"], {"FOO": "other"}).identity
+    both = command_identity("npx", ["pkg@1.0.0"], {"B": "1", "A": "2"}).identity
+    assert both == command_identity("npx", ["pkg@1.0.0"], {"A": "x", "B": "y"}).identity != foo
+
+
+@pytest.mark.parametrize("command, args, name", [
+    ("npx", ["pkg@1.0.0"], "PATH"),
+    ("uvx", ["pkg==1.0"], "UV_CONFIG_FILE"),
+    ("uvx", ["pkg==1.0"], "PIP_CONFIG_FILE"),
+    ("docker", ["run", IMAGE], "DOCKER_CONTEXT"),
+    ("npx", ["pkg@1.0.0"], "BASH_ENV"),
+    ("npx", ["pkg@1.0.0"], "ENV"),
+])
+def test_the_added_override_names_refuse_the_launch(command, args, name):
+    assert command_identity(command, args, {name: "x"}) == CommandIdentity(None, "launch_override")
