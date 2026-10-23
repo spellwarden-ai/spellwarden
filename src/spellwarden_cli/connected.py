@@ -441,9 +441,13 @@ def _resolver_bytes(fileset: FileSet | None, path: str) -> bytes:
         except OSError:
             return b"\0unreadable\0" + os.urandom(16)
     except (paths.UnsafePath, OSError):
-        try:
-            return b"\0link\0" + fileset.link_target(path)
-        except (paths.UnsafePath, paths.TooLarge, OSError):
+        try:  # a link: its text and the bytes of the file it reaches inside the scan root, which is what the tool reads
+            target = fileset.link_target(path)
+            resolved = posixpath.normpath(posixpath.join(posixpath.dirname(path), target.decode("utf-8", "replace")))
+            if resolved.startswith("../") or resolved == ".." or posixpath.isabs(resolved) or "\\" in resolved:
+                return b"\0unreadable\0" + os.urandom(16)
+            return b"\0link\0" + target + b"\0" + _resolver_bytes(fileset, resolved)
+        except (paths.UnsafePath, paths.TooLarge, OSError, RecursionError):
             return b"\0unreadable\0" + os.urandom(16)
 
 

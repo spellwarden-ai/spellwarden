@@ -733,10 +733,18 @@ def test_a_resolver_file_binding_follows_a_link_target_and_an_oversize_file(tmp_
         pytest.skip("no symlinks here")
     fileset = files.FileSet(root=str(root), entries=(), repo_prefix=None, notices=(), errors=())
     first = connected._resolver_bytes(fileset, ".npmrc")
-    assert first == b"\0link\0a.npmrc"
+    assert first == b"\0link\0a.npmrc\0" + b"registry=https://a.example/\n"   # the text and what it reaches
+    (root / "a.npmrc").write_text("registry=https://c.example/\n", encoding="utf-8")
+    assert connected._resolver_bytes(fileset, ".npmrc") != first                  # the target's content changed
     (root / ".npmrc").unlink()
     os.symlink("b.npmrc", root / ".npmrc")
     assert connected._resolver_bytes(fileset, ".npmrc") != first
+    (root / ".npmrc").unlink()
+    os.symlink("../outside.npmrc", root / ".npmrc")                              # outside the root: never matches
+    assert connected._resolver_bytes(fileset, ".npmrc") != connected._resolver_bytes(fileset, ".npmrc")
+    (root / ".npmrc").unlink()
+    os.symlink(".npmrc", root / ".npmrc")                                        # a loop: never matches either
+    assert connected._resolver_bytes(fileset, ".npmrc") != connected._resolver_bytes(fileset, ".npmrc")
     (root / "big" ).mkdir()
     (root / "big" / ".npmrc").write_bytes(b"#" * (files.FILE_MAX + 1) + b"\nregistry=https://a.example/\n")
     large = connected._resolver_bytes(fileset, "big/.npmrc")
