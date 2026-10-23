@@ -1074,5 +1074,14 @@
    "pkg==1.0"
   ],
   "reason": "unpinned"
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "-nw",
+   "pkg==1.0",
+   "evil"
+  ],
+  "reason": "unresolved"
  }
 ]

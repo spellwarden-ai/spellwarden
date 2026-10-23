@@ -380,14 +380,18 @@ def command_identity(command: str, args: Sequence[str], env: Mapping[str, str]) 
             option, equals, value = token, "", ""
             if len(token) > 2 and all("-" + char in quiet for char in token[1:]):
                 continue  # `-it` is `-i -t`: quiet flags, dropped as their separate forms are
+            unknown = False
             for cut in range(1, len(token)):
                 short = "-" + token[cut]
                 if short in spec.values or short in spec.artefacts or short in spec.sources:
+                    if unknown:
+                        # a letter this table does not know before one that takes a value: whether the launcher reads the
+                        # next token as that value or as the package cannot be told, so nothing is identified
+                        return CommandIdentity(None, "unresolved")
                     attached = token[cut + 1:].removeprefix("=")
                     option, equals, value = short, ("=" if attached else ""), attached
                     break
-                if short not in quiet:  # a letter this table does not know: the whole token stays an argument, as before
-                    break
+                unknown = unknown or short not in quiet  # an unknown letter alone leaves the token an argument, as before
         takes_value = option in spec.values or option in spec.artefacts or option in spec.sources
         consumed = [token]
         given: str | None = value if equals else None

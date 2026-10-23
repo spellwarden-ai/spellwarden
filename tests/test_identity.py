@@ -479,9 +479,12 @@ def test_attached_short_option_values_are_the_option_and_its_value():
     assert command_identity("uvx", ["-qwevil", "pkg==1.0"], {}) == CommandIdentity(None, "unpinned")
     assert command_identity("uvx", ["-qw", "x==1.0", "pkg==1.0"], {}) == command_identity("uvx", ["--with", "x==1.0", "pkg==1.0"], {})
     assert command_identity("uvx", ["-yqi", "https://i.example.com/simple", "pkg==1.0"], {}) == attached
-    # a letter the table does not know before the value option: the token stays an argument and consumes nothing
-    unknown = command_identity("uvx", ["-Xw", "a==1.0", "b==2.0"], {})
-    assert unknown.identity is not None and unknown.identity.startswith("cmd:uvx a==1.0 args=")
+    # a letter the table does not know before a value option: `uvx -nw pkg==1.0 evil` could be `--no-cache --with pkg==1.0`
+    # running `evil`, so nothing is identified; a cluster of unknown letters alone stays an argument, as before
+    assert command_identity("uvx", ["-nw", "pkg==1.0", "evil"], {}) == CommandIdentity(None, "unresolved")
+    assert command_identity("uvx", ["-Xw", "a==1.0", "b==2.0"], {}) == CommandIdentity(None, "unresolved")
+    alone = command_identity("uvx", ["-nv", "pkg==1.0"], {})
+    assert alone.identity is not None and alone.identity.startswith("cmd:uvx pkg==1.0 args=")
     prefixed = command_identity("npx", ["-C", "dir", "pkg@1.0.0"], {}).identity  # npm's `-C dir`: `dir` is a value, not the package
     assert prefixed is not None and prefixed.startswith("cmd:npx pkg@1.0.0 args=")
     image = "ghcr.io/acme/server@sha256:" + "a" * 64
