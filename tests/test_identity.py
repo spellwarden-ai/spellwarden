@@ -468,6 +468,35 @@ def test_resolver_files_still_ignore_other_tables_in_every_spelling(name, conten
     assert resolver_files({name: content}, {name: content}.__getitem__) == {}
 
 
+def test_attached_short_option_values_are_the_option_and_its_value():
+    """`-wevil pkg==1.0` installs `evil` as `-w evil` does: an attached value is split off, never left as an argument."""
+    assert command_identity("uvx", ["-wevil", "pkg==1.0"], {}) == CommandIdentity(None, "unpinned")
+    assert command_identity("uvx", ["-w=x==1.0", "pkg==1.0"], {}) == command_identity("uvx", ["--with", "x==1.0", "pkg==1.0"], {})
+    attached = command_identity("uvx", ["-ihttps://i.example.com/simple", "pkg==1.0"], {})
+    assert attached == command_identity("uvx", ["--index-url", "https://i.example.com/simple", "pkg==1.0"], {})
+    assert command_identity("npx", ["-ppkg@1.0.0", "cmd"], {}) == command_identity("npx", ["-p", "pkg@1.0.0", "cmd"], {})
+
+
+@pytest.mark.parametrize("name, content, family", [
+    ("pyproject.toml", b'[tool.uv]\nnote = """\n[tool.other]\n"""\nindex-url = "https://i.example.com/simple"\n', "python"),
+    ("pyproject.toml", b"[tool.uv]\nnote = " + b"'" * 3 + b"\n" + b"'" * 3 + b"\n\"index-url\" = 'https://i.example.com/simple'\n", "python"),
+    ("pyproject.toml", b'tool = { uv = { index-url = "https://i.example.com/simple" } }\n', "python"),
+    ("pyproject.toml", b'tool = { poetry = { name = "x" }, uv = { pip = { index-url = "https://i.example.com/simple" } } }\n', "python"),
+    ("bunfig.toml", b'install = { cache = { dir = "x" }, registry = "https://r.example.com/" }\n', "npm"),
+])
+def test_resolver_files_see_through_multi_line_strings_and_nested_inline_tables(name, content, family):
+    assert resolver_files({name: content}, {name: content}.__getitem__) == {family: (name,)}
+
+
+@pytest.mark.parametrize("name, content", [
+    ("pyproject.toml", b'[tool.uv]\nnote = """\nindex-url = "https://i.example.com/simple"\n"""\n'),
+    ("pyproject.toml", b'tool = { other = { uv = { index-url = "x" } } }\n'),
+    ("bunfig.toml", b'install = { scopes = "{ registry = 1 }" }\n'),
+])
+def test_resolver_files_do_not_read_keys_out_of_strings_or_other_tables(name, content):
+    assert resolver_files({name: content}, {name: content}.__getitem__) == {}
+
+
 def test_launch_override_env_prefixes():
     assert is_launch_override_env("npm_config_registry") and is_launch_override_env("NPM_CONFIG_X") and not is_launch_override_env("PATH")
     assert is_launch_override_env("NODE_OPTIONS") and not is_launch_override_env("NODE_ENV") and not is_launch_override_env("npm_token")

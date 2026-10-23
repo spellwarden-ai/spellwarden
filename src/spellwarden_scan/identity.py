@@ -371,7 +371,12 @@ def command_identity(command: str, args: Sequence[str], env: Mapping[str, str]) 
                 artefacts.append(token)
             rest.extend(tokens[index:])
             break
-        option, equals, value = token.partition("=") if token.startswith("--") else (token, "", "")
+        if token.startswith("--"):
+            option, equals, value = token.partition("=")
+        elif len(token) > 2 and (token[:2] in spec.values or token[:2] in spec.artefacts or token[:2] in spec.sources):
+            option, equals, value = token[:2], "=", token[2:].removeprefix("=")  # `-wfoo` and `-w=foo` are `-w foo`
+        else:
+            option, equals, value = token, "", ""
         takes_value = option in spec.values or option in spec.artefacts or option in spec.sources
         consumed = [token]
         given: str | None = value if equals else None
@@ -475,7 +480,7 @@ _INDEX_LINE = re.compile(r"^\s*(?:index-url|extra-index-url|find-links|index|def
 _TABLE_HEADER = re.compile(r"^\s*\[\[?([^\[\]]*)\]\]?\s*(?:#.*)?$")
 _KEY_SEGMENT = r"""(?:"[^"]*"|'[^']*'|[A-Za-z0-9_-]+)"""
 _KEY_LINE = re.compile(rf"^\s*({_KEY_SEGMENT}(?:\s*\.\s*{_KEY_SEGMENT})*)\s*=\s*(.*?)\s*$")
-_INLINE_KEY = re.compile(rf"(?:^|[{{,])\s*({_KEY_SEGMENT}(?:\s*\.\s*{_KEY_SEGMENT})*)\s*=")
+_INLINE_KEY = re.compile(rf"^\s*({_KEY_SEGMENT}(?:\s*\.\s*{_KEY_SEGMENT})*)\s*=")
 _SEGMENT = re.compile(_KEY_SEGMENT)
 
 
@@ -486,9 +491,14 @@ def _dotted(raw: str) -> str:
 
 def _keys(text: str):
     """`(kind, dotted)` for every header (`"table"`) and every key (`"key"`, prefixed by its table) of a TOML-like text,
-    the keys of an inline table one level deep included."""
+    the keys of inline tables at any depth included. The lines of a multi-line string are neither headers nor keys."""
     table = ""
+    closing: str | None = None  # inside a multi-line string: the delimiter that ends it
     for line in text.splitlines():
+        if closing is not None:
+            if closing in line:
+                closing = None
+            continue
         header = _TABLE_HEADER.match(line)
         if header is not None:
             table = _dotted(header.group(1))
@@ -500,9 +510,45 @@ def _keys(text: str):
         full = ".".join(part for part in (table, _dotted(key.group(1))) if part)
         yield "key", full
         value = key.group(2)
+        for delimiter in ('"""', "'''"):
+            if value.startswith(delimiter) and delimiter not in value[3:]:
+                closing = delimiter
         if value.startswith("{"):
-            for inner in _INLINE_KEY.finditer(value[1:]):
-                yield "key", full + "." + _dotted(inner.group(1))
+            for inner in _inline_keys(full, value[1:]):
+                yield "key", inner
+
+
+def _inline_keys(prefix: str, text: str):
+    """The dotted keys of an inline table body, nested tables flattened; a quoted string is skipped whole."""
+    depth, quote, start = 0, None, 0
+    pairs: list[str] = []
+    for position, char in enumerate(text):
+        if quote is not None:
+            if char == quote:
+                quote = None
+        elif char in '"\'':
+            quote = char
+        elif char == "{":
+            depth += 1
+        elif char == "}":
+            if depth == 0:
+                pairs.append(text[start:position])
+                start = len(text)
+                break
+            depth -= 1
+        elif char == "," and depth == 0:
+            pairs.append(text[start:position])
+            start = position + 1
+    pairs.append(text[start:])
+    for pair in pairs:
+        key = _INLINE_KEY.match(pair)
+        if key is None:
+            continue
+        full = prefix + "." + _dotted(key.group(1))
+        yield full
+        value = pair[key.end():].lstrip()
+        if value.startswith("{"):
+            yield from _inline_keys(full, value[1:])
 
 
 def _redirects(name: str, text: str) -> bool:
