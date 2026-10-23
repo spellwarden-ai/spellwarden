@@ -1003,5 +1003,52 @@
    "DOCKER_CONFIG": "x"
   },
   "reason": "launch_override"
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "-w",
+   "safe==1.0.0",
+   "evil"
+  ],
+  "reason": "unpinned"
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "-w",
+   "safe==1.0.0",
+   "evil==2.0.0"
+  ],
+  "identity": "cmd:uvx evil==2.0.0 safe==1.0.0"
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "-i",
+   "https://i.example.com/simple",
+   "pkg==1.0"
+  ],
+  "identity": "cmd:uvx pkg==1.0 src=https://i.example.com/simple"
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "-f",
+   "https://f.example.com/",
+   "pkg==1.0"
+  ],
+  "identity": "cmd:uvx pkg==1.0 src=https://f.example.com/"
+ },
+ {
+  "command": "uvx",
+  "args": [
+   "-b",
+   "c.txt",
+   "-C",
+   "a=b",
+   "pkg==1.0"
+  ],
+  "identity": "cmd:uvx pkg==1.0 args=57bbe50f4e250d4108e9e267e292a0f2"
  }
 ]

@@ -263,6 +263,7 @@ class _Spec:
 _NPM_VALUES = frozenset({"--cache", "--prefix", "--userconfig", "-w", "--workspace", "--loglevel", "--node-arg"})
 _UVX_VALUES = frozenset({
     "-p", "--python", "--with-requirements", "--with-editable", "--env-file", "--index-strategy", "-c", "--constraints",
+    "-b", "-C", "--config-setting", "--config-settings-package",
     "--overrides", "--build-constraints", "--directory", "--project", "--config-file", "--cache-dir", "--resolution",
     "--prerelease", "--fork-strategy", "--keyring-provider", "--link-mode", "--python-preference", "--exclude-newer",
     "-P", "--upgrade-package", "--reinstall-package", "--refresh-package", "--color", "--allow-insecure-host",
@@ -288,7 +289,8 @@ _SPECS: dict[str, _Spec] = {
     "npx": _Spec(_PACKAGE, _NONE, _NPM_VALUES | {"-c", "--call"}, _SOURCE_OPTIONS),
     "bunx": _Spec(_PACKAGE, _NONE, _NONE, _SOURCE_OPTIONS),
     "pnpm dlx": _Spec(_PACKAGE, _NONE, _NONE, _SOURCE_OPTIONS),
-    "uvx": _Spec(frozenset({"--from", "--with"}), frozenset({"--from"}), _UVX_VALUES, _SOURCE_OPTIONS),
+    # uv's short aliases mean their long forms: `-w` is `--with`, `-i` `--index-url`, `-f` `--find-links`
+    "uvx": _Spec(frozenset({"--from", "--with", "-w"}), frozenset({"--from"}), _UVX_VALUES, _SOURCE_OPTIONS | {"-i", "-f"}),
     "pipx run": _Spec(frozenset({"--spec"}), frozenset({"--spec"}), frozenset({"--python", "--pip-args", "--path"}),
                       _SOURCE_OPTIONS),
     "docker run": _Spec(_NONE, _NONE, _DOCKER_VALUES, _NONE),
@@ -460,27 +462,47 @@ def parse_command_identity(identity: str) -> ParsedCommandIdentity:
 _RESOLVER_FILES = {".npmrc": "npm", ".yarnrc.yml": "npm", "bunfig.toml": "npm", "uv.toml": "python", "pip.conf": "python",
                    "pyproject.toml": "python"}
 _RESOLVER_CAP = 64 * 1024
-_NPMRC = re.compile(r"^\s*(?:@[^\s:=]+:)?registry\s*=", re.MULTILINE)
-_YARNRC = re.compile(r"^\s*(?:npmRegistryServer|npmScopes)\s*:", re.MULTILINE)
-_INDEX_KEYS = r"(?:index-url|extra-index-url|find-links|index|default-index|index_url|extra_index_url|find_links|default_index)"
-_INDEX_LINE = re.compile(rf"^\s*{_INDEX_KEYS}\s*[=:]")
-_DOTTED_UV_LINE = re.compile(rf"^\s*tool\.uv(?:\.pip)?\.{_INDEX_KEYS}\s*=")
+# npm's ini reader and the TOML readers accept a quoted key (`"registry"=`), a dotted key (`install.registry =`) and an
+# inline table (`install = {registry = ...}`) for the same setting, so the match is on the key as the tool reads it, not
+# on one spelling of the line. Line-based still, no TOML parser (plan Task 2): a form this misses is a gap, not a crash.
+_NPMRC = re.compile(r"""^\s*(?:"(?:@[^"\s:=]+:)?registry"|'(?:@[^'\s:=]+:)?registry'|(?:@[^\s:=]+:)?registry)\s*=""",
+                    re.MULTILINE)
+_YARNRC = re.compile(r"""^\s*["']?(?:npmRegistryServer|npmScopes)["']?\s*:""", re.MULTILINE)
+_INDEX_NAMES = frozenset({"index-url", "extra-index-url", "find-links", "index", "default-index", "index_url",
+                          "extra_index_url", "find_links", "default_index"})
+_INDEX_LINE = re.compile(r"^\s*(?:index-url|extra-index-url|find-links|index|default-index|index_url|extra_index_url|"
+                         r"find_links|default_index)\s*[=:]")
 _TABLE_HEADER = re.compile(r"^\s*\[\[?([^\[\]]*)\]\]?\s*(?:#.*)?$")
-_REGISTRY_LINE = re.compile(r"^\s*registry\s*=")
-_ANY_KEY_LINE = re.compile(r"^\s*[^#\s\[=][^=]*=")
+_KEY_SEGMENT = r"""(?:"[^"]*"|'[^']*'|[A-Za-z0-9_-]+)"""
+_KEY_LINE = re.compile(rf"^\s*({_KEY_SEGMENT}(?:\s*\.\s*{_KEY_SEGMENT})*)\s*=\s*(.*?)\s*$")
+_INLINE_KEY = re.compile(rf"(?:^|[{{,])\s*({_KEY_SEGMENT}(?:\s*\.\s*{_KEY_SEGMENT})*)\s*=")
+_SEGMENT = re.compile(_KEY_SEGMENT)
 
 
-def _tables(text: str):
-    """`(table, line)` for every line of a TOML-like text: the dotted name of the table the line sits in, `""` before the
-    first header. A header yields `(name, None)`."""
+def _dotted(raw: str) -> str:
+    """A TOML key or header as a dotted name, each segment without its quotes."""
+    return ".".join(segment.strip("\"'") for segment in _SEGMENT.findall(raw))
+
+
+def _keys(text: str):
+    """`(kind, dotted)` for every header (`"table"`) and every key (`"key"`, prefixed by its table) of a TOML-like text,
+    the keys of an inline table one level deep included."""
     table = ""
     for line in text.splitlines():
         header = _TABLE_HEADER.match(line)
         if header is not None:
-            table = header.group(1).replace(" ", "").replace('"', "").replace("'", "")
-            yield table, None
-        else:
-            yield table, line
+            table = _dotted(header.group(1))
+            yield "table", table
+            continue
+        key = _KEY_LINE.match(line)
+        if key is None:
+            continue
+        full = ".".join(part for part in (table, _dotted(key.group(1))) if part)
+        yield "key", full
+        value = key.group(2)
+        if value.startswith("{"):
+            for inner in _INLINE_KEY.finditer(value[1:]):
+                yield "key", full + "." + _dotted(inner.group(1))
 
 
 def _redirects(name: str, text: str) -> bool:
@@ -488,20 +510,23 @@ def _redirects(name: str, text: str) -> bool:
         return _NPMRC.search(text) is not None
     if name == ".yarnrc.yml":
         return _YARNRC.search(text) is not None
-    if name == "pip.conf":
-        return any(_INDEX_LINE.match(line) for line in text.splitlines())
-    for table, line in _tables(text):
-        if name == "bunfig.toml":
-            scoped = table.startswith("install.scopes") or table == "install.registry"
-            plain = table == "install" and line is not None and _REGISTRY_LINE.match(line)
-            if plain or (scoped and line is not None and _ANY_KEY_LINE.match(line)):
+    if name == "pip.conf" and any(_INDEX_LINE.match(line) for line in text.splitlines()):
+        return True
+    for kind, dotted in _keys(text):
+        prefix, _, last = dotted.rpartition(".")
+        if name == "pip.conf":
+            if kind == "key" and last in _INDEX_NAMES:
+                return True
+        elif name == "bunfig.toml":
+            if dotted == "install.registry" or dotted.startswith(("install.registry.", "install.scopes.")):
                 return True
         elif name == "uv.toml":
-            if (line is None and table == "index") or (line is not None and _INDEX_LINE.match(line)):
+            indexed = kind == "table" and (dotted == "index" or dotted.startswith("index."))
+            if indexed or (kind == "key" and last in _INDEX_NAMES):
                 return True
-        elif (line is None and (table == "tool.uv.index" or table.startswith("tool.uv.index."))) or (
-                line is not None and ((table in ("tool.uv", "tool.uv.pip") and _INDEX_LINE.match(line))
-                                      or (table == "" and _DOTTED_UV_LINE.match(line)))):
+        elif kind == "table" and (dotted == "tool.uv.index" or dotted.startswith("tool.uv.index.")):
+            return True
+        elif kind == "key" and last in _INDEX_NAMES and prefix in ("tool.uv", "tool.uv.pip"):
             return True
     return False
 

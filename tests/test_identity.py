@@ -426,6 +426,48 @@ def test_resolver_files_with_an_unreadable_file_fails_closed():
     assert resolver_files([".npmrc"], read) == {"npm": (".npmrc",)}
 
 
+def test_uvx_short_options_mean_their_long_forms():
+    """uv's `-w`, `-i`, `-f`, `-b` and `-C` are `--with`, `--index-url`, `--find-links`, `--build-constraints` and
+    `--config-setting`: `uvx -w safe==1.0.0 evil` is an unpinned launch of `evil`, never an identity naming `safe`."""
+    assert command_identity("uvx", ["-w", "safe==1.0.0", "evil"], {}) == CommandIdentity(None, "unpinned")
+    for short, long in (("-w", "--with"), ("-i", "--index-url"), ("-f", "--find-links"), ("-b", "--build-constraints"),
+                        ("-C", "--config-setting")):
+        value = "https://i.example.com/simple" if short in ("-i", "-f") else "x==1.0" if short == "-w" else "c.txt"
+        got, want = (command_identity("uvx", [option, value, "pkg==1.0"], {}) for option in (short, long))
+        assert got.identity is not None and got.identity.startswith("cmd:uvx pkg==1.0"), (short, got)
+        if short in ("-w", "-i", "-f"):  # artefacts and sources are canonical; a value option stays in the args hash as written
+            assert got == want, (short, got, want)
+
+
+@pytest.mark.parametrize("name, content, family", [
+    (".npmrc", b'"registry"=https://r.example.com/\n', "npm"),
+    (".npmrc", b"'@acme:registry' = https://r.example.com/\n", "npm"),
+    (".yarnrc.yml", b'"npmRegistryServer": "https://r.example.com"\n', "npm"),
+    ("bunfig.toml", b'install.registry = "https://r.example.com/"\n', "npm"),
+    ("bunfig.toml", b'install = { registry = "https://r.example.com/" }\n', "npm"),
+    ("bunfig.toml", b'[install]\n"registry" = "https://r.example.com/"\n', "npm"),
+    ("bunfig.toml", b'[install.registry]\nurl = "https://r.example.com/"\n', "npm"),
+    ("uv.toml", b'[pip]\n"index-url" = "https://i.example.com/simple"\n', "python"),
+    ("pyproject.toml", b'[tool]\nuv.index-url = "https://i.example.com/simple"\n', "python"),
+    ("pyproject.toml", b'[tool.uv]\n"index-url" = "https://i.example.com/simple"\n', "python"),
+    ("pyproject.toml", b'tool.uv = { index-url = "https://i.example.com/simple" }\n', "python"),
+    ("pyproject.toml", b'[tool.uv.pip]\nextra-index-url = "https://i.example.com/simple"\n', "python"),
+])
+def test_resolver_files_match_the_key_as_the_tool_reads_it(name, content, family):
+    """Quoted, dotted and inline-table spellings of the same key redirect resolution just the same (security review S5)."""
+    assert resolver_files({name: content}, {name: content}.__getitem__) == {family: (name,)}
+
+
+@pytest.mark.parametrize("name, content", [
+    ("bunfig.toml", b'test = { registry = "x" }\n'),
+    ("pyproject.toml", b'[tool]\nruff.index-url = "x"\n'),
+    ("pyproject.toml", b'[tool.uv]\nindex-strategy = "first-index"\n'),
+    ("pyproject.toml", b'tool.poetry = { index-url = "x" }\n'),
+])
+def test_resolver_files_still_ignore_other_tables_in_every_spelling(name, content):
+    assert resolver_files({name: content}, {name: content}.__getitem__) == {}
+
+
 def test_launch_override_env_prefixes():
     assert is_launch_override_env("npm_config_registry") and is_launch_override_env("NPM_CONFIG_X") and not is_launch_override_env("PATH")
     assert is_launch_override_env("NODE_OPTIONS") and not is_launch_override_env("NODE_ENV") and not is_launch_override_env("npm_token")
