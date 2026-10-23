@@ -378,6 +378,8 @@ def command_identity(command: str, args: Sequence[str], env: Mapping[str, str]) 
             # is `-w foo`; the first value-taking, artefact or source option takes the rest of the token, or the next
             # token when nothing is left, so no value hides inside a cluster as an argument
             option, equals, value = token, "", ""
+            if len(token) > 2 and all("-" + char in quiet for char in token[1:]):
+                continue  # `-it` is `-i -t`: quiet flags, dropped as their separate forms are
             for cut in range(1, len(token)):
                 short = "-" + token[cut]
                 if short in spec.values or short in spec.artefacts or short in spec.sources:
