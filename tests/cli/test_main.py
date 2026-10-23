@@ -278,7 +278,8 @@ def test_every_git_call_of_a_scan_gets_an_explicit_environment_without_the_crede
     real_run = files.subprocess.run
 
     def spy(command, *args, **kwargs):
-        if command and command[0].endswith("git") or command[0] == "git":
+        name = str(command[0]).replace("\\", "/").rsplit("/", 1)[-1].lower().removesuffix(".exe")  # Windows runs git.exe
+        if command and name == "git":
             environments.append(kwargs.get("env"))
         return real_run(command, *args, **kwargs)
 

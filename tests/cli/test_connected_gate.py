@@ -725,8 +725,8 @@ def test_a_resolver_file_binding_follows_a_link_target_and_an_oversize_file(tmp_
     from spellwarden_cli import connected
     root = tmp_path / "repo"
     root.mkdir()
-    (root / "a.npmrc").write_text("registry=https://a.example/\n", encoding="utf-8")
-    (root / "b.npmrc").write_text("registry=https://b.example/\n", encoding="utf-8")
+    (root / "a.npmrc").write_bytes(b"registry=https://a.example/\n")  # bytes: Windows text mode would write \r\n
+    (root / "b.npmrc").write_bytes(b"registry=https://b.example/\n")
     try:
         os.symlink("a.npmrc", root / ".npmrc")
     except (OSError, NotImplementedError):
@@ -734,7 +734,7 @@ def test_a_resolver_file_binding_follows_a_link_target_and_an_oversize_file(tmp_
     fileset = files.FileSet(root=str(root), entries=(), repo_prefix=None, notices=(), errors=())
     first = connected._resolver_bytes(fileset, ".npmrc")
     assert first == b"\0link\0a.npmrc\0" + b"registry=https://a.example/\n"   # the text and what it reaches
-    (root / "a.npmrc").write_text("registry=https://c.example/\n", encoding="utf-8")
+    (root / "a.npmrc").write_bytes(b"registry=https://c.example/\n")
     assert connected._resolver_bytes(fileset, ".npmrc") != first                  # the target's content changed
     (root / ".npmrc").unlink()
     os.symlink("b.npmrc", root / ".npmrc")
