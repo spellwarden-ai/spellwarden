@@ -329,3 +329,27 @@ def test_no_credential_appears_in_any_artefact(make_repo, run_cli, tmp_path):
     assert haystack
     for value in secrets.values():
         assert value not in haystack
+
+
+def _captured_options(monkeypatch):
+    captured: list = []
+    real = run.scan
+    monkeypatch.setattr(run, "scan", lambda options: (captured.append(options), real(options))[1])
+    return captured
+
+
+@pytest.mark.parametrize(("sub", "scope"), [("", ""), ("services/agent", "services/agent"), ("a b", None)])
+def test_the_scan_scope_is_computed_once_in_cmd_scan_and_passed_on_the_options(make_repo, run_cli, tmp_path, monkeypatch,
+                                                                              sub, scope):
+    """O3 P41: the grammar of 8.4 decides; a root outside it is None, which connected mode refuses before any request."""
+    repo = make_repo(tmp_path / "repo", {"README.md": "x\n", **({f"{sub}/README.md": "x\n"} if sub else {})})
+    captured = _captured_options(monkeypatch)
+    code, _, _ = _json(run_cli, repo / sub if sub else repo)
+    assert code == 0 and [options.scope for options in captured] == [scope]
+
+
+def test_the_scope_outside_a_repository_is_empty(run_cli, tmp_path, monkeypatch):
+    (tmp_path / "plain").mkdir()
+    captured = _captured_options(monkeypatch)
+    _json(run_cli, tmp_path / "plain")
+    assert captured[0].scope == ""

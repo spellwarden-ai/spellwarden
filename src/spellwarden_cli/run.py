@@ -45,6 +45,7 @@ class ScanOptions:
     credentials: Credentials | None = None  # read once from the environment by `main` (O3 spec 6.1); None: none
     api_url: str | None = None  # SPELLWARDEN_API_URL when honoured (loopback HTTP only; O3 spec 6.2), else None
     as_of_given: bool = False  # `--as-of` was passed; refused in connected mode
+    scope: str | None = ""  # the scan root below its work tree (`ci.scan_scope`, P41); None: outside the grammar of 8.4
 
 
 def connected_config_problem(options: ScanOptions) -> Notice | None:

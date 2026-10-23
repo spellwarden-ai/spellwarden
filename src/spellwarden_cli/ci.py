@@ -55,6 +55,7 @@ GITLAB_OUTPUTS = (("gitlab-codequality", "gl-code-quality-report.json"), ("sarif
 GITLAB_MARKDOWN = dict(GITLAB_OUTPUTS)["markdown"]
 _SCP_REMOTE = re.compile(r"^[A-Za-z0-9._-]+@([A-Za-z0-9.-]+):/?([^/]+)/")
 _OBJECT_ID = re.compile(r"[0-9a-fA-F]{40}|[0-9a-fA-F]{64}")
+ORG_RE = re.compile(r"[a-z0-9-]{2,64}")  # an organisation slug (O3 spec 6.2)
 # GitLab: the merge request's merge base first (an ancestor of the source branch, so a deep enough clone holds it),
 # then the target branch's tip; an external pull request names only its target branch's tip.
 GITLAB_BASE_VARIABLES = {"merge_request_event": ("CI_MERGE_REQUEST_DIFF_BASE_SHA", "CI_MERGE_REQUEST_TARGET_BRANCH_SHA"),
@@ -72,6 +73,30 @@ class CiContext:
     protected_ref: bool           # GITHUB_REF_PROTECTED / CI_COMMIT_REF_PROTECTED is true
     identity: str | None          # the installation identity of 6.10, before hashing
     base_sha: str | None = None   # the request's base commit (40 or 64 lower-case hex), or None (D35)
+    # O3 spec 6.8: what the connected calls and the upload say about the run. None where the CI does not tell.
+    repository_url: str | None = None       # the forge URL of the repository, userinfo, query and fragment removed
+    repository_identity: str | None = None  # github:<host>/<owner>/<name>, gitlab:<host>[/<url>]/<path>, other:<host>/<path>
+    sha: str | None = None                  # the commit scanned (GITHUB_SHA, CI_COMMIT_SHA, else git rev-parse HEAD)
+    ref_name: str | None = None             # the branch: the request's source branch on a request
+    head_sha: str | None = None             # on a request, the head commit
+    head_ref: str | None = None             # on a request, the head branch
+    default_branch: str | None = None       # SPELLWARDEN_DEFAULT_BRANCH, else the payload / CI variable
+    visibility: str | None = None           # "public" or "private" (`internal` is private); None for a local run
+    run_url: str | None = None
+    job: str | None = None
+    attempt: int = 1
+
+    def run_kind(self) -> str:
+        """O3 spec 6.8: `request` when `is_request`; `default_branch` when not a request, the event is a trusted one
+        (any run of `other` CI) and `ref_name == default_branch`; `branch` otherwise."""
+        if self.is_request:
+            return "request"
+        trusted = (self.provider == "other"
+                   or (self.provider == "github" and self.event in GITHUB_TRUSTED_EVENTS)
+                   or (self.provider == "gitlab" and self.event in GITLAB_TRUSTED_SOURCES))
+        if trusted and self.default_branch is not None and self.ref_name == self.default_branch:
+            return "default_branch"
+        return "branch"
 
 
 LOCAL = CiContext(provider=None, event=None, is_request=False, request_number=None, fork=False, dependabot=False,
@@ -142,7 +167,87 @@ def _int(value: object) -> int | None:
     return None
 
 
-def _github(env: Mapping[str, str], read_text: Callable[[str], str]) -> CiContext:
+_REPOSITORY = re.compile(r"[^/\s]+/[^/\s]+")
+_SCP_FULL = re.compile(r"^(?:[A-Za-z0-9._-]+@)?([A-Za-z0-9.-]+):/?(.+)$")
+_SEGMENT = re.compile(r"[^/\s]+")
+_SSH_SCHEMES = ("ssh", "git", "git+ssh", "ssh+git")
+BRANCH_MAX = 255
+
+
+def _branch(value: object) -> str | None:
+    """A branch name as the CI gave it: a non-empty string of printable characters, at most 255 of them."""
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    return text if 0 < len(text) <= BRANCH_MAX and text.isprintable() else None
+
+
+def _authority(parts) -> str | None:
+    """`host` or `host:port`, lower-cased, the port only when it is not the scheme's default (an IPv6 literal keeps its
+    brackets); None for a URL without a host or with a bad port."""
+    try:
+        host = (parts.hostname or "").lower()
+        port = parts.port
+    except ValueError:
+        return None
+    if not host:
+        return None
+    if ":" in host:
+        host = f"[{host}]"
+    default = {"https": 443, "http": 80}.get(parts.scheme)
+    return host if port is None or port == default else f"{host}:{port}"
+
+
+def _forge_url(url: str | None, *, cased_host: bool = False) -> tuple[str, str, str] | None:
+    """`(scheme, authority, path)` of an http(s) URL, userinfo, query and fragment dropped and the path without a
+    trailing slash; None when it is not one. `cased_host` keeps the host as written (a URL is not an identity)."""
+    try:
+        parts = urlsplit(url or "")
+    except ValueError:
+        return None
+    if parts.scheme not in ("http", "https"):
+        return None
+    authority = _authority(parts)
+    if authority is None:
+        return None
+    if cased_host:
+        netloc = parts.netloc.rsplit("@", 1)[-1]
+        authority = netloc
+    return parts.scheme, authority, parts.path.rstrip("/")
+
+
+def _normalise_remote(remote: str | None) -> tuple[str, str] | None:
+    """`(https URL, "host[:port]/path")` of an `origin` remote (O3 spec 6.8, P19): `git@host:owner/repo.git` and
+    `ssh://` forms become `https://host/path` with userinfo and the SSH port dropped (it names no HTTPS port); an
+    `https://` remote keeps a non-443 port; query, fragment and a trailing `.git` are dropped. At least an owner and a
+    repository are needed; a local path or anything else is None."""
+    text = (remote or "").strip()
+    if not text:
+        return None
+    if "://" not in text and "\\" not in text:
+        scp = _SCP_FULL.match(text)
+        if scp is None or ("@" not in text.split(":", 1)[0] and "." not in scp.group(1)):
+            return None
+        authority, path = scp.group(1).lower(), scp.group(2)
+    else:
+        try:
+            parts = urlsplit(text)
+            authority = _authority(parts) if parts.scheme in ("http", "https") else (parts.hostname or "").lower()
+        except ValueError:
+            return None
+        if parts.scheme not in ("http", "https", *_SSH_SCHEMES) or not authority:
+            return None
+        path = parts.path
+    segments = [segment for segment in path.split("/") if segment]
+    if segments:
+        segments[-1] = segments[-1].removesuffix(".git")
+    if len(segments) < 2 or not all(_SEGMENT.fullmatch(segment) and segment not in (".", "..") for segment in segments):
+        return None
+    joined = "/".join(segments)
+    return f"https://{authority}/{joined}", f"{authority}/{joined}"
+
+
+def _github(env: Mapping[str, str], read_text: Callable[[str], str], git_head: Callable[[], str | None] | None) -> CiContext:
     event = env.get("GITHUB_EVENT_NAME") or None
     payload: object = None
     path = env.get("GITHUB_EVENT_PATH")
@@ -176,9 +281,33 @@ def _github(env: Mapping[str, str], read_text: Callable[[str], str]) -> CiContex
     host = _host_of(env.get("GITHUB_SERVER_URL"))
     owner_id = env.get("GITHUB_REPOSITORY_OWNER_ID") or ""
     identity = f"github:{host}:{owner_id}" if host and owner_id.isdigit() else None
+    server = _forge_url(env.get("GITHUB_SERVER_URL"), cased_host=True)
+    repository = env.get("GITHUB_REPOSITORY") or ""
+    named = server is not None and _REPOSITORY.fullmatch(repository) is not None
+    repository_url = f"{server[0]}://{server[1]}{server[2]}/{repository}" if named else None
+    forge = _forge_url(env.get("GITHUB_SERVER_URL"))
+    repository_identity = f"github:{forge[1]}{forge[2]}/{repository}".lower() if named and forge is not None else None
+    head_sha = head_ref = None
+    if readable and event is not None and event.startswith("pull_request") and isinstance(pull, dict):
+        head = pull.get("head")
+        if isinstance(head, dict):
+            head_sha, head_ref = _object_id(head.get("sha")), _branch(head.get("ref"))
+    repo_payload = payload.get("repository") if readable else None
+    if not isinstance(repo_payload, dict):
+        repo_payload = {}
+    default_branch = _branch(env.get("SPELLWARDEN_DEFAULT_BRANCH")) or _branch(repo_payload.get("default_branch"))
+    run_id = env.get("GITHUB_RUN_ID") or ""
+    attempt = _int(env.get("GITHUB_RUN_ATTEMPT"))
     return CiContext(provider="github", event=event, is_request=is_request, request_number=number, fork=fork,
                      dependabot=env.get("GITHUB_ACTOR") == DEPENDABOT, protected_ref=_true(env.get("GITHUB_REF_PROTECTED")),
-                     identity=identity, base_sha=_github_base(event, payload if readable else None))
+                     identity=identity, base_sha=_github_base(event, payload if readable else None),
+                     repository_url=repository_url, repository_identity=repository_identity,
+                     sha=_object_id(env.get("GITHUB_SHA")) or _object_id(git_head() if git_head else None),
+                     ref_name=_branch((env.get("GITHUB_HEAD_REF") if is_request else None) or env.get("GITHUB_REF_NAME")),
+                     head_sha=head_sha, head_ref=head_ref, default_branch=default_branch,
+                     visibility="public" if repo_payload.get("visibility") == "public" else "private",
+                     run_url=f"{repository_url}/actions/runs/{run_id}" if repository_url and run_id.isdigit() else None,
+                     job=_branch(env.get("GITHUB_JOB")), attempt=attempt if attempt is not None and attempt >= 1 else 1)
 
 
 def _github_base(event: str | None, payload: dict | None) -> str | None:
@@ -196,7 +325,7 @@ def _github_base(event: str | None, payload: dict | None) -> str | None:
     return None
 
 
-def _gitlab(env: Mapping[str, str]) -> CiContext:
+def _gitlab(env: Mapping[str, str], git_head: Callable[[], str | None] | None) -> CiContext:
     source = env.get("CI_PIPELINE_SOURCE") or None
     protected = _true(env.get("CI_COMMIT_REF_PROTECTED"))
     merge_request = bool(env.get("CI_MERGE_REQUEST_IID"))
@@ -216,9 +345,24 @@ def _gitlab(env: Mapping[str, str]) -> CiContext:
     if not names and is_request and (source == GITLAB_CHILD_SOURCE or merge_request):
         names = GITLAB_BASE_VARIABLES["merge_request_event"]  # none set: the defaults and `base_unavailable`
     candidates = (_object_id(env.get(name)) for name in names)
+    project = env.get("CI_PROJECT_URL")
+    if not project and env.get("CI_SERVER_URL") and env.get("CI_PROJECT_PATH"):
+        project = f"{env['CI_SERVER_URL'].rstrip('/')}/{env['CI_PROJECT_PATH'].strip('/')}"
+    forge = _forge_url(project)
+    url = _forge_url(project, cased_host=True)
+    commit = _object_id(env.get("CI_COMMIT_SHA")) or _object_id(git_head() if git_head else None)
+    source_branch = _branch(env.get("CI_MERGE_REQUEST_SOURCE_BRANCH_NAME")) if is_request else None
     return CiContext(provider="gitlab", event=source, is_request=is_request, request_number=number, fork=fork,
                      dependabot=False, protected_ref=protected, identity=identity,
-                     base_sha=next((sha for sha in candidates if sha is not None), None))
+                     base_sha=next((sha for sha in candidates if sha is not None), None),
+                     repository_url=f"{url[0]}://{url[1]}{url[2]}" if url is not None and url[2] else None,
+                     repository_identity=f"gitlab:{forge[1]}{forge[2]}".lower() if forge is not None and forge[2] else None,
+                     sha=commit, ref_name=source_branch or _branch(env.get("CI_COMMIT_REF_NAME")),
+                     head_sha=(_object_id(env.get("CI_MERGE_REQUEST_SOURCE_BRANCH_SHA")) or commit) if is_request else None,
+                     head_ref=source_branch, default_branch=_branch(env.get("SPELLWARDEN_DEFAULT_BRANCH"))
+                     or _branch(env.get("CI_DEFAULT_BRANCH")),
+                     visibility="public" if env.get("CI_PROJECT_VISIBILITY") == "public" else "private",
+                     run_url=env.get("CI_JOB_URL") or None, job=_branch(env.get("CI_JOB_NAME")))
 
 
 def _remote_identity(url: str | None) -> str | None:
@@ -243,22 +387,39 @@ def _remote_identity(url: str | None) -> str | None:
 
 
 def detect(env: Mapping[str, str], *, read_text: Callable[[str], str] = _read_text,
-           git_remote: Callable[[], str | None] = _git_remote) -> CiContext:
+           git_remote: Callable[[], str | None] = _git_remote, git_head: Callable[[], str | None] | None = None,
+           git_branch: Callable[[], str | None] | None = None) -> CiContext:
     """Spec 6.11: the provider, the event, whether the run is a pull or merge request, its number, fork and
-    Dependabot, ref protection and the installation identity. A local run (`CI` unset, empty or false, and none of
-    `CI_MARKERS` set) is `LOCAL`."""
+    Dependabot, ref protection and the installation identity; O3 spec 6.8: the run context. A local run (`CI` unset,
+    empty or false, and none of `CI_MARKERS` set) is `LOCAL`. `git_head` and `git_branch` are the lookups of the
+    commit and of the current branch for a CI that names neither (`other`); without them there is none."""
     if _true(env.get("GITHUB_ACTIONS")):
-        return _github(env, read_text)
+        return _github(env, read_text, git_head)
     if _true(env.get("GITLAB_CI")):
-        return _gitlab(env)
+        return _gitlab(env, git_head)
     if _ci_set(env.get("CI")) or any(env.get(name) for name in CI_MARKERS):
         try:
-            identity = _remote_identity(git_remote())
+            remote = git_remote()
+            identity = _remote_identity(remote)
+            normalised = _normalise_remote(remote)
         except Exception:  # noqa: BLE001 -- an identity is optional; the ping then carries null
-            identity = None
+            identity, normalised = None, None
         return CiContext(provider="other", event=None, is_request=False, request_number=None, fork=False,
-                         dependabot=False, protected_ref=False, identity=identity)
+                         dependabot=False, protected_ref=False, identity=identity,
+                         repository_url=normalised[0] if normalised else None,
+                         repository_identity=f"other:{normalised[1]}".lower() if normalised else None,
+                         sha=_lookup(git_head, _object_id), ref_name=_lookup(git_branch, _branch),
+                         default_branch=_branch(env.get("SPELLWARDEN_DEFAULT_BRANCH")), visibility="private")
     return LOCAL
+
+
+def _lookup(source: Callable[[], str | None] | None, clean: Callable[[object], str | None]) -> str | None:
+    if source is None:
+        return None
+    try:
+        return clean(source())
+    except Exception:  # noqa: BLE001 -- a lookup that fails is a value the CI did not give
+        return None
 
 
 def private_probe_trusted(ctx: CiContext) -> bool:
@@ -499,6 +660,91 @@ def read_at_revision(root: str, sha: str, relative: str, *, max_bytes: int, fetc
     return repository.read(commit, relative, max_bytes)
 
 
+SCOPE_GRAMMAR = re.compile(r"([A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*)?")
+
+
+def scan_scope(root: str, *, git: str | None, env: Mapping[str, str]) -> str | None:  # noqa: ARG001 -- the registry's shape; no git is needed
+    """O3 spec 6.8, P41: the scan root's path below its work tree, POSIX, with no trailing slash; `""` at the top of the
+    work tree and outside any. None when the path is outside the grammar `^([A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*)?$`:
+    the server binds a CI token to one such scope."""
+    from spellwarden_cli.files import work_tree_top
+
+    absolute = os.path.abspath(root)
+    top = work_tree_top(absolute)
+    if top is None:
+        return ""
+    relative = os.path.relpath(absolute, top).replace(os.sep, "/")
+    scope = "" if relative == "." else relative.strip("/")
+    return scope if SCOPE_GRAMMAR.fullmatch(scope) else None
+
+
+def git_head_of(root: str, *, git: str | None = None, env: Mapping[str, str] | None = None) -> str | None:
+    """`git rev-parse HEAD` of the work tree holding `root`, or None (the scan of an `other` CI names no commit)."""
+    try:
+        return _object_id(_Repository(root, git, env)._git("rev-parse", "HEAD").decode("ascii", "replace").strip())
+    except (RevisionUnavailable, OSError):
+        return None
+
+
+def git_branch_of(root: str, *, git: str | None = None, env: Mapping[str, str] | None = None) -> str | None:
+    """The checked-out branch of the work tree holding `root`, or None (detached, or no git)."""
+    try:
+        return _branch(_Repository(root, git, env)._git("symbolic-ref", "--short", "-q", "HEAD").decode("utf-8").strip())
+    except (RevisionUnavailable, OSError, UnicodeDecodeError):
+        return None
+
+
+def _parents(commit: bytes) -> list[str]:
+    """The `parent` lines of the header of `git cat-file -p` output (the header ends at the first empty line)."""
+    parents = []
+    for line in commit.decode("utf-8", "replace").split("\n"):
+        if not line:
+            break
+        key, _, value = line.partition(" ")
+        if key == "parent":
+            parents.append(value)
+    return parents
+
+
+def changed_paths(root: str, ctx: CiContext, *, git: str | None = None, env: Mapping[str, str]) -> list[str] | None:
+    """O3 spec 6.6 "Scope", P15: the paths a request changes, relative to the scan root, sorted (a rename is both
+    names). On a GitHub `pull_request` whose checkout is the test merge commit (`git rev-parse HEAD` equals
+    `ctx.sha` and `git cat-file -p HEAD` holds exactly two `parent` lines) the first parent is read from that output
+    (a shallow clone has no `HEAD^1` and an empty `%P`), fetched by id, and the diff is `<parent> HEAD`. In every other
+    case the diff is the two-dot `<base_sha> HEAD`, which can only widen the set. None when the run is no request, the
+    base is unknown or cannot be fetched, or there is no work tree."""
+    if not ctx.is_request or ctx.base_sha is None:
+        return None
+    try:
+        repository = _Repository(root, git, env)
+        baseline = ctx.base_sha
+        if ctx.provider == "github" and ctx.event == "pull_request" and ctx.sha is not None:
+            head = repository._git("rev-parse", "HEAD").decode("ascii", "replace").strip()
+            if _object_id(head) == ctx.sha:
+                parents = _parents(repository._git("cat-file", "-p", "HEAD"))
+                first = _object_id(parents[0]) if len(parents) == 2 else None
+                if first is not None:
+                    baseline = first
+        repository.ensure(baseline, fetch=True)
+        listing = repository._git("diff", "--name-only", "--no-renames", "--no-ext-diff", "--relative", "-z", baseline, "HEAD")
+    except (RevisionUnavailable, OSError):
+        return None
+    return sorted({name.decode("utf-8", "surrogateescape") for name in listing.split(b"\0") if name})
+
+
+def read_at_base(root: str, ctx: CiContext, path: str, *, git: str | None = None, env: Mapping[str, str]) -> bytes | None:
+    """The scan-root-relative file `path` at the request's base revision, or None when the base holds no such file, the
+    base is unknown or cannot be fetched, or the path is not a readable regular file there."""
+    from spellwarden_cli.files import FILE_MAX
+
+    if ctx.base_sha is None:
+        return None
+    try:
+        return read_at_revision(root, ctx.base_sha, path, max_bytes=FILE_MAX, fetch=True, git=git, env=env)
+    except (RevisionUnavailable, paths.UnsafePath, paths.TooLarge, OSError):
+        return None
+
+
 def _quoted(names: tuple[str, ...]) -> str:
     return " and ".join(names)
 
@@ -619,10 +865,12 @@ def _choice(env: Mapping[str, str], name: str, label: str, allowed: tuple[str, .
     return value
 
 
-def gitlab_argv(env: Mapping[str, str]) -> tuple[list[str], list[str], bool]:
+def gitlab_argv(env: Mapping[str, str]) -> tuple[list[str], list[str], bool, dict[str, str]]:
     """The `spellwarden scan` arguments of the component's job from its `SW_*` variables, the problems found (the
-    same checks as step 1 of the Action, spec 9.2), and whether a comment is wanted. Every boolean is passed as an
-    explicit positive or negative flag, so the scanned settings file cannot change what an input chose (6.3)."""
+    same checks as step 1 of the Action, spec 9.2), whether a comment is wanted, and the environment variables the
+    job sets for the scan (O3 spec 11, P12: `SW_ORG` becomes `SPELLWARDEN_ORG`; the component only passes
+    variables). Every boolean is passed as an explicit positive or negative flag, so the scanned settings file cannot
+    change what an input chose (6.3)."""
     problems: list[str] = []
     path = env.get("SW_PATH") or "."
     fail_on = _choice(env, "SW_FAIL_ON", "fail-on", FAIL_ON, problems)
@@ -631,6 +879,17 @@ def gitlab_argv(env: Mapping[str, str]) -> tuple[list[str], list[str], bool]:
     private = _choice(env, "SW_PROBE_PRIVATE", "probe-private", ("true", "false"), problems)
     comment = _choice(env, "SW_COMMENT", "comment", ("true", "false"), problems)
     telemetry = _choice(env, "SW_TELEMETRY", "telemetry", ("true", "false"), problems)
+    upload = env.get("SW_UPLOAD", "")
+    if upload:
+        _choice(env, "SW_UPLOAD", "upload", ("true", "false"), problems)
+    org = env.get("SW_ORG", "").strip()
+    updates: dict[str, str] = {}
+    if org:
+        if ORG_RE.fullmatch(org):
+            updates["SPELLWARDEN_ORG"] = org
+        else:
+            problems.append(f"input org: {escape.terminal(org)!r} is not an organisation slug (2 to 64 lower-case letters, "
+                            "digits and hyphens)")
     argv = ["scan", path, "--fail-on", fail_on]
     if locked == "true" or (locked == "auto" and os.path.isfile(os.path.join(path, ".spellwarden", "lock.json"))):
         argv.append("--locked")
@@ -638,16 +897,18 @@ def gitlab_argv(env: Mapping[str, str]) -> tuple[list[str], list[str], bool]:
     argv.append("--probe-private" if private == "true" else "--no-probe-private")
     if telemetry == "false":
         argv.append("--no-telemetry")
+    if upload in ("true", "false"):
+        argv.append("--upload" if upload == "true" else "--no-upload")
     for fmt, output in GITLAB_OUTPUTS:
         argv += ["--format", fmt, "--output", output]
     argv += ["--format", "text"]
-    return argv, problems, comment == "true"
+    return argv, problems, comment == "true", updates if not problems else {}
 
 
 def run_gitlab(env: Mapping[str, str]) -> int:
     """The component job's whole script (spec 10.2a): validate, scan, comment on a merge request when asked, and
     exit with the scan's code."""
-    argv, problems, comment = gitlab_argv(env)
+    argv, problems, comment, updates = gitlab_argv(env)
     if problems:
         for problem in problems:
             print(f"spellwarden: error: {problem}", file=sys.stderr)
@@ -664,6 +925,7 @@ def run_gitlab(env: Mapping[str, str]) -> int:
             return 2
     from spellwarden_cli import forge, main as cli
 
+    os.environ.update(updates)  # SPELLWARDEN_ORG for the scan, which reads os.environ (O3 P12)
     code = cli.main(argv)
     if comment:
         ctx = detect(env)

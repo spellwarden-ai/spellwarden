@@ -124,7 +124,8 @@ def _error_report(fail_on: str, as_of: date, code: str, path: str, message: str,
                   errors=(Notice(code, path, message),), repo_prefix=None, rules=RuleSet.baseline()).sorted()
 
 
-def _scan_report(args: argparse.Namespace, context, credentials: Credentials) -> tuple[Report, bool]:
+def _scan_report(args: argparse.Namespace, context, credentials: Credentials,
+                 scope: str | None = "") -> tuple[Report, bool]:
     """The report and the effective telemetry setting (False when the settings were refused: no ping). On a pull or
     merge request in CI the settings file and the baseline come from the base revision (`ci.revision_source`, D35)."""
     from spellwarden_cli import ci
@@ -160,7 +161,7 @@ def _scan_report(args: argparse.Namespace, context, credentials: Credentials) ->
         telemetry = False
     options = run.ScanOptions(root=root, settings=settings, as_of=as_of, locked=args.locked, baseline=args.baseline,
                               env=dict(os.environ), log=log, context=context, revision=source, credentials=credentials,
-                              api_url=api_url if overridden else None, as_of_given=args.as_of is not None)
+                              api_url=api_url if overridden else None, as_of_given=args.as_of is not None, scope=scope)
     started = time.monotonic()
     try:
         report = run.scan(options)
@@ -214,8 +215,11 @@ def cmd_scan(args: argparse.Namespace) -> int:
 
     credentials = read_credentials(os.environ)  # first: the four secrets leave the environment before anything else runs
     root = os.path.abspath(args.path)
-    context = ci.detect(os.environ, git_remote=lambda: ci.git_remote_of(root, env=os.environ))  # once, for the scan and the ping
-    report, telemetry = _scan_report(args, context, credentials)
+    context = ci.detect(os.environ, git_remote=lambda: ci.git_remote_of(root, env=os.environ),
+                        git_head=lambda: ci.git_head_of(root, env=os.environ),
+                        git_branch=lambda: ci.git_branch_of(root, env=os.environ))  # once, for the scan and the ping
+    scope = ci.scan_scope(root, git=None, env=os.environ)  # once (P41): the grammar of O3 spec 8.4 decides
+    report, telemetry = _scan_report(args, context, credentials, scope)
     write_outputs(report, outputs, stdout=sys.stdout)
     if not args.quiet:
         for fmt, path in outputs:
