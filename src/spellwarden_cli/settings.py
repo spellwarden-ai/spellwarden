@@ -65,17 +65,20 @@ def env_bool(value: str | None) -> bool | None:
 
 def load_settings(root: str, *, config: str | None, flags: Flags, env: Mapping[str, str],
                   read: Callable[[str, int], bytes] | None = None,
-                  connected_read: Callable[[str, int], bytes] | None = None) -> Settings:
+                  connected_read: Callable[[str, int], bytes] | None = None,
+                  connected_credential: bool = False) -> Settings:
     """`config` is the `--config` file (a path chosen by whoever runs the scanner); without it `.spellwarden/config.yml`
     is read, when it exists: through `read(relative, max_bytes)` when given (on a pull or merge request, the base
     revision's file, `ci.revision_source`; spec 6.3, D35), else from the working tree, contained. With `config` and
     `connected_read` (a request: the base revision's reader), `connected.pack` and `connected.required` come from the
-    base revision's `.spellwarden/config.yml` and the rest of the settings from `config` (O3 spec 6.2, P47)."""
+    base revision's `.spellwarden/config.yml` and the rest of the settings from `config` (O3 spec 6.2, P47).
+    `connected_credential` says a credential (`SPELLWARDEN_ORG` or a key) is present: the base mapping is then
+    refused when invalid instead of defaulting (invariant 5)."""
     document, name = _read(root, config, read)
     values = _validate(document, name) if document is not None else {}
     mapping = values.get("connected", {})
     if config is not None and connected_read is not None:
-        base_mapping = _base_connected(root, connected_read)
+        base_mapping = _base_connected(root, connected_read, strict=connected_credential)
     else:
         base_mapping = mapping
     fail_on = flags.fail_on or _env_choice(env, "SPELLWARDEN_FAIL_ON") or values.get("fail-on") or "high"
@@ -91,17 +94,32 @@ def load_settings(root: str, *, config: str | None, flags: Flags, env: Mapping[s
                     connected=connected)
 
 
-def _base_connected(root: str, read: Callable[[str, int], bytes]) -> dict:
+def _base_connected(root: str, read: Callable[[str, int], bytes], *, strict: bool) -> dict:
     """The `connected` mapping alone of the base revision's file, validated on its own. The rest of that file is not
-    the operator's choice under `--config` (1.1.1 never read it), so a base file that cannot be read or parsed, or
-    whose other keys are invalid, gives the defaults rather than refusing a scan (invariant 1)."""
+    the operator's choice under `--config` (1.1.1 never read it), so in free mode a base file that cannot be read or
+    parsed, or whose other keys are invalid, gives the defaults rather than refusing a scan (invariant 1). The
+    defaults must not weaken connected mode (invariant 5): with a credential present (`strict`), or when the base
+    mapping says `required` with a defect elsewhere in it, the defect is `settings_invalid` as without `--config`."""
     try:
         document, name = _read(root, None, read)
-        mapping = document.get("connected") if isinstance(document, dict) else None
-        if mapping is None:
-            return {}
+    except SettingsError:
+        if strict:
+            raise
+        return {}
+    if document is None:
+        return {}
+    if not isinstance(document, dict):
+        if strict:
+            raise SettingsError(f"{name}: the file must be a mapping with `version: 1`")
+        return {}
+    mapping = document.get("connected")
+    if mapping is None:
+        return {}
+    try:
         _validate_connected(mapping, name)
     except SettingsError:
+        if strict or (isinstance(mapping, dict) and bool(mapping.get("required"))):
+            raise
         return {}
     return mapping
 

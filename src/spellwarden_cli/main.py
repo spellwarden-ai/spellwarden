@@ -149,14 +149,20 @@ def _scan_report(args: argparse.Namespace, context, credentials: Credentials,
         return _error_report(fail_on, as_of, "crash", "", f"internal error: {type(exc).__name__}: {exc}"), False
     try:
         settings = load_settings(root, config=args.config, flags=flags, env=os.environ, read=source.read,
-                                 connected_read=connected_source.read if connected_source is not None else None)
+                                 connected_read=connected_source.read if connected_source is not None else None,
+                                 connected_credential=bool(credentials.org) or credentials.key is not None)
     except SettingsError as exc:
         return _error_report(fail_on, as_of, "settings_invalid", args.config or ".spellwarden/config.yml", str(exc),
                              source.notices), False
     connected_mode = bool(credentials.org) or credentials.key is not None or settings.connected.required
-    if connected_source is not None and connected_source.read is not None and connected_mode and (
-            settings.connected.pack is not None or settings.connected.required):
-        source = dataclasses.replace(source, notices=(*source.notices, *connected_source.notices))
+    # The base revision's notices travel in connected mode: `settings_from_base` when it set something, and
+    # `base_unavailable` always (an unreadable base silently defaulting pack and required would hide invariant 5).
+    if connected_source is not None and connected_mode and (
+            any(n.code == "base_unavailable" for n in connected_source.notices)
+            or settings.connected.pack is not None or settings.connected.required):
+        codes = {notice.code for notice in source.notices}
+        source = dataclasses.replace(source, notices=(*source.notices,
+                                                      *(n for n in connected_source.notices if n.code not in codes)))
     telemetry = settings.telemetry
     if telemetry and args.config is None and source.read is not None and _request_opts_out(root):
         telemetry = False
