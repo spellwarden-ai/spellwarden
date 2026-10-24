@@ -520,7 +520,7 @@ jobs:
       - uses: actions/checkout@<commit>
         with:
           fetch-depth: 0
-      - uses: spellwarden-ai/scan@<commit of v1.2.0>  # v1.2.0
+      - uses: spellwarden-ai/scan@<commit of v1.2.1>  # v1.2.1
         with:
           org: acme
   outside-contribution:
@@ -535,7 +535,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
-      - uses: spellwarden-ai/scan@<commit of v1.2.0>  # v1.2.0
+      - uses: spellwarden-ai/scan@<commit of v1.2.1>  # v1.2.1
         with:
           org: acme
 ```
