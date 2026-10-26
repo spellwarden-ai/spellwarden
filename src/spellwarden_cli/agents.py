@@ -15,8 +15,8 @@ from urllib.parse import urlsplit
 from spellwarden_scan import (
     A2aScanResult, CardOrigin, RuleSet, SignatureOutcome, evaluate_agent_card, parse_agent_card, signature_inputs,
 )
-from spellwarden_scan.a2a import AgentCardDocument, must_be_signed
-from spellwarden_scan.a2a_signing import SignatureInput
+from spellwarden_scan.a2a import AgentCardDocument
+from spellwarden_scan.a2a_signing import SignatureInput, must_be_signed
 from spellwarden_scan.evidence import bounded_evidence
 
 from spellwarden_cli import jws
@@ -122,8 +122,8 @@ def _verify(si: SignatureInput, keys: tuple[jws.Jwk, ...], source: str) -> Signa
         for form, signing_input, unsigned in si.inputs:
             if jws.verify(si.alg, key, signing_input, si.signature):
                 legacy = tuple(pointer for pointer in unsigned if must_be_signed(pointer))
-                # A legacy member, or one that decides who may call the agent (security requirements and schemes), that nobody
-                # signed changes what a client does: not verified (5.6, D-L1). A plain vendor member is only listed.
+                # A legacy member or a proto field-name alias that nobody signed changes what a client does: not verified
+                # (5.6, `must_be_signed`). A plain vendor member, or an empty value the sdk form removed, is only listed.
                 if legacy:
                     return _outcome(si, "unsigned_legacy", key_source=source, payload_form=form, unsigned_members=unsigned,
                                     detail=f"signed without members clients read: {', '.join(legacy)}")

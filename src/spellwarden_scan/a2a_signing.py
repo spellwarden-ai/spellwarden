@@ -15,8 +15,9 @@ that differ only in which members they keep, deduplicated in this order:
   are the `spec` form's plus every list element, free-form map entry and emptied container it removed (`_clean_empty`).
 
 Each form only removes members, so a card verifies over a form only when the signer signed exactly the members that remain;
-what a form removed is either a default the protocol treats as absent or listed in `unsigned_members`. A legacy member
-(`is_legacy_pointer`) is listed even when it holds a default: to a 0.x client `security: []` is not absent."""
+what a form removed is either a default the protocol treats as absent or listed in `unsigned_members`. A member that
+`must_be_signed` names (a legacy member, or a proto field-name alias such as `security_requirements`) is listed even when it
+holds a default: to a 0.x client `security: []` is not absent, and a proto reader takes an alias for the member it names."""
 from __future__ import annotations
 
 import base64
@@ -228,9 +229,9 @@ def _message(value: Mapping, name: str, pointer: str, dropped: list[str]) -> dic
     projected: dict = {}
     for key, member in value.items():
         if key not in table:
-            # a member the proto never saw, with a value, or a legacy member whatever its value (a skill's `security: []`
-            # overrides the card's requirements to none for a 0.x client): a signer cannot have signed it (5.6, r1:F4)
-            if not _is_default(member) or is_legacy_pointer(pointer + pointer_of(key)):
+            # a member the proto never saw, with a value, or a member `must_be_signed` names whatever its value (a skill's
+            # `security: []` overrides the card's requirements to none for a 0.x client): a signer cannot have signed it (5.6)
+            if not _is_default(member) or must_be_signed(pointer + pointer_of(key)):
                 dropped.append(pointer + pointer_of(key))
             continue
         rule, kind = table[key]
@@ -238,6 +239,43 @@ def _message(value: Mapping, name: str, pointer: str, dropped: list[str]) -> dic
             continue
         projected[key] = _project(member, kind, pointer + pointer_of(key), dropped)
     return projected
+
+
+def _camel(name: str) -> str:
+    """The JSON name protobuf gives the proto field `name` (`security_requirements` -> `securityRequirements`)."""
+    head, *rest = name.split("_")
+    return head + "".join(part[:1].upper() + part[1:] for part in rest)
+
+
+def _names_alias(segments: list[str]) -> bool:
+    """Whether the path of `segments` passes through a proto field-name alias of a member `_PRESENCE` knows: a key that is
+    not the member's JSON name but whose JSON name is (`supported_interfaces`, `security_schemes`,
+    `skills/0/security_requirements`)."""
+    kind = "message:AgentCard"
+    for segment in segments:
+        if kind.startswith("message:"):
+            table = _PRESENCE.get(kind.split(":", 1)[1], {})
+            if segment in table:
+                kind = table[segment][1]
+                continue
+            return _camel(segment) != segment and _camel(segment) in table
+        if kind.startswith(("repeated:message:", "map:message:")):
+            kind = "message:" + kind.split(":", 2)[2]
+            continue
+        return False
+    return False
+
+
+def must_be_signed(pointer: str) -> bool:
+    """Whether a verifying signature must cover the member at `pointer`, so that leaving it unsigned is `unsigned_legacy`, not
+    `verified` (O4 spec 5.6): a legacy member (`is_legacy_pointer`), also when spelled with its proto field name
+    (`preferred_transport`; 0.x readers accept both), and a proto field-name alias of a 1.0 member (`supported_interfaces`,
+    `security_requirements`): protobuf's JSON reader accepts the proto name too, and the later of two spellings wins, so an alias
+    appended after signing replaces the signed member for a proto-based client (r1:F2). Members under `securityRequirements`
+    and `securitySchemes` in their JSON spelling are not on the list: a form drops only their empty values there, and those
+    are listed in `unsigned_members` with the signature `verified` (orchestrator decision D-L1, revised 2026-10-26)."""
+    segments = [part.replace("~1", "/").replace("~0", "~") for part in pointer.split("/")[1:]]
+    return is_legacy_pointer(pointer_of(*(_camel(segment) for segment in segments))) or _names_alias(segments)
 
 
 def _child_kind(kind: str | None, key: str) -> str | None:

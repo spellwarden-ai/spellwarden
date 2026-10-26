@@ -13,7 +13,7 @@ from a2a_cards import card_bytes, clean_card
 from spellwarden_scan._json import Refused, load_json
 from spellwarden_scan.a2a import is_legacy_pointer, parse_agent_card
 from spellwarden_scan.a2a_signing import (
-    _PRESENCE, HEADER_MAX_BYTES, NUMBER_DETAIL, _clean_empty, b64url_decode, b64url_encode, signature_inputs,
+    _PRESENCE, HEADER_MAX_BYTES, NUMBER_DETAIL, _clean_empty, b64url_decode, b64url_encode, must_be_signed, signature_inputs,
 )
 from spellwarden_scan.jcs import jcs_canonicalize
 
@@ -343,3 +343,30 @@ def test_s6_no_file_under_fixtures_or_tests_holds_a_jwk_private_member():
     for path in sorted(list((root / "tests").rglob("*.py")) + list((root / "scripts").rglob("*.py"))):
         if path.name != "test_a2a_signing.py":
             assert "BEGIN PRIVATE KEY" not in path.read_text(encoding="utf-8"), path
+
+
+@pytest.mark.parametrize(("pointer", "expected"), [
+    # legacy members, in their JSON and their proto spelling
+    ("/security", True), ("/url", True), ("/skills/0/security", True), ("/securitySchemes/k/type", True),
+    ("/supportedInterfaces/0/transport", True), ("/preferred_transport", True), ("/supports_authenticated_extended_card", True),
+    ("/capabilities/state_transition_history", True), ("/securitySchemes/my_key/in", True),
+    # proto field-name aliases of 1.0 members (r1:F2): protobuf's JSON reader takes them for the member
+    ("/security_requirements", True), ("/skills/0/security_requirements", True), ("/security_schemes", True),
+    ("/supported_interfaces", True), ("/supported_interfaces/0/url", True), ("/supportedInterfaces/0/protocol_binding", True),
+    ("/default_input_modes", True), ("/securitySchemes/k/api_key_security_scheme", True),
+    # the JSON spelling of security members is listed, not required (D-L1 revised), and vendor members never are
+    ("/securityRequirements", False), ("/securityRequirements/1", False), ("/securitySchemes/oauth", False),
+    ("/skills/0/securityRequirements/0/schemes/bearer", False), ("/securitySchemes/my_key", False),
+    ("/name", False), ("/x-vendor", False), ("/x_vendor", False), ("/skills/0/x_note", False), ("", False),
+])
+def test_must_be_signed_names_legacy_members_and_proto_field_name_aliases(pointer, expected):
+    assert must_be_signed(pointer) is expected, pointer
+    if is_legacy_pointer(pointer):
+        assert must_be_signed(pointer)
+
+
+def test_a_proto_field_name_alias_holding_a_default_is_still_reported_unsigned():
+    card = clean_card()
+    card["security_requirements"] = []
+    [si] = inputs_of(signed(card, header_of({"alg": "ES256", "kid": "k"})))
+    assert [name for name, _, members in si.inputs if "/security_requirements" not in members] == ["as_served"]

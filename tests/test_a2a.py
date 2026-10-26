@@ -7,7 +7,7 @@ import pytest
 from a2a_cards import card_bytes, clean_card, spec_card
 
 from spellwarden_scan.a2a import (
-    CAPS, AgentCardDocument, _reduced_url, capped, is_legacy_pointer, legacy_members, legacy_version_issues, must_be_signed,
+    CAPS, AgentCardDocument, _reduced_url, capped, is_legacy_pointer, legacy_members, legacy_version_issues,
     owner_identity, parse_agent_card, pointer_of, validate_1_0,
 )
 from spellwarden_scan.model import CardOrigin
@@ -421,19 +421,3 @@ def test_r1_f1_an_unparseable_url_is_reduced_without_userinfo_query_or_fragment(
 def test_r1_f1_a_reduced_url_that_parses_is_unchanged_by_the_fallback():
     assert _reduced_url("https://user:pw@agent.example.com:8443/a2a?x=1#f") == "https://agent.example.com:8443/a2a"
     assert _reduced_url("not a url/with?query") == "not a url/with"
-
-
-@pytest.mark.parametrize(("pointer", "expected"), [
-    ("/securityRequirements", True), ("/securityRequirements/0", True), ("/securityRequirements/0/schemes/oauth/list/0", True),
-    ("/skills/0/securityRequirements", True), ("/skills/12/securityRequirements/1/schemes", True),
-    ("/securitySchemes", True), ("/securitySchemes/oauth", True), ("/securitySchemes/oauth/oauth2SecurityScheme/flows/x", True),
-    ("/security", True), ("/url", True), ("/skills/0/security", True), ("/securitySchemes/k/type", True),
-    ("/supportedInterfaces/0/transport", True),
-    ("/name", False), ("/skills/0/id", False), ("/skills/0/x-securityRequirements", False), ("/x-securityRequirements", False),
-    ("/securityRequirementsExtra", False), ("/securitySchemesExtra/a", False), ("/skills/a/securityRequirements", False),
-    ("/capabilities/streaming", False), ("/supportedInterfaces/0/url", False), ("/x-vendor", False), ("", False),
-])
-def test_d_l1_a_member_that_decides_who_may_call_the_agent_must_be_signed(pointer, expected):
-    assert must_be_signed(pointer) is expected, pointer
-    if is_legacy_pointer(pointer):
-        assert must_be_signed(pointer)

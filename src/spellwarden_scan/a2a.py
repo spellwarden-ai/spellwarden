@@ -97,18 +97,6 @@ def is_legacy_pointer(pointer: str) -> bool:
     return _LEGACY_POINTER.match(pointer) is not None
 
 
-_AUTH_POINTER = re.compile(
-    r"^/securityRequirements(?:/.*)?$|^/skills/[0-9]+/securityRequirements(?:/.*)?$|^/securitySchemes(?:/.*)?$")
-
-
-def must_be_signed(pointer: str) -> bool:
-    """Whether a verifying signature must cover the member at `pointer`: a legacy member (`is_legacy_pointer`) or anything under
-    `securityRequirements` (top level or a skill's) or `securitySchemes`. A client reads these to decide who may call the agent,
-    so one that a verifying form leaves unsigned changes that decision exactly as a legacy member does (O4 spec 5.6,
-    orchestrator decision D-L1 2026-10-26)."""
-    return is_legacy_pointer(pointer) or _AUTH_POINTER.match(pointer) is not None
-
-
 def skill_identity(skills: list, index: int) -> str:
     """`skill:<id>`, or `skill-at:<index>` when the id is missing, not a string or an earlier skill's (SW-A2A-001 reports it)."""
     skill = skills[index] if 0 <= index < len(skills) else None

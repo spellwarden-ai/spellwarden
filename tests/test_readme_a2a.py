@@ -37,7 +37,7 @@ def test_the_section_says_what_the_spec_requires():
                    "`exclude: [\"samples/**\"]`", "Findings on a remote agent's card do not fail a pull or merge request",
                    "only one of them says who signed", "whoever controls the host", "unsigned_members", "RFC 8785",
                    "deprecated in 1.0 and documented as removed", "DER-encoded ECDSA", "`SW-A2A-018`", "At most 200 cards are read per run",
-                   "reported as `unsafe_path`", "reported as `unreadable`", "A member under `securityRequirements`"):
+                   "reported as `unsafe_path`", "reported as `unreadable`", "spelled with its proto field name", "an empty value the `a2a-sdk` form leaves out"):
         assert needle in text, needle
     for code in A2A_NOTICES:
         assert f"`{code}`" in text, code

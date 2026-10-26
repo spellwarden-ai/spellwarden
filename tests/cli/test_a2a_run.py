@@ -220,16 +220,31 @@ def throwaway_signed(card: dict) -> tuple[dict, bytes]:
     return {**card, "signatures": [signature]}, json.dumps({"keys": [jwk]}).encode()
 
 
-def test_d_l1_an_alternative_added_to_the_security_requirements_after_signing_makes_the_signature_invalid(run_cli, make_repo, tmp_path):
-    """(D-L1) The `sdk` form verifies a card whose `securityRequirements` gained an empty alternative (it removes `{}`), but the
-    empty alternative means anonymous callers are allowed: a security member left unsigned is `unsigned_legacy`, like a legacy one."""
+def test_d_l1_an_empty_alternative_added_to_the_security_requirements_after_signing_is_listed_not_invalid(run_cli, make_repo, tmp_path):
+    """(D-L1, revised) The `sdk` form verifies a card whose `securityRequirements` gained an empty alternative (it removes `{}`):
+    the signature stays verified and the alternative is listed as unsigned. Only an empty value can go unsigned this way, and
+    `a2a-sdk` signs every scope-less requirement like that, so failing it would fail every such card (r1:F3)."""
     card, jwks = throwaway_signed(clean_card())
     card["securityRequirements"].append({})
     code, report, _ = scan(run_cli, make_repo, tmp_path, {WELL_KNOWN: card_bytes(card), CONFIG: KEYS_CONFIG, ".well-known/jwks.json": jwks})
     [signature] = report["agents"][0]["signatures"]
-    assert (signature["outcome"], signature["payload_form"]) == ("unsigned_legacy", "sdk")
+    assert (signature["outcome"], signature["payload_form"]) == ("verified", "sdk")
     assert signature["unsigned_members"] == ["/securityRequirements/1"]
-    assert "/securityRequirements/1" in signature["detail"]
+    # `{}` has no `schemes`, which 1.0 requires: the validator reports it (medium), the signature rule does not.
+    assert [(f["rule_id"], f["severity"], f["evidence"]) for f in report["findings"]] == [
+        ("SW-A2A-001", "medium", "/securityRequirements/1/schemes: missing")]
+    assert code == 0 and report["agents"][0]["signature_status"] == "verified"
+
+
+@pytest.mark.parametrize("alias", ["security_requirements", "supported_interfaces", "security_schemes"])
+def test_r1_f2_a_proto_field_name_alias_added_after_signing_makes_the_signature_invalid(run_cli, make_repo, tmp_path, alias):
+    """protobuf's JSON reader takes `security_requirements` for `securityRequirements` and the later spelling wins, so an alias
+    appended after signing replaces the signed member for a proto-based client: `unsigned_legacy`, SW-A2A-010, exit 1 (r1:F2)."""
+    card, jwks = throwaway_signed(clean_card())
+    card[alias] = [{}] if alias != "security_schemes" else {"evil": {"apiKeySecurityScheme": {"location": "header", "name": "k"}}}
+    code, report, _ = scan(run_cli, make_repo, tmp_path, {WELL_KNOWN: card_bytes(card), CONFIG: KEYS_CONFIG, ".well-known/jwks.json": jwks})
+    [signature] = report["agents"][0]["signatures"]
+    assert signature["outcome"] == "unsigned_legacy" and f"/{alias}" in signature["detail"]
     assert code == 1 and ("SW-A2A-010", "high") in [(f["rule_id"], f["severity"]) for f in report["findings"]]
     assert report["agents"][0]["signature_status"] == "invalid"
 
