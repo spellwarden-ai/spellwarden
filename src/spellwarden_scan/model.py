@@ -7,7 +7,7 @@ from dataclasses import dataclass, field, fields
 from typing import Any, Literal
 
 Severity = Literal["critical", "high", "medium", "low"]
-Area = Literal["skill", "mcp", "config", "registry"]
+Area = Literal["skill", "mcp", "config", "registry", "a2a"]
 SEVERITY_RANK: dict[str, int] = {"critical": 0, "high": 1, "medium": 2, "low": 3}
 
 
@@ -317,6 +317,52 @@ class ConfigScanResult(_Model):
     scanner_version: str
 
 
+@dataclass(frozen=True, slots=True)
+class CardOrigin(_Model):
+    """Where an agent card came from (O4 spec 5.2). `source` is `repository` or `remote`; `path_form` is `well_known`
+    (`.../.well-known/agent-card.json`), `legacy_path` (`.../.well-known/agent.json`), `named` (another file named
+    `agent-card.json`), `listed` (`a2a.cards`) or, for a remote card, `direct` (a card URL). `requested_url` and `final_url`
+    are for a remote card only, without userinfo, query and fragment."""
+    source: str
+    path_form: str
+    requested_url: str | None = None
+    final_url: str | None = None
+    cross_origin_redirect: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class SignatureOutcome(_Model):
+    """What the command found out about one entry of a card's `signatures` (O4 spec 5.2). `key_source` is `keys_file` or
+    `jku`; `outcome` is `verified`, `bad_signature`, `untrusted_key`, `no_key`, `key_unavailable`, `malformed`,
+    `refused_alg`, `unverifiable_alg`, `embedded_key_only` or `unsigned_legacy`; `payload_form` is the form that verified
+    (`as_served`, `spec`, `sdk`); `unsigned_members` are the pointers of non-empty members that form left out."""
+    index: int
+    alg: str | None
+    kid: str | None
+    jku: str | None
+    key_source: str | None
+    outcome: str
+    payload_form: str | None = None
+    unsigned_members: tuple[str, ...] = ()
+    detail: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class A2aScanResult(_Model):
+    """`evaluate_agent_card`'s result (O4 spec 5.2). `migration_status` is `ready`, `to_migrate` or `invalid`;
+    `signature_status` is `unsigned`, `verified`, `invalid`, `refused` or `unverified`; `truncated` counts the findings
+    the caps left out; `document_truncated` says a collection cap of `a2a.CAPS` cut what was read."""
+    findings: tuple[Finding, ...]
+    truncated: int
+    card_format: str
+    protocol_versions: tuple[str, ...]
+    migration_status: str
+    signature_status: str
+    signatures: tuple[SignatureOutcome, ...]
+    checklist: tuple[ChecklistItem, ...]
+    document_truncated: bool = False
+
+
 # (class, field) -> ("one" | "many", nested class)
 _NESTED: dict[tuple[str, str], tuple[str, type]] = {
     ("Finding", "location"): ("one", Location),
@@ -337,6 +383,10 @@ _NESTED: dict[tuple[str, str], tuple[str, type]] = {
     ("ConfigDocument", "settings"): ("many", SettingFlag),
     ("ConfigDocument", "plugins"): ("many", MarketplacePlugin),
     ("ConfigScanResult", "findings"): ("many", Finding),
+    ("A2aScanResult", "findings"): ("many", Finding),
+    ("A2aScanResult", "signatures"): ("many", SignatureOutcome),
+    ("A2aScanResult", "checklist"): ("many", ChecklistItem),
 }
 _TUPLE_FIELDS = frozenset({"problems", "grant_types_supported", "deprecated_features", "long_running_tools", "args",
-                           "references", "documents", "org_rules_incomplete"})
+                           "references", "documents", "org_rules_incomplete", "protocol_versions",
+                           "unsigned_members"})
