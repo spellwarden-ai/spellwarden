@@ -87,7 +87,7 @@ def test_enforcement_rules_are_not_detection_rules():
     from spellwarden_scan.rules import RuleSet
 
     assert not {rule.id for rule in RuleSet.baseline()} & set(ENFORCEMENT_IDS)
-    assert len(RuleSet.baseline()) == 59
+    assert len(RuleSet.baseline()) == 60
 
 
 # --- the baseline pack (5.3) -------------------------------------------------------------------------------------

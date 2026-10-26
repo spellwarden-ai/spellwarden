@@ -1,6 +1,6 @@
 [project]
 name = "spellwarden"
-version = "1.3.0"
+version = "1.4.0"
 description = "Spellwarden: the scan engine for agent skills, MCP servers and Claude Code configuration and A2A agent cards (spellwarden_scan, pure code, no I/O) and the spellwarden command that does the I/O (spellwarden_cli)."
 readme = "README.md"
 license = "Apache-2.0"

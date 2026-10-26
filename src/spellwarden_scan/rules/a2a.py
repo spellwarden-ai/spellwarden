@@ -1,6 +1,6 @@
-"""The eighteen A2A agent card rules (O4 spec 5.4). Each `detect(subject)` is a generator of `Finding`s over a
-`CardSubject`: the parsed card, where it came from, what the command found out about its signatures and the path findings
-point at. None is a malicious indicator and none has an export target. The engine never verifies a signature: SW-A2A-010,
+"""The nineteen A2A agent card rules (O4 spec 5.4; SW-A2A-019 since 1.4.0). Each `detect(subject)` is a generator of
+`Finding`s over a `CardSubject`: the parsed card, where it came from, what the command found out about its signatures and
+the path findings point at. None is a malicious indicator and none has an export target. The engine never verifies a signature: SW-A2A-010,
 011, 012, 013 and 017 read the `SignatureOutcome`s the command recorded, as `evaluate_probe` reads a recorded probe.
 
 A finding's location is `location_path` with the line of the JSON value it is about for a repository card, and no line for
@@ -8,7 +8,12 @@ a remote card. Its fingerprint is `evidence.fingerprint(rule_id, location_path, 
 stable identity (`a2a.owner_identity`), the member name and the reason, plus the requested URL for a remote card; never a
 line number or an array index, so moving a member or inserting a skill keeps every fingerprint (claim R2). Evidence is the
 RFC 6901 pointer, a colon and a short reason or the offending value, masked and at most 300 characters; URLs in it lose
-userinfo, query and fragment."""
+userinfo, query and fragment.
+
+Rules judge the card as a protobuf client reads it (`AgentCardDocument.view`): a member spelled with its proto field name
+(`security_requirements`) is checked as the member it names, and pointers into it use the JSON names. Where that spelling
+sits is SW-A2A-001 (`proto_field_name`) when it is the only one, SW-A2A-019 when the card spells the member both ways.
+SW-A2A-015 reads every value as served, so a credential under a spelling the reader drops is still found."""
 from __future__ import annotations
 
 import ipaddress
@@ -18,8 +23,9 @@ from dataclasses import dataclass
 from spellwarden_scan._json import Arr, Obj
 from spellwarden_scan.a2a import (
     DEPRECATED_FLOWS, AgentCardDocument, capped, is_legacy_pointer, legacy_members, legacy_version_issues,
-    owner_identity, pointer_of, signature_identity, skill_identity, validate_1_0,
+    owner_identity, pointer_of, read_as_client, signature_identity, skill_identity, validate_1_0,
 )
+from spellwarden_scan.a2a_proto import PROTO_NAMES
 from spellwarden_scan.agentconfig import url_parts
 from spellwarden_scan.evidence import EVIDENCE_MAX, bounded_evidence, code_point_names, fingerprint, mask_credentials
 from spellwarden_scan.model import CardOrigin, Finding, Location, SignatureOutcome
@@ -48,12 +54,13 @@ TITLES = {
     "SW-A2A-016": "Agent card fetched through a redirect to another host",
     "SW-A2A-017": "Agent card signed with a shared secret that only the agent can check",
     "SW-A2A-018": "Agent card cannot be read",
+    "SW-A2A-019": "Agent card member spelled two ways",
 }
 SEVERITY = {"SW-A2A-001": "medium", "SW-A2A-002": "medium", "SW-A2A-003": "medium", "SW-A2A-004": "high",
             "SW-A2A-005": "high", "SW-A2A-006": "medium", "SW-A2A-007": "medium", "SW-A2A-008": "medium",
             "SW-A2A-009": "low", "SW-A2A-010": "high", "SW-A2A-011": "high", "SW-A2A-012": "low", "SW-A2A-013": "medium",
             "SW-A2A-014": "high", "SW-A2A-015": "critical", "SW-A2A-016": "medium", "SW-A2A-017": "medium",
-            "SW-A2A-018": "high"}
+            "SW-A2A-018": "high", "SW-A2A-019": "high"}
 _KIND_OF_WRAPPER = {"apiKeySecurityScheme": "apiKey", "httpAuthSecurityScheme": "http", "oauth2SecurityScheme": "oauth2",
                     "openIdConnectSecurityScheme": "openIdConnect", "mtlsSecurityScheme": "mtls"}
 _KIND_OF_TYPE = {"apiKey": "apiKey", "http": "http", "oauth2": "oauth2", "openIdConnect": "openIdConnect", "mutualTLS": "mtls"}
@@ -70,7 +77,7 @@ _PROTOCOL_NAMES = frozenset("""
     authorizationCode clientCredentials deviceCode implicit password authorizationUrl tokenUrl refreshUrl
     deviceAuthorizationUrl scopes pkceRequired preferredTransport additionalInterfaces supportsAuthenticatedExtendedCard
     supportsExtendedAgentCard security stateTransitionHistory transport type in
-""".split())
+""".split()) | {alias for names in PROTO_NAMES.values() for alias in names}
 
 
 @dataclass(frozen=True)
@@ -84,10 +91,15 @@ class CardSubject:
 
 
 def _root(subject: CardSubject) -> Obj | None:
-    """The card's root when it parsed and has the card shape; every rule but 018 and the `not_a_card` half of 001 stops
-    at a document that is not a card."""
+    """The card as a protobuf client reads it when it parsed and has the card shape; every rule but 018 and the
+    `not_a_card` half of 001 stops at a document that is not a card."""
     document = subject.document
-    return document.root if document.root is not None and document.card_shape else None
+    return read_as_client(document) if document.root is not None and document.card_shape else None
+
+
+class _Ours(str):
+    """Evidence detail the scanner writes from its own tables (member names, no card text): shown unmasked, since
+    `mask_credentials` would take `oauth2SecurityScheme` for a token."""
 
 
 def _at(pointer: str, detail: str) -> tuple[str, str]:
@@ -105,7 +117,8 @@ def _evidence(evidence: str | tuple[str, str]) -> str:
     pointer, detail = evidence
     shown = "/".join(segment if segment in _PROTOCOL_NAMES or segment.isdigit() else mask_credentials(segment)
                      for segment in pointer.split("/"))
-    text = f"{' '.join(shown.split())}: {mask_credentials(' '.join(str(detail).split()))}"
+    said = ' '.join(str(detail).split())
+    text = f"{' '.join(shown.split())}: {said if isinstance(detail, _Ours) else mask_credentials(said)}"
     return text if len(text) <= EVIDENCE_MAX else text[:EVIDENCE_MAX - 3] + "..."
 
 
@@ -218,6 +231,11 @@ def _a2a_001(subject: CardSubject) -> Iterator[Finding]:
     for issue in (*validate_1_0(document), *legacy_version_issues(document)):
         yield _finding("SW-A2A-001", subject, issue.identity, issue.member, issue.reason, _at(issue.pointer or "/", issue.reason),
                        issue.line)
+    view = read_as_client(document)
+    for alias in document.aliases:
+        if alias.outcome == "alias_only":
+            yield _finding("SW-A2A-001", subject, owner_identity(view, alias.view_pointer), alias.alias, "proto_field_name",
+                           _at(alias.pointer, _Ours(f"the proto field name of {alias.name}")), alias.line)
 
 
 def _a2a_002(subject: CardSubject) -> Iterator[Finding]:
@@ -237,6 +255,25 @@ def _a2a_003(subject: CardSubject) -> Iterator[Finding]:
     root, origin = _root(subject), subject.origin
     if root is not None and origin.path_form == "legacy_path":
         yield _finding("SW-A2A-003", subject, "card", "card", "legacy_path", _at("/", "served at /.well-known/agent.json"), root.line)
+
+
+_TWICE = {
+    "alias_wins": "spelled twice; a protobuf reader keeps this later spelling, a reader of JSON names keeps {name}",
+    "name_wins": "spelled twice; a protobuf reader keeps the later {name}",
+    "refused": "spelled twice as {name}; a protobuf reader refuses the card",
+}
+
+
+def _a2a_019(subject: CardSubject) -> Iterator[Finding]:
+    """Both spellings of one member: readers disagree on which one is the card. Reported at the proto field name, the
+    identity and member those of the JSON name, the reason the `ProtoAlias` outcome."""
+    root = _root(subject)
+    if root is None:
+        return
+    for alias in subject.document.aliases:
+        if alias.outcome in _TWICE:
+            yield _finding("SW-A2A-019", subject, owner_identity(root, alias.view_pointer), alias.name, alias.outcome,
+                           _at(alias.pointer, _Ours(_TWICE[alias.outcome].format(name=alias.name))), alias.line)
 
 
 # --- SW-A2A-004 to 009 -----------------------------------------------------------------------------------------------
@@ -536,7 +573,7 @@ def _a2a_015(subject: CardSubject) -> Iterator[Finding]:
     root = _root(subject)
     if root is None:
         return
-    for pointer, member, line, value in _scalar_leaves(root):
+    for pointer, member, line, value in _scalar_leaves(subject.document.root):
         if not isinstance(value, str):
             continue
         parts = url_parts(value)
@@ -564,5 +601,6 @@ RULES: tuple[Rule, ...] = (
     make_rule("SW-A2A-016", TITLES["SW-A2A-016"], "medium", "a2a", owasp=("ASI07",), nist=("SC-8",), detect=_a2a_016),
     make_rule("SW-A2A-017", TITLES["SW-A2A-017"], "medium", "a2a", owasp=("ASI07",), nist=("SI-7",), detect=_a2a_017),
     make_rule("SW-A2A-018", TITLES["SW-A2A-018"], "high", "a2a", owasp=("ASI07",), nist=("SI-10",), detect=_a2a_018),
+    make_rule("SW-A2A-019", TITLES["SW-A2A-019"], "high", "a2a", owasp=("ASI07",), nist=("SI-10",), detect=_a2a_019),
 )
 assert all(SEVERITY[rule.id] == rule.severity_default for rule in RULES)  # one table of severities, checked at import

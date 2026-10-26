@@ -1,6 +1,6 @@
 """O4 spec claim R1: for every A2A rule a positive and a negative card, each with the complete set of findings the engine
 reports for it (`(rule id, severity, evidence pointer)`). Every card is a small change to the clean signed card, so the
-cards are built here instead of being eighteen pairs of near-identical files; `test_fixture_coverage.py` runs them."""
+cards are built here instead of being one pair of near-identical files per rule; `test_fixture_coverage.py` runs them."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -30,6 +30,11 @@ class Case:
     origin: CardOrigin = CardOrigin("repository", "well_known")
     signatures: tuple[SignatureOutcome, ...] = VERIFIED
     expected: frozenset[tuple[str, str, str]] = frozenset()
+
+
+def _renamed(card: dict, name: str, to: str) -> dict:
+    """`card` with its top-level member `name` spelled `to`, in the same place."""
+    return {to if key == name else key: value for key, value in card.items()}
 
 
 def signed_card(**changes) -> dict:
@@ -189,5 +194,13 @@ CASES: dict[str, dict[str, Case]] = {
     "SW-A2A-018": {
         "positive": Case(b'{"name": "x",}', expected=hit("SW-A2A-018", "high", "not_json")),
         "negative": Case(b'{"name": "x",}', path="samples/agent-card.json", origin=CardOrigin("repository", "named")),
+    },
+    # A requirement with no schemes appended under the proto field name: a protobuf reader keeps it (no authentication),
+    # a reader of JSON names keeps the signed OAuth requirement. Spelled only as the proto field name, it is SW-A2A-001.
+    "SW-A2A-019": {
+        "positive": Case(signed_card(security_requirements=[{"schemes": {}}]),
+                         expected=hit("SW-A2A-019", "high", "/security_requirements")),
+        "negative": Case(_renamed(signed_card(), "securityRequirements", "security_requirements"),
+                         expected=hit("SW-A2A-001", "medium", "/security_requirements")),
     },
 }

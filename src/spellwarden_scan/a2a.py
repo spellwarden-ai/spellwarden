@@ -5,7 +5,11 @@ set and no root, never an exception. Everything in a card is hostile text; nothi
 The validator is written by hand from the normative proto at `v1.0.1` (`specification/a2a.proto`), not from the published
 JSON Schema (non-normative, no `required` lists, `additionalProperties: false` against specification 5.7) or from the
 SDK's protobuf types. Unknown fields are ignored. It runs on cards of format `1.0` only; an older card is reported by
-SW-A2A-002 and the migration checklist, not validated against the 0.3 or 0.2 schemas."""
+SW-A2A-002 and the migration checklist, not validated against the 0.3 or 0.2 schemas.
+
+The rules read a card as a protobuf client does (`client_view`): protobuf's JSON reader also accepts a member spelled with its
+proto field name (`security_requirements`), and of two spellings of one member it keeps the later. Every spelling it would
+take for another is a `ProtoAlias` (SW-A2A-001 `proto_field_name`, SW-A2A-019)."""
 from __future__ import annotations
 
 import base64
@@ -15,6 +19,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 
 from spellwarden_scan._json import MAX_DOCUMENT_BYTES, Arr, Obj, Refused, load_json
+from spellwarden_scan.a2a_proto import PRESENCE, PROTO_NAMES
 from spellwarden_scan.agentconfig import url_parts
 from spellwarden_scan.jcs import JcsError, jcs_canonicalize
 
@@ -59,10 +64,29 @@ _GRPC_ADDRESS = re.compile(r"^(?:\[[0-9A-Fa-f:.]+\]|[A-Za-z0-9._-]+):[0-9]{1,5}$
 
 
 @dataclass(frozen=True)
+class ProtoAlias:
+    """A member spelled with its proto field name (`security_requirements`) where A2A 1.0 JSON uses its JSON name
+    (`securityRequirements`). `pointer` is where it sits in the card as served, `view_pointer` where a protobuf reader puts it
+    (in `client_view`), `alias` and `name` the two spellings, `line` its line. `outcome` is what a protobuf reader does with
+    it: `alias_only` (the card has no other spelling: the alias is the member), `alias_wins` or `name_wins` (both spellings,
+    the later one is kept and the other dropped), `refused` (both spellings of an `optional` or `oneof` member: the reader
+    refuses the card)."""
+    pointer: str
+    view_pointer: str
+    alias: str
+    name: str
+    line: int | None
+    outcome: str
+
+
+@dataclass(frozen=True)
 class AgentCardDocument:
-    """One parsed agent card. `root` is the whole parsed object (`_json.Obj`, private to the engine: callers use the other
-    fields), None when `error` is set. `card_format` is one of `CARD_FORMATS`; `protocol_versions` the sorted `Major.Minor`
-    versions the card declares; `raw_sha256` the SHA-256 of the bytes; `truncated` that a cap of `CAPS` applied."""
+    """One parsed agent card. `root` is the whole parsed object as served (`_json.Obj`, private to the engine: callers use
+    the other fields), None when `error` is set; signatures are computed over it. `view` is the card as a protobuf client
+    reads it (`client_view`), the object the rules judge: `root` itself when no member uses its proto field name. `aliases`
+    are the members that do. `card_format` is one of `CARD_FORMATS`; `protocol_versions` the sorted `Major.Minor` versions the
+    card declares; `raw_sha256` the SHA-256 of the bytes; `truncated` that a cap of `CAPS` applied. Shape, format, versions
+    and caps are read from `view`."""
     path: str
     error: str | None
     root: Obj | None
@@ -71,6 +95,8 @@ class AgentCardDocument:
     protocol_versions: tuple[str, ...]
     raw_sha256: str
     truncated: bool = False
+    view: Obj | None = None
+    aliases: tuple[ProtoAlias, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -164,6 +190,11 @@ def owner_identity(root: Obj, pointer: str) -> str:
     return "card"
 
 
+def read_as_client(document: AgentCardDocument) -> Obj | None:
+    """The object the rules judge: the card as a protobuf client reads it (`view`), or `root` for a document built by hand."""
+    return document.view if document.view is not None else document.root
+
+
 def capped(value: object, name: str) -> list:
     """The first `CAPS[name]` entries of a list (an empty list for anything else)."""
     return list(value[:CAPS[name]]) if isinstance(value, list) else []
@@ -179,11 +210,77 @@ def parse_agent_card(path: str, content: bytes) -> AgentCardDocument:
         return AgentCardDocument(path, refused.code, None, False, "unknown", (), digest)
     if not isinstance(root, Obj):
         return AgentCardDocument(path, "not_an_object", None, False, "unknown", (), digest)
-    shape = isinstance(root.get("name"), str) and (isinstance(root.get("supportedInterfaces"), list)
-                                                   or isinstance(root.get("url"), str))
-    card_format = _format_of(root, shape)
-    return AgentCardDocument(path, None, root, shape, card_format, _versions_of(root, card_format), digest,
-                             _over_caps(root))
+    view, aliases = client_view(root)
+    shape = isinstance(view.get("name"), str) and (isinstance(view.get("supportedInterfaces"), list)
+                                                   or isinstance(view.get("url"), str))
+    card_format = _format_of(view, shape)
+    return AgentCardDocument(path, None, root, shape, card_format, _versions_of(view, card_format), digest,
+                             _over_caps(view), view, aliases)
+
+
+def client_view(root: Obj) -> tuple[Obj, tuple[ProtoAlias, ...]]:
+    """`root` as protobuf's JSON reader takes it, with the `ProtoAlias` of every member spelled with its proto field name.
+    In each object of a message `PRESENCE` knows, a proto field name (`PROTO_NAMES`) is read as the member it names and, of
+    two spellings of one member, the later is kept (a2a-sdk 1.2.3 over protobuf 7: a later `null` clears the member; both
+    spellings of an `optional` or `oneof` member refuse the card, and the view keeps the later). Members the proto does not
+    know, free-form structs and map keys stay as served, with their lines. Nothing is copied when no alias is present, and
+    nothing below a dropped spelling is looked at."""
+    aliases: list[ProtoAlias] = []
+    view = _view(root, "message:AgentCard", "", "", aliases)
+    return (view, tuple(aliases)) if aliases else (root, ())
+
+
+def _view(value: object, kind: str, served: str, viewed: str, aliases: list[ProtoAlias]) -> object:
+    if isinstance(value, Obj) and kind.startswith("message:"):
+        return _view_message(value, kind.split(":", 1)[1], served, viewed, aliases)
+    if isinstance(value, Obj) and kind.startswith("map:message:"):
+        inner = "message:" + kind.split(":", 2)[2]
+        return _copy(value, ((key, key, _view(item, inner, served + pointer_of(key), viewed + pointer_of(key), aliases))
+                             for key, item in value.items()))
+    if isinstance(value, Arr) and kind.startswith("repeated:message:"):
+        inner = "message:" + kind.split(":", 2)[2]
+        copied = Arr(_view(item, inner, served + pointer_of(index), viewed + pointer_of(index), aliases)
+                     for index, item in enumerate(value))
+        copied.line, copied.lines = value.line, value.lines
+        return copied
+    return value  # scalars, free-form structs, repeated strings and maps of strings are read as served
+
+
+def _copy(node: Obj, members) -> Obj:
+    """A new `Obj` of `(key as served, key in the copy, value)` with the line of each served key."""
+    copied = Obj()
+    copied.line, copied.lines = node.line, {}
+    for served_key, key, value in members:
+        copied[key] = value
+        if served_key in node.lines:
+            copied.lines[key] = node.lines[served_key]
+    return copied
+
+
+def _view_message(node: Obj, message: str, served: str, viewed: str, aliases: list[ProtoAlias]) -> Obj:
+    fields, names = PRESENCE[message], PROTO_NAMES[message]
+    spellings: dict[str, list[str]] = {}
+    for key in node:
+        name = names.get(key, key)
+        if name in fields:
+            spellings.setdefault(name, []).append(key)
+    members = []
+    for key, value in node.items():
+        name = names.get(key, key)
+        if name not in fields:
+            members.append((key, key, value))  # a member the proto does not know
+            continue
+        keys = spellings[name]
+        for spelled in keys if key == keys[-1] else ():
+            if spelled != name:
+                outcome = ("alias_only" if len(keys) == 1 else "refused" if fields[name][0] in ("optional", "oneof")
+                           else "alias_wins" if spelled == key else "name_wins")
+                aliases.append(ProtoAlias(served + pointer_of(spelled), viewed + pointer_of(name), spelled, name,
+                                          node.lines.get(spelled), outcome))
+        if key == keys[-1]:
+            members.append((key, name, _view(value, fields[name][1], served + pointer_of(key), viewed + pointer_of(name),
+                                             aliases)))
+    return _copy(node, members)
 
 
 def _format_of(root: Obj, shape: bool) -> str:
@@ -315,9 +412,10 @@ class _Checker:
 def validate_1_0(document: AgentCardDocument) -> tuple[Issue, ...]:
     """The issues of a card of format `1.0` (5.3); none for any other card. `AgentCard.signatures[]` are checked for their
     own fields only; what a signature proves is the command's business (6.6)."""
-    if document.root is None or document.card_format != "1.0":
+    root = read_as_client(document)
+    if root is None or document.card_format != "1.0":
         return ()
-    root, check = document.root, _Checker()
+    check = _Checker()
     for key in ("name", "description", "version"):
         check.string(root, key, "", "card", required=True)
     for key in ("documentationUrl", "iconUrl"):
@@ -530,7 +628,7 @@ def legacy_members(document: AgentCardDocument) -> Iterator[tuple[str, str, int 
     """`(pointer, member name, line)` of every member A2A 1.0 removed or renamed that the card carries (SW-A2A-002):
     the legacy top-level keys, `capabilities.stateTransitionHistory`, a skill's `security`, an interface's `transport`, a
     scheme's `type` and an API key scheme's `in`. A card of format `0.3` or `0.2` is reported once as a whole instead."""
-    root = document.root
+    root = read_as_client(document)
     if root is None:
         return
     for key in LEGACY_TOP_LEVEL:
@@ -562,7 +660,7 @@ def legacy_members(document: AgentCardDocument) -> Iterator[tuple[str, str, int 
 def legacy_version_issues(document: AgentCardDocument) -> tuple[Issue, ...]:
     """SW-A2A-001 (`version_format`) for the top-level `protocolVersion` of a 0.x card that matches neither
     `Major.Minor` nor `Major.Minor.Patch`; a 0.x card is not validated further."""
-    root = document.root
+    root = read_as_client(document)
     if root is None or document.card_format not in ("0.3", "0.2") or "protocolVersion" not in root:
         return ()
     value = root["protocolVersion"]

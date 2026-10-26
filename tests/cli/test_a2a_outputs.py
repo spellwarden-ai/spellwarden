@@ -21,7 +21,7 @@ SCHEMA = json.loads((Path(__file__).resolve().parents[2] / "schemas" / "report.s
 
 
 def report_of(*agents: AgentReport, findings=(), notices=()) -> Report:
-    return Report(scanner_version=__version__, rules_version="2026.10.4", as_of="2026-10-26", fail_on="high", items=(),
+    return Report(scanner_version=__version__, rules_version="2026.10.5", as_of="2026-10-26", fail_on="high", items=(),
                   findings=tuple(findings), probes=(), lock=LockState(), notices=tuple(notices), errors=(), repo_prefix="",
                   rules=RULES, agents=tuple(agents)).sorted()
 
@@ -128,7 +128,7 @@ def test_sarif_gives_a_remote_agent_a_logical_location_and_a_repository_card_a_p
     logical = by_item[".spellwarden/config.yml"]["locations"][0]["logicalLocations"]
     assert logical == [{"fullyQualifiedName": "a2a-agent:https://agent.example.com/", "kind": "resource"}]
     rules = {rule["id"]: rule for rule in document["runs"][0]["tool"]["driver"]["rules"]}
-    assert len([rule for rule in rules if rule.startswith("SW-A2A")]) == 18
+    assert len([rule for rule in rules if rule.startswith("SW-A2A")]) == 19
     assert rules["SW-A2A-015"]["properties"]["security-severity"] == "9.5" and "ASI03" in rules["SW-A2A-015"]["properties"]["tags"]
 
 
