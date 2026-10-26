@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.3.0 (RELEASE_DATE)
+## 1.3.0 (2026-10-26)
 
 A2A agent cards: the scanner reads the agent cards of a repository and, with `--probe`, the cards of remote agents, and
 checks them against A2A 1.0. A repository with no file named like a card and no `a2a` setting is scanned as 1.2.1 scanned
