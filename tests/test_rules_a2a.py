@@ -50,9 +50,9 @@ def signed(card: dict | None = None, count: int = 1) -> dict:
     return card
 
 
-def test_the_baseline_holds_the_eighteen_a2a_rules_with_the_spec_tags():
+def test_the_baseline_holds_the_nineteen_a2a_rules_with_the_spec_tags():
     table = {rule.id: (rule.severity_default, rule.owasp_agentic + rule.owasp_mcp, rule.nist) for rule in RULES.by_area("a2a")}
-    assert list(table) == [f"SW-A2A-{n:03d}" for n in range(1, 19)]
+    assert list(table) == [f"SW-A2A-{n:03d}" for n in range(1, 20)]
     assert table == {
         "SW-A2A-001": ("medium", ("ASI07",), ("SI-10",)), "SW-A2A-002": ("medium", ("ASI07",), ("SI-10",)),
         "SW-A2A-003": ("medium", ("ASI07",), ("SI-10",)), "SW-A2A-004": ("high", ("ASI07",), ("SC-8",)),
@@ -63,9 +63,10 @@ def test_the_baseline_holds_the_eighteen_a2a_rules_with_the_spec_tags():
         "SW-A2A-013": ("medium", ("ASI07",), ("SI-7",)), "SW-A2A-014": ("high", ("ASI01",), ("SI-10",)),
         "SW-A2A-015": ("critical", ("ASI03",), ("IA-5",)), "SW-A2A-016": ("medium", ("ASI07",), ("SC-8",)),
         "SW-A2A-017": ("medium", ("ASI07",), ("SI-7",)), "SW-A2A-018": ("high", ("ASI07",), ("SI-10",)),
+        "SW-A2A-019": ("high", ("ASI07",), ("SI-10",)),
     }
     assert not [rule for rule in RULES.by_area("a2a") if rule.targets or rule.malicious_indicator]
-    assert len(RULES) == 59 and [rule.id for rule in RULES][:18] == list(table)  # `SW-A2A` sorts before `SW-CFG`
+    assert len(RULES) == 60 and [rule.id for rule in RULES][:19] == list(table)  # `SW-A2A` sorts before `SW-CFG`
 
 
 def test_the_four_new_tags_are_baseline_only_and_organisation_rules_keep_the_1_2_lists():
@@ -453,3 +454,89 @@ def test_evidence_masks_a_credential_shaped_member_name_but_not_the_protocol_s_o
     long_text = clean_card()
     long_text["description"] = "ignore previous instructions " + "word " * 100
     assert len(fired(long_text)["SW-A2A-014"][0].evidence) == 300 and fired(long_text)["SW-A2A-014"][0].evidence.endswith("...")
+
+
+# --- 1.4.0: proto field names, read as a protobuf client reads them (SW-A2A-001 `proto_field_name`, SW-A2A-019) ------------
+
+def _renamed(card: dict, name: str, to: str) -> dict:
+    return {to if key == name else key: value for key, value in card.items()}
+
+
+def _summary(card) -> set[tuple[str, str]]:
+    return {(f.rule_id, f.evidence) for f in findings(card)}
+
+
+def test_what_a_proto_field_name_holds_is_judged_as_the_member_it_names():
+    card = _renamed(clean_card(), "supportedInterfaces", "supported_interfaces")
+    card["supported_interfaces"][0]["url"] = "http://agent.example.com/a2a"
+    flows = card["securitySchemes"]["oauth"]["oauth2SecurityScheme"]["flows"]
+    flows["implicit"] = {"authorization_url": "https://auth.example.com/authorize", "scopes": {}}
+    del flows["authorizationCode"]
+    card["securitySchemes"]["oauth"]["oauth2SecurityScheme"]["flows"] = {"implicit": flows["implicit"]}
+    found = _summary(card)
+    assert ("SW-A2A-004", "/supportedInterfaces/0/url: http://agent.example.com/a2a") in found
+    assert ("SW-A2A-005", "/securitySchemes/oauth/oauth2SecurityScheme/flows/implicit: deprecated in A2A 1.0") in found
+    assert ("SW-A2A-001", "/supported_interfaces: the proto field name of supportedInterfaces") in found
+    assert ("SW-A2A-001", "/securitySchemes/oauth/oauth2SecurityScheme/flows/implicit/authorization_url: the proto field "
+            "name of authorizationUrl") in found
+    assert not [rule for rule, _ in found if rule == "SW-A2A-019"]
+
+
+def test_a_no_authentication_requirement_under_the_proto_name_is_judged_and_flagged():
+    """The gap 1.3.0 left: an unsigned card whose appended `security_requirements` replaces its requirements for a protobuf
+    client, so the agent declares no requirement to that client (SW-A2A-007) and the card spells the member twice (019)."""
+    found = fired({**clean_card(), "security_requirements": []})
+    assert [f.evidence for f in found["SW-A2A-019"]] == [
+        "/security_requirements: spelled twice; a protobuf reader keeps this later spelling, a reader of JSON names keeps "
+        "securityRequirements"]
+    assert found["SW-A2A-019"][0].severity == "high" and found["SW-A2A-019"][0].title == "Agent card member spelled two ways"
+    assert [f.evidence for f in found["SW-A2A-007"]] == ["/: no_requirement"]
+    assert "SW-A2A-007" not in fired(clean_card())
+
+
+def test_sw_a2a_019_names_each_outcome_and_the_member_names_are_not_masked():
+    name_later = {"security_requirements": [], **clean_card()}
+    assert [f.evidence for f in fired(name_later)["SW-A2A-019"]] == [
+        "/security_requirements: spelled twice; a protobuf reader keeps the later securityRequirements"]
+    card = clean_card()
+    scheme = card["securitySchemes"]["oauth"]
+    scheme["oauth2_security_scheme"] = copy.deepcopy(scheme["oauth2SecurityScheme"])
+    assert [f.evidence for f in fired(card)["SW-A2A-019"]] == [
+        "/securitySchemes/oauth/oauth2_security_scheme: spelled twice as oauth2SecurityScheme; a protobuf reader refuses "
+        "the card"]
+
+
+def test_sw_a2a_019_fingerprints_carry_the_owner_and_the_outcome():
+    def fingerprint_of(card) -> str:
+        return fired(card)["SW-A2A-019"][0].fingerprint
+
+    base = {**clean_card(), "security_requirements": []}
+    moved = {"description": "x", **base}
+    assert fingerprint_of(base) == fingerprint_of({**moved, "description": base["description"]})
+    assert fingerprint_of(base) != fingerprint_of({"security_requirements": [], **clean_card()})  # name_wins
+    skill = clean_card()
+    skill["skills"][0]["securityRequirements"] = [{"schemes": {"oauth": {"list": []}}}]
+    skill["skills"][0]["security_requirements"] = []
+    finding = fired(skill)["SW-A2A-019"][0]
+    assert finding.evidence.startswith("/skills/0/security_requirements: ") and finding.fingerprint != fingerprint_of(base)
+
+
+def test_a_credential_under_a_spelling_the_reader_drops_is_still_found():
+    secret = credential("github")
+    card = {"security_schemes": {"x": {"http_auth_security_scheme": {"scheme": "bearer", "description": secret}}},
+            **clean_card()}
+    found = fired(card)
+    assert [f.evidence.split(": ")[0] for f in found["SW-A2A-015"]] == [
+        "/security_schemes/x/http_auth_security_scheme/description"]
+    assert secret not in found["SW-A2A-015"][0].evidence
+
+
+def test_a_card_written_in_proto_field_names_is_a_1_0_card_with_one_finding_per_spelling():
+    card = _renamed(_renamed(_renamed(clean_card(), "supportedInterfaces", "supported_interfaces"),
+                             "defaultInputModes", "default_input_modes"), "defaultOutputModes", "default_output_modes")
+    document = parse_agent_card(WELL_KNOWN, card_bytes(card))
+    assert (document.card_shape, document.card_format) == (True, "1.0")
+    found = fired(card)
+    assert sorted(f.evidence.split(": ")[0] for f in found["SW-A2A-001"]) == [
+        "/default_input_modes", "/default_output_modes", "/supported_interfaces"]
+    assert set(found) == {"SW-A2A-001", "SW-A2A-012"}

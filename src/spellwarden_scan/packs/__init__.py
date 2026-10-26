@@ -44,7 +44,7 @@ BASELINE_JSON = """{
   },
   "engine": {
     "version": "1.2.0",
-    "rules_version": "2026.10.4"
+    "rules_version": "2026.10.5"
   },
   "rules": [
     {

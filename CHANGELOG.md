@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.4.0 (2026-10-26)
+
+Agent cards are read as a protobuf client reads them. A2A 1.0 JSON spells members in camelCase, but protobuf's JSON reader
+(the one `a2a-sdk` uses) also accepts a member's proto field name (`security_requirements` for `securityRequirements`) and
+keeps the later of two spellings. 1.3.0 judged only the camelCase spelling, so an unsigned card could carry a member that
+protobuf clients use and no rule looked at, such as `security_requirements: []` appended after the card's requirements,
+which tells such a client that no authentication is needed. On a signed card such a member was already reported when the
+signature leaves it out (`SW-A2A-010`).
+
+- One new rule, `SW-A2A-019` "Agent card member spelled two ways" (high, ASI07, SI-10), for a member the card spells both
+  ways. Its reason says what a protobuf reader does: `alias_wins` (it keeps the later proto field name, while a reader of
+  JSON names keeps the other), `name_wins` (it keeps the later JSON name) or `refused` (both spellings of an `optional` or
+  `oneof` member, such as `iconUrl` or `oauth2SecurityScheme`: it refuses the card). It fails a build at the default
+  `--fail-on high`, and a baseline can accept it.
+- A member spelled only with its proto field name is `SW-A2A-001` with the reason `proto_field_name` (medium).
+- Every other rule judges the card as a protobuf client reads it: what a proto field name holds is checked as the member
+  it names, and the finding names it by its JSON name (`/supportedInterfaces/0/url`). `SW-A2A-015` reads every value as
+  served, so a credential under a spelling the reader drops is still found. A card written entirely in proto field names is
+  a 1.0 card, no longer `not_a_card`.
+- The rules version is `2026.10.5` (60 rules). A new rule is a minor version: a 1.3.x scanner refuses a baseline that
+  names `SW-A2A-019`. A card that spells no member with its proto field name gets the findings 1.3.0 gave it; the SARIF
+  rule table gains one descriptor, so the index of every result after `SW-A2A-019` in it moves by one.
+- Not covered: the proto field names of 0.x members (`preferred_transport`) on an unsigned card.
+
 ## 1.3.0 (2026-10-26)
 
 A2A agent cards: the scanner reads the agent cards of a repository and, with `--probe`, the cards of remote agents, and

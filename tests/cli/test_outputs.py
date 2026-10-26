@@ -237,7 +237,7 @@ def test_the_rules_command_prints_every_rule_in_each_format(run_cli):
     assert code == 0 and [rule["id"] for rule in json.loads(out)] == [line.split(" | ")[0][2:] for line in
                                                                       rules_markdown(RULES).splitlines()[2:]]
     code, out, _err = run_cli(["rules"])
-    assert code == 0 and len(out.splitlines()) == len(RULES) == 59
+    assert code == 0 and len(out.splitlines()) == len(RULES) == 60
 
 
 def test_a_dash_led_password_is_masked_in_json_and_sarif(make_repo, tmp_path, run_cli):

@@ -29,142 +29,13 @@ from typing import Any
 
 from spellwarden_scan._json import Obj, Refused, load_json
 from spellwarden_scan.a2a import AgentCardDocument, capped, is_legacy_pointer, pointer_of
+from spellwarden_scan.a2a_proto import PRESENCE as _PRESENCE
+from spellwarden_scan.a2a_proto import json_name as _camel
 from spellwarden_scan.jcs import JcsError, jcs_canonicalize
 
 HEADER_MAX_BYTES = 4096
 NUMBER_DETAIL = "number outside the range the scanner canonicalises"
 _BASE64URL = re.compile(r"^[A-Za-z0-9_-]*$")
-
-# Every field of the messages an agent card is made of at `v1.0.1`: `message -> JSON name -> (rule, kind)`. `rule` is
-# `required` (REQUIRED), `optional` (the `optional` keyword), `oneof` (a member of a `oneof`, which tracks presence) or
-# `plain`. `kind` is `scalar`, `struct`, `message:<M>`, `repeated:string`, `repeated:message:<M>`, `map:string` or
-# `map:message:<M>`. Generated from `tests/fixtures/a2a/proto/a2a-v1.0.1-card.proto` and compared with it by
-# `tests/test_a2a_signing.py` (claim S8).
-_PRESENCE: dict[str, dict[str, tuple[str, str]]] = {
-    "AgentInterface": {
-        "url": ("required", "scalar"),
-        "protocolBinding": ("required", "scalar"),
-        "tenant": ("plain", "scalar"),
-        "protocolVersion": ("required", "scalar"),
-    },
-    "AgentCard": {
-        "name": ("required", "scalar"),
-        "description": ("required", "scalar"),
-        "supportedInterfaces": ("required", "repeated:message:AgentInterface"),
-        "provider": ("plain", "message:AgentProvider"),
-        "version": ("required", "scalar"),
-        "documentationUrl": ("optional", "scalar"),
-        "capabilities": ("required", "message:AgentCapabilities"),
-        "securitySchemes": ("plain", "map:message:SecurityScheme"),
-        "securityRequirements": ("plain", "repeated:message:SecurityRequirement"),
-        "defaultInputModes": ("required", "repeated:string"),
-        "defaultOutputModes": ("required", "repeated:string"),
-        "skills": ("required", "repeated:message:AgentSkill"),
-        "signatures": ("plain", "repeated:message:AgentCardSignature"),
-        "iconUrl": ("optional", "scalar"),
-    },
-    "AgentProvider": {
-        "url": ("required", "scalar"),
-        "organization": ("required", "scalar"),
-    },
-    "AgentCapabilities": {
-        "streaming": ("optional", "scalar"),
-        "pushNotifications": ("optional", "scalar"),
-        "extensions": ("plain", "repeated:message:AgentExtension"),
-        "extendedAgentCard": ("optional", "scalar"),
-    },
-    "AgentExtension": {
-        "uri": ("plain", "scalar"),
-        "description": ("plain", "scalar"),
-        "required": ("plain", "scalar"),
-        "params": ("plain", "struct"),
-    },
-    "AgentSkill": {
-        "id": ("required", "scalar"),
-        "name": ("required", "scalar"),
-        "description": ("required", "scalar"),
-        "tags": ("required", "repeated:string"),
-        "examples": ("plain", "repeated:string"),
-        "inputModes": ("plain", "repeated:string"),
-        "outputModes": ("plain", "repeated:string"),
-        "securityRequirements": ("plain", "repeated:message:SecurityRequirement"),
-    },
-    "AgentCardSignature": {
-        "protected": ("required", "scalar"),
-        "signature": ("required", "scalar"),
-        "header": ("plain", "struct"),
-    },
-    "StringList": {
-        "list": ("plain", "repeated:string"),
-    },
-    "SecurityRequirement": {
-        "schemes": ("plain", "map:message:StringList"),
-    },
-    "SecurityScheme": {
-        "apiKeySecurityScheme": ("oneof", "message:APIKeySecurityScheme"),
-        "httpAuthSecurityScheme": ("oneof", "message:HTTPAuthSecurityScheme"),
-        "oauth2SecurityScheme": ("oneof", "message:OAuth2SecurityScheme"),
-        "openIdConnectSecurityScheme": ("oneof", "message:OpenIdConnectSecurityScheme"),
-        "mtlsSecurityScheme": ("oneof", "message:MutualTlsSecurityScheme"),
-    },
-    "APIKeySecurityScheme": {
-        "description": ("plain", "scalar"),
-        "location": ("required", "scalar"),
-        "name": ("required", "scalar"),
-    },
-    "HTTPAuthSecurityScheme": {
-        "description": ("plain", "scalar"),
-        "scheme": ("required", "scalar"),
-        "bearerFormat": ("plain", "scalar"),
-    },
-    "OAuth2SecurityScheme": {
-        "description": ("plain", "scalar"),
-        "flows": ("required", "message:OAuthFlows"),
-        "oauth2MetadataUrl": ("plain", "scalar"),
-    },
-    "OpenIdConnectSecurityScheme": {
-        "description": ("plain", "scalar"),
-        "openIdConnectUrl": ("required", "scalar"),
-    },
-    "MutualTlsSecurityScheme": {
-        "description": ("plain", "scalar"),
-    },
-    "OAuthFlows": {
-        "authorizationCode": ("oneof", "message:AuthorizationCodeOAuthFlow"),
-        "clientCredentials": ("oneof", "message:ClientCredentialsOAuthFlow"),
-        "implicit": ("oneof", "message:ImplicitOAuthFlow"),
-        "password": ("oneof", "message:PasswordOAuthFlow"),
-        "deviceCode": ("oneof", "message:DeviceCodeOAuthFlow"),
-    },
-    "AuthorizationCodeOAuthFlow": {
-        "authorizationUrl": ("required", "scalar"),
-        "tokenUrl": ("required", "scalar"),
-        "refreshUrl": ("plain", "scalar"),
-        "scopes": ("required", "map:string"),
-        "pkceRequired": ("plain", "scalar"),
-    },
-    "ClientCredentialsOAuthFlow": {
-        "tokenUrl": ("required", "scalar"),
-        "refreshUrl": ("plain", "scalar"),
-        "scopes": ("required", "map:string"),
-    },
-    "ImplicitOAuthFlow": {
-        "authorizationUrl": ("plain", "scalar"),
-        "refreshUrl": ("plain", "scalar"),
-        "scopes": ("plain", "map:string"),
-    },
-    "PasswordOAuthFlow": {
-        "tokenUrl": ("plain", "scalar"),
-        "refreshUrl": ("plain", "scalar"),
-        "scopes": ("plain", "map:string"),
-    },
-    "DeviceCodeOAuthFlow": {
-        "deviceAuthorizationUrl": ("required", "scalar"),
-        "tokenUrl": ("required", "scalar"),
-        "refreshUrl": ("plain", "scalar"),
-        "scopes": ("required", "map:string"),
-    },
-}
 
 
 @dataclass(frozen=True)
@@ -242,12 +113,6 @@ def _message(value: Mapping, name: str, pointer: str, dropped: list[str]) -> dic
 
 
 _WHOLE_REQUIREMENT = re.compile(r"^(?:/skills/[0-9]+)?/securityRequirements/[0-9]+$")
-
-
-def _camel(name: str) -> str:
-    """The JSON name protobuf gives the proto field `name` (`security_requirements` -> `securityRequirements`)."""
-    head, *rest = name.split("_")
-    return head + "".join(part[:1].upper() + part[1:] for part in rest)
 
 
 def _names_alias(segments: list[str]) -> bool:

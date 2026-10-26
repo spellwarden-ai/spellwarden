@@ -7,7 +7,7 @@ import re
 from collections.abc import Sequence
 
 from spellwarden_scan._json import Obj
-from spellwarden_scan.a2a import AgentCardDocument, capped
+from spellwarden_scan.a2a import AgentCardDocument, capped, read_as_client
 from spellwarden_scan.model import ChecklistItem, Finding
 
 ITEMS: tuple[tuple[str, str], ...] = (
@@ -84,7 +84,7 @@ def _several_flows(root: Obj) -> bool:
 def a2a_checklist(document: AgentCardDocument, findings: Sequence[Finding]) -> tuple[ChecklistItem, ...]:
     """The checklist of one card (5.8), in the order of `ITEMS`. A card that could not be read has only `rescan`."""
     fired = {finding.rule_id for finding in findings}
-    root = document.root
+    root = read_as_client(document)
     older = document.card_format in ("0.3", "0.2")
     conditions = dict.fromkeys((key for key, _ in ITEMS), False)
     if root is not None:
