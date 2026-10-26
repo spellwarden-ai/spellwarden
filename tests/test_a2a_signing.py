@@ -218,6 +218,68 @@ def test_s9_a_vendor_member_added_after_signing_is_in_unsigned_members_of_the_sp
     assert vendor.inputs[1][2] == ("/x-vendor",) and vendor.inputs[0][2] == ()
 
 
+def unsigned_of(card: dict) -> dict[str, tuple[str, ...]]:
+    """`form -> unsigned members` of the one signature of `card` (a form equal to an earlier one is not listed)."""
+    [entry] = inputs_of(signed(card, GOOD_HEADER))
+    return {form: members for form, _, members in entry.inputs}
+
+
+def test_s3_a_legacy_member_that_holds_a_default_is_still_unsigned_in_the_spec_and_sdk_forms():  # (item 3)
+    card = clean_card()
+    card["skills"][0]["security"] = []  # to a 0.x client an empty skill-level list overrides the card's requirements to none
+    card["security"] = []
+    card["supportsAuthenticatedExtendedCard"] = False
+    card["capabilities"] = {}  # makes the sdk form differ from the spec form, so both are listed
+    forms = unsigned_of(card)
+    assert list(forms) == ["as_served", "spec", "sdk"] and forms["as_served"] == ()
+    expected = ["/security", "/skills/0/security", "/supportsAuthenticatedExtendedCard"]
+    assert sorted(forms["spec"]) == expected and sorted(forms["sdk"]) == expected
+    assert all(is_legacy_pointer(pointer) for pointer in forms["spec"])
+
+
+def test_s3_a_vendor_member_that_holds_a_default_stays_unreported():
+    card = clean_card()
+    card.update({"x-vendor": [], "x-flag": False})
+    assert all(members == () for members in unsigned_of(card).values())  # a default the protocol treats as absent
+
+
+def test_s3_the_sdk_form_reports_the_list_elements_it_removes():  # (item 4)
+    card = clean_card()
+    card["securityRequirements"] = [{"schemes": {"a": {"list": ["x"]}}}, {}]  # `{}`: "anonymous allowed"
+    forms = unsigned_of(card)
+    assert list(forms) == ["as_served", "sdk"]  # the spec form keeps `{}` and so equals as_served
+    assert forms["sdk"] == ("/securityRequirements/1",) and forms["as_served"] == ()
+    card["skills"][0]["securityRequirements"] = [{}]
+    assert "/skills/0/securityRequirements/0" in unsigned_of(card)["sdk"]
+
+
+def test_s3_the_sdk_form_reports_the_map_entries_it_removes_and_what_a_nested_removal_emptied():
+    card = clean_card()
+    card["securitySchemes"] = {"a": {}, "m": {"mtlsSecurityScheme": {}}}
+    card["securityRequirements"] = [{"schemes": {"a": {"list": []}}}]
+    forms = unsigned_of(card)
+    # the deepest removal, not its parents; `m` held only an empty oneof member, which the sdk removes with its scheme
+    assert forms["sdk"] == ("/securityRequirements/0/schemes/a", "/securitySchemes/a", "/securitySchemes/m")
+    assert "sdk" in forms and forms["as_served"] == ()
+
+
+def test_s3_the_sdk_form_leaves_empty_message_fields_unreported():
+    card = clean_card()
+    card["capabilities"] = {}
+    card["documentationUrl"] = ""
+    card["skills"][0]["examples"] = []
+    assert unsigned_of(card)["sdk"] == ()
+    [entry] = inputs_of(fixture("sdk-es256"))
+    assert all(members == () for _, _, members in entry.inputs)
+
+
+def test_clean_empty_reports_the_pointers_it_removes_by_kind():
+    removed: list[str] = []
+    value = {"a": "", "b": [{}, "k", ""], "c": {"d": ""}, "scopes": {"x": ""}}
+    assert _clean_empty(value, "", removed, "struct") == {"b": ["k"]}
+    assert removed == ["/a", "/b/0", "/b/2", "/c/d", "/scopes/x"]
+
+
 def test_s9_a_legacy_member_added_after_signing_is_listed_and_is_a_legacy_pointer():
     entry = inputs_of(fixture("es256-legacy"))[0]
     unsigned = [pointer for _, _, members in entry.inputs for pointer in members]

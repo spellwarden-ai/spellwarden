@@ -11,10 +11,12 @@ that differ only in which members they keep, deduplicated in this order:
   a member that is neither REQUIRED nor `optional` nor a `oneof` member is dropped when it holds its default (`false`, `0`,
   `""`, an empty array, an empty object); REQUIRED, `optional` and `oneof` members and free-form structs are kept as served.
 - `sdk`: what `a2a-sdk` 1.2.3 signs: the `spec` form, then every empty string, array and object removed recursively, REQUIRED
-  ones included, and a container emptied by that removal removed in turn (`signing.py::_clean_empty`).
+  ones included, and a container emptied by that removal removed in turn (`signing.py::_clean_empty`). Its unsigned members
+  are the `spec` form's plus every list element, free-form map entry and emptied container it removed (`_clean_empty`).
 
 Each form only removes members, so a card verifies over a form only when the signer signed exactly the members that remain;
-what a form removed is either a default the protocol treats as absent or listed in `unsigned_members`."""
+what a form removed is either a default the protocol treats as absent or listed in `unsigned_members`. A legacy member
+(`is_legacy_pointer`) is listed even when it holds a default: to a 0.x client `security: []` is not absent."""
 from __future__ import annotations
 
 import base64
@@ -25,7 +27,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from spellwarden_scan._json import Obj, Refused, load_json
-from spellwarden_scan.a2a import AgentCardDocument, capped, pointer_of
+from spellwarden_scan.a2a import AgentCardDocument, capped, is_legacy_pointer, pointer_of
 from spellwarden_scan.jcs import JcsError, jcs_canonicalize
 
 HEADER_MAX_BYTES = 4096
@@ -226,7 +228,9 @@ def _message(value: Mapping, name: str, pointer: str, dropped: list[str]) -> dic
     projected: dict = {}
     for key, member in value.items():
         if key not in table:
-            if not _is_default(member):  # a member the proto never saw, with a value: a signer cannot have signed it
+            # a member the proto never saw, with a value, or a legacy member whatever its value (a skill's `security: []`
+            # overrides the card's requirements to none for a 0.x client): a signer cannot have signed it (5.6, r1:F4)
+            if not _is_default(member) or is_legacy_pointer(pointer + pointer_of(key)):
                 dropped.append(pointer + pointer_of(key))
             continue
         rule, kind = table[key]
@@ -236,13 +240,54 @@ def _message(value: Mapping, name: str, pointer: str, dropped: list[str]) -> dic
     return projected
 
 
-def _clean_empty(value: Any) -> Any:
-    """`a2a-sdk`'s `_clean_empty`: empty strings, arrays and objects removed recursively, `None` for what is left empty."""
+def _child_kind(kind: str | None, key: str) -> str | None:
+    """The `_PRESENCE` kind of member `key` of an object of `kind` (None when it is a scalar or unknown)."""
+    if kind is None or kind.startswith("map:string"):
+        return None
+    if kind == "struct":
+        return "struct"
+    if kind.startswith("map:message:"):
+        return "message:" + kind.split(":", 2)[2]
+    entry = _PRESENCE.get(kind.split(":", 1)[1], {}).get(key) if kind.startswith("message:") else None
+    return entry[1] if entry else None
+
+
+def _element_kind(kind: str | None) -> str | None:
+    """The kind of an element of a list of `kind`."""
+    if kind == "struct":
+        return "struct"
+    return "message:" + kind.split(":", 2)[2] if kind is not None and kind.startswith("repeated:message:") else None
+
+
+def _clean_empty(value: Any, pointer: str = "", removed: list[str] | None = None, kind: str | None = None) -> Any:
+    """`a2a-sdk`'s `_clean_empty`: empty strings, arrays and objects removed recursively, `None` for what is left empty.
+    With `removed` it also appends the RFC 6901 pointer of what the removal takes out of a signed object that a verifier
+    cannot take for an absent default (5.6, r1:F5): every list element, every entry of a free-form map (`map:*` and
+    `struct` kinds of `_PRESENCE`, e.g. `securitySchemes`, a requirement's `schemes`) and every message member that was a
+    non-empty container and emptied. A message member that was itself an empty string, array or object is the absent-
+    equivalent default the spec accepts and stays unreported. Only the deepest removal of a chain is recorded: a parent
+    that emptied because its children were removed is already named by them. `kind` is the `_PRESENCE` kind of `value`."""
+    log = removed if removed is not None else []
     if isinstance(value, dict):
-        cleaned = {key: item for key, member in value.items() if (item := _clean_empty(member)) is not None}
+        free_form = kind == "struct" or (kind is not None and kind.startswith("map:"))
+        cleaned = {}
+        for key, member in value.items():
+            mark = len(log)
+            item = _clean_empty(member, pointer + pointer_of(key), log, _child_kind(kind, key))
+            if item is not None:
+                cleaned[key] = item
+            elif len(log) == mark and (free_form or (isinstance(member, (dict, list)) and member)):
+                log.append(pointer + pointer_of(key))
         return cleaned or None
     if isinstance(value, list):
-        kept = [item for member in value if (item := _clean_empty(member)) is not None]
+        kept = []
+        for index, member in enumerate(value):
+            mark = len(log)
+            item = _clean_empty(member, pointer + pointer_of(index), log, _element_kind(kind))
+            if item is not None:
+                kept.append(item)
+            elif len(log) == mark:
+                log.append(pointer + pointer_of(index))
         return kept or None
     if isinstance(value, str) and not value:
         return None
@@ -255,10 +300,12 @@ def _forms(root: Obj) -> tuple[tuple[str, bytes, tuple[str, ...]], ...]:
     served = {key: value for key, value in root.items() if key != "signatures"}
     dropped: list[str] = []
     spec = _message(served, "AgentCard", "", dropped)
-    sdk = _clean_empty(spec) or {}
+    removed: list[str] = []
+    sdk = _clean_empty(spec, "", removed, "message:AgentCard") or {}
+    sdk_unsigned = tuple(sorted(dict.fromkeys([*dropped, *removed])))
     forms: list[tuple[str, bytes, tuple[str, ...]]] = []
     seen: set[bytes] = set()
-    for name, payload, unsigned in (("as_served", served, ()), ("spec", spec, tuple(dropped)), ("sdk", sdk, tuple(dropped))):
+    for name, payload, unsigned in (("as_served", served, ()), ("spec", spec, tuple(dropped)), ("sdk", sdk, sdk_unsigned)):
         canonical = jcs_canonicalize(payload)
         if canonical not in seen:
             seen.add(canonical)
