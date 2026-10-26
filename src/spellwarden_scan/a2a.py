@@ -45,7 +45,15 @@ _LEGACY_POINTER = re.compile(
     r"|^/supportedInterfaces/[0-9]+/transport(?:/.*)?$"
     r"|^/securitySchemes/[^/]+/(?:type|in)(?:/.*)?$"
     r"|^/securitySchemes/[^/]+/apiKeySecurityScheme/in(?:/.*)?$")
-_VERSION = re.compile(r"^([0-9]+)\.([0-9]+)(?:\.([0-9]+))?$")
+# At most nine digits a number: `int()` raises past 4300 digits, and a version that long is a `version_format` issue (r1:F1).
+_VERSION = re.compile(r"^([0-9]{1,9})\.([0-9]{1,9})(?:\.([0-9]{1,9}))?$")
+_SCHEME_PREFIX = re.compile(r"^(?:[A-Za-z][A-Za-z0-9+.-]*:)?//")
+
+
+def _small_int(text: str) -> int | None:
+    """`text` as an int only when it is one to nine ASCII digits, else None. `str.isdigit` accepts `'²'` and `int` raises on a
+    5000-digit string, so no conversion in this module sees a card's text without this (O4 spec invariant 10, r1:F1)."""
+    return int(text) if text.isascii() and text.isdigit() and len(text) <= 9 else None
 _ABSOLUTE_URI = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:[^\s]+$")
 _GRPC_ADDRESS = re.compile(r"^(?:\[[0-9A-Fa-f:.]+\]|[A-Za-z0-9._-]+):[0-9]{1,5}$")
 
@@ -89,6 +97,18 @@ def is_legacy_pointer(pointer: str) -> bool:
     return _LEGACY_POINTER.match(pointer) is not None
 
 
+_AUTH_POINTER = re.compile(
+    r"^/securityRequirements(?:/.*)?$|^/skills/[0-9]+/securityRequirements(?:/.*)?$|^/securitySchemes(?:/.*)?$")
+
+
+def must_be_signed(pointer: str) -> bool:
+    """Whether a verifying signature must cover the member at `pointer`: a legacy member (`is_legacy_pointer`) or anything under
+    `securityRequirements` (top level or a skill's) or `securitySchemes`. A client reads these to decide who may call the agent,
+    so one that a verifying form leaves unsigned changes that decision exactly as a legacy member does (O4 spec 5.6,
+    orchestrator decision D-L1 2026-10-26)."""
+    return is_legacy_pointer(pointer) or _AUTH_POINTER.match(pointer) is not None
+
+
 def skill_identity(skills: list, index: int) -> str:
     """`skill:<id>`, or `skill-at:<index>` when the id is missing, not a string or an earlier skill's (SW-A2A-001 reports it)."""
     skill = skills[index] if 0 <= index < len(skills) else None
@@ -128,14 +148,15 @@ def owner_identity(root: Obj, pointer: str) -> str:
     if len(parts) < 2:
         return "card"
     head, key = parts[0], parts[1]
-    index = int(key) if key.isdigit() else -1
+    index = _small_int(key)
+    index = -1 if index is None else index
     if head == "skills" and isinstance(root.get("skills"), list) and 0 <= index < len(root["skills"]):
         ident = skill_identity(root["skills"], index)
         skill = root["skills"][index]
-        if len(parts) > 3 and parts[2] in ("securityRequirements", "security") and parts[3].isdigit() and isinstance(skill, dict):
+        if len(parts) > 3 and parts[2] in ("securityRequirements", "security") and isinstance(skill, dict):
             items = skill.get(parts[2])
-            at = int(parts[3])
-            if isinstance(items, list) and at < len(items):
+            at = _small_int(parts[3])
+            if isinstance(items, list) and at is not None and at < len(items):
                 return requirement_identity(ident, items[at], at)
         return ident
     interfaces = root.get("supportedInterfaces")
@@ -145,10 +166,11 @@ def owner_identity(root: Obj, pointer: str) -> str:
         return f"scheme:{key}"
     if head == "signatures" and isinstance(root.get("signatures"), list) and 0 <= index < len(root["signatures"]):
         return signature_identity(root["signatures"][index], index)
-    if head == "capabilities" and key == "extensions" and len(parts) > 2 and parts[2].isdigit():
+    at = _small_int(parts[2]) if head == "capabilities" and key == "extensions" and len(parts) > 2 else None
+    if at is not None:
         extensions = root["capabilities"].get("extensions") if isinstance(root.get("capabilities"), dict) else None
-        if isinstance(extensions, list) and int(parts[2]) < len(extensions):
-            return extension_identity(extensions[int(parts[2])], int(parts[2]))
+        if isinstance(extensions, list) and at < len(extensions):
+            return extension_identity(extensions[at], at)
     if head in ("securityRequirements", "security") and isinstance(root.get(head), list) and 0 <= index < len(root[head]):
         return requirement_identity("card", root[head][index], index)
     return "card"
@@ -189,7 +211,7 @@ def _format_of(root: Obj, shape: bool) -> str:
 
 def _reduced(version: object) -> tuple[int, int] | None:
     match = _VERSION.match(version) if isinstance(version, str) else None
-    return (int(match.group(1)), int(match.group(2))) if match else None
+    return (int(match.group(1)), int(match.group(2))) if match else None  # `_VERSION` holds at most nine ASCII digits a number
 
 
 def _versions_of(root: Obj, card_format: str) -> tuple[str, ...]:
@@ -370,7 +392,11 @@ def _reduced_url(url: str) -> str:
     """The URL without userinfo, query and fragment, as findings and fingerprints name an interface."""
     parts = url_parts(url)
     if parts is None:
-        return url.split("?", 1)[0].split("#", 1)[0]
+        # The fallback strips userinfo too: everything up to the last `@`, so no `user:pass@` text survives (r1:F1 security).
+        text = url.split("?", 1)[0].split("#", 1)[0]
+        prefix = _SCHEME_PREFIX.match(text)
+        head = prefix.group(0) if prefix else ""
+        return head + text[len(head):].rsplit("@", 1)[-1]
     host = f"[{parts.host}]" if ":" in parts.host else parts.host
     return f"{parts.scheme}://{host}{':' + parts.port if parts.port else ''}{parts.path}"
 

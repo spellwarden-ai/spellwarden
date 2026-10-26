@@ -7,9 +7,12 @@ import pytest
 from a2a_cards import card_bytes, clean_card, spec_card
 
 from spellwarden_scan.a2a import (
-    CAPS, AgentCardDocument, capped, is_legacy_pointer, legacy_members, parse_agent_card, pointer_of, validate_1_0,
-    legacy_version_issues,
+    CAPS, AgentCardDocument, _reduced_url, capped, is_legacy_pointer, legacy_members, legacy_version_issues, must_be_signed,
+    owner_identity, parse_agent_card, pointer_of, validate_1_0,
 )
+from spellwarden_scan.model import CardOrigin
+from spellwarden_scan.rules import RuleSet
+from spellwarden_scan.scan import evaluate_agent_card
 
 # V2: the required members of an AgentCard that the TCK checks (`tests/compatibility/agent_card/test_agent_card.py`,
 # `_REQUIRED_FIELDS`, a2a-tck commit d4d6fae), which are the proto's REQUIRED annotations at v1.0.1.
@@ -352,3 +355,83 @@ def test_r0_f1_a_signature_header_nested_thousands_deep_is_read_as_unreadable_on
     card["signatures"] = [entry]
     assert signature_identity(parsed(card).root["signatures"][0], 0) == "signature:#0"
     assert ("/signatures/0/header", "wrong_type") in reasons(card)
+
+
+def _evaluated(card: dict):
+    """The card through the whole engine (`evaluate_agent_card` with the baseline rules and no signature outcome)."""
+    document = parsed(card)
+    return document, evaluate_agent_card(document, RuleSet.baseline(), origin=CardOrigin("repository", "well_known"),
+                                         signatures=(), location_path="public/.well-known/agent-card.json")
+
+
+def test_r1_f1_a_protocol_version_of_thousands_of_digits_is_a_version_format_issue_and_never_a_crash():
+    """`int()` raises ValueError past 4300 digits on Python 3.11+: a hostile card made every scan exit 2 (invariant 10)."""
+    huge = "9" * 5000 + ".0"
+    card = clean_card()
+    card["supportedInterfaces"][0]["protocolVersion"] = huge
+    document, result = _evaluated(card)
+    assert document.protocol_versions == ()
+    assert ("/supportedInterfaces/0/protocolVersion", "version_format") in [(i.pointer, i.reason) for i in validate_1_0(document)]
+    assert "SW-A2A-001" in {finding.rule_id for finding in result.findings}
+    old = {"name": "x", "url": "https://a.example/", "protocolVersion": huge}
+    document, result = _evaluated(old)
+    assert document.protocol_versions == ()
+    assert [(i.pointer, i.reason) for i in legacy_version_issues(document)] == [("/protocolVersion", "version_format")]
+    assert "SW-A2A-001" in {finding.rule_id for finding in result.findings}
+
+
+def test_r1_f1_a_version_number_of_nine_digits_is_still_a_version_and_ten_digits_is_not():
+    card = {"name": "x", "url": "https://a.example/"}
+    for version, kept in (("123456789.7", True), ("1234567890.7", False), ("1.1234567890", False)):
+        card["protocolVersion"] = version
+        assert bool(parsed(card).protocol_versions) is kept, version
+
+
+@pytest.mark.parametrize("key", ["\u00b2", "9" * 5000, "\u0663", "\u00b2" * 3], ids=["superscript", "5000-digits", "arabic-indic", "superscripts"])
+def test_r1_f1_a_security_scheme_key_that_str_isdigit_accepts_but_int_rejects_is_a_plain_scheme_name(key):
+    card = clean_card()
+    card["securitySchemes"][key] = {"apiKeySecurityScheme": {"location": "query", "name": "api_key"}}
+    card["securityRequirements"] = [{"schemes": {key: {"list": []}}}]
+    _, result = _evaluated(card)
+    hits = [finding for finding in result.findings if finding.rule_id == "SW-A2A-008"]
+    assert len(hits) == 1 and hits[0].evidence.startswith(f"/securitySchemes/{key[:40]}")  # the evidence is cut at a length cap
+    assert owner_identity(parsed(card).root, f"/securitySchemes/{key}/apiKeySecurityScheme/location") == f"scheme:{key}"
+
+
+def test_r1_f1_owner_identity_reads_only_short_ascii_indexes():
+    root = parsed(clean_card()).root
+    big = "9" * 5000
+    for pointer in (f"/skills/{big}/id", "/skills/\u00b2/id", f"/skills/0/securityRequirements/{big}", "/skills/0/securityRequirements/\u00b2",
+                    f"/capabilities/extensions/{big}", "/capabilities/extensions/\u00b2", f"/supportedInterfaces/{big}/url",
+                    f"/securityRequirements/{big}", "/signatures/\u00b2"):
+        assert owner_identity(root, pointer) in ("card", "skill:summarise"), pointer
+    assert owner_identity(root, "/skills/0/id") == "skill:summarise"
+
+
+@pytest.mark.parametrize("url", ["https://user:secret@exa mple.com/a?b", "user:secret@host/x", "ftp://u:secret@h o/p#f",
+                                 "https://a@b@exa mple.com/x", "//user:secret@host/x"])
+def test_r1_f1_an_unparseable_url_is_reduced_without_userinfo_query_or_fragment(url):
+    reduced = _reduced_url(url)
+    assert "secret" not in reduced and "@" not in reduced and "?" not in reduced and "#" not in reduced
+    assert "host" in reduced or "mple.com" in reduced or "h o" in reduced
+
+
+def test_r1_f1_a_reduced_url_that_parses_is_unchanged_by_the_fallback():
+    assert _reduced_url("https://user:pw@agent.example.com:8443/a2a?x=1#f") == "https://agent.example.com:8443/a2a"
+    assert _reduced_url("not a url/with?query") == "not a url/with"
+
+
+@pytest.mark.parametrize(("pointer", "expected"), [
+    ("/securityRequirements", True), ("/securityRequirements/0", True), ("/securityRequirements/0/schemes/oauth/list/0", True),
+    ("/skills/0/securityRequirements", True), ("/skills/12/securityRequirements/1/schemes", True),
+    ("/securitySchemes", True), ("/securitySchemes/oauth", True), ("/securitySchemes/oauth/oauth2SecurityScheme/flows/x", True),
+    ("/security", True), ("/url", True), ("/skills/0/security", True), ("/securitySchemes/k/type", True),
+    ("/supportedInterfaces/0/transport", True),
+    ("/name", False), ("/skills/0/id", False), ("/skills/0/x-securityRequirements", False), ("/x-securityRequirements", False),
+    ("/securityRequirementsExtra", False), ("/securitySchemesExtra/a", False), ("/skills/a/securityRequirements", False),
+    ("/capabilities/streaming", False), ("/supportedInterfaces/0/url", False), ("/x-vendor", False), ("", False),
+])
+def test_d_l1_a_member_that_decides_who_may_call_the_agent_must_be_signed(pointer, expected):
+    assert must_be_signed(pointer) is expected, pointer
+    if is_legacy_pointer(pointer):
+        assert must_be_signed(pointer)
