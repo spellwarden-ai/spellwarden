@@ -55,7 +55,11 @@ and `ed448.json` (verifies nothing: the scanner reports `unverifiable_alg`, Ed44
 
 ## `sdk-es256.json`: a card signed by `a2a-sdk`
 
-Not written by `make_fixture_cards.py`. It was recorded **once, on 2026-10-26**, by
+Not written by `make_fixture_cards.py`. It was recorded **once, on 2026-10-26**, by the then unpinned command
+
+    uv run --no-project --with "a2a-sdk[signing]==1.2.3" --with cryptography python scripts/record_sdk_card.py
+
+To reproduce it, pin `cryptography` as the script's docstring now does:
 
     uv run --no-project --with "a2a-sdk[signing]==1.2.3" --with "cryptography==50.0.2" python scripts/record_sdk_card.py
 
@@ -68,8 +72,8 @@ form only (not `spec`).
 
 ### Versions
 
-Resolved by that command, read back with `importlib.metadata` in a scratch environment on Python 3.14.6 on 2026-10-26 (the
-two pins are fixed by the command; the others are what uv resolved that day, and are not pinned):
+Resolved by the pinned command, read back with `importlib.metadata` in a scratch environment on Python 3.14.6 on 2026-10-26
+after the recording (its two pins are fixed by the command; the others are what uv resolved that day, and are not pinned):
 
 | Package | Version | Package | Version |
 | --- | --- | --- | --- |
@@ -90,6 +94,6 @@ two pins are fixed by the command; the others are what uv resolved that day, and
 | | | urllib3 | 2.8.0 |
 
 Limit of this record: the recording run did not save its own environment listing, so these versions are a re-resolution of the
-same command made afterwards, not a capture of the original. Only `a2a-sdk` and `cryptography` are certain (the project lock
-holds the same `cryptography` 50.0.2). The fixture does not depend on the others: a test reads `sdk-es256.json` and
+command made afterwards, not a capture of the original. Only `a2a-sdk` 1.2.3 is certain for the original run, which took
+whatever `cryptography` uv resolved that day (50.0.2, the version the project lock holds, is the likely one but was not recorded). The fixture does not depend on the others: a test reads `sdk-es256.json` and
 `jwks-sdk.json` as files, and nothing re-signs.
