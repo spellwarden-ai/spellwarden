@@ -282,6 +282,22 @@ def test_r1_f3_a_card_jku_with_an_upper_case_https_scheme_is_fetched_like_the_lo
     assert "https://agent.example.com/.well-known/jwks.json" in wire.urls
 
 
+@pytest.mark.parametrize("jku", ["http://[bad/keys.json", "https://[bad/keys.json", "https://keys.example.com:notaport/k.json"])
+def test_r0_f1_a_remote_cards_jku_that_does_not_parse_is_key_unavailable_and_never_crashes_the_run(tmp_path, monkeypatch, jku):
+    """(r0:F1, invariant 10) Any agent in a2a.agents can serve such a card: the `jku` is the reason `network`, nothing is
+    requested for it, and the run is not an error."""
+    card = json.loads(signed("es256-jku"))
+    sig = card["signatures"][0]
+    header = json.loads(base64.urlsafe_b64decode(sig["protected"] + "=" * (-len(sig["protected"]) % 4)))
+    header["jku"] = jku
+    sig["protected"] = base64.urlsafe_b64encode(json.dumps(header, separators=(",", ":")).encode()).rstrip(b"=").decode()
+    wire = Wire(monkeypatch, {"https://agent.example.com/.well-known/agent-card.json": (200, JSON, json.dumps(card).encode())})
+    report = scan(tmp_path, agents=["https://agent.example.com/"])
+    assert not report.errors and wire.urls == ["https://agent.example.com/.well-known/agent-card.json"]
+    [signature] = agent(report, "a2a-agent:").result.signatures
+    assert (signature.outcome, signature.detail) == ("key_unavailable", "network")
+
+
 # --- forks ---------------------------------------------------------------------------------------------------------------
 
 def test_on_a_request_from_a_fork_no_agent_and_no_key_set_is_fetched(tmp_path, monkeypatch):

@@ -20,7 +20,8 @@ from spellwarden_scan import CardOrigin, RuleSet, evaluate_agent_card, parse_age
 from spellwarden_scan.rules.a2a import http_agent_finding
 
 from spellwarden_cli import jws
-from spellwarden_cli.agents import KeyFetch, Trust, key_notices, notice_keys, outcomes_of, reduced, truncation_notices
+from spellwarden_cli.agents import (KeyFetch, Trust, fetchable_https, key_notices, notice_keys, outcomes_of, reduced,
+                                    truncation_notices)
 from spellwarden_cli.net import FetchError, Fetcher
 from spellwarden_cli.probing import _Budget, gated_fetcher
 from spellwarden_cli.report import AgentReport, Notice, ReportFinding
@@ -208,7 +209,7 @@ class AgentTask:
         for si in signature_inputs(document):
             if si.error is not None or si.jku is None or si.jku in fetched or si.alg not in jws.VERIFIED_ALGS:
                 continue
-            if urlsplit(si.jku).scheme.lower() != "https":  # (r1:F3) a scheme is case-insensitive
+            if not fetchable_https(si.jku):  # not https (any case, r1:F3) or does not parse (r0:F1): never fetched
                 fetched[si.jku] = KeyFetch(None, "network")
             elif len(fetched) >= MAX_AGENT_KEYSETS:
                 fetched[si.jku] = KeyFetch(None, "limit")

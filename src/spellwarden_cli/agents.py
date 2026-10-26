@@ -210,21 +210,30 @@ def _card_jkus(found: Discovery, trust: Trust) -> list[str]:
     return list(urls)
 
 
-def _is_https(url: str) -> bool:
-    return urlsplit(url).scheme.lower() == "https"  # a scheme is case-insensitive (r1:F3)
+def fetchable_https(url: str) -> bool:
+    """Whether a `jku` is an `https` URL that parses (the scheme is case-insensitive, r1:F3). A `jku` is text from a card:
+    `urlsplit` raises `ValueError` on a bracketed host and `.port` on a bad port, and that must never reach a run as an
+    internal error (invariant 10); one that does not parse is not fetchable, like a non-`https` one (r0:F1)."""
+    try:
+        parts = urlsplit(url)
+        parts.port  # noqa: B018 - raises ValueError for a port that is not a number in range
+        return parts.scheme.lower() == "https"
+    except ValueError:
+        return False
 
 
 def jku_urls(found: Discovery, trust: Trust) -> list[str]:
     """The distinct `https` `jku` URLs of the repository's cards, in the order of first use: the ones that may be fetched; empty
     when `a2a.keys` is in force."""
-    return [url for url in _card_jkus(found, trust) if _is_https(url)]
+    return [url for url in _card_jkus(found, trust) if fetchable_https(url)]
 
 
 def refused_jku_urls(found: Discovery, trust: Trust) -> list[str]:
-    """The `jku` URLs of the repository's cards that are never fetched because they are not `https`. Under `--probe` each is
-    recorded as `KeyFetch(None, "network")`, the reason a remote card's non-https `jku` gets (`AgentTask._key_sets`), so the
-    outcome is `key_unavailable` and the advice to run with `--probe` is not given to someone who did (r0:F5)."""
-    return [url for url in _card_jkus(found, trust) if not _is_https(url)]
+    """The `jku` URLs of the repository's cards that are never fetched because they are not `https` or do not parse. Under
+    `--probe` each is recorded as `KeyFetch(None, "network")`, the reason a remote card's non-https `jku` gets
+    (`AgentTask._key_sets`), so the outcome is `key_unavailable` and the advice to run with `--probe` is not given to someone
+    who did (r0:F5)."""
+    return [url for url in _card_jkus(found, trust) if not fetchable_https(url)]
 
 
 def repository_reports(found: Discovery, rules: RuleSet, a2a: A2a, notices: list[Notice], errors: list[Notice], *,

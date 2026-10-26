@@ -333,6 +333,17 @@ def test_r0_f5_a_non_https_jku_under_probe_is_key_unavailable_with_its_reason_an
     assert [n for n in report["notices"] if "--probe" in n["message"]]
 
 
+@pytest.mark.parametrize("jku", ["http://[bad/keys.json", "https://[bad/keys.json", "https://keys.example.com:notaport/k.json",
+                                 "https://[::1/k.json"])
+def test_r0_f1_a_jku_that_does_not_parse_is_key_unavailable_never_a_crash(run_cli, make_repo, tmp_path, jku):
+    """(r0:F1, invariant 10) A card's `jku` is untrusted text: `urlsplit` raises ValueError on a bracketed host or a bad port.
+    Under --probe that must be the outcome `key_unavailable` (`network`), never an internal error and exit 2."""
+    code, report, _ = scan(run_cli, make_repo, tmp_path, {WELL_KNOWN: card_with_jku(jku)}, "--probe")
+    assert report["errors"] == [] and code in (0, 1)
+    [signature] = report["agents"][0]["signatures"]
+    assert (signature["outcome"], signature["detail"]) == ("key_unavailable", "network")
+
+
 def test_r1_f3_an_upper_case_https_jku_of_a_repository_card_is_requested_under_probe(monkeypatch, tmp_path):
     wire = Wire(monkeypatch, {"HTTPS://keys.example.com/jwks.json": (200, {"Content-Type": "application/json"}, b'{"keys": []}'),
                               "https://keys.example.com/jwks.json": (200, {"Content-Type": "application/json"}, b'{"keys": []}')})
