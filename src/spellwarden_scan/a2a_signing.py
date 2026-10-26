@@ -241,6 +241,9 @@ def _message(value: Mapping, name: str, pointer: str, dropped: list[str]) -> dic
     return projected
 
 
+_WHOLE_REQUIREMENT = re.compile(r"^(?:/skills/[0-9]+)?/securityRequirements/[0-9]+$")
+
+
 def _camel(name: str) -> str:
     """The JSON name protobuf gives the proto field `name` (`security_requirements` -> `securityRequirements`)."""
     head, *rest = name.split("_")
@@ -271,11 +274,15 @@ def must_be_signed(pointer: str) -> bool:
     `verified` (O4 spec 5.6): a legacy member (`is_legacy_pointer`), also when spelled with its proto field name
     (`preferred_transport`; 0.x readers accept both), and a proto field-name alias of a 1.0 member (`supported_interfaces`,
     `security_requirements`): protobuf's JSON reader accepts the proto name too, and the later of two spellings wins, so an alias
-    appended after signing replaces the signed member for a proto-based client (r1:F2). Members under `securityRequirements`
-    and `securitySchemes` in their JSON spelling are not on the list: a form drops only their empty values there, and those
-    are listed in `unsigned_members` with the signature `verified` (orchestrator decision D-L1, revised 2026-10-26)."""
+    appended after signing replaces the signed member for a proto-based client (r1:F2); and a whole requirement entry
+    (`/securityRequirements/<n>`, a skill's too), which the `sdk` form leaves out only when it is `{}`, the alternative "no
+    authentication": added after signing, it tells clients anonymous calls are allowed. Below that, an empty scheme entry of a
+    requirement (`schemes/bearer: {}`, how `a2a-sdk` signs every requirement without scopes) and empty values under
+    `securitySchemes` are only listed in `unsigned_members` with the signature `verified` (orchestrator decision D-L1, revised
+    2026-10-26)."""
     segments = [part.replace("~1", "/").replace("~0", "~") for part in pointer.split("/")[1:]]
-    return is_legacy_pointer(pointer_of(*(_camel(segment) for segment in segments))) or _names_alias(segments)
+    return (is_legacy_pointer(pointer_of(*(_camel(segment) for segment in segments))) or _names_alias(segments)
+            or _WHOLE_REQUIREMENT.match(pointer) is not None)
 
 
 def _child_kind(kind: str | None, key: str) -> str | None:

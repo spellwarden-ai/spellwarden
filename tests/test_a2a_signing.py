@@ -355,7 +355,9 @@ def test_s6_no_file_under_fixtures_or_tests_holds_a_jwk_private_member():
     ("/supported_interfaces", True), ("/supported_interfaces/0/url", True), ("/supportedInterfaces/0/protocol_binding", True),
     ("/default_input_modes", True), ("/securitySchemes/k/api_key_security_scheme", True),
     # the JSON spelling of security members is listed, not required (D-L1 revised), and vendor members never are
-    ("/securityRequirements", False), ("/securityRequirements/1", False), ("/securitySchemes/oauth", False),
+    # a whole requirement entry (the sdk form drops only `{}`, "no authentication") must be signed; below it, only listed
+    ("/securityRequirements/1", True), ("/skills/2/securityRequirements/0", True),
+    ("/securityRequirements", False), ("/securityRequirements/0/schemes", False), ("/securitySchemes/oauth", False),
     ("/skills/0/securityRequirements/0/schemes/bearer", False), ("/securitySchemes/my_key", False),
     ("/name", False), ("/x-vendor", False), ("/x_vendor", False), ("/skills/0/x_note", False), ("", False),
 ])

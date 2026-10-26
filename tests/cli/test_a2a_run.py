@@ -220,20 +220,32 @@ def throwaway_signed(card: dict) -> tuple[dict, bytes]:
     return {**card, "signatures": [signature]}, json.dumps({"keys": [jwk]}).encode()
 
 
-def test_d_l1_an_empty_alternative_added_to_the_security_requirements_after_signing_is_listed_not_invalid(run_cli, make_repo, tmp_path):
-    """(D-L1, revised) The `sdk` form verifies a card whose `securityRequirements` gained an empty alternative (it removes `{}`):
-    the signature stays verified and the alternative is listed as unsigned. Only an empty value can go unsigned this way, and
-    `a2a-sdk` signs every scope-less requirement like that, so failing it would fail every such card (r1:F3)."""
+def test_d_l1_an_empty_alternative_added_to_the_security_requirements_after_signing_makes_the_signature_invalid(run_cli, make_repo, tmp_path):
+    """(D-L1) The `sdk` form verifies a card whose `securityRequirements` gained `{}` (it removes it), but `{}` is the alternative
+    "no authentication": a whole requirement entry left unsigned is `unsigned_legacy`, SW-A2A-010."""
     card, jwks = throwaway_signed(clean_card())
     card["securityRequirements"].append({})
     code, report, _ = scan(run_cli, make_repo, tmp_path, {WELL_KNOWN: card_bytes(card), CONFIG: KEYS_CONFIG, ".well-known/jwks.json": jwks})
     [signature] = report["agents"][0]["signatures"]
+    assert (signature["outcome"], signature["payload_form"]) == ("unsigned_legacy", "sdk")
+    assert signature["unsigned_members"] == ["/securityRequirements/1"] and "/securityRequirements/1" in signature["detail"]
+    assert code == 1 and ("SW-A2A-010", "high") in [(f["rule_id"], f["severity"]) for f in report["findings"]]
+
+
+def test_d_l1_a_scope_less_scheme_entry_the_sdk_cannot_sign_is_listed_and_the_signature_stays_verified(run_cli, make_repo, tmp_path):
+    """(D-L1 revised, r1:F3) `a2a-sdk` removes `schemes: {bearer: {}}` before signing, as it does for every requirement without
+    scopes; failing that would fail every SDK-signed card with bearer, API key or mTLS auth. It is listed, not invalid."""
+    card = clean_card()
+    card["securitySchemes"] = {"bearer": {"httpAuthSecurityScheme": {"scheme": "Bearer"}}}
+    card["securityRequirements"] = [{"schemes": {"bearer": {}}}]
+    signed_card, jwks = throwaway_signed({key: value for key, value in card.items() if key != "securityRequirements"})
+    signed_card["securityRequirements"] = card["securityRequirements"]
+    code, report, _ = scan(run_cli, make_repo, tmp_path, {WELL_KNOWN: card_bytes(signed_card), CONFIG: KEYS_CONFIG,
+                                                         ".well-known/jwks.json": jwks})
+    [signature] = report["agents"][0]["signatures"]
     assert (signature["outcome"], signature["payload_form"]) == ("verified", "sdk")
-    assert signature["unsigned_members"] == ["/securityRequirements/1"]
-    # `{}` has no `schemes`, which 1.0 requires: the validator reports it (medium), the signature rule does not.
-    assert [(f["rule_id"], f["severity"], f["evidence"]) for f in report["findings"]] == [
-        ("SW-A2A-001", "medium", "/securityRequirements/1/schemes: missing")]
-    assert code == 0 and report["agents"][0]["signature_status"] == "verified"
+    assert signature["unsigned_members"] == ["/securityRequirements/0/schemes/bearer"]
+    assert "SW-A2A-010" not in [f["rule_id"] for f in report["findings"]] and report["agents"][0]["signature_status"] == "verified"
 
 
 @pytest.mark.parametrize("alias", ["security_requirements", "supported_interfaces", "security_schemes"])

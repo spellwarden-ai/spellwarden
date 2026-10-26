@@ -26,8 +26,8 @@ nothing else.
   `spellwarden_cli/jws.py`): ES256, ES384, ES512, RS256, RS384, RS512, PS256, PS384, PS512, Ed25519 and EdDSA with an
   Ed25519 key. The report says which key verified a signature, the trusted key file or the key set the card names, and
   which members the matching form does not cover (`unsigned_members`). A legacy 0.x member, or a member spelled with its
-  proto field name (`security_requirements`, which protobuf readers also accept), that the signature does not cover makes
-  it invalid (`SW-A2A-010`). Install
+  proto field name (`security_requirements`, which protobuf readers also accept), or a whole `securityRequirements` entry
+  that the signature does not cover makes it invalid (`SW-A2A-010`). Install
   needs a `cryptography` wheel: Linux (glibc and musl, x86_64 and aarch64), macOS and Windows. The Action runs on the Python
   3.11 to 3.14 its pinned `cffi` has wheels for.
 - The report gains an optional `agents` list (written only when a card was read or fetched), nine notice codes
