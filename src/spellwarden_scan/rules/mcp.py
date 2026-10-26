@@ -14,14 +14,18 @@ from spellwarden_scan.rules import patterns as P
 from spellwarden_scan.rules.skill import visible
 
 SPEC_BASELINE = "2026-07-28"
+# The two patterns of `_TOOL_INJECTION` that SW-A2A-014 also uses (O4 spec 5.4): an instruction tag and the phrase
+# `secret instruction` read as injection in any text a model reads; the other patterns were written for tool descriptions.
+TOOL_INJECTION_TAG = re.compile(r"<(system|instructions?|important)>", re.IGNORECASE)
+TOOL_INJECTION_SECRET = re.compile(r"secret instruction", re.IGNORECASE)
 _TOOL_INJECTION = (
     re.compile(r"always (call|use|run) this tool", re.IGNORECASE),
     re.compile(r"before (any|every|all) other tools?", re.IGNORECASE),
     re.compile(r"(do not|don't|never) (mention|reveal|show|tell)", re.IGNORECASE),
-    re.compile(r"<(system|instructions?|important)>", re.IGNORECASE),
+    TOOL_INJECTION_TAG,
     P.Then(r"IMPORTANT:", r"(ignore|override|must)"),  # linear: the regex `.*` form is quadratic on repeated `IMPORTANT:`
     re.compile(r"\bhidden\b", re.IGNORECASE),
-    re.compile(r"secret instruction", re.IGNORECASE),
+    TOOL_INJECTION_SECRET,
 )
 
 

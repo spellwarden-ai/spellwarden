@@ -117,7 +117,7 @@ def _ideograph(char: str) -> bool:
     return "\u3400" <= char <= "\u9fff" or "\uf900" <= char <= "\ufaff"
 
 
-def _hidden_in(text: str) -> list[str]:
+def hidden_characters(text: str) -> list[str]:
     """Every hidden character of a line: `_HIDDEN`, every other format character (`Cf`) but the soft hyphen, and the
     stray variation selectors; a joiner inside an emoji sequence is not one."""
     if text.isascii():
@@ -186,7 +186,7 @@ def _skl_002(package: Package) -> Iterator[Finding]:
     for unit in package.text_files:
         for number, line in enumerate(unit.lines, start=1):
             text = line[1:] if number == 1 and line.startswith("\ufeff") else line
-            hidden = _hidden_in(text)
+            hidden = hidden_characters(text)
             if hidden:
                 names = code_point_names("".join(hidden))
                 yield _finding("SW-SKL-002", "high", TITLES["SW-SKL-002"], unit.path, number, names, evidence=names)
@@ -438,7 +438,7 @@ def _skl_010(package: Package) -> Iterator[Finding]:
 
 # --- SW-SKL-011 ------------------------------------------------------------------------------
 
-def _has_credential(line: str) -> bool:
+def has_credential(line: str) -> bool:
     if any(p.search(line) for p in P.CREDENTIAL_PATTERNS):
         return True
     match = P.ASSIGNED_SECRET.search(line)
@@ -448,7 +448,7 @@ def _has_credential(line: str) -> bool:
 def _skl_011(package: Package) -> Iterator[Finding]:
     for unit in package.text_files:
         for number, line in enumerate(unit.lines, start=1):
-            if _has_credential(line):
+            if has_credential(line):
                 # The fingerprint comes from the original line; `_finding` masks the evidence itself.
                 yield _finding("SW-SKL-011", "critical", TITLES["SW-SKL-011"], unit.path, number, line)
 

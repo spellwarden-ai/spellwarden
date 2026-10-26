@@ -1,5 +1,5 @@
 """O3 spec 5.2, 5.3, 7 and claim E2: the registry area holds three gate rules that no engine entry point evaluates,
-the rule-id grammar names SW-REG and SW-ORG, and 1.2.0 carries its versions."""
+the rule-id grammar names SW-REG, SW-A2A and SW-ORG, and the current release carries its versions."""
 from __future__ import annotations
 
 import json
@@ -21,12 +21,12 @@ BASELINE = RuleSet.baseline()
 REG_IDS = ("SW-REG-001", "SW-REG-002", "SW-REG-003")
 
 
-def test_baseline_has_41_rules_three_in_area_registry_severity_high():
-    assert len(BASELINE) == 41
+def test_baseline_has_59_rules_three_in_area_registry_severity_high():
+    assert len(BASELINE) == 59
     rules = BASELINE.by_area("registry")
     assert tuple(rule.id for rule in rules) == REG_IDS
     assert {rule.severity_default for rule in rules} == {"high"}
-    assert AREAS == ("skill", "mcp", "config", "registry")
+    assert AREAS == ("skill", "mcp", "config", "registry", "a2a")
     assert not [rule for rule in rules if rule.targets or rule.malicious_indicator]
 
 
@@ -59,9 +59,9 @@ def test_no_engine_entry_point_emits_an_sw_reg_id_on_any_fixture():
     assert emitted and not {rule_id for rule_id in emitted if rule_id.startswith("SW-REG-")}
 
 
-def test_rule_id_re_accepts_reg_and_org_and_refuses_xyz():
-    assert RULE_ID_RE.pattern == r"^SW-(SKL|MCP|CFG|REG|ORG)-[0-9]{3}$"
-    for good in ("SW-REG-001", "SW-ORG-123", "SW-SKL-007"):
+def test_rule_id_re_accepts_reg_a2a_and_org_and_refuses_xyz():
+    assert RULE_ID_RE.pattern == r"^SW-(SKL|MCP|CFG|REG|A2A|ORG)-[0-9]{3}$"
+    for good in ("SW-REG-001", "SW-A2A-018", "SW-ORG-123", "SW-SKL-007"):
         assert RULE_ID_RE.match(good)
     for bad in ("SW-XYZ-001", "SW-REG-01", "SW-REG-0001", "sw-reg-001"):
         assert RULE_ID_RE.match(bad) is None, bad
@@ -73,8 +73,8 @@ def test_make_rule_still_refuses_sw_org():
     make_rule("SW-REG-009", "x", "high", "registry", owasp=(), nist=(), detect=lambda _: ())
 
 
-def test_versions_are_1_3_0_and_2026_10_3():
-    assert (__version__, RULES_VERSION) == ("1.3.0", "2026.10.3")
+def test_versions_are_1_3_0_and_2026_10_4():
+    assert (__version__, RULES_VERSION) == ("1.3.0", "2026.10.4")
     pyproject = Path(__file__).resolve().parents[1] / "pyproject.toml"
     assert tomllib.loads(pyproject.read_text(encoding="utf-8"))["project"]["version"] == __version__
 

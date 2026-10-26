@@ -123,11 +123,14 @@ _VERSION_MARKERS = {"report.json": '"scanner_version": "{v}"', "report.sarif": '
 _RULES_VERSION_MARKERS = {"report.json": '"rules_version": "{r}"', "report.md": ", rules {r}."}
 RECORDED_RULES_VERSION = "2026.10.2"
 REGISTRY_IDS = ("SW-REG-001", "SW-REG-002", "SW-REG-003")
+# O4 spec invariant 4: the eighteen A2A descriptors sort before SW-CFG, so every existing `ruleIndex` moves by eighteen.
+A2A_IDS = tuple(f"SW-A2A-{number:03d}" for number in range(1, 19))
+ADDED_IDS = (*REGISTRY_IDS, *A2A_IDS)
 
 
 def _normalised_sarif(text: str, *, produced: bool) -> dict:
-    """The SARIF document with the three registry descriptors removed and every `ruleIndex` remapped through the
-    reduced table; the version is put back to the recorded one."""
+    """The SARIF document with the descriptors of the rules added since 1.0.0 (the three registry rules and the eighteen
+    A2A rules) removed and every `ruleIndex` remapped through the reduced table; the version is put back to the recorded one."""
     document = json.loads(text)
     driver = document["runs"][0]["tool"]["driver"]
     if produced:
@@ -135,8 +138,8 @@ def _normalised_sarif(text: str, *, produced: bool) -> dict:
         driver["semanticVersion"] = "1.0.0"
         table = driver["rules"]
         assert [r["id"] for r in table] == sorted(r["id"] for r in table)
-        kept = [r for r in table if r["id"] not in REGISTRY_IDS]
-        assert len(table) - len(kept) == 3
+        kept = [r for r in table if r["id"] not in ADDED_IDS]
+        assert len(table) - len(kept) == 21
         new_index = {old: kept.index(rule) for old, rule in enumerate(table) if rule in kept}
         for result in document["runs"][0]["results"]:
             assert result["ruleIndex"] in new_index, result

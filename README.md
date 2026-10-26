@@ -8,7 +8,7 @@ One distribution holds two import packages. `spellwarden_scan` is the engine and
 pipx run spellwarden scan .          # or: pip install spellwarden, then spellwarden scan .
 ```
 
-Python 3.11 or newer. The only dependency is PyYAML.
+Python 3.11 or newer. The runtime dependencies are PyYAML and `cryptography`, which verifies the signatures on A2A agent cards.
 
 ## Scanning a skill package
 
@@ -66,7 +66,7 @@ The score is `12 x (0.6 S + 0.2 M + 0.2 E)`: `S = max(0, 1 - (6 critical + 3 hig
 
 ## The rules
 
-Ids are `SW-SKL-NNN` (skill packages), `SW-MCP-NNN` (probed MCP servers), `SW-CFG-NNN` (agent configuration files: MCP client configurations, Claude Code settings and hooks, plugin marketplaces) and `SW-REG-NNN` (the registry gate of connected mode). Mappings use the OWASP Agentic Top 10 (ASI) and OWASP MCP Top 10 (MCP) identifiers and NIST SP 800-53 base controls, labelled as a provisional mapping to SP 800-53 base controls. Four rules are malicious indicators: an open finding from one of them quarantines the package.
+Ids are `SW-SKL-NNN` (skill packages), `SW-MCP-NNN` (probed MCP servers), `SW-CFG-NNN` (agent configuration files: MCP client configurations, Claude Code settings and hooks, plugin marketplaces), `SW-REG-NNN` (the registry gate of connected mode) and `SW-A2A-NNN` (A2A agent cards). Mappings use the OWASP Agentic Top 10 (ASI) and OWASP MCP Top 10 (MCP) identifiers and NIST SP 800-53 base controls, labelled as a provisional mapping to SP 800-53 base controls. Four rules are malicious indicators: an open finding from one of them quarantines the package.
 
 <!-- rules:start -->
 | Id | Title | Severity | OWASP | NIST |
@@ -112,6 +112,24 @@ Ids are `SW-SKL-NNN` (skill packages), `SW-MCP-NNN` (probed MCP servers), `SW-CF
 | SW-REG-001 | Skill package not admitted in the organisation's private registry | high | ASI04 | SR-3 |
 | SW-REG-002 | MCP server not admitted in the organisation's private registry | high | MCP10 | SR-3 |
 | SW-REG-003 | Agent content the private registry cannot judge | high | ASI04 | SR-3 |
+| SW-A2A-001 | Agent card does not follow A2A 1.0 | medium | ASI07 | SI-10 |
+| SW-A2A-002 | Agent card uses a format older than A2A 1.0 | medium | ASI07 | SI-10 |
+| SW-A2A-003 | Agent card at the path used before A2A 0.3 | medium | ASI07 | SI-10 |
+| SW-A2A-004 | Agent endpoint or authentication URL not served over HTTPS | high | ASI07 | SC-8 |
+| SW-A2A-005 | OAuth implicit or password flow declared (deprecated in A2A 1.0) | high | ASI03 | IA-5 |
+| SW-A2A-006 | OAuth authorization code flow without PKCE required | medium | ASI03 | IA-5 |
+| SW-A2A-007 | Agent declares no authentication | medium | ASI03 | AC-3 |
+| SW-A2A-008 | API key sent in the URL query | medium | ASI03 | IA-5 |
+| SW-A2A-009 | Skill inherits every scope of the agent | low | ASI03 | AC-6 |
+| SW-A2A-010 | Agent card signature does not verify | high | ASI07 | SI-7 |
+| SW-A2A-011 | Agent card signature is malformed or uses a refused algorithm | high | ASI07 | SI-7 |
+| SW-A2A-012 | Agent card is not signed | low | ASI07 | SI-7 |
+| SW-A2A-013 | Signing key not bound to the card's host | medium | ASI07 | SI-7 |
+| SW-A2A-014 | Agent card text contains injected instructions or hidden characters | high | ASI01 | SI-10 |
+| SW-A2A-015 | Credential in the agent card | critical | ASI03 | IA-5 |
+| SW-A2A-016 | Agent card fetched through a redirect to another host | medium | ASI07 | SC-8 |
+| SW-A2A-017 | Agent card signed with a shared secret that only the agent can check | medium | ASI07 | SI-7 |
+| SW-A2A-018 | Agent card cannot be read | high | ASI07 | SI-10 |
 <!-- rules:end -->
 
 SW-REG-001 to SW-REG-003 are the registry gate of connected mode (Enterprise). They fire only in a connected run.

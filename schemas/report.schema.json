@@ -86,7 +86,7 @@
       "required": ["rule_id", "severity", "title", "location", "evidence", "fingerprint", "malicious_indicator", "item",
                    "suppressed", "baseline"],
       "properties": {
-        "rule_id": {"type": "string", "pattern": "^SW-(SKL|MCP|CFG|REG|ORG)-[0-9]{3}$"},
+        "rule_id": {"type": "string", "pattern": "^SW-(SKL|MCP|CFG|REG|A2A|ORG)-[0-9]{3}$"},
         "severity": {"enum": ["critical", "high", "medium", "low"]},
         "title": {"type": "string"},
         "location": {"type": "object", "required": ["path", "line"],

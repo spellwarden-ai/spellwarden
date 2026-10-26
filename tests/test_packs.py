@@ -13,7 +13,7 @@ from spellwarden_scan.packs import (
     BASELINE_JSON, ENFORCEMENT_IDS, ENFORCEMENT_RULES, MAX_DOCUMENT_BYTES, PACK_ERROR_CODES, TARGET_IDS, PackDocument,
     PackError, baseline_pack, canonical_json, make_pack_document, pack_sha256, validate_pack,
 )
-from spellwarden_scan.rules import ALLOWED_NIST, ALLOWED_OWASP
+from spellwarden_scan.rules import ALLOWED_NIST, ALLOWED_OWASP, ORG_ALLOWED_NIST, ORG_ALLOWED_OWASP
 from spellwarden_scan.version import RULES_VERSION, __version__
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -87,7 +87,7 @@ def test_enforcement_rules_are_not_detection_rules():
     from spellwarden_scan.rules import RuleSet
 
     assert not {rule.id for rule in RuleSet.baseline()} & set(ENFORCEMENT_IDS)
-    assert len(RuleSet.baseline()) == 41
+    assert len(RuleSet.baseline()) == 59
 
 
 # --- the baseline pack (5.3) -------------------------------------------------------------------------------------
@@ -236,7 +236,7 @@ def test_canonical_json_keeps_non_ascii_as_utf_8():
 def _largest_ascii_rule(number: int) -> dict:
     """One org rule at the largest size of every field, in ASCII (spec 5.2.1, 5.2.2)."""
     return {"id": f"SW-ORG-{number:03d}", "title": "T" * 120, "severity": "critical", "area": "skill",
-            "owasp": list(ALLOWED_OWASP), "nist": list(ALLOWED_NIST[:5]), "targets": ["claude-code-hooks", "kong"],
+            "owasp": list(ORG_ALLOWED_OWASP), "nist": list(ORG_ALLOWED_NIST[:5]), "targets": ["claude-code-hooks", "kong"],
             "malicious": True,
             "detection": {"kind": "pattern", "files": "f" * 200, "in": "commands", "pattern": "\\." * 150,
                           "case_sensitive": False}}
