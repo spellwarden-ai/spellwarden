@@ -22,7 +22,7 @@ from pathlib import Path
 from make_repo import load_case
 
 HEX64 = re.compile(r"[0-9a-f]{64}")
-PING_FIELDS = {"schema", "version", "rules_version", "ci", "org"}
+PING_FIELDS = {"schema", "version", "rules_version", "ci", "org", "a2a"}
 CODEQUALITY_SEVERITIES = {"critical", "major", "minor", "info"}
 
 
@@ -140,12 +140,33 @@ def _check_report(expect: dict, report: dict) -> list[str]:
                 if got != sorted(expect["lock"][key]):
                     problems.append(f"lock {key} {got}, expected {sorted(expect['lock'][key])}")
     problems += _check_connected(expect, report)
+    problems += _check_agents(expect, report)
     if expect["probes"] is not None:
         got = {p["item"]: (p["status"], p["skip_reason"]) for p in report["probes"]}
         for wanted in expect["probes"]:
             if got.get(wanted["item"]) != (wanted["status"], wanted["skip_reason"]):
                 problems.append(f"probe {wanted['item']}: {got.get(wanted['item'])}, expected {(wanted['status'], wanted['skip_reason'])}")
     return problems
+
+
+def _check_agents(expect: dict, report: dict) -> list[str]:
+    """The `agents` key of a case (O4 spec 6.9, 7): the report's `agents` list holds exactly the agents the case names, each
+    with its status, migration status and signature status; a case without the key must produce no list at all (a
+    repository without agent cards reports as 1.2.1 did)."""
+    got, wanted = report.get("agents"), expect["agents"]
+    if wanted is None:
+        return [] if got is None else ["the report holds an agents list although the case has no agent card"]
+    if not isinstance(got, list):
+        return ["the report holds no agents list"]
+    seen = {agent["item"]: (agent["status"], agent["migration_status"], agent["signature_status"]) for agent in got}
+    problems = [f"agent {item} is not in the report" for item in (w["item"] for w in wanted) if item not in seen]
+    for want in wanted:
+        have = seen.get(want["item"])
+        expected = (want["status"], want["migration_status"], want["signature_status"])
+        if have is not None and have != expected:
+            problems.append(f"agent {want['item']} is {have}, expected {expected}")
+    extra = sorted(set(seen) - {w["item"] for w in wanted})
+    return problems + ([f"unexpected agents {extra}"] if extra else [])
 
 
 def _check_connected(expect: dict, report: dict) -> list[str]:

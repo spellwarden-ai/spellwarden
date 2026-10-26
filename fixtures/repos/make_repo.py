@@ -23,6 +23,7 @@ DEFAULTS: dict = {
     "env": {}, "exit_code": 0, "findings": 0, "accepted": 0, "report": "any", "notices": [], "errors": [],
     "sarif_prefix": None, "lock": None, "probes": None, "ping": False, "absent_files": [], "variants": {},
     "on_request": {}, "on_gitlab_request": {}, "on_fork_request": {}, "annotations": [], "connected": None,
+    "agents": None,
 }
 INPUT_DEFAULTS = {
     "path": ".", "fail-on": "high", "locked": "auto", "probe": "false", "probe-private": "false",

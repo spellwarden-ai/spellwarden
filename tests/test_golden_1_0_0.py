@@ -26,9 +26,14 @@ def _schema(name: str) -> dict:
     return json.loads((GOLDEN / "schemas" / f"{name}.schema.json").read_text(encoding="utf-8"))
 
 
+CURRENT_RULE_ID = "^SW-(SKL|MCP|CFG|REG|A2A|ORG)-[0-9]{3}$"
+
+
 def _plus_additions(schema):
-    """The frozen schema with every `additionalProperties: false` and `unevaluatedProperties: false` removed:
-    a later release may add optional fields (6.14), never remove or change one."""
+    """The frozen schema with every `additionalProperties: false` and `unevaluatedProperties: false` removed and the
+    rule-id grammar widened to the current one (SW-REG came in 1.2.0, SW-A2A in 1.3.0: a new rule is an addition the
+    README allows in a minor release, O4 spec 6.11): a later release may add optional fields (6.14), never remove or
+    change one."""
     schema = copy.deepcopy(schema)
 
     def walk(node):
@@ -36,6 +41,9 @@ def _plus_additions(schema):
             for key in ("additionalProperties", "unevaluatedProperties"):
                 if node.get(key) is False:
                     del node[key]
+            rule_id = node.get("rule_id")
+            if isinstance(rule_id, dict) and "pattern" in rule_id:
+                rule_id["pattern"] = CURRENT_RULE_ID
             for value in node.values():
                 walk(value)
         elif isinstance(node, list):
@@ -209,3 +217,31 @@ def test_1_0_0_input_files_validate_against_the_1_2_0_input_schemas():
     _validate(as_json(yaml.safe_load((state / "config.yml").read_text(encoding="utf-8"))), _current_schema("settings"))
     _validate(as_json(yaml.safe_load((state / "baseline.yml").read_text(encoding="utf-8"))), _current_schema("baseline"))
     _validate(json.loads((state / "lock.json").read_text(encoding="utf-8")), _current_schema("lock"))
+
+
+def test_c1_a_report_of_a_repository_with_agent_cards_validates_against_the_1_0_0_schema_plus_additions(tmp_path):
+    """O4 claim C1: the card fixture repository (an unsigned 0.3 card, a card with plain HTTP and a look-alike file) gives
+    SW-A2A findings, an `agents` list and a notice; the frozen schema accepts all of it once its rule-id pattern is widened."""
+    from spellwarden_cli.main import main
+
+    files = {
+        "legacy/agent-card.json": json.dumps({"protocolVersion": "0.3.0", "name": "Legacy", "url": "https://legacy.example.com/a2a",
+                                              "version": "1", "skills": []}),
+        "public/.well-known/agent-card.json": json.dumps({
+            "name": "Http", "description": "d", "version": "1", "capabilities": {},
+            "supportedInterfaces": [{"url": "http://agent.example.com/a2a", "protocolBinding": "JSONRPC", "protocolVersion": "1.0"}],
+            "defaultInputModes": ["text/plain"], "defaultOutputModes": ["text/plain"],
+            "skills": [{"id": "s", "name": "n", "description": "d", "tags": ["t"]}]}),
+        "tools/.well-known/agent.json": "// not a card\n{}",
+    }
+    for relative, content in files.items():
+        (tmp_path / "repo" / relative).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / "repo" / relative).write_text(content, encoding="utf-8")
+    written = tmp_path / "report.json"
+    code = main(["scan", str(tmp_path / "repo"), "--format", "json", "--output", str(written), "--no-telemetry"])
+    report = json.loads(written.read_text(encoding="utf-8"))
+    assert code == 1 and {f["rule_id"] for f in report["findings"]} >= {"SW-A2A-002", "SW-A2A-004", "SW-A2A-012"}
+    assert len(report["agents"]) == 2 and "a2a_not_card" in {n["code"] for n in report["notices"]}
+    _validate(report, _plus_additions(_schema("report")))
+    with pytest.raises(AssertionError):  # without the widening the frozen pattern refuses an SW-A2A id
+        _validate(report, _schema("report"))

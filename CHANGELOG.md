@@ -1,5 +1,48 @@
 # Changelog
 
+## 1.3.0 (RELEASE_DATE)
+
+A2A agent cards: the scanner reads the agent cards of a repository and, with `--probe`, the cards of remote agents, and
+checks them against A2A 1.0. A repository with no file named like a card and no `a2a` setting is scanned as 1.2.1 scanned
+it: every output is equal apart from the two version strings (the rules version is `2026.10.4`), the eighteen new rules in
+the SARIF rule table and in `spellwarden rules`, and the index each SARIF result takes into that table. A look-alike file
+(`.well-known/agent.json` or another file named `agent-card.json` that is not a card) adds the notice `a2a_not_card` and
+nothing else.
+
+- Eighteen rules, `SW-A2A-001` to `SW-A2A-018` (README, "Checking A2A agent cards"). These can fail a build at the default
+  `--fail-on high`: `SW-A2A-004` (an endpoint or authentication URL over plain HTTP), `SW-A2A-005` (an OAuth implicit or
+  password flow), `SW-A2A-010` (a signature that does not verify), `SW-A2A-011` (a malformed signature or a refused
+  algorithm), `SW-A2A-014` (injected instructions or hidden characters in the card's text), `SW-A2A-018` (a card at a
+  `.well-known/agent-card.json` path or in `a2a.cards` that cannot be read) and, at critical, `SW-A2A-015` (a credential in
+  the card). A baseline accepts any of them, `exclude` leaves a tree of broken sample cards out, and none of them can make
+  a run exit 2.
+- Findings on a remote agent's card are reported and uploaded but do not count toward the exit code of a pull or merge
+  request; on every other run they count.
+- The settings file gains `a2a: {cards, keys, agents}`. On a pull or merge request `a2a.keys`, the keys file and
+  `a2a.agents` are read from the base revision, even under `--config`. A key file that is present and is not a key set is
+  `settings_invalid` (exit 2).
+- Signatures are verified with the `cryptography` package, the scanner's first compiled dependency (imported by one module,
+  `spellwarden_cli/jws.py`): ES256, ES384, ES512, RS256, RS384, RS512, PS256, PS384, PS512, Ed25519 and EdDSA with an
+  Ed25519 key. The report says which key verified a signature, the trusted key file or the key set the card names. Install
+  needs a `cryptography` wheel: Linux (glibc and musl, x86_64 and aarch64), macOS and Windows. The Action runs on the Python
+  3.11 to 3.14 its pinned `cffi` has wheels for.
+- The report gains an optional `agents` list (written only when a card was read or fetched), nine notice codes
+  (`a2a_not_card`, `a2a_cards_limit`, `a2a_agents_need_probe`, `a2a_fetch_failed`, `a2a_signature_unverified`,
+  `a2a_keys_unavailable`, `a2a_keys_missing`, `a2a_key_without_kid`, `a2a_private_key_in_jwks`) and the rule-id pattern
+  `^SW-(SKL|MCP|CFG|REG|A2A|ORG)-[0-9]{3}$`. Connected mode uploads the A2A findings and the agents reduced to nine fields.
+- `--probe` also fetches the key sets that signed repository cards name and the cards of the agents `a2a.agents` lists,
+  under the one budget of the probe phase (300 requests and 120 seconds, MCP servers first). The probe phase is now a list
+  of typed tasks; the MCP probe is unchanged.
+- The usage ping carries a sixth field, `a2a`: true when the run checked at least one agent card. No card, URL or count is
+  sent; the privacy policy names it.
+- `spellwarden_scan` gains `parse_agent_card`, `evaluate_agent_card`, `signature_inputs`, `a2a_checklist`,
+  `jcs_canonicalize` (RFC 8785; `canonical_json` and `canonical_sha256` are not) and the data classes they use. The strict
+  JSON reader of the configuration files is shared (`spellwarden_scan._json`) and behaves as before for them.
+- Compatibility: a 1.2.x scanner refuses a settings file with an `a2a` mapping (`settings_invalid`, unknown key) and a
+  baseline file with an `SW-A2A` entry, as it would any later key or rule; a team that runs two scanner versions against one
+  repository must upgrade both. Organisation rules cannot map to the new OWASP and NIST tags (`ASI03`, `ASI07`, `SC-8`,
+  `SI-7`) or target the `a2a` area in this release.
+
 ## 1.2.1 (2026-10-23)
 
 - Connected mode on a runner without an IPv6 route: the resolver now lists the IPv4 addresses of a host before

@@ -1,0 +1,17 @@
+{
+  "exit_code": 0,
+  "findings": 2,
+  "report": "required",
+  "notices": ["a2a_not_card"],
+  "agents": [
+    {"item": "a2a-card:legacy/agent-card.json", "status": "checked", "migration_status": "to_migrate", "signature_status": "unsigned"},
+    {"item": "a2a-card:public/.well-known/agent-card.json", "status": "checked", "migration_status": "ready", "signature_status": "verified"}
+  ],
+  "on_request": {
+    "notices": ["base_unavailable", "a2a_not_card", "a2a_signature_unverified"],
+    "agents": [
+      {"item": "a2a-card:legacy/agent-card.json", "status": "checked", "migration_status": "to_migrate", "signature_status": "unsigned"},
+      {"item": "a2a-card:public/.well-known/agent-card.json", "status": "checked", "migration_status": "ready", "signature_status": "unverified"}
+    ]
+  }
+}

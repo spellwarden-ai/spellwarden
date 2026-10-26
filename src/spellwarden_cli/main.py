@@ -235,7 +235,8 @@ def cmd_scan(args: argparse.Namespace) -> int:
                 _stderr(f"wrote the {fmt} report to {path}")
     # The ping is the last thing a scan does, after every output (spec 6.10); a scan whose settings were refused
     # sends nothing.
-    ping.send_ping(context, telemetry=telemetry, env=os.environ, log=_stderr if args.verbose else run._silent)
+    ping.send_ping(context, telemetry=telemetry, env=os.environ, log=_stderr if args.verbose else run._silent,
+                   a2a=any(agent.status == "checked" for agent in report.agents))
     return report.exit_code()
 
 

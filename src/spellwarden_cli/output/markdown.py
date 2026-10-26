@@ -10,6 +10,7 @@ from collections.abc import Sequence
 from spellwarden_scan.gate import GATE_REASONS
 
 from spellwarden_cli import escape
+from spellwarden_cli.output import agents as agent_view
 from spellwarden_cli.output.text import connected_lines
 from spellwarden_cli.report import CONNECTED_ERRORS, Report, ReportFinding
 
@@ -129,6 +130,30 @@ def _probes(report: Report) -> list[str]:
     return lines + [""]
 
 
+def _agents(report: Report) -> list[str]:
+    """O4 spec 6.10: the section "A2A agent cards": one row per agent (where it came from, format and versions, migration,
+    signature with its key source), and under it what each agent still needs: the members its signature does not cover and the
+    checklist. The note on remote agents follows when it applies."""
+    if not report.agents:
+        return []
+    shown = agent_view.views(report)
+    lines = ["**A2A agent cards:**", "", "| Agent | Origin | Card | Signature |", "|---|---|---|---|"]
+    for view in shown[:MAX_ROWS]:
+        lines.append(f"| {_code_cell(view.item)} | {_text(view.origin)} | {_text(view.summary)} | "
+                     f"{_text(view.signature or '-')} |")
+    if len(shown) > MAX_ROWS:
+        lines += ["", f"{len(shown) - MAX_ROWS} more agents are in the JSON report."]
+    for view in shown[:MAX_ROWS]:
+        if view.unsigned or len(view.checklist) > 1:
+            lines += ["", f"{_code(view.item)}:"]
+            if view.unsigned:
+                lines.append(f"- verified without these members: {_text(', '.join(view.unsigned))}")
+            lines += [f"- {_text(step)}" for step in view.checklist if not step.endswith("Re-run the Spellwarden scan")]
+    if agent_view.remote_note_applies(report):
+        lines += ["", agent_view.REMOTE_NOTE]
+    return lines + [""]
+
+
 def _not_admitted(report: Report) -> list[str]:
     """The section of O3 spec 6.10 for the items of the registry gate that failed it: `Request admission` for an item the
     registry does not hold (the link is only ever one under the dashboard address, `connected.run_gate`), the reason
@@ -178,7 +203,7 @@ def render(report: Report) -> str:
     section = connected_section(report)
     if section:
         lines.append(section)
-    lines += _findings(open_findings) + _errors(report) + _lock(report) + _probes(report)
+    lines += _findings(open_findings) + _errors(report) + _lock(report) + _probes(report) + _agents(report)
     if accepted:
         lines += [f"{_plural(accepted, 'accepted finding')} with {'its' if accepted == 1 else 'their'} reasons "
                   f"{'is' if accepted == 1 else 'are'} listed in the baseline file.", ""]
