@@ -257,6 +257,31 @@ def test_the_http_agent_finding_is_reported_without_probe_too(tmp_path, monkeypa
     assert agent(report).skip_reason == "not_https" and [f.finding.rule_id for f in report.findings] == ["SW-A2A-004"]
 
 
+@pytest.mark.parametrize("probe", [True, False])
+def test_r1_f3_an_http_agent_is_skipped_whatever_the_case_of_its_scheme(tmp_path, monkeypatch, probe):
+    """(r1:F3) `HTTP://agent.example.com/` passes the settings check (the scheme is case-insensitive) and must be skipped
+    `not_https` with SW-A2A-004 exactly like `http://`, never fetched."""
+    wire = Wire(monkeypatch)
+    report = scan(tmp_path, agents=["HTTP://agent.example.com/", "Http://10.0.0.5:8080/"], probe=probe)
+    assert wire.calls == [] and {(a.status, a.skip_reason) for a in report.agents} == {("skipped", "not_https")}
+    assert [f.item for f in report.findings if f.finding.rule_id == "SW-A2A-004"] == ["a2a-agent:http://agent.example.com/"]
+    lower = scan(tmp_path / "lower", agents=["http://agent.example.com/"], probe=probe)
+    assert [(a.status, a.skip_reason) for a in lower.agents] == [("skipped", "not_https")]
+
+
+def test_r1_f3_a_card_jku_with_an_upper_case_https_scheme_is_fetched_like_the_lower_case_one(tmp_path, monkeypatch):
+    routes = {**card_routes(body=signed("es256-jku")), "https://agent.example.com/.well-known/jwks.json": (200, JSON, signed("jwks"))}
+    card = json.loads(signed("es256-jku"))
+    sig = card["signatures"][0]
+    header = json.loads(base64.urlsafe_b64decode(sig["protected"] + "=" * (-len(sig["protected"]) % 4)))
+    assert header["jku"] == "https://agent.example.com/.well-known/jwks.json"
+    header["jku"] = "HTTPS://agent.example.com/.well-known/jwks.json"
+    sig["protected"] = base64.urlsafe_b64encode(json.dumps(header, separators=(",", ":")).encode()).rstrip(b"=").decode()
+    wire = Wire(monkeypatch, {**routes, "https://agent.example.com/.well-known/agent-card.json": (200, JSON, json.dumps(card).encode())})
+    scan(tmp_path, agents=["https://agent.example.com/"])
+    assert "https://agent.example.com/.well-known/jwks.json" in wire.urls
+
+
 # --- forks ---------------------------------------------------------------------------------------------------------------
 
 def test_on_a_request_from_a_fork_no_agent_and_no_key_set_is_fetched(tmp_path, monkeypatch):

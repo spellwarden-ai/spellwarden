@@ -170,3 +170,37 @@ def test_the_settings_schema_describes_the_a2a_mapping():
                 {"agents": ["https://a/" + "p" * 1000]}, {"cards": ["c"] * 51}, {"agents": ["https://a/"] * 21}):
         assert list(validator.iter_errors({"version": 1, "a2a": bad})), bad
     assert list(validator.iter_errors({"version": 1, "a2a": "on"}))
+
+
+# --- r0:F5: listed paths are stored normalised ------------------------------------------------------------------------------
+
+def test_r0_f5_listed_cards_and_the_key_file_are_stored_as_the_normalised_path(tmp_path):
+    """(r0:F5) `./deploy/card.json` names `deploy/card.json` and a trailing `/` is dropped: the setting keeps what `contain` returns, so
+    the file set (which holds normalised paths) finds the file."""
+    config = "version: 1\na2a:\n  cards: ['./deploy/card.json', 'deploy/agents/', './x/y.json/']\n  keys: ./keys/jwks.json\n"
+    settings = load(tmp_path, config, {"keys/jwks.json": JWKS})
+    assert settings.a2a.cards == ("deploy/card.json", "deploy/agents", "x/y.json")
+    assert (settings.a2a.keys, settings.a2a.keys_bytes) == ("keys/jwks.json", JWKS)
+
+
+def test_r0_f5_the_base_revision_key_file_named_with_a_dot_slash_is_still_the_base_revisions(tmp_path):
+    base = {".spellwarden/config.yml": b"version: 1\na2a:\n  keys: ./base-keys.json\n", "base-keys.json": JWKS}
+    write_tree(tmp_path, {"head.yml": "version: 1\na2a:\n  keys: head-keys.json\n  cards: ['./head-card.json']\n",
+                          "head-keys.json": b'{"keys": []}'})
+    settings = load_settings(str(tmp_path), config=str(tmp_path / "head.yml"), flags=Flags(), env={}, connected_read=reader_of(base))
+    assert (settings.a2a.keys, settings.a2a.keys_bytes) == ("base-keys.json", JWKS)
+    assert settings.a2a.cards == ("head-card.json",)
+
+
+def test_r0_f5_a_card_listed_with_a_dot_slash_is_found_and_checked_not_file_missing(run_cli, make_repo, tmp_path):
+    from jsonschema import validate
+
+    schema = json.loads((Path(__file__).resolve().parents[2] / "schemas" / "report.schema.json").read_text(encoding="utf-8"))
+    repo = make_repo(tmp_path / "repo", {"deploy/card.json": b'{"name": 1}',
+                                         ".spellwarden/config.yml": "version: 1\na2a:\n  cards: ['./deploy/card.json']\n"})
+    _, out, _ = run_cli(["scan", str(repo), "--format", "json", "--no-telemetry"], env={})
+    report = json.loads(out)
+    validate(report, schema)
+    assert [(f["rule_id"], f["location"]["path"]) for f in report["findings"]] == [("SW-A2A-001", "deploy/card.json")]
+    assert [n for n in report["notices"] if n["code"] == "file_missing"] == []
+    assert [(a["path_form"], a["item"]) for a in report["agents"]] == [("listed", "a2a-card:deploy/card.json")]

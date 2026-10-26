@@ -208,7 +208,7 @@ class AgentTask:
         for si in signature_inputs(document):
             if si.error is not None or si.jku is None or si.jku in fetched or si.alg not in jws.VERIFIED_ALGS:
                 continue
-            if not si.jku.startswith("https://"):
+            if urlsplit(si.jku).scheme.lower() != "https":  # (r1:F3) a scheme is case-insensitive
                 fetched[si.jku] = KeyFetch(None, "network")
             elif len(fetched) >= MAX_AGENT_KEYSETS:
                 fetched[si.jku] = KeyFetch(None, "limit")
@@ -238,7 +238,7 @@ def plan_remote(agents: tuple[str, ...], location_path: str, *, probe: bool, for
         item = f"a2a-agent:{reduced(url)}"
         _, _, form = card_url(url)
         counts = not request
-        if url.startswith("http://"):
+        if urlsplit(url).scheme.lower() == "http":  # (r1:F3) `HTTP://` is the same scheme
             plan.reports.append(AgentReport(item, "remote", form, "skipped", skip_reason="not_https", counts_toward_exit=counts))
             if not internal_by_text(urlsplit(url).hostname or ""):
                 plan.findings.append(ReportFinding(http_agent_finding(url, location_path), item))

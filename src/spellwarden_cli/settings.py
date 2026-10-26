@@ -281,16 +281,23 @@ def _validate_a2a(mapping: object, name: str) -> dict:
             raise SettingsError(f"{name}: `a2a.{key}` lists {len(value)} entries; at most {limit}")
     if "keys" in mapping and (not isinstance(mapping["keys"], str) or not mapping["keys"]):
         raise SettingsError(f"{name}: `a2a.keys` must be one relative path")
-    paths_named = [("cards", relative) for relative in mapping.get("cards", [])]
-    paths_named += [("keys", mapping["keys"])] if "keys" in mapping else []
-    for key, relative in paths_named:
-        try:
-            contain("", relative)
-        except UnsafePath as exc:
-            raise SettingsError(f"{name}: `a2a.{key}`: {relative!r} is not a path inside the scan root ({exc})") from exc
+    values = dict(mapping)
+    # (r0:F5) the setting keeps the normalised path `contain` returns, which is how the file set names a file:
+    # `./deploy/card.json` is `deploy/card.json`, so a listed card is found and a key file read through the base reader.
+    if "cards" in values:
+        values["cards"] = [_contained(name, "cards", relative) for relative in values["cards"]]
+    if "keys" in values:
+        values["keys"] = _contained(name, "keys", values["keys"])
     for url in mapping.get("agents", []):
         _check_agent_url(url, name)
-    return dict(mapping)
+    return values
+
+
+def _contained(name: str, key: str, relative: str) -> str:
+    try:
+        return contain("", relative)
+    except UnsafePath as exc:
+        raise SettingsError(f"{name}: `a2a.{key}`: {relative!r} is not a path inside the scan root ({exc})") from exc
 
 
 def _check_agent_url(url: str, name: str) -> None:
