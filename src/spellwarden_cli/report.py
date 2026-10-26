@@ -31,7 +31,10 @@ NOTICE_CODES = ("no_agent_content", "git_unavailable", "exec_bits_unknown", "sym
                 "connected", "connected_fallback", "dependabot_free_mode", "fork_free_mode", "api_url_override",
                 "reg_baseline_from_base", "gate_scope_all", "org_rules_skipped", "plugin_marketplace_unknown", "uploaded",
                 "upload_failed", "upload_skipped", "upload_ci_only", "upload_disabled", "registry_gate_off",
-                "mcp_rules_need_probe", "policy_newer_than_scanner")
+                "mcp_rules_need_probe", "policy_newer_than_scanner",
+                # O4 spec 6.9: A2A agent cards
+                "a2a_not_card", "a2a_cards_limit", "a2a_agents_need_probe", "a2a_fetch_failed", "a2a_signature_unverified",
+                "a2a_keys_unavailable", "a2a_keys_missing", "a2a_key_without_kid", "a2a_private_key_in_jwks")
 # The notices that say a run continued in free mode after connected mode could not start (O3 spec 6.4); the text and
 # Markdown outputs derive their "unavailable" line from them.
 FREE_MODE_NOTICES = ("connected_fallback", "fork_free_mode", "dependabot_free_mode")

@@ -24,6 +24,19 @@
         "upload": {"type": "boolean", "description": "Upload results in CI. Default true. --upload, --no-upload and SPELLWARDEN_UPLOAD override it."},
         "required": {"type": "boolean", "description": "A run that cannot connect exits 2 instead of falling back to free mode. Default false."}
       }
+    },
+    "a2a": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A2A agent cards (needs scanner 1.3.0 or later; older scanners refuse the file). keys and agents are the repository's statement and on a pull or merge request are read from the base revision, even under --config.",
+      "properties": {
+        "cards": {"type": "array", "maxItems": 50, "items": {"type": "string", "minLength": 1, "maxLength": 4096},
+                  "description": "Repository files to check as agent cards, besides the discovered names. Relative POSIX paths inside the scan root."},
+        "keys": {"type": "string", "minLength": 1, "maxLength": 4096,
+                 "description": "A JWKS file in the repository (at most 64 KiB, 20 keys): the only keys trusted to sign the repository's cards. Every key needs a kid."},
+        "agents": {"type": "array", "maxItems": 20, "items": {"type": "string", "minLength": 1, "maxLength": 1000, "pattern": "^https?://[^@#$ ]+$"},
+                   "description": "Remote agents to fetch under --probe: a URL ending in / is a base URL (the card is at .well-known/agent-card.json under it), any other URL is the card's own address. An http:// URL is never fetched."}
+      }
     }
   }
 }
