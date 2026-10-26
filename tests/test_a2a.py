@@ -409,11 +409,13 @@ def test_r1_f1_owner_identity_reads_only_short_ascii_indexes():
 
 
 @pytest.mark.parametrize("url", ["https://user:secret@exa mple.com/a?b", "user:secret@host/x", "ftp://u:secret@h o/p#f",
-                                 "https://a@b@exa mple.com/x", "//user:secret@host/x"])
+                                 "https://a@b@exa mple.com/x", "//user:secret@host/x",
+                                 "https://admin:secret?x@agent.exa mple.com/a2a", "https://admin:se#cret@agent.exa mple.com/"])
 def test_r1_f1_an_unparseable_url_is_reduced_without_userinfo_query_or_fragment(url):
     reduced = _reduced_url(url)
     assert "secret" not in reduced and "@" not in reduced and "?" not in reduced and "#" not in reduced
     assert "host" in reduced or "mple.com" in reduced or "h o" in reduced
+    assert "cret" not in reduced and "admin" not in reduced  # a `?` or `#` in the password does not stop the strip (r0:F2)
 
 
 def test_r1_f1_a_reduced_url_that_parses_is_unchanged_by_the_fallback():
