@@ -113,6 +113,20 @@ def test_d1_look_alike_files_are_notices_and_the_same_bytes_at_a_well_known_path
     assert code == 1 and by_rule(report)["SW-A2A-018"][0]["evidence"].startswith("bom: a byte-order mark")
 
 
+def test_r0_f2_look_alike_links_that_cannot_be_followed_do_not_make_a_run_exit_2(run_cli, make_repo, tmp_path):
+    outside = tmp_path / "outside.json"
+    outside.write_text("{}")
+    repo = make_repo(tmp_path / "repo", {"README.md": "x"})
+    (repo / ".well-known").mkdir()
+    (repo / ".well-known" / "agent.json").symlink_to(outside)
+    (repo / "docs").mkdir()
+    (repo / "docs" / "agent-card.json").symlink_to("../missing.json")
+    code, out, _ = run_cli(["scan", str(repo), "--format", "json", "--no-telemetry"])
+    report = json.loads(out)
+    assert code == 0 and report["errors"] == [] and "agents" not in report
+    assert sorted(n["path"] for n in report["notices"] if n["code"] == "symlink_skipped") == [".well-known/agent.json", "docs/agent-card.json"]
+
+
 def test_d1_a_baseline_entry_accepts_an_unreadable_card(run_cli, make_repo, tmp_path):
     files = {WELL_KNOWN: b'{"name": "x",}'}
     repo = make_repo(tmp_path / "repo", files)

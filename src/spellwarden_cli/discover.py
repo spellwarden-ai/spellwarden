@@ -563,7 +563,7 @@ def discover(fileset: FileSet, *, listed_cards: Sequence[str] = (), agents_confi
     plugin_dirs: dict[str, str] = {}  # directory -> plugin name
     plugin_items: list[Item] = []
     for path in sorted(builder.links):  # links at a global name; plugin paths and references follow theirs below
-        if _global_kind(path) is not None or _is_skill_file(path) or _card_form(path) is not None:
+        if _global_kind(path) is not None or _is_skill_file(path) or _card_form(path) == "well_known":
             builder.follow(path)
     for path in sorted(p for p in builder.paths if _global_kind(p) == "marketplace"):
         marketplace = builder.document("marketplace", path)
@@ -632,7 +632,7 @@ def _agent_cards(builder: _Builder, listed: Sequence[str]) -> list[CardFile]:
     forms: dict[str, str] = {}
     for path in sorted({*builder.paths, *builder.links}):
         form = _card_form(path)
-        if form is not None and builder.follow(path):
+        if form is not None and (builder.follow(path) if form == "well_known" else _follow_quietly(builder, path)):
             forms[path] = form
     for path in dict.fromkeys(listed):
         if not builder.follow(path):
@@ -647,10 +647,31 @@ def _agent_cards(builder: _Builder, listed: Sequence[str]) -> list[CardFile]:
                                       f"scanner checks at most {MAX_CARDS} per run"))
     cards = []
     for path in chosen[:MAX_CARDS]:
-        content = builder.read(path)
+        if forms[path] in ("legacy_path", "named"):  # a look-alike that cannot be read is a notice (r0:F2, invariant 10)
+            mark = len(builder.errors)
+            content = builder.read(path)
+            if content is None:
+                del builder.errors[mark:]
+                builder.notices.append(Notice("a2a_not_card", path, "not checked as an agent card: cannot be read"))
+        else:
+            content = builder.read(path)
         if content is not None:
             cards.append(CardFile(path, forms[path], content))
     return cards
+
+
+def _follow_quietly(builder: _Builder, path: str) -> bool:
+    """`builder.follow` for a look-alike name (`legacy_path`, `named`), which other software uses: a link that cannot be
+    followed records no error and is not marked followed, so it stays the notice `symlink_skipped` it was in 1.2.1 (r0:F2,
+    spec 6.3, invariant 10). A path listed in `a2a.cards` follows the link again and records the error then."""
+    if path not in builder.links or path in builder.followed:
+        return builder.follow(path)
+    mark = len(builder.errors)
+    if builder.follow(path):
+        return True
+    del builder.errors[mark:]
+    builder.followed.discard(path)
+    return False
 
 
 def _owns(plugin: str, skill: str) -> bool:

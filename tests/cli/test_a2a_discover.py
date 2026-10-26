@@ -9,7 +9,7 @@ import pytest
 from a2a_cards import card_bytes, clean_card
 
 from spellwarden_cli.discover import MAX_CARDS, CardFile, discover
-from spellwarden_cli.files import list_files
+from spellwarden_cli.files import FileSet, list_files
 from spellwarden_cli.settings import Settings
 
 CARD = card_bytes(clean_card()).decode()
@@ -79,18 +79,73 @@ def test_d2_at_most_200_cards_are_read_and_the_notice_counts_the_rest(make_repo,
 
 
 @pytest.mark.skipif(not hasattr(os, "symlink"), reason="symbolic links")
-def test_a_link_at_a_card_name_is_followed_inside_the_scan_root_and_refused_outside(make_repo, tmp_path):
+def test_a_link_at_a_card_name_is_followed_inside_the_scan_root_and_a_well_known_one_is_refused_outside(make_repo, tmp_path):
     repo = make_repo(tmp_path / "repo", {"real/card.json": CARD})
     (repo / ".well-known").mkdir()
     (repo / ".well-known" / "agent-card.json").symlink_to("../real/card.json")
     outside = tmp_path / "outside.json"
     outside.write_text(CARD)
-    (repo / "x").mkdir()
-    (repo / "x" / "agent-card.json").symlink_to(outside)
+    (repo / "public" / ".well-known").mkdir(parents=True)
+    (repo / "public" / ".well-known" / "agent-card.json").symlink_to(outside)
     result = found(repo)
     assert forms(result) == [(".well-known/agent-card.json", "well_known")]
     assert result.agent_cards[0].content == CARD.encode()
-    assert [(e.code, e.path) for e in result.errors] == [("unsafe_path", "x/agent-card.json")]
+    assert [(e.code, e.path) for e in result.errors] == [("unsafe_path", "public/.well-known/agent-card.json")]
+
+
+@pytest.mark.skipif(not hasattr(os, "symlink"), reason="symbolic links")
+def test_r0_f2_a_look_alike_link_that_cannot_be_followed_is_the_1_2_1_notice_and_no_error(make_repo, tmp_path):
+    """A link at `.well-known/agent.json` or at any `agent-card.json` that escapes the scan root, dangles or names a link or a
+    directory stays what 1.2.1 made of it, the notice `symlink_skipped`: other software uses these names (invariants 4, 10)."""
+    outside = tmp_path / "outside.json"
+    outside.write_text(CARD)
+    repo = make_repo(tmp_path / "repo", {"real/card.json": CARD, "somedir/x.txt": "x"})
+    (repo / ".well-known").mkdir()
+    (repo / ".well-known" / "agent.json").symlink_to(outside)
+    (repo / "docs").mkdir()
+    (repo / "docs" / "agent-card.json").symlink_to("../missing.json")
+    (repo / "a").mkdir()
+    (repo / "a" / "agent-card.json").symlink_to("../somedir")
+    (repo / "b").mkdir()
+    (repo / "b" / "agent-card.json").symlink_to("../docs/agent-card.json")
+    result = found(repo)
+    assert result.agent_cards == () and result.errors == ()
+    assert sorted(n.path for n in result.notices if n.code == "symlink_skipped") == [
+        ".well-known/agent.json", "a/agent-card.json", "b/agent-card.json", "docs/agent-card.json"]
+
+
+@pytest.mark.skipif(not hasattr(os, "symlink"), reason="symbolic links")
+def test_r0_f2_a_look_alike_link_inside_the_scan_root_is_still_followed(make_repo, tmp_path):
+    repo = make_repo(tmp_path / "repo", {"real/card.json": CARD})
+    (repo / "x").mkdir()
+    (repo / "x" / "agent-card.json").symlink_to("../real/card.json")
+    result = found(repo)
+    assert forms(result) == [("x/agent-card.json", "named")] and result.errors == ()
+
+
+@pytest.mark.skipif(not hasattr(os, "symlink"), reason="symbolic links")
+def test_r0_f2_a_listed_link_that_cannot_be_followed_is_still_an_error(make_repo, tmp_path):
+    repo = make_repo(tmp_path / "repo", {})
+    (repo / "docs").mkdir()
+    (repo / "docs" / "agent-card.json").symlink_to("../missing.json")
+    result = found(repo, listed_cards=["docs/agent-card.json"])
+    assert result.agent_cards == () and [(e.code, e.path) for e in result.errors] == [("unsafe_path", "docs/agent-card.json")]
+
+
+def test_r0_f2_an_unreadable_look_alike_file_is_a_notice_and_an_unreadable_well_known_card_is_an_error(make_repo, tmp_path, monkeypatch):
+    repo = make_repo(tmp_path / "repo", {"x/agent-card.json": CARD, "y/.well-known/agent-card.json": CARD})
+    original = FileSet.read
+
+    def refuse(self, path):
+        if path.endswith("agent-card.json"):
+            raise PermissionError(13, "Permission denied")
+        return original(self, path)
+
+    monkeypatch.setattr(FileSet, "read", refuse)
+    result = found(repo)
+    assert result.agent_cards == ()
+    assert [(e.code, e.path) for e in result.errors] == [("unreadable", "y/.well-known/agent-card.json")]
+    assert [(n.code, n.path) for n in result.notices if n.code == "a2a_not_card"] == [("a2a_not_card", "x/agent-card.json")]
 
 
 def test_files_the_settings_exclude_are_not_cards(make_repo, tmp_path):
