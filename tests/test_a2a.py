@@ -40,7 +40,7 @@ def test_a_clean_card_has_no_issue_and_the_shape_format_and_versions_of_a_1_0_ca
     (b"", "not_json"), (b"[1]", "not_an_object"), (b'{"a": 1,}', "not_json"), (b"// c\n{}", "not_json"),
     (b'\xef\xbb\xbf{"name": "x"}', "bom"), (b'{"a": 1, "a": 2}', "duplicate_key"), (b"\xff", "not_utf8"),
     (b" " * (2**20 + 1), "too_large"),
-])
+], ids=lambda value: value if isinstance(value, str) else "content")  # short ids: Windows caps PYTEST_CURRENT_TEST at 32767
 def test_a_card_that_cannot_be_read_is_a_document_with_an_error_and_no_root(content, error):
     document = parse_agent_card("agent-card.json", content)
     assert (document.error, document.root, document.card_format, document.protocol_versions) == (error, None, "unknown", ())
@@ -408,15 +408,16 @@ def test_r1_f1_owner_identity_reads_only_short_ascii_indexes():
     assert owner_identity(root, "/skills/0/id") == "skill:summarise"
 
 
-@pytest.mark.parametrize("url", ["https://user:secret@exa mple.com/a?b", "user:secret@host/x", "ftp://u:secret@h o/p#f",
-                                 "https://a@b@exa mple.com/x", "//user:secret@host/x",
-                                 "https://admin:secret?x@agent.exa mple.com/a2a", "https://admin:se#cret@agent.exa mple.com/",
-                                 "https://admin:se/cret@agent.exa mple.com/a2a"])
-def test_r1_f1_an_unparseable_url_is_reduced_without_userinfo_query_or_fragment(url):
-    reduced = _reduced_url(url)
-    assert "secret" not in reduced and "@" not in reduced and "?" not in reduced and "#" not in reduced
-    assert "host" in reduced or "mple.com" in reduced or "h o" in reduced
-    assert "cret" not in reduced and "admin" not in reduced  # a `?` or `#` in the password does not stop the strip (r0:F2)
+@pytest.mark.parametrize(("url", "expected"), [
+    ("https://user:secret@exa mple.com/a?b", "https://exa mple.com/a"), ("user:secret@host/x", "host/x"),
+    ("ftp://u:secret@h o/p#f", "ftp://h o/p"), ("https://a@b@exa mple.com/x", "https://exa mple.com/x"),
+    ("//user:secret@host/x", "//host/x"), ("https://admin:secret?x@agent.exa mple.com/a2a", "https://agent.exa mple.com/a2a"),
+    ("https://admin:se#cret@agent.exa mple.com/", "https://agent.exa mple.com/"),
+    ("https://admin:se/cret@agent.exa mple.com/a2a", "https://agent.exa mple.com/a2a"),
+])
+def test_r1_f1_an_unparseable_url_is_reduced_without_userinfo_query_or_fragment(url, expected):
+    # no part of a password survives, whatever `?`, `#` or `/` it holds (r0:F2)
+    assert _reduced_url(url) == expected
 
 
 def test_r1_f1_a_reduced_url_that_parses_is_unchanged_by_the_fallback():

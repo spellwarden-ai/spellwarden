@@ -167,7 +167,7 @@ def test_s7_a_key_with_a_private_member_is_dropped_and_counted_and_a_key_without
     (b"", "not_json"), (b'{"keys": [],}', "not_json"), (b'[1]', "not_a_key_set"), (b'{"keys": 3}', "not_a_key_set"),
     (b'{"nope": []}', "not_a_key_set"), (b'\xef\xbb\xbf{"keys": []}', "bom"), (b" " * (64 * 1024 + 1), "too_large"),
     (json.dumps({"keys": [{}] * 21}).encode(), "too_many_keys"),
-])
+], ids=lambda value: value if isinstance(value, str) else "content")  # short ids: Windows caps PYTEST_CURRENT_TEST at 32767
 def test_a_file_that_is_not_a_key_set_is_refused_with_its_reason(content, code):
     with pytest.raises(jws.JwksError) as caught:
         jws.load_jwks(content)

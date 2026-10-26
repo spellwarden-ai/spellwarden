@@ -8,6 +8,7 @@ import json
 import threading
 from datetime import date
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import pytest
 from a2a_cards import card_bytes, clean_card
@@ -116,7 +117,7 @@ def test_n3_a_base_url_that_404s_falls_back_once_to_the_old_path_and_a_direct_ur
     assert wire.urls.count("https://old.example.com/.well-known/agent.json") == 1
     direct = agent(report, "direct.example.com")
     assert (direct.status, direct.fail_reason, direct.path_form, direct.fetch["http_status"]) == ("failed", "http_status", "direct", 404)
-    assert [url for url in wire.urls if "direct.example.com" in url] == ["https://direct.example.com/card.json"]
+    assert [url for url in wire.urls if urlsplit(url).hostname == "direct.example.com"] == ["https://direct.example.com/card.json"]
 
 
 def test_n10_a_trailing_slash_is_a_base_url_at_any_path_and_no_slash_is_the_cards_own_address(tmp_path, monkeypatch):

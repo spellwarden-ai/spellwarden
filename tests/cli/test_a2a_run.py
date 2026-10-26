@@ -316,7 +316,8 @@ def test_r1_f2_a_listed_link_that_escapes_the_scan_root_is_a_finding_and_the_bas
     assert code == 0 and report["findings"][0]["suppressed"] is True and report["errors"] == []
 
 
-@pytest.mark.skipif(not hasattr(os, "chmod") or (hasattr(os, "geteuid") and os.geteuid() == 0), reason="needs a non-root user")
+@pytest.mark.skipif(os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0),
+                    reason="needs a POSIX non-root user: chmod 0 does not stop reads on Windows or for root")
 def test_r1_f2_a_well_known_card_the_os_refuses_to_read_is_an_unreadable_finding_and_exit_1(run_cli, make_repo, tmp_path):
     repo = make_repo(tmp_path / "repo", {WELL_KNOWN: card_bytes(clean_card())})
     path = repo / WELL_KNOWN
