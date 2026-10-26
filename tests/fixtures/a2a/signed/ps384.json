@@ -1,0 +1,71 @@
+{
+  "name": "Invoice Helper",
+  "description": "Summarises supplier invoices for the accounts team.",
+  "version": "1.2.0",
+  "supportedInterfaces": [
+    {
+      "url": "https://agent.example.com/a2a",
+      "protocolBinding": "JSONRPC",
+      "protocolVersion": "1.0"
+    }
+  ],
+  "provider": {
+    "organization": "Example Inc.",
+    "url": "https://example.com"
+  },
+  "capabilities": {
+    "streaming": true
+  },
+  "securitySchemes": {
+    "oauth": {
+      "oauth2SecurityScheme": {
+        "flows": {
+          "authorizationCode": {
+            "authorizationUrl": "https://auth.example.com/authorize",
+            "tokenUrl": "https://auth.example.com/token",
+            "pkceRequired": true,
+            "scopes": {
+              "invoices.read": "Read invoices"
+            }
+          }
+        }
+      }
+    }
+  },
+  "securityRequirements": [
+    {
+      "schemes": {
+        "oauth": {
+          "list": [
+            "invoices.read"
+          ]
+        }
+      }
+    }
+  ],
+  "defaultInputModes": [
+    "text/plain"
+  ],
+  "defaultOutputModes": [
+    "text/plain"
+  ],
+  "skills": [
+    {
+      "id": "summarise",
+      "name": "Summarise invoice",
+      "description": "Summarises one invoice.",
+      "tags": [
+        "invoices"
+      ],
+      "examples": [
+        "Summarise invoice 42"
+      ]
+    }
+  ],
+  "signatures": [
+    {
+      "protected": "eyJhbGciOiJQUzM4NCIsImtpZCI6InBzMzg0IiwidHlwIjoiSk9TRSJ9",
+      "signature": "DB2ntsCm9sOsztfnL3J1G4oRyqUKEgOKPMCDLKflwfX3t0lgsbwTwZRGjJGuIgPHjvKSZ09ObDVXwj8ORaxDiPqCtL-D0E6UyoGHjoq55y_1FAjRSSI6SwzPGaCfzt3EvaiAt0uwOLBdhbp72JSJ7JDNhJac3jBScGL-iYuuisRizwHRp90a6h1uGtTfylAhf1Fj5t1Gsut6YdsnAdt2AZQlMoxkbZHZNAip01aH8CVH8JhOO80FTqOwuk1RVitfqczER4o6mA_WNOtTzR1OlT6gHSDyhzeiCh5Wq4eKqczLzOEZSP3J674tdmQRMP5NKggYslKY_-KUD35zO00fDw"
+    }
+  ]
+}

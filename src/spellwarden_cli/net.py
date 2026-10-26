@@ -158,7 +158,7 @@ def default_resolver(host: str) -> list[str]:
     `2600:` address ahead of a `3.` one (1.2.1)."""
     try:
         infos = socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)
-    except (socket.gaierror, OSError) as exc:
+    except (socket.gaierror, OSError, ValueError) as exc:  # ValueError: the idna codec refuses a label over 63 characters
         raise FetchError("fetch_failed", f"resolve {type(exc).__name__}") from None
     addresses = {info[4][0] for info in infos}
     return sorted(a for a in addresses if ipaddress.ip_address(a).version == 4) + \

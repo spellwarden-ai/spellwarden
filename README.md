@@ -1,6 +1,6 @@
 # spellwarden
 
-The Spellwarden scan engine: the baseline rules for agent skills and MCP servers, the probe classification against the 2026-07-28 MCP specification, the migration checklist and the curation score. It is the engine of the hosted product at [spellwarden.ai](https://spellwarden.ai) and is published so that the same rules run in your own tooling.
+The Spellwarden scan engine: the baseline rules for agent skills, MCP servers and A2A agent cards, the probe classification against the 2026-07-28 MCP specification, the migration checklist and the curation score. It is the engine of the hosted product at [spellwarden.ai](https://spellwarden.ai) and is published so that the same rules run in your own tooling.
 
 One distribution holds two import packages. `spellwarden_scan` is the engine and is pure code: it never opens a connection, reads a file or an environment variable; you hand it the bytes of a package, a configuration file or the recorded result of a probe, and it hands back findings. `spellwarden_cli` is the `spellwarden` command: it finds the agent content in a repository, runs the engine on it on your machine or CI runner, and writes the reports. The GitHub Action and the GitLab CI component that run the command in pipelines arrive with 1.0.0.
 
@@ -8,7 +8,7 @@ One distribution holds two import packages. `spellwarden_scan` is the engine and
 pipx run spellwarden scan .          # or: pip install spellwarden, then spellwarden scan .
 ```
 
-Python 3.11 or newer. The only dependency is PyYAML.
+Python 3.11 or newer. The runtime dependencies are PyYAML and `cryptography`, which verifies the signatures on A2A agent cards.
 
 ## Scanning a skill package
 
@@ -66,7 +66,7 @@ The score is `12 x (0.6 S + 0.2 M + 0.2 E)`: `S = max(0, 1 - (6 critical + 3 hig
 
 ## The rules
 
-Ids are `SW-SKL-NNN` (skill packages), `SW-MCP-NNN` (probed MCP servers), `SW-CFG-NNN` (agent configuration files: MCP client configurations, Claude Code settings and hooks, plugin marketplaces) and `SW-REG-NNN` (the registry gate of connected mode). Mappings use the OWASP Agentic Top 10 (ASI) and OWASP MCP Top 10 (MCP) identifiers and NIST SP 800-53 base controls, labelled as a provisional mapping to SP 800-53 base controls. Four rules are malicious indicators: an open finding from one of them quarantines the package.
+Ids are `SW-SKL-NNN` (skill packages), `SW-MCP-NNN` (probed MCP servers), `SW-CFG-NNN` (agent configuration files: MCP client configurations, Claude Code settings and hooks, plugin marketplaces), `SW-REG-NNN` (the registry gate of connected mode) and `SW-A2A-NNN` (A2A agent cards). Mappings use the OWASP Agentic Top 10 (ASI) and OWASP MCP Top 10 (MCP) identifiers and NIST SP 800-53 base controls, labelled as a provisional mapping to SP 800-53 base controls. Four rules are malicious indicators: an open finding from one of them quarantines the package.
 
 <!-- rules:start -->
 | Id | Title | Severity | OWASP | NIST |
@@ -112,6 +112,24 @@ Ids are `SW-SKL-NNN` (skill packages), `SW-MCP-NNN` (probed MCP servers), `SW-CF
 | SW-REG-001 | Skill package not admitted in the organisation's private registry | high | ASI04 | SR-3 |
 | SW-REG-002 | MCP server not admitted in the organisation's private registry | high | MCP10 | SR-3 |
 | SW-REG-003 | Agent content the private registry cannot judge | high | ASI04 | SR-3 |
+| SW-A2A-001 | Agent card does not follow A2A 1.0 | medium | ASI07 | SI-10 |
+| SW-A2A-002 | Agent card uses a format older than A2A 1.0 | medium | ASI07 | SI-10 |
+| SW-A2A-003 | Agent card at the path used before A2A 0.3 | medium | ASI07 | SI-10 |
+| SW-A2A-004 | Agent endpoint or authentication URL not served over HTTPS | high | ASI07 | SC-8 |
+| SW-A2A-005 | OAuth implicit or password flow declared (deprecated in A2A 1.0) | high | ASI03 | IA-5 |
+| SW-A2A-006 | OAuth authorization code flow without PKCE required | medium | ASI03 | IA-5 |
+| SW-A2A-007 | Agent declares no authentication | medium | ASI03 | AC-3 |
+| SW-A2A-008 | API key sent in the URL query | medium | ASI03 | IA-5 |
+| SW-A2A-009 | Skill inherits every scope of the agent | low | ASI03 | AC-6 |
+| SW-A2A-010 | Agent card signature does not verify | high | ASI07 | SI-7 |
+| SW-A2A-011 | Agent card signature is malformed or uses a refused algorithm | high | ASI07 | SI-7 |
+| SW-A2A-012 | Agent card is not signed | low | ASI07 | SI-7 |
+| SW-A2A-013 | Signing key not bound to the card's host | medium | ASI07 | SI-7 |
+| SW-A2A-014 | Agent card text contains injected instructions or hidden characters | high | ASI01 | SI-10 |
+| SW-A2A-015 | Credential in the agent card | critical | ASI03 | IA-5 |
+| SW-A2A-016 | Agent card fetched through a redirect to another host | medium | ASI07 | SC-8 |
+| SW-A2A-017 | Agent card signed with a shared secret that only the agent can check | medium | ASI07 | SI-7 |
+| SW-A2A-018 | Agent card cannot be read | high | ASI07 | SI-10 |
 <!-- rules:end -->
 
 SW-REG-001 to SW-REG-003 are the registry gate of connected mode (Enterprise). They fire only in a connected run.
@@ -350,6 +368,7 @@ In that set the scanner finds:
 | MCP client configuration | `.mcp.json`, `.vscode/mcp.json`, `.cursor/mcp.json`; each server in it is an item of its own | `SW-CFG-001` to `004`, `010`; `SW-MCP` rules under `--probe` |
 | Claude Code settings | `.claude/settings.json`, `.claude/settings.local.json` (with their hooks) | `SW-CFG-005` to `008` |
 | Plugin marketplace | `.claude-plugin/marketplace.json` and every plugin it lists (a local source `./` is the marketplace's own directory) | `SW-CFG-009`; a local plugin's skills, `.mcp.json`, `hooks/hooks.json` and `.claude-plugin/plugin.json` are scanned like the files above |
+| A2A agent card | `.well-known/agent-card.json` at any depth, `.well-known/agent.json` and any other file named `agent-card.json` (when it is a card), and the files `a2a.cards` lists; remote agents under `--probe` | the `SW-A2A` rules; see "Checking A2A agent cards" |
 
 A plugin hosted elsewhere (a GitHub repository or a URL) is listed and locked by its declared source, never fetched. Configuration files are read as JSON with comments and trailing commas (VS Code's `mcp.json` dialect). A file with a key repeated in one object is refused (`duplicate_key`): agents disagree on which copy wins, so the scanner will not guess. Everything read from the repository is treated as hostile: sizes and nesting are bounded, paths are confined to the scan root, and every string is escaped for the place it is printed.
 
@@ -373,9 +392,13 @@ exclude: ["tests/fixtures/**"]
 fail-on: high
 probe: false
 telemetry: true
+a2a:                          # agent cards; see "Checking A2A agent cards"
+  cards: [deploy/agent/card.json]
+  keys: .well-known/jwks.json
+  agents: [https://agent.example.com/]
 ```
 
-The file is optional. An unknown key or a `version` other than 1 is an error (exit 2), so a typo never silently weakens a gate. A flag wins over the environment (`SPELLWARDEN_FAIL_ON`, `SPELLWARDEN_PROBE`, `SPELLWARDEN_TELEMETRY`), which wins over the file. Private probing is deliberately not a setting (see "Probing MCP servers"). The `connected` mapping (`pack`, `upload`, `required`) is described under "Connected mode".
+The file is optional. An unknown key or a `version` other than 1 is an error (exit 2), so a typo never silently weakens a gate. A flag wins over the environment (`SPELLWARDEN_FAIL_ON`, `SPELLWARDEN_PROBE`, `SPELLWARDEN_TELEMETRY`), which wins over the file. Private probing is deliberately not a setting (see "Probing"). The `connected` mapping (`pack`, `upload`, `required`) is described under "Connected mode", the `a2a` mapping (`cards`, `keys`, `agents`) under "Checking A2A agent cards". On a pull or merge request `a2a.keys` and `a2a.agents` are read from the base revision even under `--config`, like `connected.pack` and `connected.required`: a request cannot choose the keys its cards are verified with or the agents that are fetched.
 
 **On a pull or merge request, this file and the baseline are read from the base revision**, the commit the request targets, never from the request itself. Otherwise a request could add a malicious `.mcp.json` together with `exclude: [".mcp.json"]`, or accept its own finding in the baseline, and pass its own check. A request that changes either file therefore sees the change apply only once it is merged, and the report says so with the notice `settings_from_base`. The lock file is still read from the request: a request that changes agent content must update it, and reviewers see that change. Under `--locked` the lock is computed with the base's `include` and `exclude`, so a request that changes those patterns and the lock together is reported stale until the settings change is merged first. Local runs, pushes, schedules and manual runs read the working tree as before. A `--config` or `--baseline` file named on the command line is read as given: whoever runs the scanner chose it.
 
@@ -416,15 +439,47 @@ On a pull or merge request the scan reads the baseline from the base revision, l
 
 Paths are relative to the scan root, except in SARIF and Code Quality, where they are relative to the repository root, because that is where GitHub and GitLab resolve them.
 
-### Probing MCP servers: `--probe`
+### Checking A2A agent cards
 
-Off by default. With `--probe`, the scanner sends the unauthenticated MCP probe of the hosted product to every remote server of an MCP configuration whose URL is `https://`, from your machine or runner, and adds the `SW-MCP` findings and the 2026-07-28 migration checklist to the report. It sends the URL and the protocol's own requests only: never a header, environment value or argument from the configuration, never an `Authorization` header or a cookie. Addresses must be public; at most 50 servers, 4 at a time, 300 requests and 120 seconds for the whole run. A URL holding a `${...}` reference is not probed. `--probe` is switched off on a pull or merge request from a fork or from Dependabot.
+A team that publishes an A2A agent keeps its agent card in the repository (`public/.well-known/agent-card.json`, or a file `a2a.cards` names). The scanner finds every card, reads it as strict JSON and checks it against A2A 1.0 (the `v1.0.1` proto) without a network: the required fields, plain `http://` endpoints, the deprecated OAuth flows, authorization code flows without PKCE, API keys in a URL, agents with no authentication, skills that inherit every scope, injected instructions, hidden characters and credentials in the card's text, and cards still in the 0.2 or 0.3 shape. The eighteen `SW-A2A` rules are in the table above; findings are ordinary findings (SARIF, the request comment, Code Quality, the baseline, `--fail-on`).
+
+```yaml
+# .spellwarden/config.yml
+version: 1
+a2a:
+  cards:                      # files to check as cards, besides the names below (at most 50)
+    - deploy/agent/card.json
+  keys: .well-known/jwks.json # the only keys trusted to sign the repository's cards (a JWKS, at most 64 KiB and 20 keys)
+  agents:                     # remote agents to fetch under --probe (at most 20)
+    - https://agent.example.com/
+    - https://example.com/agents/billing/card.json
+```
+
+**Which files are cards.** `.well-known/agent-card.json` at any depth and every path in `a2a.cards` are cards whatever they hold: one that cannot be read (not UTF-8, a byte-order mark, not strict JSON, a repeated key, nested deeper than 128 levels, not an object, over 1 MiB; or a symbolic link that leaves the scan root, points at nothing or at a link or a directory, which is reported as `unsafe_path`; or a file the operating system refuses to read, reported as `unreadable`) is the finding `SW-A2A-018` (high), which fails the default check but can be accepted in the baseline, and a file that parses but is not a card shape is `SW-A2A-001`. `.well-known/agent.json` and any other file named `agent-card.json` are cards only when they parse strictly and have the card shape; otherwise they get the notice `a2a_not_card` and nothing else, because other software uses those names. A repository of deliberately broken sample cards excludes them the usual way (`exclude: ["samples/**"]`). At most 200 cards are read per run (the notice `a2a_cards_limit` counts the rest). Cards are read as strict JSON, which is what A2A clients accept: a comment, a trailing comma or a byte-order mark is refused here although `.mcp.json` accepts them.
+
+**Older cards and the checklist.** A card in the 0.2 or 0.3 shape (`SW-A2A-002`), at `/.well-known/agent.json` (`SW-A2A-003`), or with an OAuth implicit or password flow (`SW-A2A-005`) gets a migration status and a checklist in the report: `ready` (a 1.0 card with nothing left to change), `to_migrate` or `invalid` (not a card), and up to thirteen steps in a fixed order, from serving the card at `/.well-known/agent-card.json` to signing it again, the last always being to scan again. A patch number in `protocolVersion` ("1.0.1") is a checklist step, not a finding, as the specification says patch numbers SHOULD NOT be used. The OAuth implicit and password flows are deprecated in 1.0 and documented as removed, but the protocol's proto still carries them as deprecated fields, so they are a finding and not a parse error.
+
+**Signatures.** A signed card is a JWS over the card without its `signatures`, canonicalised with RFC 8785 (`spellwarden_scan.jcs_canonicalize`). The scanner verifies ES256, ES384, ES512, RS256, RS384, RS512, PS256, PS384, PS512, `Ed25519` (RFC 9864) and `EdDSA` with an Ed25519 key, with RSA keys of at least 2048 bits. `none` and unknown algorithms are refused (`SW-A2A-011`, high). `HS256`, `HS384` and `HS512` use a secret that only the agent holds, so no one else can check them: the signature is `unverified` and the rule is `SW-A2A-017` (medium), as is Ed448, which this release does not verify. A DER-encoded ECDSA signature, as cloud KMS and HSM signing APIs return, is reported as such (`SW-A2A-011`): a JWS needs the fixed-length `R || S` form of RFC 7518 3.4. A number outside what the scanner canonicalises (an integer above 2^53) makes the signature malformed with that detail. The scanner tries up to three forms of the signed bytes (the card as served, the card as a proto-based signer writes it, and the form `a2a-sdk` signs, which also leaves out empty values) and records which one matched and which members that form does not cover (`unsigned_members`). A legacy 0.x member that no form covers (`security`, `supportsAuthenticatedExtendedCard` and the others `SW-A2A-002` lists) makes the signature `invalid` (`SW-A2A-010`), because clients still read it. So does a member spelled with its proto field name (`supported_interfaces`, `security_requirements`, `preferred_transport`): protobuf's JSON reader accepts that spelling too and the later of two spellings wins, so such a member added after signing would replace the signed one for a proto-based client. So does a whole entry of `securityRequirements` (a card's or a skill's) that no form covers: the `a2a-sdk` form leaves out only `{}`, the alternative "no authentication", which would tell clients anonymous calls are allowed. A vendor member that no form covers, and any other empty value the `a2a-sdk` form leaves out (a scheme entry with no scopes, `schemes: {"bearer": {}}`), is only listed in `unsigned_members` and the signature stays `verified`; the Markdown report names them ("verified without these members"). `a2a-sdk` 1.2.3 cannot sign an empty value, so a card that must cover one, such as a requirement with no scopes, needs a signer that signs the card as served or in the proto form.
+
+*Which key.* The report says which kind of key verified a signature, because only one of them says who signed. With `a2a.keys` set, that file is the only trusted source: a card signed by a key that is not in it is `untrusted_key` (`SW-A2A-010`, high), whatever its `jku` says, and no `jku` is fetched. A signature verified this way says the card was signed by a key the repository's base revision trusts. Every key needs a `kid`, because keys are matched to signatures by `kid` alone; a key without one gets the notice `a2a_key_without_kid` and is never used, and a key with a private member is dropped with the notice `a2a_private_key_in_jwks`. A keys file that is named but absent from the revision read is the notice `a2a_keys_missing` (the signed cards are `unverified`); one that is present and is not a key set is the error `settings_invalid` (exit 2), because a trusted key file that cannot be read must not become no keys. Without `a2a.keys`, under `--probe` the scanner fetches the key set a signature's `jku` names (HTTPS, a public address, at most 64 KiB and 20 keys, 20 key sets per run) and says "verified with the key set the card names" (a key set that cannot be fetched or read leaves the signature `unverified` with the notice `a2a_keys_unavailable`): that says only that whoever serves the key set signed the card, and for a `jku` on the card's own host, whoever controls the host. A `jku` on a host that is neither the card's host nor a subdomain of it is `SW-A2A-013` (medium), as is a key carried in the signature header itself (`jwk`, `x5c`, `x5u`), which is never trusted. Without `--probe` and without `a2a.keys` a signed card is `unverified` with the notice `a2a_signature_unverified`, which says how to verify it.
+
+*Merge the keys first.* On a pull or merge request `a2a.keys` and the keys file are read from the base revision, never from the request. A request that adds a keys file and a signed card together is therefore verified against a base where neither exists: its cards are `unverified` on that request and verified from the next one on. Merge the keys first, or accept one unverified run.
+
+**Remote agents.** With `--probe`, each URL in `a2a.agents` is fetched from the runner with one `GET` and no header but `Accept` and the scanner's user agent: no `Authorization`, no cookie, nothing from your repository. A URL ending in `/` is a base URL at any path: the card is at the URL followed by `.well-known/agent-card.json` (`https://host/agents/billing/` gives `https://host/agents/billing/.well-known/agent-card.json`), and a `404` or `410` there is followed by one request for `.well-known/agent.json` (`SW-A2A-003`); any other URL is the card's own address and is fetched as given, so end a URL with `/` for discovery or give the card's full URL. Addresses must be public, a redirect to another host is `SW-A2A-016`, and the requests share the probe budget (300 requests and 120 seconds for the whole run, MCP servers first). An `http://` URL is never fetched (`SW-A2A-004` when its host is public by its text; an address such as `10.0.0.5`, `localhost` or `billing.internal` is a statement of fact and gets no finding). A remote agent that cannot be fetched is the report status `failed` and the notice `a2a_fetch_failed`, never an error: its outage must not fail your build. **Findings on a remote agent's card do not fail a pull or merge request**, because that card belongs to someone else and changes on its own schedule; they are reported, uploaded and counted on every other run (push, schedule, manual, local), where a team decides whether to keep calling the agent. Without `--probe` the agents are listed as skipped with the notice `a2a_agents_need_probe`; on a request from a fork nothing is fetched.
+
+**What is not checked.** The extended card (it needs authentication), the agent's behaviour on the wire, TLS versions and HSTS of its endpoints, caching headers, and key expiry or revocation. The specification says "Expired or revoked keys MUST NOT be used for verification" (8.4.3) but defines no way to know a key is expired or revoked: the trusted key file is your own list, so removing a key from `a2a.keys` is how a repository revokes it.
+
+**Installing.** The scanner verifies signatures with the `cryptography` package, a compiled dependency that is imported by one module only. It installs from wheels: on Linux (glibc and musl, x86_64 and aarch64), macOS and Windows; a platform without a wheel cannot install 1.3.0. The image and the Action's pinned requirements carry the same packages with their hashes. The Action runs on the Python 3.11 or newer it finds on the runner; the locked `cffi` ships wheels for Python 3.11 to 3.14 at the time of this release, so on a newer Python add `actions/setup-python` until a later scanner release.
+
+### Probing: `--probe`
+
+Off by default. With `--probe`, the scanner also fetches the cards of the remote agents `a2a.agents` lists and the key sets the repository's signed cards name (see "Checking A2A agent cards"), under the same budget as the MCP probes, which come first. It sends the unauthenticated MCP probe of the hosted product to every remote server of an MCP configuration whose URL is `https://`, from your machine or runner, and adds the `SW-MCP` findings and the 2026-07-28 migration checklist to the report. It sends the URL and the protocol's own requests only: never a header, environment value or argument from the configuration, never an `Authorization` header or a cookie. Addresses must be public; at most 50 servers, 4 at a time, 300 requests and 120 seconds for the whole run. A URL holding a `${...}` reference is not probed. `--probe` is switched off on a pull or merge request from a fork or from Dependabot.
 
 `--probe-private` (or `SPELLWARDEN_PROBE_PRIVATE=true`) also allows the private addresses of the configured servers themselves (never a link-local address such as the cloud metadata service, and never an address that a server's answer or redirect points to), but only on a local run or on a push, schedule or manual run of a protected branch or tag in GitHub Actions or GitLab CI; anywhere else it is ignored with the notice `probe_private_untrusted`, because whoever can push a revision controls the endpoints it names. It cannot be set in `.spellwarden/config.yml`.
 
 ### The usage ping
 
-In CI, and only in CI, each `spellwarden scan` sends one request at the end to `https://dash.spellwarden.ai/api/public/ping`. It lets us count how many organisations run the free scanner. The ping is pseudonymous, not anonymous, and carries exactly five fields:
+In CI, and only in CI, each `spellwarden scan` sends one request at the end to `https://dash.spellwarden.ai/api/public/ping`. It lets us count how many organisations run the free scanner and how many runs checked an A2A agent card. The ping is pseudonymous, not anonymous, and carries exactly six fields:
 
 | Field | Value |
 |---|---|
@@ -433,10 +488,11 @@ In CI, and only in CI, each `spellwarden scan` sends one request at the end to `
 | `rules_version` | the rules version |
 | `ci` | `github`, `gitlab` or `other` |
 | `org` | a SHA-256 hash of the installation identity, or `null` |
+| `a2a` | `true` when the run checked at least one agent card (one of the repository's, or a remote agent's that was fetched), else `false` |
 
 The installation identity is the forge host plus the GitHub account's numeric id (`github:github.com:1234567`), the GitLab top-level group's path (`gitlab:gitlab.com:acme`), or the owner in the `origin` remote elsewhere. It is hashed as `sha256("spellwarden-ping-v1:" + identity)`. Anyone who knows an identity can compute its hash, which is why we call it pseudonymous. One company on GitHub and on GitLab is two identities; a self-managed GitLab or GitHub Enterprise Server is its own; renaming a GitLab top-level group starts a new one. The identity cannot be joined to an organisation of the hosted product.
 
-The server keeps one row per hashed identity and ISO week: the number of runs, the first and last time seen, the last scanner and rules versions and the CI kind. The row holds no IP address and no user agent, and is deleted 400 days after the end of its week. To limit abuse, the rate limiter keeps the sending address for one hour. Like every request to the service, the ping also appears in the technical logs, kept for 90 days, with the address it arrived from (usually one of the content delivery network's). No repository content is ever sent, and nothing is sent from a local run or by `lock`, `baseline`, `rules` or `version`.
+The server keeps one row per hashed identity and ISO week: the number of runs, the number of those that checked an agent card (`a2a_runs`), the first and last time seen, the last scanner and rules versions and the CI kind. The row holds no IP address and no user agent, and is deleted 400 days after the end of its week. To limit abuse, the rate limiter keeps the sending address for one hour. Like every request to the service, the ping also appears in the technical logs, kept for 90 days, with the address it arrived from (usually one of the content delivery network's). No repository content is sent; the ping carries one yes-or-no fact derived from it: whether the run checked an agent card, from the repository or from an agent you listed. No card, address or count of cards is sent. Nothing is sent from a local run or by `lock`, `baseline`, `rules` or `version`.
 
 Switch it off with any of: `--no-telemetry`, `SPELLWARDEN_TELEMETRY=off` (or `0`, `false`, `no`), `DO_NOT_TRACK=1`, `telemetry: false` in `.spellwarden/config.yml`, or the `telemetry: false` input of the Action or the GitLab component. A failed or slow ping never changes a report or an exit code.
 
@@ -684,11 +740,11 @@ A package's identity is a hash over its bytes, as a forge archive of its directo
 
 ### Schemas and compatibility
 
-`schemas/` holds JSON Schemas (draft 2020-12) for the settings, the baseline, the lock file and the JSON report, including every closed list of values. Readers of the report must ignore fields they do not know; the settings and the baseline refuse them. From 1.0.0, removing or renaming a field or a value, or changing an exit code, is a major version; adding an optional field, a notice code or a rule is a minor one. Since 1.2.0 the report holds an optional `connected` block when a run was connected (the credential kind, the organisation, the run, the policy applied, the registry gate's counts and items, and the upload outcome), and `upload_truncated` and `upload_truncated_fields` after an upload that was cut; a free run adds none of them.
+`schemas/` holds JSON Schemas (draft 2020-12) for the settings, the baseline, the lock file and the JSON report, including every closed list of values. Readers of the report must ignore fields they do not know; the settings and the baseline refuse them. From 1.0.0, removing or renaming a field or a value, or changing an exit code, is a major version; adding an optional field, a notice code or a rule is a minor one. Since 1.3.0 the report holds an optional `agents` list (one entry per A2A agent card the run read or fetched, written only when there is one), the rule-id pattern of the report and the baseline schema is `^SW-(SKL|MCP|CFG|REG|A2A|ORG)-[0-9]{3}$`, and the settings schema has the `a2a` mapping. A 1.2.x scanner refuses a settings file with an `a2a` mapping (`settings_invalid`, unknown key) and a baseline with an `SW-A2A` entry, as it would any later key or rule; a team that runs two scanner versions against one repository must upgrade both. Since 1.2.0 the report holds an optional `connected` block when a run was connected (the credential kind, the organisation, the run, the policy applied, the registry gate's counts and items, and the upload outcome), and `upload_truncated` and `upload_truncated_fields` after an upload that was cut; a free run adds none of them.
 
 ## Versions
 
-`spellwarden_scan.__version__` is the package version and `spellwarden_scan.RULES_VERSION` (`YYYY.MM.N`) the rule set's. A change to what any rule detects bumps both the rules version and the package minor version; a fix anywhere else bumps the patch. Every scan result carries both, so a stored finding always says which rules produced it.
+`spellwarden_scan.__version__` is the package version and `spellwarden_scan.RULES_VERSION` (`YYYY.MM.N`) the rule set's. A change to what any rule detects bumps both the rules version and the package minor version; a fix anywhere else bumps the patch. Every scan result carries both, so a stored finding always says which rules produced it. `jcs_canonicalize` is RFC 8785; `canonical_json` (the pack hash) and `canonical_sha256` (the package hash) are not, and no signature is ever checked against them.
 
 ## Releases
 

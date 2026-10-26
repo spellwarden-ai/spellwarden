@@ -8,12 +8,14 @@ from collections.abc import Callable, Mapping
 import dataclasses
 from dataclasses import dataclass, field
 from datetime import date
+import os
 import re
 from typing import TYPE_CHECKING
 
 from spellwarden_scan import (RULES_VERSION, Finding, OrgRuleBudget, RuleSet, __version__, scan_agent_config,
                               scan_skill_package)
 
+from spellwarden_cli import agents as agents_module
 from spellwarden_cli import discover, files
 from spellwarden_cli.ci import ORG_RE
 from spellwarden_cli.discover import Discovery, SkillPackage
@@ -48,6 +50,7 @@ class ScanOptions:
     api_url: str | None = None  # SPELLWARDEN_API_URL when honoured (loopback HTTP only; O3 spec 6.2), else None
     as_of_given: bool = False  # `--as-of` was passed; refused in connected mode
     scope: str | None = ""  # the scan root below its work tree (`ci.scan_scope`, P41); None: outside the grammar of 8.4
+    config: str | None = None  # the `--config` argument (O4 spec 6.5: where findings on remote agents point), None without it
 
 
 def connected_config_problem(options: ScanOptions) -> Notice | None:
@@ -113,7 +116,8 @@ def scan(options: ScanOptions) -> Report:
         except connected.ConnectedFail as failed:
             return _stopped(options, early, Notice(failed.code, "", failed.message))
     fileset = files.list_files(options.root, options.settings, env=options.env)
-    found = discover.discover(fileset)
+    a2a = options.settings.a2a
+    found = discover.discover(fileset, listed_cards=a2a.cards, agents_configured=bool(a2a.agents))
     notices: list[Notice] = [*fileset.notices, *found.notices, *early]
     errors: list[Notice] = [*fileset.errors, *found.errors]
     options.log(f"{len(fileset.entries)} files listed, {len(found.items)} items discovered")
@@ -128,10 +132,15 @@ def scan(options: ScanOptions) -> Report:
         notices.extend(connected.state_notices(state, options.settings))
         org_budget = connected.org_rule_budget if state.compiled else None
     findings = engine_findings(found, rules, notices, errors, org_budget=org_budget)
-    probes = run_probes(options, found, rules, findings, notices, org_budget=org_budget)
+    remote = agents_module.RemotePhase(trust=agents_module.load_trust(a2a, notices, errors))
+    probes = run_probes(options, found, rules, findings, notices, org_budget=org_budget, remote=remote)
     for probe in probes:
         if probe.result is not None and probe.result.org_rules_incomplete:
             errors.append(connected.org_rules_incomplete_error(probe.result.org_rules_incomplete, probe.item))
+    agent_reports, agent_findings = agents_module.repository_reports(found, rules, a2a, notices, errors, fetched=remote.fetched,
+                                                                     trust=remote.trust)
+    agent_reports.extend(remote.reports)
+    findings.extend(agent_findings)
     registry = None
     if state is not None and context is not None:
         try:  # O3 spec 6.6: the SW-REG findings join the others before the baseline, which may accept them
@@ -146,6 +155,7 @@ def scan(options: ScanOptions) -> Report:
         scanner_version=__version__, rules_version=RULES_VERSION, as_of=options.as_of.isoformat(),
         fail_on=options.settings.fail_on, items=found.items, findings=tuple(findings), probes=tuple(probes), lock=lock,
         notices=tuple(notices), errors=tuple(errors), repo_prefix=fileset.repo_prefix, rules=rules,
+        agents=tuple(agent_reports),
         connected=({**connected.report_block(state, context), "registry": registry}
                    if state is not None and context is not None else None))
     report = report.sorted()
@@ -251,36 +261,75 @@ def check_lock(options: ScanOptions, found: Discovery, errors: list[Notice]) -> 
         return LockState()
 
 
+def settings_location(options: ScanOptions, context: CiContext) -> str:
+    """The settings file the `a2a` mapping came from, as findings on a remote agent name it (O4 spec 6.5): the base
+    revision's `.spellwarden/config.yml` on a pull or merge request, else the `--config` file (relative to the scan root when
+    it is inside it) or the default file."""
+    from spellwarden_cli.settings import CONFIG_PATH
+
+    if options.config is None or context.is_request:
+        return CONFIG_PATH
+    relative = os.path.relpath(os.path.abspath(options.config), options.root).replace(os.sep, "/")
+    return relative if not relative.startswith("..") else os.path.basename(options.config)
+
+
 def run_probes(options: ScanOptions, found: Discovery, rules: RuleSet, findings: list[ReportFinding], notices: list[Notice],
-               org_budget: Callable[[], OrgRuleBudget] | None = None) -> list[ProbeReport]:
+               org_budget: Callable[[], OrgRuleBudget] | None = None, *,
+               remote: agents_module.RemotePhase | None = None) -> list[ProbeReport]:
     """Spec 6.8: the opt-in probe phase. Off unless `probe` is set; off on a pull or merge request from a fork or
     Dependabot; private addresses only on a trusted run (`ci.private_probe_trusted`), whatever the flag says, and
-    then only at the origins of the configured servers' URLs: a URL a probed server supplies, or a redirect that
-    leaves the origin, gets the public-address rules (`net.Fetcher(private_origins=...)`).
-    `run.scan` calls this before `apply_baseline`, so probe findings appended to `findings` are baselined there."""
-    from spellwarden_cli import ci, net, probing  # here, not at the top, like the other seams
+    then only at the origins of the configured servers' and agents' URLs: a URL a probed server supplies, a `jku`, or a
+    redirect that leaves the origin, gets the public-address rules (`net.Fetcher(private_origins=...)`).
+    `run.scan` calls this before `apply_baseline`, so probe findings appended to `findings` are baselined there.
 
+    O4 spec 6.5: the remote agents of `a2a.agents` and the key sets the repository's cards name are tasks of the same phase,
+    under the same budget; `remote` receives the agents' reports and the key sets fetched. An agent that is not fetched (plain
+    `http://`, `--probe` off, a fork) is reported as skipped with its reason."""
+    from spellwarden_cli import a2a_probe, ci, net, probing  # here, not at the top, like the other seams
+
+    remote = remote if remote is not None else agents_module.RemotePhase()
+    context = options.context if options.context is not None else ci.detect(options.env)
+    forked = context.is_request and (context.fork or context.dependabot)
+    plan = a2a_probe.plan_remote(options.settings.a2a.agents, settings_location(options, context), probe=options.settings.probe,
+                                 fork=forked, request=context.is_request, rules=rules, trust=remote.trust)
+    remote.reports.extend(plan.reports)
+    findings.extend(plan.findings)
+    notices.extend(plan.notices)
     if not options.settings.probe:
         return []
-    context = options.context if options.context is not None else ci.detect(options.env)
     targets, skipped = probing.probe_targets(found)
     for report in skipped:
         notices.append(Notice("probe_skipped", report.item, "not probed (unresolved: the URL holds a ${...} reference)"))
-    if context.is_request and (context.fork or context.dependabot):
+    if forked:
         notices.append(Notice("probe_fork_disabled", "", "--probe is off on a pull or merge request from a fork or "
                                                          "Dependabot: whoever opened it controls its endpoints"))
-        forked = [ProbeReport(target.item, "skipped", "fork", None) for target in targets]
-        return sorted([*skipped, *forked], key=lambda report: report.item)
+        forked_reports = [ProbeReport(target.item, "skipped", "fork", None) for target in targets]
+        return sorted([*skipped, *forked_reports], key=lambda report: report.item)
     allow_private = options.settings.probe_private
     if allow_private and not ci.private_probe_trusted(context):
         notices.append(Notice("probe_private_untrusted", "", "--probe-private is ignored: it takes effect only on a "
                                                              "local run or on a push, schedule or manual run of a "
                                                              "protected ref"))
         allow_private = False
-    private_origins = frozenset(target.url for target in targets) if allow_private else frozenset()
+    private_origins = (frozenset(target.url for target in targets) | frozenset(task.url for task in plan.tasks)
+                       if allow_private else frozenset())
+    for url in agents_module.refused_jku_urls(found, remote.trust):  # never fetched: say so, not "no key source" (r0:F5)
+        remote.fetched[url] = agents_module.KeyFetch(None, "network")
+    jku = agents_module.jku_urls(found, remote.trust)
+    keyset_tasks = [a2a_probe.KeysetTask(url) for url in jku[:probing.MAX_CARD_KEYSETS]]
+    for url in jku[probing.MAX_CARD_KEYSETS:]:  # the cap of 20 key sets per run (P11)
+        remote.fetched[url] = agents_module.KeyFetch(None, "limit")
     on_event = probing.event_logger(options.log)
-    reports, probe_findings = probing.run_phase(
-        targets, rules, fetcher_factory=lambda: net.Fetcher(private_origins=private_origins, on_event=on_event),
+    phase = probing.run_combined(
+        targets, rules, agent_tasks=plan.tasks, keyset_tasks=keyset_tasks,
+        fetcher_factory=lambda: net.Fetcher(private_origins=private_origins, on_event=on_event),
         now_iso=f"{options.as_of.isoformat()}T00:00:00Z", notices=notices, org_budget=org_budget)
-    findings.extend(probe_findings)
-    return sorted([*skipped, *reports], key=lambda report: report.item)
+    findings.extend(phase.findings)
+    for outcome in phase.agents:
+        remote.reports.append(outcome.report)
+        findings.extend(outcome.findings)
+        notices.extend(outcome.notices)
+    for outcome in phase.keysets:
+        remote.fetched[outcome.url] = outcome.fetch
+        notices.extend(outcome.notices)
+    return sorted([*skipped, *phase.reports], key=lambda report: report.item)

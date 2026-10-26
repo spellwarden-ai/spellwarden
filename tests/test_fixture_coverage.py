@@ -7,6 +7,8 @@ from __future__ import annotations
 import json
 
 import pytest
+from a2a_cards import card_bytes
+from a2a_rule_cases import CASES as A2A_CASES
 from conftest import CONFIG_FIXTURES, PROBE_FIXTURES, SKILL_FIXTURES, config_documents, load_config_fixture, load_probe_fixture, load_skill_fixture
 
 from spellwarden_scan.rules import RuleSet
@@ -15,6 +17,7 @@ RULES = RuleSet.baseline()
 SKILL_IDS = [rule.id for rule in RULES.by_area("skill")]
 MCP_IDS = [rule.id for rule in RULES.by_area("mcp")]
 CONFIG_IDS = [rule.id for rule in RULES.by_area("config")]
+A2A_IDS = [rule.id for rule in RULES.by_area("a2a")]
 INVENTORY_FIXTURES = frozenset({"plugins-settings"})
 
 
@@ -79,6 +82,31 @@ def test_config_rule_has_both_fixtures_and_they_match(rule_id):
         assert _normalised(result) == _expected(expected), f"{rule_id} {side}"
         own = {entry for entry in _expected(expected) if entry[0] == rule_id}
         assert bool(own) == (side == "positive"), f"{rule_id} {side}"
+
+
+@pytest.mark.parametrize("rule_id", A2A_IDS)
+def test_a2a_rule_has_both_cases_and_they_match(rule_id):
+    """O4 claim R1: the complete A2A finding set of each case (rule id, severity, evidence pointer) equals its expectation
+    for both sides, and the rule fires on its positive case only. The cards are built in `a2a_rule_cases.py`."""
+    from spellwarden_scan.a2a import parse_agent_card
+    from spellwarden_scan.rules.a2a import CardSubject
+    from spellwarden_scan.scan import run_rules
+
+    assert set(A2A_CASES[rule_id]) == {"positive", "negative"}, rule_id
+    for side, case in A2A_CASES[rule_id].items():
+        content = case.card if isinstance(case.card, bytes) else card_bytes(case.card)
+        subject = CardSubject(parse_agent_card(case.path, content), case.origin, case.signatures, case.path)
+        found, _ = run_rules(RULES.ordered_for_scan("a2a"), subject, max_findings=500, max_per_rule=20)
+        actual = {(f.rule_id, f.severity, f.evidence.split(": ")[0]) for f in found}
+        assert actual == set(case.expected), f"{rule_id} {side}"
+        if side == "positive":
+            assert any(entry[0] == rule_id for entry in actual), f"{rule_id} positive case does not fire its own rule"
+        else:
+            assert not any(entry[0] == rule_id for entry in actual), f"{rule_id} negative case fires its own rule"
+
+
+def test_every_a2a_case_belongs_to_a_rule():
+    assert set(A2A_CASES) == set(A2A_IDS)
 
 
 def test_every_fixture_directory_belongs_to_a_rule():

@@ -21,7 +21,7 @@ from spellwarden_scan.evidence import bounded_evidence, fingerprint
 from spellwarden_scan.glob import glob_match
 from spellwarden_scan.model import SEVERITY_RANK, Finding, Location
 from spellwarden_scan.package import CodeBlock, Package
-from spellwarden_scan.rules import ALLOWED_NIST, ALLOWED_OWASP, Rule
+from spellwarden_scan.rules import ORG_ALLOWED_NIST, ORG_ALLOWED_OWASP, Rule
 from spellwarden_scan.rules.skill import logical_commands
 from spellwarden_scan.text import valid_line
 
@@ -670,9 +670,9 @@ def validate_org_rule(spec: object) -> None:
     if area not in AREAS:
         raise _fail("bad_area", "The area must be skill or mcp.")
     _string_list(spec.get("owasp", []), code="bad_mapping", what="The OWASP mapping", limit=MAX_MAPPINGS,
-                 allowed=ALLOWED_OWASP)
+                 allowed=ORG_ALLOWED_OWASP)
     _string_list(spec.get("nist", []), code="bad_mapping", what="The NIST mapping", limit=MAX_MAPPINGS,
-                 allowed=ALLOWED_NIST)
+                 allowed=ORG_ALLOWED_NIST)
     targets = _string_list(spec.get("targets", []), code="bad_target", what="The target list", limit=len(TARGETS),
                            allowed=TARGETS)
     malicious = spec.get("malicious", False)

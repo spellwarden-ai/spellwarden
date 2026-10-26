@@ -264,6 +264,8 @@ def _fixture_gap(own: Path, other: Path) -> str | None:
         return f"no checkout at {other}"
     if (own / "connected").is_dir() and not (other / "connected").is_dir():
         return f"{other} has not received the 1.2.0 fixtures yet (no connected/): O3 Tasks 26 and 27 copy them"
+    if (own / "a2a").is_dir() and not (other / "a2a").is_dir():  # O4: the a2a case reaches the wrappers in O4 Task 14
+        return f"{other} has not received the 1.3.0 fixtures yet (no a2a/): O4 Task 14 copies them"
     return None
 
 
@@ -290,3 +292,12 @@ def test_a_sibling_is_compared_when_it_holds_the_connected_fixtures_and_skipped_
     other_without = tmp_path / "older"
     other_without.mkdir()
     assert _fixture_gap(own, other_without) is None                     # nothing connected to receive: compared as ever
+
+
+def test_a_sibling_without_the_a2a_case_is_skipped_until_o4_task_14_copies_it(tmp_path):
+    own, other = tmp_path / "own", tmp_path / "other"
+    (own / "a2a").mkdir(parents=True)
+    other.mkdir()
+    assert "1.3.0 fixtures" in _fixture_gap(own, other)                 # a checkout from before 1.3.0: skipped, with a reason
+    (other / "a2a").mkdir()
+    assert _fixture_gap(own, other) is None                             # it has the case: the trees must be equal

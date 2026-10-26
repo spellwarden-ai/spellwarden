@@ -45,7 +45,8 @@ def _result(report: Report, item: ReportFinding, index: dict[str, int]) -> dict:
         physical["region"] = {"startLine": finding.location.line}
     location: dict = {"physicalLocation": physical}
     rule = report.rules.get(finding.rule_id)
-    if rule is not None and rule.area == "mcp":
+    # a finding of a probed MCP server and one of a remote A2A agent name the resource they are about (O4 spec 6.10)
+    if rule is not None and (rule.area == "mcp" or (rule.area == "a2a" and item.item.startswith("a2a-agent:"))):
         location["logicalLocations"] = [{"fullyQualifiedName": escape.message(item.item), "kind": "resource"}]
     result: dict = {
         "ruleId": finding.rule_id,

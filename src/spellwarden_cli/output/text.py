@@ -7,6 +7,7 @@ from __future__ import annotations
 import re
 
 from spellwarden_cli.escape import log_lines, terminal
+from spellwarden_cli.output import agents as agent_view
 from spellwarden_cli.report import FREE_MODE_NOTICES, Report
 
 _VERDICT = {0: "passed", 2: "incomplete: see the errors above"}
@@ -97,6 +98,18 @@ def render(report: Report) -> str:
         detail = probe.skip_reason if probe.status == "skipped" else (
             probe.result.migration_status if probe.result is not None else "")
         lines.append(f"probe {terminal(probe.item)}: {probe.status} {terminal(detail or '')}".rstrip())
+    if report.agents:  # O4 spec 6.10: after the probe section, one block per agent
+        lines.append("A2A agent cards")
+        for view in agent_view.views(report):
+            lines.append(f"  {terminal(view.item)} ({view.origin}): {terminal(view.summary)}")
+            if view.signature is not None:
+                lines.append(f"    {terminal(view.signature)}")
+            if view.unsigned:
+                lines.append(f"    verified without these members: {terminal(', '.join(view.unsigned))}")
+            lines.extend(f"    {terminal(step)}" for step in view.checklist)
+        if agent_view.remote_note_applies(report):
+            lines.append(f"  {agent_view.REMOTE_NOTE}")
+        lines.append("")
     for notice in report.notices:
         lines.append(f"notice {notice.code} {terminal(notice.path)}: {terminal(notice.message)}")
     for error in report.errors:

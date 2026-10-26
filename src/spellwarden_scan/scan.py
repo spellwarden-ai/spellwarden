@@ -2,14 +2,18 @@
 rules worst severity first, keeps at most `max_per_rule` findings per rule and
 `max_findings` in all, counts what it drops, sorts what it kept.
 `scan_agent_config` (spec 5.5) does the same for the `config` rules over parsed
-configuration documents."""
+configuration documents. `evaluate_agent_card` (O4 spec 5.2) does it for one A2A agent card."""
 from __future__ import annotations
 
 from collections.abc import Collection, Iterable, Mapping, Sequence
 
+from spellwarden_scan.a2a import AgentCardDocument
+from spellwarden_scan.a2a_checklist import a2a_checklist
 from spellwarden_scan.canonical import canonical_sha256
 from spellwarden_scan.identity import package_files, package_sha256
-from spellwarden_scan.model import SEVERITY_RANK, ConfigDocument, ConfigScanResult, Finding, SkillScanResult
+from spellwarden_scan.model import (
+    SEVERITY_RANK, A2aScanResult, CardOrigin, ConfigDocument, ConfigScanResult, Finding, SignatureOutcome, SkillScanResult,
+)
 from spellwarden_scan.orgrules import BudgetMeter, OrgRuleBudget, is_org_rule
 from spellwarden_scan.package import Package
 from spellwarden_scan.rules import RuleSet
@@ -73,3 +77,39 @@ def scan_agent_config(documents: Sequence[ConfigDocument], rules: RuleSet, *, ma
     return ConfigScanResult(findings=tuple(retained), truncated=truncated,
                             documents=tuple(doc.path for doc in judged.documents), rules_version=RULES_VERSION,
                             scanner_version=__version__)
+
+
+A2A_MAX_FINDINGS = 500
+A2A_MAX_PER_RULE = 20  # below the default of 100 for skills and probes: a card with a hundred skills must not drown the report
+
+
+def evaluate_agent_card(document: AgentCardDocument, rules: RuleSet, *, origin: CardOrigin,
+                        signatures: Sequence[SignatureOutcome], location_path: str) -> A2aScanResult:
+    """Every `a2a` rule over one card in `rules.ordered_for_scan("a2a")` order, then the status fields and the migration
+    checklist (O4 spec 5.2, 5.8). `signatures` are the outcomes the command recorded, one per entry of the card's `signatures`
+    (the engine never verifies); `location_path` is where findings point: the card's own path for a repository card, the
+    settings file for a remote one. A document that could not be read has only SW-A2A-018 (for a well-known or listed card)
+    and the status `invalid`."""
+    # Here, not at the top: `rules.a2a` imports `rules.mcp`, which imports `probe`, which imports `run_rules` from this module.
+    from spellwarden_scan.rules.a2a import CardSubject, signature_status_of
+
+    outcomes = tuple(signatures)
+    subject = CardSubject(document, origin, outcomes, location_path)
+    retained, truncated = run_rules(rules.ordered_for_scan("a2a"), subject, max_findings=A2A_MAX_FINDINGS,
+                                    max_per_rule=A2A_MAX_PER_RULE)
+    findings = tuple(retained)
+    root = document.root
+    signed = root is not None and isinstance(root.get("signatures"), list) and bool(root["signatures"])
+    checklist = a2a_checklist(document, findings)
+    fired = {finding.rule_id for finding in findings}
+    if document.card_format == "unknown":
+        status = "invalid"
+    elif (document.card_format == "1.0" and not fired & {"SW-A2A-001", "SW-A2A-002", "SW-A2A-003", "SW-A2A-005"}
+          and [item.key for item in checklist] == ["rescan"]):
+        status = "ready"
+    else:
+        status = "to_migrate"
+    return A2aScanResult(
+        findings=findings, truncated=truncated, card_format=document.card_format, protocol_versions=document.protocol_versions,
+        migration_status=status, signature_status=signature_status_of(outcomes, signed=signed), signatures=outcomes,
+        checklist=checklist, document_truncated=document.truncated)

@@ -55,7 +55,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         case: [clean, findings, baselined, stale-lock, broken-config, path-with-spaces, hostile-names, bad-input,
-               bad-requirements, exec-bit, subdir, probe, "probe@config-key"]
+               bad-requirements, exec-bit, subdir, probe, "probe@config-key", a2a]
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -419,13 +419,14 @@ jobs:
           path: dist/
       - name: The wheel is the one the build job hashed
         run: echo "${WHEEL_SHA256}  dist/spellwarden-${VERSION}-py3-none-any.whl" | sha256sum -c -
-      - name: Hash-checked PyYAML wheelhouse for both platforms
+      - name: Hash-checked wheelhouse for both platforms
         run: |
           set -euo pipefail
           for arch in x86_64 aarch64; do
             python3 -m pip download --only-binary :all: --require-hashes --no-deps \
               --platform "manylinux_2_17_${arch}" --platform "manylinux2014_${arch}" \
-              --python-version 3.13 --implementation cp --abi cp313 \
+              --platform "manylinux_2_28_${arch}" --platform "manylinux_2_34_${arch}" \
+              --python-version 3.13 --implementation cp --abi cp313 --abi abi3 \
               -r docker/requirements.deps.txt -d wheelhouse
           done
       - id: tags

@@ -10,10 +10,15 @@ from typing import Any
 
 from spellwarden_scan.model import SEVERITY_RANK, Finding
 
-RULE_ID_RE = re.compile(r"^SW-(SKL|MCP|CFG|REG|ORG)-[0-9]{3}$")
-ALLOWED_OWASP = ("ASI01", "ASI04", "ASI10", "MCP01", "MCP10")
-ALLOWED_NIST = ("AC-3", "AC-6", "AU-2", "IA-5", "SC-7", "SI-10", "SR-3")
-AREAS = ("skill", "mcp", "config", "registry")
+RULE_ID_RE = re.compile(r"^SW-(SKL|MCP|CFG|REG|A2A|ORG)-[0-9]{3}$")
+ALLOWED_OWASP = ("ASI01", "ASI03", "ASI04", "ASI07", "ASI10", "MCP01", "MCP10")
+ALLOWED_NIST = ("AC-3", "AC-6", "AU-2", "IA-5", "SC-7", "SC-8", "SI-10", "SI-7", "SR-3")
+# O4 spec 5.4 adds `ASI03`, `ASI07`, `SC-8` and `SI-7` for the A2A rules. An organisation rule may map to the tags of 1.2.x
+# only: a pack that used a new one would be refused by every older scanner (`bad_mapping`), and the pack schema is frozen.
+A2A_ONLY_TAGS = frozenset({"ASI03", "ASI07", "SC-8", "SI-7"})
+ORG_ALLOWED_OWASP = tuple(tag for tag in ALLOWED_OWASP if tag not in A2A_ONLY_TAGS)
+ORG_ALLOWED_NIST = tuple(tag for tag in ALLOWED_NIST if tag not in A2A_ONLY_TAGS)
+AREAS = ("skill", "mcp", "config", "registry", "a2a")
 
 
 @dataclass(frozen=True)
@@ -79,9 +84,9 @@ class RuleSet:
 
     @classmethod
     def baseline(cls) -> RuleSet:
-        from spellwarden_scan.rules import config, mcp, registry, skill
+        from spellwarden_scan.rules import a2a, config, mcp, registry, skill
 
-        return cls(skill.RULES + mcp.RULES + config.RULES + registry.RULES)
+        return cls(skill.RULES + mcp.RULES + config.RULES + registry.RULES + a2a.RULES)
 
     def with_rules(self, extra: Iterable[Rule]) -> RuleSet:
         return RuleSet(self._rules + tuple(extra))

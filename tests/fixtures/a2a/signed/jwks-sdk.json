@@ -1,0 +1,13 @@
+{
+  "keys": [
+    {
+      "kty": "EC",
+      "crv": "P-256",
+      "kid": "sdk-key",
+      "use": "sig",
+      "alg": "ES256",
+      "x": "9GwTOqGgoxZH8o4iCVqY6Ex8hNVkWFGrNKmWD2omuOU",
+      "y": "5xfOrxaXRSv9wTwolz5dGDpSxOWWuYxDDSjGf-K-gOw"
+    }
+  ]
+}

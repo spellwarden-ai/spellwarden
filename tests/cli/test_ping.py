@@ -1,4 +1,4 @@
-"""Spec 6.10 and claim C15: the usage ping. Only in CI, never with an opt-out, exactly five fields, bounded in time
+"""Spec 6.10 and claim C15, O4 spec 6.10 and claim P1: the usage ping. Only in CI, never with an opt-out, exactly six fields, bounded in time
 (plan decision P11, Review Focus 5), and the loopback-only test hook."""
 from __future__ import annotations
 
@@ -46,12 +46,12 @@ def send(ctx=GITHUB, *, telemetry=True, env=None, opener=None, wait=2.5):
     return recorder, lines
 
 
-def test_the_body_is_exactly_the_five_fields():
+def test_the_body_is_exactly_the_six_fields():
     recorder, lines = send()
     (request,) = recorder.requests
     body = json.loads(request.data)
     assert body == {"schema": 1, "version": __version__, "rules_version": RULES_VERSION, "ci": "github",
-                    "org": "6ece64f2db0ecee34de1a73b2ad0effdf128e6b7a1a2babdb36203d72f61a785"}
+                    "org": "6ece64f2db0ecee34de1a73b2ad0effdf128e6b7a1a2babdb36203d72f61a785", "a2a": False}
     assert request.full_url == ping.DEFAULT_URL and request.get_method() == "POST"
     assert request.get_header("Content-type") == "application/json" and recorder.timeout == 2
     assert lines == ["ping: 204"]
@@ -61,7 +61,8 @@ def test_ci_kind_and_a_missing_identity():
     other = ci.CiContext(provider="other", event=None, is_request=False, request_number=None, fork=False,
                          dependabot=False, protected_ref=False, identity=None)
     assert ping.ping_body(other, version="1.0.0", rules_version="2027.01.1") == {
-        "schema": 1, "version": "1.0.0", "rules_version": "2027.01.1", "ci": "other", "org": None}
+        "schema": 1, "version": "1.0.0", "rules_version": "2027.01.1", "ci": "other", "org": None, "a2a": False}
+    assert ping.ping_body(other, version="1.0.0", rules_version="2027.01.1", a2a=True)["a2a"] is True
 
 
 def test_nothing_is_sent_outside_ci():
@@ -122,7 +123,7 @@ def test_the_test_hook_is_ignored_for_anything_else(raw):
     assert lines == ["ping: 204 (SPELLWARDEN_PING_URL ignored: loopback HTTP only)"]
 
 
-def test_a_real_loopback_listener_receives_exactly_the_five_fields():
+def test_a_real_loopback_listener_receives_exactly_the_six_fields():
     received: list[dict] = []
 
     class Handler(BaseHTTPRequestHandler):
@@ -143,7 +144,7 @@ def test_a_real_loopback_listener_receives_exactly_the_five_fields():
     finally:
         server.shutdown()
     assert lines == ["ping: 204"]
-    assert [sorted(body) for body in received] == [["ci", "org", "rules_version", "schema", "version"]]
+    assert [sorted(body) for body in received] == [["a2a", "ci", "org", "rules_version", "schema", "version"]]
 
 
 # --- through `spellwarden scan` (the autouse fixture `ping_requests` of tests/conftest.py records what is sent) ---
@@ -309,3 +310,41 @@ def test_an_invalid_working_tree_file_on_a_request_never_fails_the_scan_and_send
     repo = make_repo(tmp_path / "repo", {"README.md": "nothing to scan\n", ".spellwarden/config.yml": text})
     code, report = scan_request(monkeypatch, repo, None)
     assert code == 0 and report["errors"] == [] and ping_requests == []
+
+
+# --- O4 spec 6.10, P4, P12: `a2a` is true when the run checked at least one agent card ---------------------------------------
+
+CARD = '{"name": "Invoice Helper", "description": "d", "version": "1", "supportedInterfaces": [{"url": "https://a.example/a2a", ' \
+       '"protocolBinding": "JSONRPC", "protocolVersion": "1.0"}], "capabilities": {}, "defaultInputModes": ["text/plain"], ' \
+       '"defaultOutputModes": ["text/plain"], "skills": [{"id": "s", "name": "n", "description": "d", "tags": ["t"]}]}'
+
+
+def pinged_a2a(ping_requests) -> list[bool]:
+    return [json.loads(request.data)["a2a"] for request in ping_requests]
+
+
+def test_send_ping_carries_the_flag_it_is_given():
+    recorder, _ = send_with_flag(True)
+    assert json.loads(recorder.requests[0].data)["a2a"] is True
+
+
+def send_with_flag(flag: bool):
+    recorder = Recorder()
+    ping.send_ping(GITHUB, telemetry=True, env={}, log=lambda _line: None, opener=recorder, a2a=flag)
+    return recorder, None
+
+
+def test_a_run_that_checked_a_repository_card_sends_true_and_one_without_cards_or_with_a_look_alike_sends_false(
+        tmp_path, monkeypatch, make_repo, ping_requests):
+    scan_in_ci(monkeypatch, make_repo(tmp_path / "a", {".well-known/agent-card.json": CARD}))
+    scan_in_ci(monkeypatch, make_repo(tmp_path / "b", {"README.md": "nothing\n"}))
+    scan_in_ci(monkeypatch, make_repo(tmp_path / "c", {"tools/agent.json": "{}", ".well-known/agent.json": "{"}))
+    assert pinged_a2a(ping_requests) == [True, False, False]
+
+
+def test_a_card_at_a_well_known_path_counts_even_when_unreadable_and_configured_agents_without_probe_send_false(
+        tmp_path, monkeypatch, make_repo, ping_requests):
+    scan_in_ci(monkeypatch, make_repo(tmp_path / "a", {".well-known/agent-card.json": "{"}))
+    config = "version: 1\na2a:\n  agents: ['https://agent.example.com/']\n"
+    scan_in_ci(monkeypatch, make_repo(tmp_path / "b", {".spellwarden/config.yml": config}))
+    assert pinged_a2a(ping_requests) == [True, False]  # the first is a card found and checked (SW-A2A-018); the second fetched nothing

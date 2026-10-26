@@ -8,21 +8,23 @@ refuses a key repeated in one object (`duplicate_key`: agents disagree on which 
 `MAX_DEPTH`. A value of an unexpected type inside an otherwise valid document is skipped, not fatal."""
 from __future__ import annotations
 
-import bisect
 import hashlib
 import ipaddress
 import json
 import re
-from json.decoder import scanstring
 from typing import Any, NamedTuple
 
+from spellwarden_scan._json import MAX_DOCUMENT_BYTES
+from spellwarden_scan._json import Arr as _Arr
+from spellwarden_scan._json import Obj as _Obj
+from spellwarden_scan._json import Refused as _Refused
+from spellwarden_scan._json import load_json
 from spellwarden_scan.model import (
     ConfigDocument, EnabledPlugin, HookCommand, MarketplaceDecl, MarketplacePlugin, McpServerEntry, PluginSource,
     SettingFlag,
 )
 from spellwarden_scan.relpath import UnsafePath, contain
 
-MAX_DOCUMENT_BYTES = 2**20
 MAX_DEPTH = 32
 MAX_SERVERS = 200
 MAX_HOOKS = 500
@@ -30,11 +32,6 @@ MAX_PLUGINS = 200
 DOCUMENT_ERRORS = ("too_large", "not_utf8", "not_json", "duplicate_key", "too_deep", "not_an_object", "truncated")
 DOC_KINDS = ("mcp", "hooks", "settings", "marketplace", "plugin")
 
-_LINE_END = re.compile(r"\r\n|\r|\n")
-_COMMENT_END = re.compile(r"[\r\n]")
-_NUMBER = re.compile(r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?")
-_SURROGATE = re.compile("[\ud800-\udfff]")
-_LITERALS = (("true", True), ("false", False), ("null", None))
 _HEX40 = re.compile(r"[0-9A-Fa-f]{40}")
 _REPO = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
 _URL = re.compile(r"([A-Za-z][A-Za-z0-9+.-]*)://([^/?#\s]*)([^?#\s]*)(\?[^#\s]*)?(#\S*)?")
@@ -42,167 +39,9 @@ _PORT = re.compile(r":[0-9]{0,5}")
 _LABEL = re.compile(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?")
 
 
-class _Refused(Exception):
-    def __init__(self, code: str) -> None:
-        super().__init__(code)
-        self.code = code
-
-
-class _Obj(dict):
-    """A JSON object with the line of each key (`lines`) and of its opening brace (`line`)."""
-
-    __slots__ = ("line", "lines")
-
-
-class _Arr(list):
-    """A JSON array with the line of each item (`lines`) and of its opening bracket (`line`)."""
-
-    __slots__ = ("line", "lines")
-
-
-class _Reader:
-    def __init__(self, text: str) -> None:
-        self.text = text
-        self.pos = 0
-        self.ends = [match.start() for match in _LINE_END.finditer(text)]
-
-    def line(self, pos: int) -> int:
-        return bisect.bisect_left(self.ends, pos) + 1
-
-    def skip(self) -> None:
-        text, pos, size = self.text, self.pos, len(self.text)
-        while pos < size:
-            char = text[pos]
-            if char in " \t\r\n":
-                pos += 1
-            elif text.startswith("//", pos):
-                end = _COMMENT_END.search(text, pos)
-                pos = size if end is None else end.start()
-            elif text.startswith("/*", pos):
-                end = text.find("*/", pos + 2)
-                if end < 0:
-                    raise _Refused("not_json")
-                pos = end + 2
-            else:
-                break
-        self.pos = pos
-
-    def peek(self) -> str:
-        return self.text[self.pos] if self.pos < len(self.text) else ""
-
-    def value(self, depth: int) -> Any:
-        self.skip()
-        char = self.peek()
-        if char == "{":
-            return self.obj(depth + 1)
-        if char == "[":
-            return self.arr(depth + 1)
-        if char == '"':
-            return self.string()
-        number = _NUMBER.match(self.text, self.pos)
-        if number:
-            self.pos = number.end()
-            token = number.group(0)
-            try:
-                return float(token) if any(mark in token for mark in ".eE") else int(token)
-            except ValueError:  # an integer over the interpreter's digit limit
-                raise _Refused("not_json") from None
-        for word, literal in _LITERALS:
-            if self.text.startswith(word, self.pos):
-                self.pos += len(word)
-                return literal
-        raise _Refused("not_json")
-
-    def string(self) -> str:
-        try:
-            text, end = scanstring(self.text, self.pos + 1, True)
-        except ValueError:
-            raise _Refused("not_json") from None
-        if _SURROGATE.search(text):  # a lone surrogate cannot be encoded, hashed or printed
-            raise _Refused("not_json")
-        self.pos = end
-        return text
-
-    def obj(self, depth: int) -> _Obj:
-        if depth > MAX_DEPTH:
-            raise _Refused("too_deep")
-        result = _Obj()
-        result.line, result.lines = self.line(self.pos), {}
-        self.pos += 1
-        self.skip()
-        if self.peek() == "}":
-            self.pos += 1
-            return result
-        while True:
-            self.skip()
-            if self.peek() != '"':
-                raise _Refused("not_json")
-            key_line = self.line(self.pos)
-            key = self.string()
-            if key in result:
-                raise _Refused("duplicate_key")
-            self.skip()
-            if self.peek() != ":":
-                raise _Refused("not_json")
-            self.pos += 1
-            result[key] = self.value(depth)
-            result.lines[key] = key_line
-            self.skip()
-            char = self.peek()
-            if char == "}":
-                self.pos += 1
-                return result
-            if char != ",":
-                raise _Refused("not_json")
-            self.pos += 1
-            self.skip()
-            if self.peek() == "}":  # a trailing comma
-                self.pos += 1
-                return result
-
-    def arr(self, depth: int) -> _Arr:
-        if depth > MAX_DEPTH:
-            raise _Refused("too_deep")
-        result = _Arr()
-        result.line, result.lines = self.line(self.pos), []
-        self.pos += 1
-        self.skip()
-        if self.peek() == "]":
-            self.pos += 1
-            return result
-        while True:
-            self.skip()
-            result.lines.append(self.line(self.pos))
-            result.append(self.value(depth))
-            self.skip()
-            char = self.peek()
-            if char == "]":
-                self.pos += 1
-                return result
-            if char != ",":
-                raise _Refused("not_json")
-            self.pos += 1
-            self.skip()
-            if self.peek() == "]":  # a trailing comma
-                self.pos += 1
-                return result
-
-
 def _load_jsonc(content: bytes) -> Any:
-    if len(content) > MAX_DOCUMENT_BYTES:
-        raise _Refused("too_large")
-    if content.startswith(b"\xef\xbb\xbf"):
-        content = content[3:]
-    try:
-        text = content.decode("utf-8")
-    except UnicodeDecodeError:
-        raise _Refused("not_utf8") from None
-    reader = _Reader(text)
-    value = reader.value(0)
-    reader.skip()
-    if reader.pos != len(text):
-        raise _Refused("not_json")
-    return value
+    """Lenient mode of the shared reader (comments, trailing commas, a leading BOM stripped), as since 1.0.0."""
+    return load_json(content, strict=False, max_depth=MAX_DEPTH, max_bytes=MAX_DOCUMENT_BYTES)
 
 
 def _canonical(value: Any) -> bytes:

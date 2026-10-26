@@ -318,6 +318,52 @@ def test_reductions_and_their_record():
     assert report["connected"]["upload"] is None and len(report["findings"]) == 600       # the input is not changed
 
 
+def agent_dict(index: int) -> dict:
+    """An agent as `AgentReport.to_dict` writes it."""
+    return {"item": f"a2a-card:agents/a{index:03d}/.well-known/agent-card.json", "source": "repository", "path_form": "well_known",
+            "status": "checked", "skip_reason": None, "fail_reason": None, "fetch": None, "card_format": "1.0",
+            "protocol_versions": ["1.0"], "migration_status": "ready", "signature_status": "verified",
+            "signatures": [{"index": 0, "alg": "ES256", "kid": "k", "jku": None, "key_source": "keys_file", "outcome": "verified",
+                            "payload_form": "as_served", "unsigned_members": [], "detail": None}],
+            "truncated": 0, "counts_toward_exit": True, "checklist": [{"order": 13, "key": "rescan", "text": "Re-run the Spellwarden scan"}]}
+
+
+def test_o4_the_upload_carries_the_agents_reduced_to_nine_fields_capped_at_200_and_recorded():
+    report = report_dict(agents=[agent_dict(n) for n in range(250)])
+    body, dropped, cut = connected.reduce_report(report, LIMITS)
+    assert dropped == 0 and cut == ["agents"] and body["upload_truncated_fields"] == ["agents"]
+    assert len(body["agents"]) == 200
+    assert set(body["agents"][0]) == set(connected.AGENT_FIELDS) == {
+        "item", "source", "status", "skip_reason", "fail_reason", "card_format", "protocol_versions", "migration_status",
+        "signature_status"}
+    assert "signatures" not in json.dumps(body["agents"]) and "checklist" not in json.dumps(body["agents"])
+    assert len(report["agents"]) == 250 and "checklist" in report["agents"][0]  # the input is not changed
+    small, _, small_cut = connected.reduce_report(report_dict(agents=[agent_dict(1)]), LIMITS)
+    assert small_cut == [] and len(small["agents"]) == 1
+    none, _, _ = connected.reduce_report(report_dict(), LIMITS)
+    assert "agents" not in none  # a run without agents uploads what 1.2.1 did
+
+
+def test_o4_the_rule_id_row_accepts_an_a2a_finding():
+    body = {"schema": 1, "run": {}, "report": {"findings": [{**finding(1), "rule_id": "SW-A2A-018"}]}}
+    assert [problem for problem in validate_fields(body) if "rule_id" in problem] == []
+    body["report"]["findings"][0]["rule_id"] = "SW-XYZ-018"
+    assert any("rule_id" in problem for problem in validate_fields(body))
+
+
+def test_o4_the_agents_rows_of_the_field_table_accept_what_the_scanner_produces():
+    body = {"schema": 1, "run": {}, "report": {"agents": [{key: agent_dict(1)[key] for key in connected.AGENT_FIELDS}] * 200,
+                                               "upload_truncated_fields": ["findings", "items", "probes", "agents", "notices", "errors"]}}
+    assert [problem for problem in validate_fields(body) if "agents" in problem or "upload_truncated_fields" in problem] == []
+    longest = {**agent_dict(1), "item": "a2a-agent:https://a.example.com/" + "p" * (1000 - len("https://a.example.com/"))}
+    assert len(longest["item"]) <= 1024
+    body["report"]["agents"] = [{key: longest[key] for key in connected.AGENT_FIELDS}]
+    assert [problem for problem in validate_fields(body) if "agents" in problem] == []
+    body["report"]["agents"] = [{"item": "x", "source": "elsewhere", "status": "checked"}] * 201
+    problems = validate_fields(body)
+    assert "report.agents: over 200" in problems and any("source: 'elsewhere' not in the enumeration" in p for p in problems)
+
+
 def test_suppressed_findings_travel_with_their_baseline_and_an_untouched_report_records_no_cut():
     report = report_dict(findings=[finding(1), finding(2, "low", suppressed=True)])
     body, dropped, cut = connected.reduce_report(report, LIMITS)
@@ -436,7 +482,7 @@ def _walk(node: object, parts: list[str]) -> list[tuple[bool, object]]:
     if not isinstance(node, dict):
         return []
     if name not in node:
-        return [(False, None)]
+        return [] if many else [(False, None)]  # the members of an absent list are not there either (an optional list: `array|null`)
     value = node[name]
     if many:
         return [found for item in value for found in _walk(item, rest)] if isinstance(value, list) else [(True, value)]

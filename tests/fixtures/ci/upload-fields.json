@@ -143,7 +143,7 @@
  {
   "path": "report.findings[].rule_id",
   "type": "string",
-  "pattern": "^SW-(SKL|MCP|CFG|REG|ORG)-[0-9]{3}$"
+  "pattern": "^SW-(SKL|MCP|CFG|REG|A2A|ORG)-[0-9]{3}$"
  },
  {
   "path": "report.findings[].severity",
@@ -275,6 +275,64 @@
   "max": 32
  },
  {
+  "path": "report.agents",
+  "type": "array|null",
+  "max": 200
+ },
+ {
+  "path": "report.agents[].item",
+  "type": "string",
+  "max": 1024
+ },
+ {
+  "path": "report.agents[].source",
+  "type": "string",
+  "enum": [
+   "repository",
+   "remote"
+  ]
+ },
+ {
+  "path": "report.agents[].status",
+  "type": "string",
+  "max": 32
+ },
+ {
+  "path": "report.agents[].skip_reason",
+  "type": "string|null",
+  "max": 64
+ },
+ {
+  "path": "report.agents[].fail_reason",
+  "type": "string|null",
+  "max": 64
+ },
+ {
+  "path": "report.agents[].card_format",
+  "type": "string|null",
+  "max": 16
+ },
+ {
+  "path": "report.agents[].protocol_versions",
+  "type": "array|null",
+  "max": 50
+ },
+ {
+  "path": "report.agents[].protocol_versions[]",
+  "type": "string",
+  "max": 32
+ },
+ {
+  "path": "report.agents[].migration_status",
+  "type": "string|null",
+  "max": 32
+ },
+ {
+  "path": "report.agents[].signature_status",
+  "type": "string|null",
+  "max": 32
+ },
+ {
   "path": "report.notices",
   "type": "array",
   "max": 50
@@ -327,7 +385,7 @@
  {
   "path": "report.upload_truncated_fields",
   "type": "array|null",
-  "max": 5
+  "max": 6
  },
  {
   "path": "report.upload_truncated_fields[]",
@@ -336,6 +394,7 @@
    "findings",
    "items",
    "probes",
+   "agents",
    "notices",
    "errors"
   ]

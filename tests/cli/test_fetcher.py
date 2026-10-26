@@ -610,3 +610,12 @@ def test_the_default_resolver_puts_ipv4_before_ipv6_whatever_the_string_order(mo
     assert net.default_resolver("dash.example.test") == [
         "13.227.65.25", "3.5.7.9", "2600:9000:2202:2800::1", "2600:9000:2202:400::1"]
     assert net.check_host("dash.example.test", net.default_resolver) == "13.227.65.25"
+
+
+@pytest.mark.parametrize("host", ["a" * 64 + ".example.com", "a..example.com"])
+def test_a_host_the_idna_codec_refuses_is_a_fetch_failure_never_an_internal_error(host):
+    """A `jku` or agent URL may name a host whose label is over 63 characters or empty: `getaddrinfo` raises UnicodeError
+    (a ValueError) before any lookup, which must be `fetch_failed` like any other resolve failure (O4 invariant 10, r1:F1)."""
+    with pytest.raises(net.FetchError) as caught:
+        net.default_resolver(host)
+    assert caught.value.code == "fetch_failed"

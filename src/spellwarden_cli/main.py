@@ -168,7 +168,8 @@ def _scan_report(args: argparse.Namespace, context, credentials: Credentials,
         telemetry = False
     options = run.ScanOptions(root=root, settings=settings, as_of=as_of, locked=args.locked, baseline=args.baseline,
                               env=dict(os.environ), log=log, context=context, revision=source, credentials=credentials,
-                              api_url=api_url if overridden else None, as_of_given=args.as_of is not None, scope=scope)
+                              api_url=api_url if overridden else None, as_of_given=args.as_of is not None, scope=scope,
+                              config=args.config)
     started = time.monotonic()
     try:
         report = run.scan(options)
@@ -234,7 +235,8 @@ def cmd_scan(args: argparse.Namespace) -> int:
                 _stderr(f"wrote the {fmt} report to {path}")
     # The ping is the last thing a scan does, after every output (spec 6.10); a scan whose settings were refused
     # sends nothing.
-    ping.send_ping(context, telemetry=telemetry, env=os.environ, log=_stderr if args.verbose else run._silent)
+    ping.send_ping(context, telemetry=telemetry, env=os.environ, log=_stderr if args.verbose else run._silent,
+                   a2a=any(agent.status == "checked" for agent in report.agents))
     return report.exit_code()
 
 

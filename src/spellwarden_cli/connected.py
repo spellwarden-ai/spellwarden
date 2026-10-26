@@ -775,6 +775,10 @@ STRING_MAX = 1024            # every string of the report's connected block (8.4
 MESSAGE_MAX = 300            # a notice or error message in the body
 LIST_MAX = 50                # notices and errors in the body
 PROBE_FIELDS = ("item", "status", "skip_reason", "transport", "spec_version", "auth_mode", "migration_status")
+# O4 spec 6.8: an agent keeps these nine fields in the upload (no checklist, no fetch block, no per-signature outcomes)
+AGENT_FIELDS = ("item", "source", "status", "skip_reason", "fail_reason", "card_format", "protocol_versions", "migration_status",
+                "signature_status")
+AGENTS_MAX = 200
 _KEY_UNSAFE = re.compile(r"[^A-Za-z0-9._:#/-]")
 
 
@@ -829,7 +833,8 @@ def _cap(report: dict, name: str, limit: int, cut: list[str]) -> None:
 
 def reduce_report(report_dict: dict, limits: dict, envelope: dict | None = None) -> tuple[dict, int, list[str]]:
     """O3 spec 6.7, invariant 3: the report as the body carries it, `(body report, findings dropped, lists cut)`. No
-    `connected.upload`; probes keep the seven fields of 8.4 (no findings, no checklist); at most 50 notices and 50 errors
+    `connected.upload`; probes keep the seven fields of 8.4 (no findings, no checklist) and agents the nine of O4 spec 6.8 (at
+    most 200, written only when there are some); at most 50 notices and 50 errors
     with messages masked and cut to 300 characters; the caps of the policy answer for items, probes and findings
     (highest severity first, suppressed ones included with their baseline). Over `upload_max_bytes` the items, then the
     probes, then the lowest findings are dropped. Every cut is in `upload_truncated` and `upload_truncated_fields`.
@@ -840,6 +845,10 @@ def reduce_report(report_dict: dict, limits: dict, envelope: dict | None = None)
     report["findings"] = sorted(report_dict["findings"], key=lambda f: SEVERITY_RANK[f["severity"]])  # stable: report order
     report["items"] = list(report_dict["items"])
     report["probes"] = [{name: probe.get(name) for name in PROBE_FIELDS} for probe in report_dict["probes"]]
+    if report_dict.get("agents"):
+        report["agents"] = [{name: agent.get(name) for name in AGENT_FIELDS} for agent in report_dict["agents"]]
+    else:
+        report.pop("agents", None)
     report["notices"] = _entries(report_dict["notices"])
     report["errors"] = _entries(report_dict["errors"])
     if report_dict.get("connected") is not None:
@@ -852,6 +861,8 @@ def reduce_report(report_dict: dict, limits: dict, envelope: dict | None = None)
     _cap(report, "findings", limits["upload_max_findings"], cut)
     _cap(report, "items", limits["upload_max_items"], cut)
     _cap(report, "probes", limits["upload_max_probes"], cut)
+    if "agents" in report:
+        _cap(report, "agents", AGENTS_MAX, cut)
     _cap(report, "notices", LIST_MAX, cut)
     _cap(report, "errors", LIST_MAX, cut)
 
@@ -859,15 +870,15 @@ def reduce_report(report_dict: dict, limits: dict, envelope: dict | None = None)
         body = report if envelope is None else {**envelope, "report": report}
         return len(json.dumps(body, separators=(",", ":")).encode("utf-8"))
 
-    for name in ("items", "probes"):  # still over the limit: these two go whole, in this order
-        if size() > limits["upload_max_bytes"] and report[name]:
+    for name in ("items", "probes", "agents"):  # still over the limit: these go whole, in this order
+        if size() > limits["upload_max_bytes"] and report.get(name):
             report[name] = []
             cut.append(name)
     while size() > limits["upload_max_bytes"] and len(report["findings"]) > 1:  # last: the lowest findings, in halves
         report["findings"] = report["findings"][:max(1, len(report["findings"]) // 2)]
         cut.append("findings")
     dropped = before - len(report["findings"])
-    cut = [name for name in ("findings", "items", "probes", "notices", "errors") if name in cut]
+    cut = [name for name in ("findings", "items", "probes", "agents", "notices", "errors") if name in cut]
     if cut:
         report["upload_truncated"] = dropped
         report["upload_truncated_fields"] = cut

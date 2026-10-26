@@ -1,5 +1,6 @@
-"""Spec 7.2: the image installs PyYAML from `docker/requirements.deps.txt`, every published hash pinned, and the
-version is the one `uv.lock` resolves; `.dockerignore` keeps the build context to the three install inputs."""
+"""Spec 7.2 and O4 spec 7: the image installs the runtime dependencies (PyYAML and, since 1.3.0, `cryptography` with the
+distributions it needs) from `docker/requirements.deps.txt`, every published hash pinned, and each version is the one
+`uv.lock` resolves; `.dockerignore` keeps the build context to the three install inputs."""
 from __future__ import annotations
 
 import re
@@ -13,13 +14,33 @@ def _requirements() -> str:
     return (ROOT / "docker" / "requirements.deps.txt").read_text(encoding="utf-8")
 
 
-def test_the_only_requirement_is_pyyaml_at_the_locked_version_with_hashes():
+def _locked() -> dict[str, dict]:
+    return {p["name"]: p for p in tomllib.loads((ROOT / "uv.lock").read_text(encoding="utf-8"))["package"]}
+
+
+def _runtime_closure() -> set[str]:
+    """The distributions `spellwarden` needs at run time: its own dependencies and theirs, whatever the markers say."""
+    packages, seen, pending = _locked(), set(), ["spellwarden"]
+    while pending:
+        for dependency in packages[pending.pop()].get("dependencies", []):
+            if dependency["name"] not in seen:
+                seen.add(dependency["name"])
+                pending.append(dependency["name"])
+    return seen
+
+
+def test_the_requirements_are_exactly_the_locks_runtime_set_at_the_locked_versions_with_hashes():
     text = _requirements()
-    names = re.findall(r"^([A-Za-z0-9_.-]+)==([^\s\\]+)", text, re.M)
-    assert [name.lower() for name, _ in names] == ["pyyaml"]
-    locked = {p["name"]: p["version"] for p in tomllib.loads((ROOT / "uv.lock").read_text())["package"]}
-    assert names[0][1] == locked["pyyaml"]
-    assert len(re.findall(r"--hash=sha256:[0-9a-f]{64}", text)) >= 10, "every published PyYAML file is pinned"
+    names = re.findall(r"^([A-Za-z0-9_.-]+)==([^\s\\;]+)", text, re.M)
+    assert {name.lower() for name, _ in names} == _runtime_closure() >= {"pyyaml", "cryptography", "cffi", "pycparser"}
+    locked = _locked()
+    for name, version in names:
+        assert version == locked[name.lower()]["version"], name
+    blocks = re.split(r"(?m)^(?=[A-Za-z0-9_.-]+==)", text)[1:]
+    assert len(blocks) == len(names)
+    for block in blocks:
+        assert len(re.findall(r"--hash=sha256:[0-9a-f]{64}", block)) >= 1, block.splitlines()[0]
+    assert len(re.findall(r"--hash=sha256:[0-9a-f]{64}", text)) >= 50, "every published file of every distribution is pinned"
 
 
 def test_the_dockerfile_pins_its_base_by_digest_and_never_reaches_an_index():

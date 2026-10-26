@@ -79,7 +79,7 @@ def test_mappings_are_split_like_make_rule_and_the_baseline_id_check_is_unchange
     assert compiled.owasp_agentic == ("ASI04",) and compiled.owasp_mcp == ("MCP01",) and compiled.nist == ("SR-3",)
     with pytest.raises(ValueError):
         make_rule("SW-ORG-001", "x", "high", "skill", owasp=(), nist=(), detect=lambda _: iter(()))
-    assert RULE_ID_RE.pattern == r"^SW-(SKL|MCP|CFG|REG|ORG)-[0-9]{3}$"
+    assert RULE_ID_RE.pattern == r"^SW-(SKL|MCP|CFG|REG|A2A|ORG)-[0-9]{3}$"
 
 
 @pytest.mark.parametrize("bad", [["high"], {"level": "high"}, None, 3, True])

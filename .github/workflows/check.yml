@@ -26,14 +26,15 @@ jobs:
         with:
           python-version: "3.13"
       - run: uv build
-      - name: Hash-checked PyYAML wheelhouse (the last network step)
+      - name: Hash-checked wheelhouse (the last network step)
         env:
           # setup-uv's python-version activates a uv virtual environment, which has no pip: pip is setup-python's.
           SETUP_PYTHON: ${{ steps.py.outputs.python-path }}
         run: >-
           "$SETUP_PYTHON" -m pip download --only-binary :all: --require-hashes --no-deps
           --platform manylinux_2_17_x86_64 --platform manylinux2014_x86_64
-          --python-version 3.13 --implementation cp --abi cp313
+          --platform manylinux_2_28_x86_64 --platform manylinux_2_34_x86_64
+          --python-version 3.13 --implementation cp --abi cp313 --abi abi3
           -r docker/requirements.deps.txt -d wheelhouse
       - name: System layer
         run: docker build --target system -f docker/Dockerfile -t spellwarden-system .

@@ -20,6 +20,12 @@ NAMES_1_1_0 = (
     "comment_safe",
 )
 NAMES_1_2_0 = ("MarketplaceDecl", "EnabledPlugin")
+# O4 spec 5.9
+NAMES_1_3_0 = (
+    "parse_agent_card", "evaluate_agent_card", "AgentCardDocument", "CardOrigin", "SignatureOutcome", "SignatureInput",
+    "A2aScanResult", "signature_inputs", "a2a_checklist", "jcs_canonicalize", "JcsError", "A2A_CARD_FORMATS",
+    "A2A_MIGRATION_STATUSES", "A2A_SIGNATURE_STATUSES",
+)
 # O3 spec 5.4: the names that live in a submodule of the engine, which the package imports so that they are reachable.
 IDENTITY_NAMES = (
     "package_files", "PackageFiles", "package_sha256", "nested_skill_roots", "is_skill_file", "fold_skill_name",
@@ -38,7 +44,7 @@ def test_the_1_0_0_names_are_all_still_exported():
 def test_1_1_0_adds_exactly_the_names_of_spec_5_8():
     for name in NAMES_1_1_0:
         assert name in spellwarden_scan.__all__ and hasattr(spellwarden_scan, name), name
-    assert sorted(spellwarden_scan.__all__) == sorted(NAMES_1_0_0 + NAMES_1_1_0 + NAMES_1_2_0)
+    assert sorted(spellwarden_scan.__all__) == sorted(NAMES_1_0_0 + NAMES_1_1_0 + NAMES_1_2_0 + NAMES_1_3_0)
     assert len(spellwarden_scan.__all__) == len(set(spellwarden_scan.__all__))
 
 

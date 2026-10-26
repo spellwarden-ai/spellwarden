@@ -3,9 +3,14 @@ whole-phase budget, the workers, and the bounds on what an answer may put in a r
 
 - Probed: every `http` or `sse` server entry of a judged configuration document whose URL is `https://`. A URL holding
   `${` is not probed (`unresolved`); `http://` URLs are SW-CFG-001 findings and are never probed.
-- Budget: four probes at a time; at most 50 servers (the rest `limit`); at most 300 connections and 120 s of wall
+- Tasks (O4 spec 6.5): the phase runs `ProbeTask`s of three kinds under one budget: an MCP server probe (`McpTask`), the fetch
+  of a remote A2A agent's card (`a2a_probe.AgentTask`) and the fetch of a key set a repository card names
+  (`a2a_probe.KeysetTask`). MCP tasks come first, then agents, then key sets, so adding A2A content never takes budget from
+  the probes a repository already had. Each kind is capped (50 servers, 20 agents, 20 key sets); what is over the cap is
+  skipped, `limit` for a server and `budget` for the other two.
+- Budget: four tasks at a time; at most 300 connections and 120 s of wall
   clock for the whole phase. Once either is spent no new connection starts (the fetcher's gate), requests in
-  flight end at their own 10 s deadline, and every server that was refused a connection or not started is `budget`
+  flight end at their own 10 s deadline, and every task that was refused a connection or not started is `budget`
   with no partial result kept.
 - A probe refused by the SSRF rules (`private_address`, `not_https`) records the refusal code only.
 - Every string an answer puts in a result is cut to 1000 characters, every list to 200 items, every mapping to 200
@@ -19,7 +24,8 @@ import threading
 import time
 from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any, ClassVar, Protocol
 from urllib.parse import urlsplit
 
 from spellwarden_scan import Location, OrgRuleBudget, ProbeResult, RuleSet, evaluate_probe
@@ -33,6 +39,8 @@ from spellwarden_cli.report import Notice, ProbeReport, ReportFinding
 
 MAX_WORKERS = 4
 MAX_SERVERS = 50
+MAX_AGENTS = 20
+MAX_CARD_KEYSETS = 20
 MAX_REQUESTS = 300
 BUDGET_SECONDS = 120.0
 REFUSALS = ("private_address", "not_https")
@@ -140,11 +148,9 @@ def event_logger(log: Callable[[str], None]) -> Callable[[str, dict], None]:
     return on_event
 
 
-def _probe_one(target: ProbeTarget, rules: RuleSet, budget: _Budget, fetcher_factory: Callable[[], Fetcher],
-               now_iso: str, org_budget: Callable[[], OrgRuleBudget] | None = None
-               ) -> tuple[ProbeReport, list[ReportFinding], str | None]:
-    if budget.spent:
-        return ProbeReport(target.item, "skipped", "budget", None), [], None
+def gated_fetcher(fetcher_factory: Callable[[], Fetcher], budget: _Budget) -> tuple[Fetcher, threading.Event]:
+    """A fetcher whose every connection first takes one from the phase's `budget`; `refused` is set when it was refused
+    one (the task then keeps nothing and is `budget`)."""
     refused = threading.Event()
 
     def gate() -> None:
@@ -154,6 +160,15 @@ def _probe_one(target: ProbeTarget, rules: RuleSet, budget: _Budget, fetcher_fac
 
     fetcher = fetcher_factory()
     fetcher._gate = gate
+    return fetcher, refused
+
+
+def _probe_one(target: ProbeTarget, rules: RuleSet, budget: _Budget, fetcher_factory: Callable[[], Fetcher],
+               now_iso: str, org_budget: Callable[[], OrgRuleBudget] | None = None
+               ) -> tuple[ProbeReport, list[ReportFinding], str | None]:
+    if budget.spent:
+        return ProbeReport(target.item, "skipped", "budget", None), [], None
+    fetcher, refused = gated_fetcher(fetcher_factory, budget)
     result = prober.probe(fetcher, target.url, release=__version__, now_iso=now_iso)
     if refused.is_set():  # the budget ran out during this probe: nothing of it is kept
         return ProbeReport(target.item, "skipped", "budget", None), [], None
@@ -166,25 +181,84 @@ def _probe_one(target: ProbeTarget, rules: RuleSet, budget: _Budget, fetcher_fac
     return ProbeReport(target.item, "probed", None, evaluated), findings, None
 
 
-def run_phase(targets: Sequence[ProbeTarget], rules: RuleSet, *, fetcher_factory: Callable[[], Fetcher],
-              clock: Callable[[], float] = time.monotonic, now_iso: str, notices: list[Notice] | None = None,
-              org_budget: Callable[[], OrgRuleBudget] | None = None) -> tuple[list[ProbeReport], list[ReportFinding]]:
-    """Probes `targets` under the budget. Reports are in item order, whatever order the workers finished in;
-    every skip is also a `probe_skipped` notice in `notices` (a refusal names its code and nothing else). With
-    `org_budget` (connected mode, O3 spec 6.5) each probed server's org rules run under a budget of their own; a rule
-    that did not finish is named by `McpScanResult.org_rules_incomplete`."""
+class ProbeTask(Protocol):
+    """One unit of the probe phase (O4 spec 6.5): `item` names it, `kind` is `mcp`, `agent` or `keyset`, `run` does it under the
+    phase's `budget` with a fetcher the task gates itself (`gated_fetcher`: the gate is per task), `skipped` is what the task
+    is when the phase never ran it (over its cap). The outcome type is the kind's own."""
+
+    item: str
+    kind: ClassVar[str]
+
+    def run(self, fetcher_factory: Callable[[], Fetcher], budget: _Budget) -> Any: ...
+
+    def skipped(self) -> Any: ...
+
+
+@dataclass(frozen=True)
+class McpTask:
+    """The probe of one MCP server: `_probe_one`, unchanged."""
+    target: ProbeTarget
+    rules: RuleSet
+    now_iso: str
+    org_budget: Callable[[], OrgRuleBudget] | None = None
+    kind: ClassVar[str] = "mcp"
+
+    @property
+    def item(self) -> str:
+        return self.target.item
+
+    def run(self, fetcher_factory: Callable[[], Fetcher], budget: _Budget) -> tuple[ProbeReport, list[ReportFinding], str | None]:
+        return _probe_one(self.target, self.rules, budget, fetcher_factory, self.now_iso, self.org_budget)
+
+    def skipped(self) -> tuple[ProbeReport, list[ReportFinding], str | None]:
+        return ProbeReport(self.target.item, "skipped", "limit", None), [], None
+
+
+@dataclass
+class PhaseResult:
+    """What the phase made. `reports` and `findings` are the MCP servers' (reports in item order); `agents` and `keysets` are
+    the outcomes of the agent and key-set tasks, in the order the tasks were given, the ones over their caps as `skipped()`."""
+    reports: list[ProbeReport]
+    findings: list[ReportFinding]
+    agents: list[Any] = field(default_factory=list)
+    keysets: list[Any] = field(default_factory=list)
+
+
+def run_combined(targets: Sequence[ProbeTarget], rules: RuleSet, *, agent_tasks: Sequence[ProbeTask] = (),
+                 keyset_tasks: Sequence[ProbeTask] = (), fetcher_factory: Callable[[], Fetcher],
+                 clock: Callable[[], float] = time.monotonic, now_iso: str, notices: list[Notice] | None = None,
+                 org_budget: Callable[[], OrgRuleBudget] | None = None) -> PhaseResult:
+    """Runs the MCP probes, then the agent tasks, then the key-set tasks under one budget (300 connections, 120 s, four at a
+    time). Reports are in item order, whatever order the workers finished in; every MCP skip is also a `probe_skipped` notice
+    in `notices` (a refusal names its code and nothing else). With `org_budget` (connected mode, O3 spec 6.5) each probed
+    server's org rules run under a budget of their own."""
     ordered = sorted(targets, key=lambda target: target.item)
     chosen, over = ordered[:MAX_SERVERS], ordered[MAX_SERVERS:]
+    agents, agents_over = list(agent_tasks[:MAX_AGENTS]), list(agent_tasks[MAX_AGENTS:])
+    keysets, keysets_over = list(keyset_tasks[:MAX_CARD_KEYSETS]), list(keyset_tasks[MAX_CARD_KEYSETS:])
+    tasks: list[ProbeTask] = [McpTask(target, rules, now_iso, org_budget) for target in chosen] + agents + keysets
     budget = _Budget(clock, seconds=BUDGET_SECONDS, requests=MAX_REQUESTS)
     with ThreadPoolExecutor(max_workers=MAX_WORKERS, thread_name_prefix="spellwarden-probe") as pool:
-        outcomes = list(pool.map(lambda target: _probe_one(target, rules, budget, fetcher_factory, now_iso, org_budget), chosen))
-    reports = [report for report, _, _ in outcomes] + [ProbeReport(t.item, "skipped", "limit", None) for t in over]
-    findings = [finding for _, found, _ in outcomes for finding in found]
+        outcomes = list(pool.map(lambda task: task.run(fetcher_factory, budget), tasks))
+    mcp = outcomes[:len(chosen)]
+    reports = [report for report, _, _ in mcp] + [ProbeReport(t.item, "skipped", "limit", None) for t in over]
+    findings = [finding for _, found, _ in mcp for finding in found]
     if notices is not None:
-        refusals = {report.item: code for report, _, code in outcomes if code is not None}
+        refusals = {report.item: code for report, _, code in mcp if code is not None}
         for report in reports:
             if report.status == "skipped":
                 reason = f"{report.skip_reason}: {refusals[report.item]}" if report.item in refusals else report.skip_reason
                 notices.append(Notice("probe_skipped", report.item, f"not probed ({reason})"))
     reports.sort(key=lambda report: report.item)
-    return reports, findings
+    agent_outcomes = outcomes[len(chosen):len(chosen) + len(agents)] + [task.skipped() for task in agents_over]
+    keyset_outcomes = outcomes[len(chosen) + len(agents):] + [task.skipped() for task in keysets_over]
+    return PhaseResult(reports, findings, agent_outcomes, keyset_outcomes)
+
+
+def run_phase(targets: Sequence[ProbeTarget], rules: RuleSet, *, fetcher_factory: Callable[[], Fetcher],
+              clock: Callable[[], float] = time.monotonic, now_iso: str, notices: list[Notice] | None = None,
+              org_budget: Callable[[], OrgRuleBudget] | None = None) -> tuple[list[ProbeReport], list[ReportFinding]]:
+    """Probes `targets` under the budget: the MCP-only form of `run_combined`, which every caller before 1.3.0 used."""
+    result = run_combined(targets, rules, fetcher_factory=fetcher_factory, clock=clock, now_iso=now_iso, notices=notices,
+                          org_budget=org_budget)
+    return result.reports, result.findings

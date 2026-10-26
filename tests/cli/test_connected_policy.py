@@ -186,11 +186,11 @@ def test_mcp_rules_reach_the_probe_phase_with_a_budget_each(make_repo, run_cli, 
     serve(fake, policy_answer([probe_rule()]))
     seen: dict = {}
 
-    def run_phase(_targets, rules, **kwargs):
+    def run_combined(_targets, rules, **kwargs):  # the phase of 1.3.0 (O4 spec 6.5): MCP, agent and key-set tasks together
         seen.update(rules=[rule.id for rule in rules], org_budget=kwargs.get("org_budget"))
-        return [], []
+        return probing.PhaseResult([], [])
 
-    monkeypatch.setattr(probing, "run_phase", run_phase)
+    monkeypatch.setattr(probing, "run_combined", run_combined)
     repo = make_repo(tmp_path / "repo", {".mcp.json": '{"mcpServers": {"s": {"url": "https://mcp.example.com/mcp"}}}'})
     scan_json(run_cli, repo, env_of(), "--probe")
     assert "SW-ORG-020" in seen["rules"] and callable(seen["org_budget"])

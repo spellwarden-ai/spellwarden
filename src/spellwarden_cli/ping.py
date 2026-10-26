@@ -1,6 +1,8 @@
-"""The usage ping (spec 6.10): one POST per `spellwarden scan` in CI, at the end, with exactly five fields, so the
-hosted backend can count organisations running the free scanner (kill criterion K2). Pseudonymous, not anonymous:
-`org` is a hash of a public installation identity, which anyone who knows the identity can recompute.
+"""The usage ping (spec 6.10): one POST per `spellwarden scan` in CI, at the end, with exactly six fields, so the
+hosted backend can count organisations running the free scanner (kill criterion K2) and the runs that checked an A2A agent
+card (O4 spec 6.10, P4, P12). Pseudonymous, not anonymous: `org` is a hash of a public installation identity, which anyone
+who knows the identity can recompute. `a2a` is one yes-or-no fact about the run: whether at least one agent card was read
+and checked, from the repository or from an agent the settings name; no card, URL or count is sent.
 
 Sent only in CI and only with telemetry on. Off with `--no-telemetry`, `SPELLWARDEN_TELEMETRY=off` (or `0`,
 `false`, `no`), `DO_NOT_TRACK=1`, `telemetry: false` in `.spellwarden/config.yml`, or the wrappers' `telemetry`
@@ -32,10 +34,11 @@ TIMEOUT_SECONDS = 2
 _urlopen = urllib.request.urlopen  # tests replace it (tests/conftest.py keeps every test off the network)
 
 
-def ping_body(ctx: CiContext, *, version: str, rules_version: str) -> dict:
-    """The five fields, and nothing else (spec 2 invariant 3)."""
+def ping_body(ctx: CiContext, *, version: str, rules_version: str, a2a: bool = False) -> dict:
+    """The six fields, and nothing else (spec 2 invariant 3; O4 spec 6.10)."""
     ci = ctx.provider if ctx.provider in ("github", "gitlab") else "other"
-    return {"schema": 1, "version": version, "rules_version": rules_version, "ci": ci, "org": org_hash(ctx.identity)}
+    return {"schema": 1, "version": version, "rules_version": rules_version, "ci": ci, "org": org_hash(ctx.identity),
+            "a2a": bool(a2a)}
 
 
 def ping_url(env: Mapping[str, str]) -> tuple[str, bool]:
@@ -53,13 +56,14 @@ def telemetry_off(env: Mapping[str, str]) -> bool:
 
 
 def send_ping(ctx: CiContext, *, telemetry: bool, env: Mapping[str, str], log: Callable[[str], None],
-              opener: Callable[..., object] | None = None, wait: float = 2.5) -> None:
-    """Spec 6.10. Never raises; returns after at most `wait` seconds whatever the network does."""
+              opener: Callable[..., object] | None = None, wait: float = 2.5, a2a: bool = False) -> None:
+    """Spec 6.10. Never raises; returns after at most `wait` seconds whatever the network does. `a2a`: the run checked at least
+    one agent card."""
     try:
         if ctx.provider is None or not telemetry or telemetry_off(env):
             return
         url, ignored = ping_url(env)
-        body = json.dumps(ping_body(ctx, version=__version__, rules_version=RULES_VERSION),
+        body = json.dumps(ping_body(ctx, version=__version__, rules_version=RULES_VERSION, a2a=a2a),
                           separators=(",", ":")).encode("utf-8")
         request = urllib.request.Request(url, data=body, method="POST", headers={
             "Content-Type": "application/json", "User-Agent": USER_AGENT})

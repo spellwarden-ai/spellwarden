@@ -14,6 +14,8 @@
     "items": {"type": "array", "items": {"$ref": "#/$defs/item"}},
     "findings": {"type": "array", "items": {"$ref": "#/$defs/finding"}},
     "probes": {"type": "array", "items": {"$ref": "#/$defs/probe"}},
+    "agents": {"type": "array", "items": {"$ref": "#/$defs/agent"},
+               "description": "A2A agent cards (scanner 1.3.0): written only when the run read or fetched at least one, sorted by item."},
     "lock": {"$ref": "#/$defs/lock"},
     "notices": {"type": "array", "items": {"$ref": "#/$defs/notice"}},
     "errors": {"type": "array", "items": {"$ref": "#/$defs/error"}},
@@ -86,7 +88,7 @@
       "required": ["rule_id", "severity", "title", "location", "evidence", "fingerprint", "malicious_indicator", "item",
                    "suppressed", "baseline"],
       "properties": {
-        "rule_id": {"type": "string", "pattern": "^SW-(SKL|MCP|CFG|REG|ORG)-[0-9]{3}$"},
+        "rule_id": {"type": "string", "pattern": "^SW-(SKL|MCP|CFG|REG|A2A|ORG)-[0-9]{3}$"},
         "severity": {"enum": ["critical", "high", "medium", "low"]},
         "title": {"type": "string"},
         "location": {"type": "object", "required": ["path", "line"],
@@ -111,6 +113,44 @@
         "item": {"type": "string"},
         "status": {"enum": ["probed", "skipped"]},
         "skip_reason": {"enum": [null, "unresolved", "limit", "budget", "fork", "refused"]}
+      }
+    },
+    "agent": {
+      "type": "object",
+      "required": ["item", "source", "path_form", "status", "skip_reason", "fail_reason", "fetch", "card_format",
+                   "protocol_versions", "migration_status", "signature_status", "signatures", "truncated", "counts_toward_exit",
+                   "checklist"],
+      "properties": {
+        "item": {"type": "string", "description": "a2a-card:<path> for a card of the repository, a2a-agent:<URL> for a remote agent."},
+        "source": {"enum": ["repository", "remote"]},
+        "path_form": {"enum": ["well_known", "legacy_path", "named", "listed", "direct"]},
+        "status": {"enum": ["checked", "skipped", "failed"]},
+        "skip_reason": {"enum": [null, "probe_off", "not_https", "budget", "fork"]},
+        "fail_reason": {"enum": [null, "private_address", "not_https", "network", "timeout", "http_status", "too_large", "not_utf8",
+                                 "not_json", "duplicate_key", "too_deep", "not_an_object"]},
+        "fetch": {"anyOf": [{"type": "null"}, {"type": "object", "required": ["requested_url", "final_url", "http_status"],
+                                               "properties": {"requested_url": {"type": "string"}, "final_url": {"type": ["string", "null"]},
+                                                              "http_status": {"type": ["integer", "null"]}}}]},
+        "card_format": {"enum": [null, "1.0", "0.3", "0.2", "unknown"]},
+        "protocol_versions": {"type": "array", "items": {"type": "string"}},
+        "migration_status": {"enum": [null, "ready", "to_migrate", "invalid"]},
+        "signature_status": {"enum": [null, "unsigned", "verified", "invalid", "refused", "unverified"]},
+        "signatures": {"type": "array", "items": {
+          "type": "object",
+          "required": ["index", "alg", "kid", "jku", "key_source", "outcome", "payload_form", "unsigned_members", "detail"],
+          "properties": {
+            "index": {"type": "integer", "minimum": 0}, "alg": {"type": ["string", "null"]}, "kid": {"type": ["string", "null"]},
+            "jku": {"type": ["string", "null"]}, "key_source": {"enum": [null, "keys_file", "jku"]},
+            "outcome": {"enum": ["verified", "bad_signature", "untrusted_key", "no_key", "key_unavailable", "malformed", "refused_alg",
+                                 "unverifiable_alg", "embedded_key_only", "unsigned_legacy"]},
+            "payload_form": {"enum": [null, "as_served", "spec", "sdk"]},
+            "unsigned_members": {"type": "array", "items": {"type": "string"}}, "detail": {"type": ["string", "null"]}
+          }
+        }},
+        "truncated": {"type": "integer", "minimum": 0, "description": "Findings the per-card caps left out."},
+        "counts_toward_exit": {"type": "boolean", "description": "False only for a remote agent on a pull or merge request."},
+        "checklist": {"type": "array", "items": {"type": "object", "required": ["order", "key", "text"],
+                                                 "properties": {"order": {"type": "integer"}, "key": {"type": "string"}, "text": {"type": "string"}}}}
       }
     },
     "change": {

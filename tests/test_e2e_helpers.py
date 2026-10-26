@@ -122,3 +122,38 @@ def test_the_connected_check_asserts_credential_counts_and_upload_and_a_free_cas
     free = make_repo.load_case("findings")
     assert check._check_connected(free, {}) == []
     assert check._check_connected(free, {"connected": block}) != []               # free mode adds nothing to the report
+
+
+def test_the_a2a_case_names_its_agents_and_the_check_asserts_them(tmp_path):
+    """O4 spec 7, claim W1: the fixture repository of the wrapper e2e holds a card signed with a key of its own `a2a.keys`
+    file, an unsigned 0.3 card and a look-alike `agent.json`; the check compares the report's `agents` list with the case."""
+    make_repo, check = _fixture_tools()
+    case = make_repo.load_case("a2a")
+    assert case["findings"] == 2 and case["notices"] == ["a2a_not_card"] and len(case["agents"]) == 2
+    on_request = {**case, **case["on_request"]}
+    assert "a2a_signature_unverified" in on_request["notices"] and on_request["agents"][1]["signature_status"] == "unverified"
+    report = {"agents": [{"item": agent["item"], "status": agent["status"], "migration_status": agent["migration_status"],
+                          "signature_status": agent["signature_status"]} for agent in case["agents"]]}
+    assert check._check_agents(case, report) == []
+    assert check._check_agents(case, {}) == ["the report holds no agents list"]
+    wrong = {"agents": [{**report["agents"][0], "signature_status": "invalid"}, report["agents"][1],
+                        {"item": "a2a-card:x", "status": "checked", "migration_status": "ready", "signature_status": "unsigned"}]}
+    assert len(check._check_agents(case, wrong)) == 2
+    free = make_repo.load_case("findings")
+    assert check._check_agents(free, {}) == [] and check._check_agents(free, report) != []
+    assert check.PING_FIELDS == {"schema", "version", "rules_version", "ci", "org", "a2a"}
+    built = tmp_path / "fx"
+    make_repo.build("a2a", built)
+    assert (built / ".well-known" / "jwks.json").is_file() and (built / "public/.well-known/agent-card.json").is_file()
+    assert (built / ".spellwarden" / "config.yml").read_text() == "version: 1\na2a:\n  keys: .well-known/jwks.json\n"
+    assert (built / "tools/.well-known/agent.json").read_text().startswith("// ")
+
+
+def test_a_real_scan_of_the_a2a_fixture_passes_the_case_s_own_report_check(tmp_path):
+    from spellwarden_cli.main import main
+
+    make_repo, check = _fixture_tools()
+    built, written = tmp_path / "fx", tmp_path / "report.json"
+    expect = make_repo.build("a2a", built)
+    code = main(["scan", str(built), "--format", "json", "--output", str(written), "--no-telemetry"])
+    assert code == expect["exit_code"] == 0 and check._check_report(expect, json.loads(written.read_text())) == []
