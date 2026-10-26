@@ -523,11 +523,11 @@ def test_sw_a2a_019_fingerprints_carry_the_owner_and_the_outcome():
 
 def test_a_credential_under_a_spelling_the_reader_drops_is_still_found():
     secret = credential("github")
-    card = {"security_schemes": {"x": {"http_auth_security_scheme": {"scheme": "bearer", "description": secret}}},
+    card = {"security_schemes": {"x": {"mtls_security_scheme": {"description": f"call with token {secret}"}}},
             **clean_card()}
     found = fired(card)
     assert [f.evidence.split(": ")[0] for f in found["SW-A2A-015"]] == [
-        "/security_schemes/x/http_auth_security_scheme/description"]
+        "/security_schemes/x/mtls_security_scheme/description"]
     assert secret not in found["SW-A2A-015"][0].evidence
 
 
