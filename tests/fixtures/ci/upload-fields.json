@@ -320,7 +320,7 @@
  {
   "path": "report.agents[].protocol_versions[]",
   "type": "string",
-  "max": 16
+  "max": 32
  },
  {
   "path": "report.agents[].migration_status",
