@@ -13,7 +13,8 @@ nothing else.
   `--fail-on high`: `SW-A2A-004` (an endpoint or authentication URL over plain HTTP), `SW-A2A-005` (an OAuth implicit or
   password flow), `SW-A2A-010` (a signature that does not verify), `SW-A2A-011` (a malformed signature or a refused
   algorithm), `SW-A2A-014` (injected instructions or hidden characters in the card's text), `SW-A2A-018` (a card at a
-  `.well-known/agent-card.json` path or in `a2a.cards` that cannot be read) and, at critical, `SW-A2A-015` (a credential in
+  `.well-known/agent-card.json` path or in `a2a.cards` that cannot be read, including a symbolic link that leaves the scan
+  root or points at nothing, reported as `unsafe_path`, and a file the system refuses to read, `unreadable`) and, at critical, `SW-A2A-015` (a credential in
   the card). A baseline accepts any of them, `exclude` leaves a tree of broken sample cards out, and none of them can make
   a run exit 2.
 - Findings on a remote agent's card are reported and uploaded but do not count toward the exit code of a pull or merge
@@ -23,7 +24,10 @@ nothing else.
   `settings_invalid` (exit 2).
 - Signatures are verified with the `cryptography` package, the scanner's first compiled dependency (imported by one module,
   `spellwarden_cli/jws.py`): ES256, ES384, ES512, RS256, RS384, RS512, PS256, PS384, PS512, Ed25519 and EdDSA with an
-  Ed25519 key. The report says which key verified a signature, the trusted key file or the key set the card names. Install
+  Ed25519 key. The report says which key verified a signature, the trusted key file or the key set the card names, and
+  which members the matching form does not cover (`unsigned_members`). A legacy 0.x member, or a member spelled with its
+  proto field name (`security_requirements`, which protobuf readers also accept), that the signature does not cover makes
+  it invalid (`SW-A2A-010`). Install
   needs a `cryptography` wheel: Linux (glibc and musl, x86_64 and aarch64), macOS and Windows. The Action runs on the Python
   3.11 to 3.14 its pinned `cffi` has wheels for.
 - The report gains an optional `agents` list (written only when a card was read or fetched), nine notice codes
