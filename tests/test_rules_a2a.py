@@ -469,10 +469,8 @@ def _summary(card) -> set[tuple[str, str]]:
 def test_what_a_proto_field_name_holds_is_judged_as_the_member_it_names():
     card = _renamed(clean_card(), "supportedInterfaces", "supported_interfaces")
     card["supported_interfaces"][0]["url"] = "http://agent.example.com/a2a"
-    flows = card["securitySchemes"]["oauth"]["oauth2SecurityScheme"]["flows"]
-    flows["implicit"] = {"authorization_url": "https://auth.example.com/authorize", "scopes": {}}
-    del flows["authorizationCode"]
-    card["securitySchemes"]["oauth"]["oauth2SecurityScheme"]["flows"] = {"implicit": flows["implicit"]}
+    card["securitySchemes"] = {"oauth": {"oauth2SecurityScheme": {"flows": {
+        "implicit": {"authorization_url": "https://auth.example.com/authorize", "scopes": {}}}}}}
     found = _summary(card)
     assert ("SW-A2A-004", "/supportedInterfaces/0/url: http://agent.example.com/a2a") in found
     assert ("SW-A2A-005", "/securitySchemes/oauth/oauth2SecurityScheme/flows/implicit: deprecated in A2A 1.0") in found
