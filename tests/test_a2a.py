@@ -338,3 +338,17 @@ def test_legacy_members_and_pointers():
                     "/x-url", "/supportedInterfaces/0/url"):
         assert not is_legacy_pointer(pointer), pointer
     assert list(legacy_members(parsed(clean_card()))) == []
+
+
+def test_r0_f1_a_signature_header_nested_thousands_deep_is_read_as_unreadable_on_every_python():
+    """The protected header is read with the shared bounded reader: stdlib `json.loads` raises RecursionError on this
+    header on Python 3.11, which made a hostile card exit 2 (invariant: no agent card can make a run exit 2)."""
+    import base64
+
+    from spellwarden_scan.a2a import signature_identity
+    header = base64.urlsafe_b64encode(b"[" * 3000 + b"]" * 3000).decode().rstrip("=")
+    entry = {"protected": header, "signature": "c2ln", "header": 5}
+    card = clean_card()
+    card["signatures"] = [entry]
+    assert signature_identity(parsed(card).root["signatures"][0], 0) == "signature:#0"
+    assert ("/signatures/0/header", "wrong_type") in reasons(card)

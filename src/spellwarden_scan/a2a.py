@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import base64
 import hashlib
-import json
 import re
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -504,10 +503,11 @@ def _kid_of(signature: Obj) -> str | None:
     if not isinstance(protected, str) or len(protected) > 8192:
         return None
     try:
-        header = json.loads(base64.urlsafe_b64decode(protected + "=" * (-len(protected) % 4)))
-    except (ValueError, UnicodeDecodeError):
+        decoded = base64.urlsafe_b64decode(protected + "=" * (-len(protected) % 4))
+        header = load_json(decoded, strict=True, max_depth=8, max_bytes=4096)
+    except (ValueError, Refused):
         return None
-    kid = header.get("kid") if isinstance(header, dict) else None
+    kid = header.get("kid") if isinstance(header, Obj) else None
     return kid if isinstance(kid, str) and kid else None
 
 
