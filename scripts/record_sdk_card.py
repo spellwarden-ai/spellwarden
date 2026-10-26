@@ -1,7 +1,8 @@
 """Records `tests/fixtures/a2a/signed/sdk-es256.json` and `jwks-sdk.json`: an agent card signed by `a2a-sdk` 1.2.3 with ES256
-(O4 spec 7, slice 4; claim S3). Run once, with the SDK, which is not a dependency of the scanner:
+(O4 spec 7, slice 4; claim S3). Run once, with the SDK, which is not a dependency of the scanner (both pins matter; the
+versions the command resolved are listed in `tests/fixtures/a2a/signed/README.md`):
 
-    uv run --no-project --with "a2a-sdk[signing]==1.2.3" --with cryptography python scripts/record_sdk_card.py
+    uv run --no-project --with "a2a-sdk[signing]==1.2.3" --with "cryptography==50.0.2" python scripts/record_sdk_card.py
 
 The card is built as protobuf messages, signed with `a2a.utils.signing.create_agent_card_signer` and served as
 `MessageToDict` writes it, which leaves out every default value but keeps `capabilities: {}`; the script then adds what a
@@ -43,7 +44,8 @@ def main() -> None:
                                              protocol_version="1.0")],
         provider=AgentProvider(organization="Example Inc.", url="https://example.com"),
         capabilities=AgentCapabilities(),
-        security_schemes={"oauth": SecurityScheme(oauth2_security_scheme=OAuth2SecurityScheme(flows=OAuthFlows(authorization_code=flow)))},
+        security_schemes={"oauth": SecurityScheme(
+            oauth2_security_scheme=OAuth2SecurityScheme(flows=OAuthFlows(authorization_code=flow)))},
         security_requirements=[SecurityRequirement(schemes={"oauth": StringList(list=["invoices.read"])})],
         default_input_modes=["text/plain"], default_output_modes=["text/plain"],
         skills=[AgentSkill(id="summarise", name="Summarise invoice", description="Summarises one invoice.", tags=["invoices"])])
