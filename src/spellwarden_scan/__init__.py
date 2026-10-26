@@ -1,12 +1,21 @@
 """spellwarden_scan: the Spellwarden scan engine (spec 5). Pure code: it
 takes bytes and recorded probe results and returns findings: skill packages
 (`scan_skill_package`), probed MCP servers (`evaluate_probe`) and agent
-configuration documents (`parse_*`, `scan_agent_config`). Since 1.2.0 `identity` and `gate` hold the identities
-and findings of the connected command's registry gate. Since 1.1.0 it also
-compiles organisation rules (`compile_org_rule`), validates policy pack
-documents (`validate_pack`) and builds their exports (`build_export`)."""
+configuration documents (`parse_*`, `scan_agent_config`). Since 1.3.0 it also reads
+A2A agent cards (`parse_agent_card`, `evaluate_agent_card`) and rebuilds what their
+signatures cover (`signature_inputs`); the command verifies them. Since 1.2.0
+`identity` and `gate` hold the identities and findings of the connected command's
+registry gate. Since 1.1.0 it also compiles organisation rules
+(`compile_org_rule`), validates policy pack documents (`validate_pack`) and
+builds their exports (`build_export`)."""
 from __future__ import annotations
 
+from spellwarden_scan.a2a import CARD_FORMATS as A2A_CARD_FORMATS
+from spellwarden_scan.a2a import MIGRATION_STATUSES as A2A_MIGRATION_STATUSES
+from spellwarden_scan.a2a import SIGNATURE_STATUSES as A2A_SIGNATURE_STATUSES
+from spellwarden_scan.a2a import AgentCardDocument, parse_agent_card
+from spellwarden_scan.a2a_checklist import a2a_checklist
+from spellwarden_scan.a2a_signing import SignatureInput, signature_inputs
 from spellwarden_scan.agentconfig import (
     parse_document, parse_hooks, parse_marketplace, parse_mcp_config, parse_plugin_manifest, parse_settings,
     reference_kind,
@@ -18,10 +27,11 @@ from spellwarden_scan.evidence import mask_credentials
 from spellwarden_scan.exports import EXPORT_MODES, EXPORT_TARGETS, PLANNED_TARGETS
 from spellwarden_scan.exports import build as build_export
 from spellwarden_scan.frontmatter import FrontmatterError, parse_frontmatter
+from spellwarden_scan.jcs import JcsError, jcs_canonicalize
 from spellwarden_scan.model import (
-    SEVERITY_RANK, Area, AuthServerMetadata, ChecklistItem, ConfigDocument, ConfigScanResult, CurationInputs,
-    EnabledPlugin, Finding, HookCommand, Location, MarketplaceDecl, MarketplacePlugin, McpScanResult, McpServerEntry, Metadata,
-    PluginSource, ProbeResult, SettingFlag, Severity, SkillScanResult, ToolInfo,
+    SEVERITY_RANK, A2aScanResult, Area, AuthServerMetadata, CardOrigin, ChecklistItem, ConfigDocument, ConfigScanResult,
+    CurationInputs, EnabledPlugin, Finding, HookCommand, Location, MarketplaceDecl, MarketplacePlugin, McpScanResult,
+    McpServerEntry, Metadata, PluginSource, ProbeResult, SettingFlag, Severity, SignatureOutcome, SkillScanResult, ToolInfo,
 )
 from spellwarden_scan.checklist import migration_checklist
 from spellwarden_scan.curation import curation_score, is_curated, is_quarantined
@@ -33,7 +43,7 @@ from spellwarden_scan.packs import (
 from spellwarden_scan.probe import evaluate_probe
 from spellwarden_scan.rules import Rule, RuleSet
 from spellwarden_scan.rules.skill import logical_commands
-from spellwarden_scan.scan import scan_agent_config, scan_skill_package
+from spellwarden_scan.scan import evaluate_agent_card, scan_agent_config, scan_skill_package
 from spellwarden_scan.text import comment_safe, valid_block, valid_line
 from spellwarden_scan.version import RULES_VERSION, __version__
 
@@ -52,4 +62,8 @@ __all__ = [
     "valid_line", "valid_block", "comment_safe",
     # O3 spec 5.4: added in 1.2.0 (the rest of 5.4 lives in `identity`, `gate` and `packs`)
     "MarketplaceDecl", "EnabledPlugin",
+    # O4 spec 5.9: added in 1.3.0
+    "parse_agent_card", "evaluate_agent_card", "AgentCardDocument", "CardOrigin", "SignatureOutcome", "SignatureInput",
+    "A2aScanResult", "signature_inputs", "a2a_checklist", "jcs_canonicalize", "JcsError", "A2A_CARD_FORMATS",
+    "A2A_MIGRATION_STATUSES", "A2A_SIGNATURE_STATUSES",
 ]
