@@ -6,7 +6,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
-from spellwarden_scan import SEVERITY_RANK, Finding, McpScanResult, RuleSet
+from spellwarden_scan import SEVERITY_RANK, A2aScanResult, Finding, McpScanResult, RuleSet
 from spellwarden_scan.agentconfig import DOCUMENT_ERRORS
 
 if TYPE_CHECKING:
@@ -94,6 +94,37 @@ class ProbeReport:
         return {**extra, "item": self.item, "status": self.status, "skip_reason": self.skip_reason}
 
 
+@dataclass(frozen=True)
+class AgentReport:
+    """One A2A agent (O4 spec 6.9): a card of the repository (`item` `a2a-card:<path>`) or a remote agent (`a2a-agent:<URL>`).
+    `status` is `checked` (a card was read and judged, `result` set), `skipped` (`skip_reason`) or `failed` (`fail_reason`);
+    `fetch` is `{"requested_url", "final_url", "http_status"}` for a remote agent. `counts_toward_exit` is false only for a
+    remote agent on a pull or merge request: its findings are reported and uploaded but do not fail the check (P16)."""
+    item: str
+    source: str
+    path_form: str
+    status: str
+    skip_reason: str | None = None
+    fail_reason: str | None = None
+    fetch: dict | None = None
+    result: A2aScanResult | None = None
+    counts_toward_exit: bool = True
+
+    def to_dict(self) -> dict:
+        result = self.result
+        return {
+            "item": self.item, "source": self.source, "path_form": self.path_form, "status": self.status,
+            "skip_reason": self.skip_reason, "fail_reason": self.fail_reason, "fetch": self.fetch,
+            "card_format": result.card_format if result else None,
+            "protocol_versions": list(result.protocol_versions) if result else [],
+            "migration_status": result.migration_status if result else None,
+            "signature_status": result.signature_status if result else None,
+            "signatures": [signature.to_dict() for signature in result.signatures] if result else [],
+            "truncated": result.truncated if result else 0, "counts_toward_exit": self.counts_toward_exit,
+            "checklist": [item.to_dict() for item in result.checklist] if result else [],
+        }
+
+
 def finding_order(rf: ReportFinding) -> tuple:
     f = rf.finding
     return (SEVERITY_RANK[f.severity], f.rule_id, f.location.path, f.location.line or 0, f.fingerprint, rf.item)
@@ -123,6 +154,8 @@ class Report:
     rules: RuleSet
     # O3 spec 6.9: the connected block, present only when the session was established; serialised only when not None.
     connected: dict | None = None
+    # O4 spec 6.9: the A2A agents, serialised only when there is one (a repository without cards reports as in 1.2.1).
+    agents: tuple[AgentReport, ...] = ()
 
     def unsuppressed(self) -> tuple[ReportFinding, ...]:
         return tuple(rf for rf in self.findings if not rf.suppressed)
@@ -133,7 +166,8 @@ class Report:
             return 2
         if self.fail_on != "never":
             limit = SEVERITY_RANK[self.fail_on]
-            if any(SEVERITY_RANK[rf.finding.severity] <= limit for rf in self.unsuppressed()):
+            exempt = {agent.item for agent in self.agents if not agent.counts_toward_exit}  # a remote agent on a request (P16)
+            if any(SEVERITY_RANK[rf.finding.severity] <= limit for rf in self.unsuppressed() if rf.item not in exempt):
                 return 1
         if self.lock.status in ("stale", "absent"):
             return 3
@@ -147,7 +181,8 @@ class Report:
         return replace(
             self, items=tuple(sorted(self.items, key=lambda item: (item.kind, item.path))),
             findings=tuple(sorted(self.findings, key=finding_order)),
-            probes=tuple(sorted(self.probes, key=lambda probe: probe.item)), lock=lock,
+            probes=tuple(sorted(self.probes, key=lambda probe: probe.item)),
+            agents=tuple(sorted(self.agents, key=lambda agent: agent.item)), lock=lock,
             notices=tuple(sorted(self.notices, key=_notice_order)), errors=tuple(sorted(self.errors, key=_notice_order)))
 
 
@@ -160,6 +195,8 @@ def to_json_dict(report: Report) -> dict:
         "lock": report.lock.to_dict(), "notices": [n.to_dict() for n in report.notices],
         "errors": [e.to_dict() for e in report.errors], "fail_on": report.fail_on, "exit_code": report.exit_code(),
     }
+    if report.agents:
+        document["agents"] = [agent.to_dict() for agent in report.agents]
     if report.connected is not None:
         document["connected"] = report.connected
     return document

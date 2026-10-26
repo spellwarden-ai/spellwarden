@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 from spellwarden_scan import (RULES_VERSION, Finding, OrgRuleBudget, RuleSet, __version__, scan_agent_config,
                               scan_skill_package)
 
+from spellwarden_cli import agents as agents_module
 from spellwarden_cli import discover, files
 from spellwarden_cli.ci import ORG_RE
 from spellwarden_cli.discover import Discovery, SkillPackage
@@ -113,7 +114,8 @@ def scan(options: ScanOptions) -> Report:
         except connected.ConnectedFail as failed:
             return _stopped(options, early, Notice(failed.code, "", failed.message))
     fileset = files.list_files(options.root, options.settings, env=options.env)
-    found = discover.discover(fileset)
+    a2a = options.settings.a2a
+    found = discover.discover(fileset, listed_cards=a2a.cards, agents_configured=bool(a2a.agents))
     notices: list[Notice] = [*fileset.notices, *found.notices, *early]
     errors: list[Notice] = [*fileset.errors, *found.errors]
     options.log(f"{len(fileset.entries)} files listed, {len(found.items)} items discovered")
@@ -132,6 +134,8 @@ def scan(options: ScanOptions) -> Report:
     for probe in probes:
         if probe.result is not None and probe.result.org_rules_incomplete:
             errors.append(connected.org_rules_incomplete_error(probe.result.org_rules_incomplete, probe.item))
+    agent_reports, agent_findings = agents_module.repository_reports(found, rules, a2a, notices, errors)
+    findings.extend(agent_findings)
     registry = None
     if state is not None and context is not None:
         try:  # O3 spec 6.6: the SW-REG findings join the others before the baseline, which may accept them
@@ -146,6 +150,7 @@ def scan(options: ScanOptions) -> Report:
         scanner_version=__version__, rules_version=RULES_VERSION, as_of=options.as_of.isoformat(),
         fail_on=options.settings.fail_on, items=found.items, findings=tuple(findings), probes=tuple(probes), lock=lock,
         notices=tuple(notices), errors=tuple(errors), repo_prefix=fileset.repo_prefix, rules=rules,
+        agents=tuple(agent_reports),
         connected=({**connected.report_block(state, context), "registry": registry}
                    if state is not None and context is not None else None))
     report = report.sorted()
