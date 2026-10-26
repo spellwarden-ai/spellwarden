@@ -72,7 +72,7 @@ def test_a_repository_without_cards_has_no_agents_key_and_is_otherwise_as_before
 def test_s4_a_card_signed_by_a_key_outside_the_trusted_file_fails_the_default_check(run_cli, make_repo, tmp_path):
     code, report, _ = scan(run_cli, make_repo, tmp_path, {WELL_KNOWN: signed("es256-stranger"), CONFIG: KEYS_CONFIG,
                                                          ".well-known/jwks.json": signed("jwks")})
-    assert code == 1 and ("SW-A2A-010", "high") in [(f["rule_id"], f["severity"]) for f in report["findings"]]
+    assert code == 1 and [(f["rule_id"], f["severity"]) for f in report["findings"]] == [("SW-A2A-010", "high")]
     assert report["agents"][0]["signature_status"] == "invalid" and report["agents"][0]["signatures"][0]["outcome"] == "untrusted_key"
 
 
