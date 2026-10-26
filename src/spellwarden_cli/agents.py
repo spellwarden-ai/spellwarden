@@ -9,17 +9,18 @@ Nothing here opens a connection: a key set fetched under `--probe` arrives as `f
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from urllib.parse import urlsplit
 
 from spellwarden_scan import (
     A2aScanResult, CardOrigin, RuleSet, SignatureOutcome, evaluate_agent_card, parse_agent_card, signature_inputs,
 )
-from spellwarden_scan.a2a import AgentCardDocument, is_legacy_pointer
+from spellwarden_scan.a2a import AgentCardDocument, must_be_signed
 from spellwarden_scan.a2a_signing import SignatureInput
+from spellwarden_scan.evidence import bounded_evidence
 
 from spellwarden_cli import jws
-from spellwarden_cli.discover import CardFile, Discovery
+from spellwarden_cli.discover import CardFile, Discovery, is_card
 from spellwarden_cli.report import AgentReport, Notice, ReportFinding
 from spellwarden_cli.settings import A2a
 
@@ -120,8 +121,10 @@ def _verify(si: SignatureInput, keys: tuple[jws.Jwk, ...], source: str) -> Signa
     for key in keys:
         for form, signing_input, unsigned in si.inputs:
             if jws.verify(si.alg, key, signing_input, si.signature):
-                legacy = tuple(pointer for pointer in unsigned if is_legacy_pointer(pointer))
-                if legacy:  # a legacy member nobody signed changes what a client does: not verified (5.6)
+                legacy = tuple(pointer for pointer in unsigned if must_be_signed(pointer))
+                # A legacy member, or one that decides who may call the agent (security requirements and schemes), that nobody
+                # signed changes what a client does: not verified (5.6, D-L1). A plain vendor member is only listed.
+                if legacy:
                     return _outcome(si, "unsigned_legacy", key_source=source, payload_form=form, unsigned_members=unsigned,
                                     detail=f"signed without members clients read: {', '.join(legacy)}")
                 return _outcome(si, "verified", key_source=source, payload_form=form, unsigned_members=unsigned)
@@ -189,28 +192,39 @@ def not_a_card_notice(card: CardFile, document: AgentCardDocument) -> Notice:
     return Notice("a2a_not_card", card.path, f"not checked as an agent card: {reason}")
 
 
-def jku_urls(found: Discovery, trust: Trust) -> list[str]:
-    """The distinct `jku` URLs of the repository's cards, in the order of first use; empty when `a2a.keys` is in force (then
-    no `jku` is fetched for any card)."""
+def _card_jkus(found: Discovery, trust: Trust) -> list[str]:
+    """Every distinct `jku` of a verifiable signature of the repository's cards, in the order of first use; empty when `a2a.keys`
+    is in force (then no `jku` is fetched for any card)."""
     if trust.path is not None:
         return []
     urls: dict[str, None] = {}
     for card in found.agent_cards:
+        if card.read_error is not None:
+            continue
         document = parse_agent_card(card.path, card.content)
         if not is_card(card, document):
             continue
         for si in signature_inputs(document):
-            if si.error is None and si.jku is not None and si.alg in jws.VERIFIED_ALGS and si.jku.startswith("https://"):
+            if si.error is None and si.jku is not None and si.alg in jws.VERIFIED_ALGS:
                 urls.setdefault(si.jku, None)
     return list(urls)
 
 
-def is_card(card: CardFile, document: AgentCardDocument) -> bool:
-    """Whether a card file is checked as a card: a `well_known` or `listed` file always is (its read failure is SW-A2A-018, a
-    missing shape SW-A2A-001), a `legacy_path` or `named` file only when it parses strictly and has the card shape."""
-    if card.path_form in ("well_known", "listed"):
-        return True
-    return document.error is None and document.card_shape
+def _is_https(url: str) -> bool:
+    return urlsplit(url).scheme.lower() == "https"  # a scheme is case-insensitive (r1:F3)
+
+
+def jku_urls(found: Discovery, trust: Trust) -> list[str]:
+    """The distinct `https` `jku` URLs of the repository's cards, in the order of first use: the ones that may be fetched; empty
+    when `a2a.keys` is in force."""
+    return [url for url in _card_jkus(found, trust) if _is_https(url)]
+
+
+def refused_jku_urls(found: Discovery, trust: Trust) -> list[str]:
+    """The `jku` URLs of the repository's cards that are never fetched because they are not `https`. Under `--probe` each is
+    recorded as `KeyFetch(None, "network")`, the reason a remote card's non-https `jku` gets (`AgentTask._key_sets`), so the
+    outcome is `key_unavailable` and the advice to run with `--probe` is not given to someone who did (r0:F5)."""
+    return [url for url in _card_jkus(found, trust) if not _is_https(url)]
 
 
 def repository_reports(found: Discovery, rules: RuleSet, a2a: A2a, notices: list[Notice], errors: list[Notice], *,
@@ -223,13 +237,20 @@ def repository_reports(found: Discovery, rules: RuleSet, a2a: A2a, notices: list
     findings: list[ReportFinding] = []
     for card in found.agent_cards:
         document = parse_agent_card(card.path, card.content)
-        if not is_card(card, document):
+        if card.read_error is not None:  # a card that could not be read: SW-A2A-018 with the reason and detail (r1:F2)
+            document = replace(document, error=card.read_error[0])
+        elif not is_card(card, document):
             notices.append(not_a_card_notice(card, document))
             continue
         item = f"a2a-card:{card.path}"
         outcomes = outcomes_of(document, trust, fetched or {})
         result = evaluate_agent_card(document, rules, origin=CardOrigin("repository", card.path_form), signatures=outcomes,
                                      location_path=card.path)
+        if card.read_error is not None:
+            code, detail = card.read_error
+            evidence = bounded_evidence(f"{code}: {detail}")
+            kept = tuple(replace(f, evidence=evidence) if f.rule_id == "SW-A2A-018" else f for f in result.findings)
+            result = replace(result, findings=kept)
         notices.extend(key_notices(item, outcomes))
         notices.extend(truncation_notices(item, result))
         reports.append(AgentReport(item, "repository", card.path_form, "checked", result=result))

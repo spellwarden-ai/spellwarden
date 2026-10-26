@@ -79,7 +79,7 @@ def test_d2_at_most_200_cards_are_read_and_the_notice_counts_the_rest(make_repo,
 
 
 @pytest.mark.skipif(not hasattr(os, "symlink"), reason="symbolic links")
-def test_a_link_at_a_card_name_is_followed_inside_the_scan_root_and_a_well_known_one_is_refused_outside(make_repo, tmp_path):
+def test_a_link_at_a_card_name_is_followed_inside_the_scan_root_and_a_well_known_one_outside_is_a_failed_card(make_repo, tmp_path):
     repo = make_repo(tmp_path / "repo", {"real/card.json": CARD})
     (repo / ".well-known").mkdir()
     (repo / ".well-known" / "agent-card.json").symlink_to("../real/card.json")
@@ -88,9 +88,10 @@ def test_a_link_at_a_card_name_is_followed_inside_the_scan_root_and_a_well_known
     (repo / "public" / ".well-known").mkdir(parents=True)
     (repo / "public" / ".well-known" / "agent-card.json").symlink_to(outside)
     result = found(repo)
-    assert forms(result) == [(".well-known/agent-card.json", "well_known")]
-    assert result.agent_cards[0].content == CARD.encode()
-    assert [(e.code, e.path) for e in result.errors] == [("unsafe_path", "public/.well-known/agent-card.json")]
+    assert forms(result) == [(".well-known/agent-card.json", "well_known"), ("public/.well-known/agent-card.json", "well_known")]
+    assert result.agent_cards[0].content == CARD.encode() and result.agent_cards[0].read_error is None
+    assert result.agent_cards[1].content == b"" and result.agent_cards[1].read_error[0] == "unsafe_path"  # (r1:F2) a finding, no error
+    assert result.errors == ()
 
 
 @pytest.mark.skipif(not hasattr(os, "symlink"), reason="symbolic links")
@@ -123,16 +124,39 @@ def test_r0_f2_a_look_alike_link_inside_the_scan_root_is_still_followed(make_rep
     assert forms(result) == [("x/agent-card.json", "named")] and result.errors == ()
 
 
+def failures(result) -> list[tuple[str, str, str, tuple[str, str] | None]]:
+    return [(card.path, card.path_form, card.content.decode(), card.read_error) for card in result.agent_cards]
+
+
 @pytest.mark.skipif(not hasattr(os, "symlink"), reason="symbolic links")
-def test_r0_f2_a_listed_link_that_cannot_be_followed_is_still_an_error(make_repo, tmp_path):
+def test_r1_f2_a_listed_link_that_cannot_be_followed_is_a_card_that_could_not_be_read_not_an_error(make_repo, tmp_path):
     repo = make_repo(tmp_path / "repo", {})
     (repo / "docs").mkdir()
     (repo / "docs" / "agent-card.json").symlink_to("../missing.json")
     result = found(repo, listed_cards=["docs/agent-card.json"])
-    assert result.agent_cards == () and [(e.code, e.path) for e in result.errors] == [("unsafe_path", "docs/agent-card.json")]
+    assert result.errors == () and not [n for n in result.notices if n.code in ("symlink_skipped", "file_missing")]
+    [(path, form, content, failure)] = failures(result)
+    assert (path, form, content) == ("docs/agent-card.json", "listed", "") and failure is not None and failure[0] == "unsafe_path"
+    assert "missing.json" in failure[1]
 
 
-def test_r0_f2_an_unreadable_look_alike_file_is_a_notice_and_an_unreadable_well_known_card_is_an_error(make_repo, tmp_path, monkeypatch):
+@pytest.mark.skipif(not hasattr(os, "symlink"), reason="symbolic links")
+def test_r1_f2_a_well_known_link_that_escapes_dangles_or_names_a_directory_is_a_failure_of_that_card(make_repo, tmp_path):
+    (tmp_path / "outside.json").write_text(CARD)
+    repo = make_repo(tmp_path / "repo", {"real/x.txt": "x"})
+    for directory, target in (("escape", "../../../outside.json"), ("dangling", "../missing.json"), ("dir", "../../real")):
+        (repo / directory / ".well-known").mkdir(parents=True)
+        (repo / directory / ".well-known" / "agent-card.json").symlink_to(target)
+    result = found(repo)
+    assert result.errors == () and not [n for n in result.notices if n.code == "symlink_skipped"]
+    assert [(path, form, content, failure and failure[0]) for path, form, content, failure in failures(result)] == [
+        ("dangling/.well-known/agent-card.json", "well_known", "", "unsafe_path"),
+        ("dir/.well-known/agent-card.json", "well_known", "", "unsafe_path"),
+        ("escape/.well-known/agent-card.json", "well_known", "", "unsafe_path")]
+    assert "no_agent_content" not in codes(result)
+
+
+def test_r0_f2_an_unreadable_look_alike_file_is_a_notice_and_an_unreadable_well_known_card_is_a_failure_of_that_card(make_repo, tmp_path, monkeypatch):
     repo = make_repo(tmp_path / "repo", {"x/agent-card.json": CARD, "y/.well-known/agent-card.json": CARD})
     original = FileSet.read
 
@@ -143,9 +167,20 @@ def test_r0_f2_an_unreadable_look_alike_file_is_a_notice_and_an_unreadable_well_
 
     monkeypatch.setattr(FileSet, "read", refuse)
     result = found(repo)
-    assert result.agent_cards == ()
-    assert [(e.code, e.path) for e in result.errors] == [("unreadable", "y/.well-known/agent-card.json")]
+    assert result.errors == ()  # (r1:F2) exit 2 is for the scanner's own failures; a card nobody can read is SW-A2A-018
+    assert failures(result) == [("y/.well-known/agent-card.json", "well_known", "",
+                                 ("unreadable", "cannot be read (Permission denied)"))]
     assert [(n.code, n.path) for n in result.notices if n.code == "a2a_not_card"] == [("a2a_not_card", "x/agent-card.json")]
+
+
+def test_r0_f3_a_look_alike_that_is_not_a_card_does_not_count_as_agent_content(make_repo, tmp_path):
+    """(r0:F3) `a2a_not_card` is the agents module's notice; here only the notice `no_agent_content` is decided."""
+    for number, files in enumerate(({"README.md": "x", "tools/.well-known/agent.json": "// not a card\n{}"},
+                                    {"README.md": "x", "samples/agent-card.json": '{"hello": "world"}'})):
+        assert "no_agent_content" in codes(found(make_repo(tmp_path / f"look-alike{number}", files)))
+    assert "no_agent_content" not in codes(found(make_repo(tmp_path / "real", {"README.md": "x", "tools/agent-card.json": CARD})))
+    assert "no_agent_content" not in codes(found(make_repo(tmp_path / "wk", {"a/.well-known/agent-card.json": "// not a card\n{}"})))
+    assert "no_agent_content" not in codes(found(make_repo(tmp_path / "li", {"docs/c.json": "{}"}), listed_cards=["docs/c.json"]))
 
 
 def test_files_the_settings_exclude_are_not_cards(make_repo, tmp_path):

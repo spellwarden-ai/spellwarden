@@ -12,6 +12,8 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field, replace
 from typing import NamedTuple
 
+from spellwarden_scan import parse_agent_card
+from spellwarden_scan.a2a import AgentCardDocument
 from spellwarden_scan.agentconfig import ConfigDocument, parse_document, reference_kind
 from spellwarden_scan.archive import DEFAULT_LIMITS
 # The skill-file rule and the folding of names live in the engine (O3 plan P52): the gate's package identity and this
@@ -96,10 +98,24 @@ class PluginDir:
 @dataclass(frozen=True)
 class CardFile:
     """A file to be checked as an A2A agent card (O4 spec 6.3). `path_form` is `well_known`, `legacy_path`, `named` or
-    `listed` (`a2a.cards`); `content` is what was read, whatever it holds (`agents.py` parses it)."""
+    `listed` (`a2a.cards`); `content` is what was read, whatever it holds (`agents.py` parses it). `read_error` is
+    `(code, message)` with `code` `unsafe_path` or `unreadable` for a `well_known` or `listed` file that could not be read (a
+    link that escapes the scan root, dangles or names a link or a directory; a read the OS refuses): `content` is then empty
+    and the card is the finding SW-A2A-018, never a run error (r1:F2, invariant 10)."""
     path: str
     path_form: str
     content: bytes = field(hash=False)
+    read_error: tuple[str, str] | None = None
+
+
+def is_card(card: CardFile, document: AgentCardDocument | None = None) -> bool:
+    """Whether a card file is checked as a card: a `well_known` or `listed` file always is (its read failure is SW-A2A-018, a
+    missing shape SW-A2A-001), a `legacy_path` or `named` file only when it parses strictly and has the card shape. `document` is
+    the parse of `card.content` when the caller has it (O4 spec 6.3)."""
+    if card.path_form in ("well_known", "listed"):
+        return True
+    document = document if document is not None else parse_agent_card(card.path, card.content)
+    return document.error is None and document.card_shape
 
 
 @dataclass(frozen=True)
@@ -232,6 +248,7 @@ class _Builder:
         self.notices: list[Notice] = []
         self.errors: list[Notice] = []
         self.contents: dict[str, bytes] = {}  # each file is read at most once, whoever asks
+        self.card_failures: dict[str, tuple[str, str]] = {}  # card links that could not be followed or read -> (code, message)
 
     def read(self, path: str) -> bytes | None:
         if path in self.contents:
@@ -285,6 +302,18 @@ class _Builder:
             self.errors.append(resolution.refusal)  # type: ignore[arg-type]
             return False
         return self.adopt(path, resolution.target)
+
+    def follow_card(self, path: str) -> bool:
+        """`follow` for a `well_known` or `listed` card: a link that cannot be followed is not a run error but a failure of that
+        card, kept in `card_failures` (the first one, whoever asks first) for SW-A2A-018. The link stays marked followed, so it is
+        no `symlink_skipped` either (r1:F2, invariant 10)."""
+        mark = len(self.errors)
+        followed = self.follow(path)
+        if len(self.errors) > mark:
+            refusal = self.errors[mark]
+            self.card_failures.setdefault(path, (refusal.code, refusal.message))
+            del self.errors[mark:]
+        return followed
 
     def member(self, path: str) -> _Resolution | None:
         """The resolution of a link inside a skill package or local plugin directory, by the rules of `follow`
@@ -563,7 +592,9 @@ def discover(fileset: FileSet, *, listed_cards: Sequence[str] = (), agents_confi
     plugin_dirs: dict[str, str] = {}  # directory -> plugin name
     plugin_items: list[Item] = []
     for path in sorted(builder.links):  # links at a global name; plugin paths and references follow theirs below
-        if _global_kind(path) is not None or _is_skill_file(path) or _card_form(path) == "well_known":
+        if _card_form(path) == "well_known":
+            builder.follow_card(path)  # a failure is the card's, found again by `_agent_cards` (r1:F2)
+        elif _global_kind(path) is not None or _is_skill_file(path):
             builder.follow(path)
     for path in sorted(p for p in builder.paths if _global_kind(p) == "marketplace"):
         marketplace = builder.document("marketplace", path)
@@ -618,7 +649,8 @@ def discover(fileset: FileSet, *, listed_cards: Sequence[str] = (), agents_confi
         elif path not in builder.followed:
             builder.notices.append(Notice("symlink_skipped", path, "symbolic link; skipped"))
     items = _items(builder, skills, plugin_items)
-    if not items and not cards and not agents_configured:
+    # a look-alike file that is not a card is no agent content (r0:F3)
+    if not items and not any(is_card(card) for card in cards) and not agents_configured:
         builder.notices.append(Notice("no_agent_content", "", "No agent content found"))
     return Discovery(tuple(items), tuple(skills), tuple(builder.documents[p] for p in sorted(builder.documents)),
                      tuple(dirs), tuple(builder.notices), tuple(builder.errors), fileset, tuple(cards))
@@ -628,16 +660,22 @@ def _agent_cards(builder: _Builder, listed: Sequence[str]) -> list[CardFile]:
     """The agent card files (O4 spec 6.3): every file whose name makes a card and every path of `a2a.cards`, in path order,
     at most `MAX_CARDS` (the notice `a2a_cards_limit` counts the rest). A listed path that is not in the file set is the notice
     `file_missing`. A path both discovered and listed is one card: `listed` when its name alone would make it only a
-    `named` or `legacy_path` card (an unreadable one is then a finding, not a notice), else the form its name gives."""
+    `named` or `legacy_path` card (an unreadable one is then a finding, not a notice), else the form its name gives. A
+    `well_known` or `listed` card that cannot be followed or read is a `CardFile` with `read_error` (SW-A2A-018), never an error
+    of the run (r1:F2)."""
     forms: dict[str, str] = {}
     for path in sorted({*builder.paths, *builder.links}):
         form = _card_form(path)
-        if form is not None and (builder.follow(path) if form == "well_known" else _follow_quietly(builder, path)):
+        if form is None:
+            continue
+        if form == "well_known":
+            if builder.follow_card(path) or path in builder.card_failures:
+                forms[path] = form
+        elif _follow_quietly(builder, path):
             forms[path] = form
     for path in dict.fromkeys(listed):
-        if not builder.follow(path):
-            if path not in builder.links:  # a link that could not be followed is already an error
-                builder.notices.append(Notice("file_missing", path, "listed in a2a.cards but not in the file set"))
+        if not builder.follow_card(path) and path not in builder.card_failures:
+            builder.notices.append(Notice("file_missing", path, "listed in a2a.cards but not in the file set"))
             continue
         if forms.get(path) != "well_known":
             forms[path] = "listed"
@@ -647,16 +685,18 @@ def _agent_cards(builder: _Builder, listed: Sequence[str]) -> list[CardFile]:
                                       f"scanner checks at most {MAX_CARDS} per run"))
     cards = []
     for path in chosen[:MAX_CARDS]:
-        if forms[path] in ("legacy_path", "named"):  # a look-alike that cannot be read is a notice (r0:F2, invariant 10)
-            mark = len(builder.errors)
-            content = builder.read(path)
-            if content is None:
-                del builder.errors[mark:]
-                builder.notices.append(Notice("a2a_not_card", path, "not checked as an agent card: cannot be read"))
-        else:
-            content = builder.read(path)
+        mark = len(builder.errors)
+        failure = builder.card_failures.get(path)
+        content = None if failure is not None else builder.read(path)
+        if content is None and failure is None and len(builder.errors) > mark:
+            failure = (builder.errors[mark].code, builder.errors[mark].message)
+        del builder.errors[mark:]  # a card that cannot be read is a finding or a notice, never an error (r0:F2, r1:F2)
         if content is not None:
             cards.append(CardFile(path, forms[path], content))
+        elif forms[path] in ("legacy_path", "named"):
+            builder.notices.append(Notice("a2a_not_card", path, "not checked as an agent card: cannot be read"))
+        else:
+            cards.append(CardFile(path, forms[path], b"", failure or ("unreadable", "cannot be read")))
     return cards
 
 

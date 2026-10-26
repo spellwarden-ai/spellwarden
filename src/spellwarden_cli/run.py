@@ -313,6 +313,8 @@ def run_probes(options: ScanOptions, found: Discovery, rules: RuleSet, findings:
         allow_private = False
     private_origins = (frozenset(target.url for target in targets) | frozenset(task.url for task in plan.tasks)
                        if allow_private else frozenset())
+    for url in agents_module.refused_jku_urls(found, remote.trust):  # never fetched: say so, not "no key source" (r0:F5)
+        remote.fetched[url] = agents_module.KeyFetch(None, "network")
     jku = agents_module.jku_urls(found, remote.trust)
     keyset_tasks = [a2a_probe.KeysetTask(url) for url in jku[:probing.MAX_CARD_KEYSETS]]
     for url in jku[probing.MAX_CARD_KEYSETS:]:  # the cap of 20 key sets per run (P11)

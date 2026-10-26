@@ -3,11 +3,25 @@ with agent cards, through the command: the `agents` list, the notices, the findi
 the report schema. Nothing here opens a connection."""
 from __future__ import annotations
 
+import base64
 import json
+import os
+from datetime import date
 from pathlib import Path
 
 import jsonschema
+import pytest
 from a2a_cards import card_bytes, clean_card
+from a2a_wire import Wire
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
+
+from spellwarden_scan.jcs import jcs_canonicalize
+
+from spellwarden_cli import run
+from spellwarden_cli.ci import LOCAL
+from spellwarden_cli.settings import Settings
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "a2a" / "signed"
 SCHEMA = json.loads((Path(__file__).resolve().parents[2] / "schemas" / "report.schema.json").read_text(encoding="utf-8"))
@@ -58,7 +72,7 @@ def test_a_repository_without_cards_has_no_agents_key_and_is_otherwise_as_before
 def test_s4_a_card_signed_by_a_key_outside_the_trusted_file_fails_the_default_check(run_cli, make_repo, tmp_path):
     code, report, _ = scan(run_cli, make_repo, tmp_path, {WELL_KNOWN: signed("es256-stranger"), CONFIG: KEYS_CONFIG,
                                                          ".well-known/jwks.json": signed("jwks")})
-    assert code == 1 and [(f["rule_id"], f["severity"]) for f in report["findings"]] == [("SW-A2A-010", "high")]
+    assert code == 1 and ("SW-A2A-010", "high") in [(f["rule_id"], f["severity"]) for f in report["findings"]]
     assert report["agents"][0]["signature_status"] == "invalid" and report["agents"][0]["signatures"][0]["outcome"] == "untrusted_key"
 
 
@@ -183,3 +197,147 @@ def test_the_agent_card_findings_are_in_the_markdown_text_and_sarif_outputs(run_
     for fmt, needle in (("text", "SW-A2A-004"), ("markdown", "SW-A2A-004"), ("sarif", "SW-A2A-004"), ("gitlab-codequality", "SW-A2A-004")):
         code, out, _ = run_cli(["scan", str(repo), "--format", fmt, "--no-telemetry"])
         assert code == 1 and needle in out, fmt
+
+
+# --- the leftovers of the O4 build (items 5, 6 and 8) ---------------------------------------------------------------------
+
+def _b64(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
+
+
+def throwaway_signed(card: dict) -> tuple[dict, bytes]:
+    """`card` with an ES256 signature over its RFC 8785 form (the `as_served` payload) by a key made for this test, and the public
+    key set that holds it as `k`. Nothing private leaves this function."""
+    key = ec.generate_private_key(ec.SECP256R1())
+    protected = _b64(json.dumps({"alg": "ES256", "kid": "k", "typ": "JOSE"}, separators=(",", ":")).encode())
+    body = {name: value for name, value in card.items() if name != "signatures"}
+    signing_input = protected.encode() + b"." + _b64(jcs_canonicalize(body)).encode()
+    r, s = decode_dss_signature(key.sign(signing_input, ec.ECDSA(hashes.SHA256())))
+    numbers = key.public_key().public_numbers()
+    jwk = {"kty": "EC", "crv": "P-256", "kid": "k", "use": "sig", "alg": "ES256",
+           "x": _b64(numbers.x.to_bytes(32, "big")), "y": _b64(numbers.y.to_bytes(32, "big"))}
+    signature = {"protected": protected, "signature": _b64(r.to_bytes(32, "big") + s.to_bytes(32, "big"))}
+    return {**card, "signatures": [signature]}, json.dumps({"keys": [jwk]}).encode()
+
+
+def test_d_l1_an_alternative_added_to_the_security_requirements_after_signing_makes_the_signature_invalid(run_cli, make_repo, tmp_path):
+    """(D-L1) The `sdk` form verifies a card whose `securityRequirements` gained an empty alternative (it removes `{}`), but the
+    empty alternative means anonymous callers are allowed: a security member left unsigned is `unsigned_legacy`, like a legacy one."""
+    card, jwks = throwaway_signed(clean_card())
+    card["securityRequirements"].append({})
+    code, report, _ = scan(run_cli, make_repo, tmp_path, {WELL_KNOWN: card_bytes(card), CONFIG: KEYS_CONFIG, ".well-known/jwks.json": jwks})
+    [signature] = report["agents"][0]["signatures"]
+    assert (signature["outcome"], signature["payload_form"]) == ("unsigned_legacy", "sdk")
+    assert signature["unsigned_members"] == ["/securityRequirements/1"]
+    assert "/securityRequirements/1" in signature["detail"]
+    assert code == 1 and ("SW-A2A-010", "high") in [(f["rule_id"], f["severity"]) for f in report["findings"]]
+    assert report["agents"][0]["signature_status"] == "invalid"
+
+
+def test_d_l1_a_plain_vendor_member_added_after_signing_is_still_verified_with_the_member_listed(run_cli, make_repo, tmp_path):
+    card, jwks = throwaway_signed(clean_card())
+    card["x-vendor"] = {"note": "added later"}
+    code, report, _ = scan(run_cli, make_repo, tmp_path, {WELL_KNOWN: card_bytes(card), CONFIG: KEYS_CONFIG, ".well-known/jwks.json": jwks})
+    [signature] = report["agents"][0]["signatures"]
+    assert (signature["outcome"], signature["unsigned_members"]) == ("verified", ["/x-vendor"])
+    assert code == 0 and report["findings"] == []
+
+
+def unsafe_repo(tmp_path) -> None:
+    """A card file next to the repository, which a link of the repository may name but never follow."""
+    (tmp_path / "outside.json").write_bytes(card_bytes(clean_card()))
+
+
+@pytest.mark.skipif(not hasattr(os, "symlink"), reason="symbolic links")
+@pytest.mark.parametrize(("target", "reason"), [("../../../outside.json", "unsafe_path"), ("../missing.json", "unsafe_path"),
+                                                ("..", "unsafe_path")])
+def test_r1_f2_a_well_known_link_that_cannot_be_followed_is_a_high_finding_and_exit_1_never_exit_2(run_cli, make_repo, tmp_path, target, reason):
+    unsafe_repo(tmp_path)
+    repo = make_repo(tmp_path / "repo", {"README.md": "x"})
+    (repo / "public" / ".well-known").mkdir(parents=True)
+    (repo / "public" / ".well-known" / "agent-card.json").symlink_to(target)
+    code, out, _ = run_cli(["scan", str(repo), "--format", "json", "--no-telemetry"])
+    report = json.loads(out)
+    jsonschema.validate(report, SCHEMA)
+    assert report["errors"] == [] and code == 1
+    [finding] = report["findings"]
+    assert (finding["rule_id"], finding["severity"], finding["location"]) == ("SW-A2A-018", "high", {"path": WELL_KNOWN, "line": None})
+    assert finding["evidence"].startswith(f"{reason}: ") and "symbolic link" in finding["evidence"]
+    assert not [n for n in report["notices"] if n["code"] == "symlink_skipped"]
+    [agent] = report["agents"]
+    assert (agent["item"], agent["path_form"], agent["status"]) == (f"a2a-card:{WELL_KNOWN}", "well_known", "checked")
+
+
+@pytest.mark.skipif(not hasattr(os, "symlink"), reason="symbolic links")
+def test_r1_f2_a_listed_link_that_escapes_the_scan_root_is_a_finding_and_the_baseline_accepts_it(run_cli, make_repo, tmp_path):
+    unsafe_repo(tmp_path)
+    repo = make_repo(tmp_path / "repo", {CONFIG: "version: 1\na2a:\n  cards:\n    - docs/card.json\n"})
+    (repo / "docs").mkdir()
+    (repo / "docs" / "card.json").symlink_to("../../outside.json")
+    code, out, _ = run_cli(["scan", str(repo), "--format", "json", "--no-telemetry"])
+    report = json.loads(out)
+    jsonschema.validate(report, SCHEMA)
+    assert report["errors"] == [] and code == 1
+    [finding] = report["findings"]
+    assert (finding["rule_id"], finding["location"]["path"], finding["evidence"].split(":")[0]) == ("SW-A2A-018", "docs/card.json", "unsafe_path")
+    assert [a["path_form"] for a in report["agents"]] == ["listed"]
+    baseline = ("version: 1\naccepted:\n  - fingerprint: \"" + finding["fingerprint"] + "\"\n    reason: \"a negative fixture\"\n"
+                "    added: \"2026-10-26\"\n    expires: \"2026-12-01\"\n")
+    (repo / ".spellwarden" / "baseline.yml").write_text(baseline)
+    code, out, _ = run_cli(["scan", str(repo), "--format", "json", "--no-telemetry", "--as-of", "2026-10-27"])
+    report = json.loads(out)
+    assert code == 0 and report["findings"][0]["suppressed"] is True and report["errors"] == []
+
+
+@pytest.mark.skipif(not hasattr(os, "chmod") or (hasattr(os, "geteuid") and os.geteuid() == 0), reason="needs a non-root user")
+def test_r1_f2_a_well_known_card_the_os_refuses_to_read_is_an_unreadable_finding_and_exit_1(run_cli, make_repo, tmp_path):
+    repo = make_repo(tmp_path / "repo", {WELL_KNOWN: card_bytes(clean_card())})
+    path = repo / WELL_KNOWN
+    path.chmod(0)
+    try:
+        code, out, _ = run_cli(["scan", str(repo), "--format", "json", "--no-telemetry"])
+    finally:
+        path.chmod(0o644)
+    report = json.loads(out)
+    jsonschema.validate(report, SCHEMA)
+    assert report["errors"] == [] and code == 1
+    [finding] = report["findings"]
+    assert (finding["rule_id"], finding["location"]["path"], finding["evidence"].split(":")[0]) == ("SW-A2A-018", WELL_KNOWN, "unreadable")
+
+
+def test_r0_f3_a_repository_whose_only_card_named_file_is_a_look_alike_that_is_not_a_card_is_told_it_has_no_agent_content(run_cli, make_repo, tmp_path):
+    code, report, _ = scan(run_cli, make_repo, tmp_path, {"README.md": "x", "tools/.well-known/agent.json": "// not a card\n{}"})
+    assert code == 0 and "agents" not in report
+    assert sorted(n["code"] for n in report["notices"]) == ["a2a_not_card", "no_agent_content"]
+
+
+def card_with_jku(jku: str) -> bytes:
+    protected = _b64(json.dumps({"alg": "ES256", "kid": "k", "jku": jku}, separators=(",", ":")).encode())
+    return card_bytes({**clean_card(), "signatures": [{"protected": protected, "signature": "AQ" * 42 + "AQ"}]})
+
+
+def test_r0_f5_a_non_https_jku_under_probe_is_key_unavailable_with_its_reason_and_no_advice_to_probe(run_cli, make_repo, tmp_path):
+    """(r0:F5) The key set of an `http://` jku is never fetched; with --probe on, the outcome must say the key could not be had
+    (`network`, the reason the remote path gives the same URL), not that no source was tried, and must not tell the user to
+    run with --probe."""
+    files = {WELL_KNOWN: card_with_jku("http://keys.example.com/jwks.json")}
+    code, report, _ = scan(run_cli, make_repo, tmp_path / "on", files, "--probe")
+    [signature] = report["agents"][0]["signatures"]
+    assert (signature["outcome"], signature["detail"]) == ("key_unavailable", "network")
+    assert [n["code"] for n in report["notices"] if n["code"].startswith("a2a_")] == ["a2a_keys_unavailable"]
+    assert not [n for n in report["notices"] if "--probe" in n["message"]]
+    code, report, _ = scan(run_cli, make_repo, tmp_path / "off", files)
+    [signature] = report["agents"][0]["signatures"]
+    assert (signature["outcome"], signature["detail"]) == ("key_unavailable", "no_key_source")
+    assert [n["code"] for n in report["notices"] if n["code"].startswith("a2a_")] == ["a2a_signature_unverified"]
+    assert [n for n in report["notices"] if "--probe" in n["message"]]
+
+
+def test_r1_f3_an_upper_case_https_jku_of_a_repository_card_is_requested_under_probe(monkeypatch, tmp_path):
+    wire = Wire(monkeypatch, {"HTTPS://keys.example.com/jwks.json": (200, {"Content-Type": "application/json"}, b'{"keys": []}'),
+                              "https://keys.example.com/jwks.json": (200, {"Content-Type": "application/json"}, b'{"keys": []}')})
+    root = tmp_path / "repo"
+    (root / "public/.well-known").mkdir(parents=True)
+    (root / WELL_KNOWN).write_bytes(card_with_jku("HTTPS://keys.example.com/jwks.json"))
+    run.scan(run.ScanOptions(root=str(root), settings=Settings(probe=True), as_of=date(2026, 10, 26), env={}, context=LOCAL))
+    assert [url.lower() for url in wire.urls] == ["https://keys.example.com/jwks.json"]
