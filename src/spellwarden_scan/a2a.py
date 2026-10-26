@@ -380,13 +380,12 @@ def _reduced_url(url: str) -> str:
     """The URL without userinfo, query and fragment, as findings and fingerprints name an interface."""
     parts = url_parts(url)
     if parts is None:
-        # The fallback strips userinfo first, from the authority (up to the first `/`) to its last `@`, and only then the
-        # query and fragment: a `?` or `#` inside the password must not cut the text before the `@` is found (r0:F2).
+        # The fallback cuts at the last `@` anywhere after the scheme, before it removes the query and fragment: a URL that does
+        # not parse has no reliable authority, and a `/`, `?` or `#` inside a password must not hide the `@` (r0:F2). An `@`
+        # in a path costs the text before it, never a credential.
         prefix = _SCHEME_PREFIX.match(url)
         head = prefix.group(0) if prefix else ""
-        authority, slash, path = url[len(head):].partition("/")
-        text = head + authority.rpartition("@")[2] + slash + path
-        return text.split("?", 1)[0].split("#", 1)[0]
+        return (head + url[len(head):].rpartition("@")[2]).split("?", 1)[0].split("#", 1)[0]
     host = f"[{parts.host}]" if ":" in parts.host else parts.host
     return f"{parts.scheme}://{host}{':' + parts.port if parts.port else ''}{parts.path}"
 
