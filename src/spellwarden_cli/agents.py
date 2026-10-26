@@ -9,7 +9,7 @@ Nothing here opens a connection: a key set fetched under `--probe` arrives as `f
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from urllib.parse import urlsplit
 
 from spellwarden_scan import (
@@ -44,6 +44,15 @@ class KeyFetch:
     `limit`, `budget`) when it could not be fetched or read."""
     keyset: jws.KeySet | None = None
     reason: str | None = None
+
+
+@dataclass
+class RemotePhase:
+    """What the probe phase hands the scan about A2A (6.5): the reports of the remote agents (fetched or not), the key sets
+    fetched for the repository's cards by `jku` URL (6.6), and the trusted key file."""
+    trust: Trust = field(default_factory=Trust)
+    reports: list[AgentReport] = field(default_factory=list)
+    fetched: dict[str, KeyFetch] = field(default_factory=dict)
 
 
 def reduced(url: str | None) -> str | None:

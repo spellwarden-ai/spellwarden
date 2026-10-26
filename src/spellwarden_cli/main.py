@@ -168,7 +168,8 @@ def _scan_report(args: argparse.Namespace, context, credentials: Credentials,
         telemetry = False
     options = run.ScanOptions(root=root, settings=settings, as_of=as_of, locked=args.locked, baseline=args.baseline,
                               env=dict(os.environ), log=log, context=context, revision=source, credentials=credentials,
-                              api_url=api_url if overridden else None, as_of_given=args.as_of is not None, scope=scope)
+                              api_url=api_url if overridden else None, as_of_given=args.as_of is not None, scope=scope,
+                              config=args.config)
     started = time.monotonic()
     try:
         report = run.scan(options)
