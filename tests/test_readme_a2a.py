@@ -39,7 +39,8 @@ def test_the_section_says_what_the_spec_requires():
                    "deprecated in 1.0 and documented as removed", "DER-encoded ECDSA", "`SW-A2A-018`", "At most 200 cards are read per run",
                    "reported as `unsafe_path`", "reported as `unreadable`", "spelled with its proto field name", "a whole entry of `securityRequirements`", "a scheme entry with no scopes",
                    "**Proto field names.**", "keeps the later of two spellings", "(`proto_field_name`)", "a protobuf reader refuses the card",
-                   "`SW-A2A-015` reads every value as served", "(`preferred_transport`) are not"):
+                   "`SW-A2A-015` reads every value as served", "**0.x members in snake_case.**", "(`legacy_field_name`)",
+                   "(`name_kept`)", "the camelCase one is kept whatever the order"):
         assert needle in text, needle
     for code in A2A_NOTICES:
         assert f"`{code}`" in text, code
@@ -74,6 +75,15 @@ def test_the_changelog_names_the_rules_that_can_fail_a_build_and_the_notice_code
     for code in A2A_NOTICES:
         assert f"`{code}`" in body, code
     assert "2026.10.4" in body and "a 1.2.x scanner refuses" in body and "`exclude`" in body and "`cryptography`" in body
+
+
+def test_the_1_5_0_changelog_names_the_members_the_reasons_and_the_rules_version():
+    body = CHANGELOG[CHANGELOG.index("## 1.5.0"):CHANGELOG.index("## 1.4.0")]
+    assert not re.search("[–—!]", body)
+    for needle in ("`preferred_transport`", "`additional_interfaces`", "`protocol_version`", "`token_url`", "`legacy_field_name`",
+                   "`name_kept`", "`2026.10.6`", "`SW-A2A-004`", "`SW-A2A-019`"):
+        assert needle in body, needle
+    assert "`legacy_field_name`" in README and "`name_kept`" in README and "are not." not in README
 
 
 def test_the_1_4_0_changelog_names_the_new_rule_the_rules_version_and_the_refusal_of_older_scanners():

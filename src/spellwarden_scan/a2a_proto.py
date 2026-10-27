@@ -153,3 +153,27 @@ def proto_name(json_name_: str) -> str:
 PROTO_NAMES: dict[str, dict[str, str]] = {
     message: {proto_name(name): name for name in fields if proto_name(name) != name} for message, fields in PRESENCE.items()
 }
+
+
+# The members A2A 1.0 removed that a 0.x card still carries, by the message of the view they sit in, with the kind of their
+# value (as in `PRESENCE`; `legacy` is read as served). Only what a snake_case spelling can hide is listed: a member whose
+# snake_case name differs from its JSON name, and the members that lead to one. `SecurityScheme` lists the members of the 0.x
+# `type` form of a scheme, read only in a scheme that has `type`. Their snake_case spellings are read as `a2a-sdk` 0.3 reads a
+# card (pydantic with `validate_by_name=True`): the snake_case name alone is the member, and of both spellings the camelCase
+# one is kept whatever the order. `a2a-sdk` 1.2.3 ignores the snake_case spelling of the four top-level members and
+# @a2a-js/sdk 0.3.14 reads camelCase only, so readers disagree on a card that uses one (1.5.0, CHANGELOG).
+LEGACY: dict[str, dict[str, str]] = {
+    "AgentCard": {"protocolVersion": "scalar", "preferredTransport": "scalar", "additionalInterfaces": "legacy",
+                  "supportsAuthenticatedExtendedCard": "scalar"},
+    "AgentCapabilities": {"stateTransitionHistory": "scalar"},
+    "SecurityScheme": {"bearerFormat": "scalar", "openIdConnectUrl": "scalar", "oauth2MetadataUrl": "scalar",
+                       "flows": "message:LegacyOAuthFlows"},
+    "LegacyOAuthFlows": {"authorizationCode": "message:LegacyOAuthFlow", "clientCredentials": "message:LegacyOAuthFlow",
+                         "implicit": "message:LegacyOAuthFlow", "password": "message:LegacyOAuthFlow"},
+    "LegacyOAuthFlow": {"authorizationUrl": "scalar", "tokenUrl": "scalar", "refreshUrl": "scalar", "scopes": "map:string"},
+}
+
+# `message -> snake_case name -> JSON name` of the `LEGACY` members whose two names differ.
+LEGACY_NAMES: dict[str, dict[str, str]] = {
+    message: {proto_name(name): name for name in fields if proto_name(name) != name} for message, fields in LEGACY.items()
+}

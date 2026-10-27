@@ -19,7 +19,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 
 from spellwarden_scan._json import MAX_DOCUMENT_BYTES, Arr, Obj, Refused, load_json
-from spellwarden_scan.a2a_proto import PRESENCE, PROTO_NAMES
+from spellwarden_scan.a2a_proto import LEGACY, LEGACY_NAMES, PRESENCE, PROTO_NAMES
 from spellwarden_scan.agentconfig import url_parts
 from spellwarden_scan.jcs import JcsError, jcs_canonicalize
 
@@ -70,13 +70,16 @@ class ProtoAlias:
     (in `client_view`), `alias` and `name` the two spellings, `line` its line. `outcome` is what a protobuf reader does with
     it: `alias_only` (the card has no other spelling: the alias is the member), `alias_wins` or `name_wins` (both spellings,
     the later one is kept and the other dropped), `refused` (both spellings of an `optional` or `oneof` member: the reader
-    refuses the card)."""
+    refuses the card). `legacy` is a member A2A 1.0 removed (`a2a_proto.LEGACY`, since 1.5.0), spelled in snake_case and read
+    as `a2a-sdk` 0.3 reads it: its outcome is `alias_only` or `name_kept` (both spellings, the camelCase one kept whatever
+    the order)."""
     pointer: str
     view_pointer: str
     alias: str
     name: str
     line: int | None
     outcome: str
+    legacy: bool = False
 
 
 @dataclass(frozen=True)
@@ -258,7 +261,11 @@ def _copy(node: Obj, members) -> Obj:
 
 
 def _view_message(node: Obj, message: str, served: str, viewed: str, aliases: list[ProtoAlias]) -> Obj:
-    fields, names = PRESENCE[message], PROTO_NAMES[message]
+    fields, names = dict(PRESENCE.get(message, {})), dict(PROTO_NAMES.get(message, {}))
+    if message != "SecurityScheme" or "type" in node:  # the 0.x members of a scheme only in its 0.x `type` form
+        for name, kind in LEGACY.get(message, {}).items():
+            fields.setdefault(name, ("legacy", kind))
+        names.update(LEGACY_NAMES.get(message, {}))
     spellings: dict[str, list[str]] = {}
     for key in node:
         name = names.get(key, key)
@@ -271,15 +278,20 @@ def _view_message(node: Obj, message: str, served: str, viewed: str, aliases: li
             members.append((key, key, value))  # a member the proto does not know
             continue
         keys = spellings[name]
-        for spelled in keys if key == keys[-1] else ():
+        legacy = fields[name][0] == "legacy"
+        # a2a-sdk 0.3 keeps the camelCase spelling of a 0.x member whatever the order; protobuf keeps the later spelling
+        kept = name if legacy and name in keys else keys[-1]
+        if key != kept:
+            continue
+        for spelled in keys:
             if spelled != name:
-                outcome = ("alias_only" if len(keys) == 1 else "refused" if fields[name][0] in ("optional", "oneof")
+                outcome = ("alias_only" if len(keys) == 1 else "name_kept" if legacy
+                           else "refused" if fields[name][0] in ("optional", "oneof")
                            else "alias_wins" if spelled == key else "name_wins")
                 aliases.append(ProtoAlias(served + pointer_of(spelled), viewed + pointer_of(name), spelled, name,
-                                          node.lines.get(spelled), outcome))
-        if key == keys[-1]:
-            members.append((key, name, _view(value, fields[name][1], served + pointer_of(key), viewed + pointer_of(name),
-                                             aliases)))
+                                          node.lines.get(spelled), outcome, legacy))
+        members.append((key, name, _view(value, fields[name][1], served + pointer_of(key), viewed + pointer_of(name),
+                                         aliases)))
     return _copy(node, members)
 
 
