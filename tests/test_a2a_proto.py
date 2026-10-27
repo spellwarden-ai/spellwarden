@@ -99,3 +99,77 @@ def test_unknown_members_and_near_spellings_are_not_aliases():
     view, aliases = client_view(parsed({**clean_card(), "Security_requirements": [{}], "security__requirements": [{}],
                                         "x_vendor": 1}).root)
     assert aliases == () and {"Security_requirements", "security__requirements", "x_vendor"} <= set(view)
+
+
+# --- 1.5.0: the snake_case spellings of 0.x members, read as a2a-sdk 0.3 reads them -------------------------------------
+# Outcomes taken on 2026-10-27 from a2a-sdk 0.3.26 (pydantic 2.14.1, `validate_by_name=True, validate_by_alias=True`:
+# the snake_case name alone is the member, and with both spellings the camelCase one is kept whatever the order), a2a-sdk
+# 1.2.3 (`card_resolver.parse_agent_card` pops only the camelCase legacy members and ignores their snake_case spelling) and
+# @a2a-js/sdk 0.3.14 (camelCase only).
+
+LEGACY_CARD = {
+    "protocol_version": "0.3.0", "name": "Legacy router", "description": "Routes orders.",
+    "url": "https://agent.example.com/a2a", "preferred_transport": "GRPC",
+    "additional_interfaces": [{"url": "https://agent.example.com/grpc", "transport": "GRPC"}],
+    "version": "1.0.0", "capabilities": {"state_transition_history": True},
+    "securitySchemes": {"oidc": {"type": "openIdConnect", "open_id_connect_url": "https://id.example.com/.well-known/x"}},
+    "security": [{"oidc": ["openid"]}], "defaultInputModes": ["text/plain"], "defaultOutputModes": ["text/plain"],
+    "skills": [{"id": "route", "name": "Route", "description": "Routes an order.", "tags": ["orders"]}],
+}
+
+
+def test_a_0x_member_spelled_only_in_snake_case_is_read_as_that_member():
+    document = parsed(LEGACY_CARD)
+    assert (document.card_shape, document.card_format, document.protocol_versions) == (True, "0.3", ("0.3",))
+    view = document.view
+    assert view["protocolVersion"] == "0.3.0" and view["preferredTransport"] == "GRPC"
+    assert view["additionalInterfaces"][0]["transport"] == "GRPC" and view["capabilities"]["stateTransitionHistory"] is True
+    assert view["securitySchemes"]["oidc"]["openIdConnectUrl"] == "https://id.example.com/.well-known/x"
+    assert view.lines["preferredTransport"] == document.root.lines["preferred_transport"]
+    assert sorted((a.pointer, a.view_pointer, a.outcome, a.legacy) for a in document.aliases) == [
+        ("/additional_interfaces", "/additionalInterfaces", "alias_only", True),
+        ("/capabilities/state_transition_history", "/capabilities/stateTransitionHistory", "alias_only", True),
+        ("/preferred_transport", "/preferredTransport", "alias_only", True),
+        ("/protocol_version", "/protocolVersion", "alias_only", True),
+        ("/securitySchemes/oidc/open_id_connect_url", "/securitySchemes/oidc/openIdConnectUrl", "alias_only", True),
+    ]
+
+
+def test_of_two_spellings_of_a_0x_member_the_camel_case_one_is_kept_whatever_the_order():
+    later = parsed({**clean_card(), "preferredTransport": "JSONRPC", "preferred_transport": "GRPC"})
+    earlier = parsed({"preferred_transport": "GRPC", **clean_card(), "preferredTransport": "JSONRPC"})
+    nulled = parsed({**clean_card(), "preferredTransport": None, "preferred_transport": "GRPC"})
+    for document, kept in ((later, "JSONRPC"), (earlier, "JSONRPC"), (nulled, None)):
+        assert document.view["preferredTransport"] == kept and "preferred_transport" not in document.view
+        assert [(a.pointer, a.outcome, a.legacy) for a in document.aliases] == [("/preferred_transport", "name_kept", True)]
+
+
+def test_the_0x_scheme_members_are_read_only_in_a_scheme_of_the_0x_type_form():
+    card = {**clean_card(), "securitySchemes": {
+        "legacy": {"type": "oauth2", "oauth2_metadata_url": "https://auth.example.com/.well-known/oauth",
+                   "flows": {"authorization_code": {"authorization_url": "https://auth.example.com/authorize",
+                                                    "token_url": "https://auth.example.com/token",
+                                                    "refresh_url": "https://auth.example.com/refresh",
+                                                    "scopes": {"read_all": "x"}}}},
+        "bearer": {"type": "http", "scheme": "bearer", "bearer_format": "JWT"},
+        "wrapped": {"httpAuthSecurityScheme": {"scheme": "bearer"}, "bearer_format": "JWT"}}}
+    document = parsed(card)
+    schemes = document.view["securitySchemes"]
+    flow = schemes["legacy"]["flows"]["authorizationCode"]
+    assert (flow["authorizationUrl"], flow["tokenUrl"], flow["refreshUrl"]) == (
+        "https://auth.example.com/authorize", "https://auth.example.com/token", "https://auth.example.com/refresh")
+    assert flow["scopes"] == {"read_all": "x"}  # scope names are map keys, read as served
+    assert schemes["legacy"]["oauth2MetadataUrl"] == "https://auth.example.com/.well-known/oauth"
+    assert schemes["bearer"]["bearerFormat"] == "JWT"
+    assert "bearer_format" in schemes["wrapped"] and "bearerFormat" not in schemes["wrapped"]  # a 1.0 scheme: unknown member
+    assert sorted(a.view_pointer for a in document.aliases) == [
+        "/securitySchemes/bearer/bearerFormat", "/securitySchemes/legacy/flows/authorizationCode",
+        "/securitySchemes/legacy/flows/authorizationCode/authorizationUrl",
+        "/securitySchemes/legacy/flows/authorizationCode/refreshUrl",
+        "/securitySchemes/legacy/flows/authorizationCode/tokenUrl", "/securitySchemes/legacy/oauth2MetadataUrl"]
+    assert all(a.legacy and a.outcome == "alias_only" for a in document.aliases)
+
+
+def test_a_1_0_alias_is_not_a_legacy_one():
+    document = parsed(renamed(clean_card(), "supportedInterfaces", "supported_interfaces"))
+    assert [(a.alias, a.legacy) for a in document.aliases] == [("supported_interfaces", False)]

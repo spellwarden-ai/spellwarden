@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.5.0 (2026-10-27)
+
+Agent card members that A2A 1.0 removed are read in their snake_case spelling too. A 0.x card, or a 1.0 card that still
+carries a 0.x member, can spell such a member in snake_case: `preferred_transport`, `additional_interfaces`,
+`protocol_version`, `supports_authenticated_extended_card`, `capabilities.state_transition_history`, and in a scheme of the
+0.x `type` form `bearer_format`, `open_id_connect_url`, `oauth2_metadata_url`, the flow names `authorization_code` and
+`client_credentials` and a flow's `authorization_url`, `token_url` and `refresh_url`. `a2a-sdk` 0.3 reads that spelling as
+the member and keeps the camelCase one when both are present, whatever the order; `a2a-sdk` 1.2.3 ignores the snake_case
+spelling of the four top-level members, and the JavaScript SDK 0.3 reads camelCase only. 1.4.0 left these spellings unread
+on an unsigned card, so a plain `http://` URL under `additional_interfaces` or under a flow's `token_url` was not reported,
+and a card that wrote `protocol_version` was taken for format 0.2. On a signed card such a member was already reported when
+the signature leaves it out (`SW-A2A-010`).
+
+- What such a spelling holds is judged as the member it names, the way `a2a-sdk` 0.3 reads the card, and the finding names
+  it by its camelCase name (`/additionalInterfaces/0/url`): `SW-A2A-004` for a plain HTTP endpoint or authentication URL,
+  `SW-A2A-002` for a 0.x member on a 1.0 card, and the card's format and protocol versions from `protocol_version`.
+- A 0.x member spelled only in snake_case is `SW-A2A-001` with the new reason `legacy_field_name` (medium): clients
+  disagree on it, so rename it to camelCase.
+- A 0.x member spelled both ways is `SW-A2A-019` with the new reason `name_kept` (high), whatever the order.
+- A snake_case member beside a 1.0 scheme's wrapper (`bearer_format` next to `httpAuthSecurityScheme`) is not a 0.x member
+  and is ignored, as any member the protocol does not know; inside the wrapper the 1.4.0 reading applies.
+- The rules version is `2026.10.6` (still 60 rules); a change to what a rule detects is a minor version. A card that spells
+  no 0.x member in snake_case gets the findings 1.4.0 gave it.
+
 ## 1.4.0 (2026-10-26)
 
 Agent cards are read as a protobuf client reads them. A2A 1.0 JSON spells members in camelCase, but protobuf's JSON reader
@@ -22,7 +46,7 @@ signature leaves it out (`SW-A2A-010`).
 - The rules version is `2026.10.5` (60 rules). A new rule is a minor version: a 1.3.x scanner refuses a baseline that
   names `SW-A2A-019`. A card that spells no member with its proto field name gets the findings 1.3.0 gave it; the SARIF
   rule table gains one descriptor, so the index of every result after `SW-A2A-019` in it moves by one.
-- Not covered: the proto field names of 0.x members (`preferred_transport`) on an unsigned card.
+- Not covered: the proto field names of 0.x members (`preferred_transport`) on an unsigned card (read since 1.5.0).
 
 ## 1.3.0 (2026-10-26)
 

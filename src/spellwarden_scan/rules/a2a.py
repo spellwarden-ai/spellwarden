@@ -1,4 +1,4 @@
-"""The nineteen A2A agent card rules (O4 spec 5.4; SW-A2A-019 since 1.4.0). Each `detect(subject)` is a generator of
+"""The nineteen A2A agent card rules (O4 spec 5.4; SW-A2A-019 since 1.4.0; 0.x snake_case members since 1.5.0). Each `detect(subject)` is a generator of
 `Finding`s over a `CardSubject`: the parsed card, where it came from, what the command found out about its signatures and
 the path findings point at. None is a malicious indicator and none has an export target. The engine never verifies a signature: SW-A2A-010,
 011, 012, 013 and 017 read the `SignatureOutcome`s the command recorded, as `evaluate_probe` reads a recorded probe.
@@ -12,7 +12,9 @@ userinfo, query and fragment.
 
 Rules judge the card as a protobuf client reads it (`AgentCardDocument.view`): a member spelled with its proto field name
 (`security_requirements`) is checked as the member it names, and pointers into it use the JSON names. Where that spelling
-sits is SW-A2A-001 (`proto_field_name`) when it is the only one, SW-A2A-019 when the card spells the member both ways.
+sits is SW-A2A-001 (`proto_field_name`) when it is the only one, SW-A2A-019 when the card spells the member both ways. A member
+A2A 1.0 removed, spelled in snake_case, is read as `a2a-sdk` 0.3 reads it (1.5.0): SW-A2A-001 `legacy_field_name` alone,
+SW-A2A-019 `name_kept` with its camelCase spelling.
 SW-A2A-015 reads every value as served, so a credential under a spelling the reader drops is still found."""
 from __future__ import annotations
 
@@ -233,7 +235,11 @@ def _a2a_001(subject: CardSubject) -> Iterator[Finding]:
                        issue.line)
     view = read_as_client(document)
     for alias in document.aliases:
-        if alias.outcome == "alias_only":
+        if alias.outcome == "alias_only" and alias.legacy:  # 1.5.0: a2a-sdk 0.3 reads it, a2a-sdk 1.x and the JS SDK do not
+            yield _finding("SW-A2A-001", subject, owner_identity(view, alias.view_pointer), alias.alias, "legacy_field_name",
+                           _at(alias.pointer, _Ours(f"the snake_case spelling of {alias.name}, which not every A2A client reads")),
+                           alias.line)
+        elif alias.outcome == "alias_only":
             yield _finding("SW-A2A-001", subject, owner_identity(view, alias.view_pointer), alias.alias, "proto_field_name",
                            _at(alias.pointer, _Ours(f"the proto field name of {alias.name}")), alias.line)
 
@@ -261,6 +267,7 @@ _TWICE = {
     "alias_wins": "spelled twice; a protobuf reader keeps this later spelling, a reader of JSON names keeps {name}",
     "name_wins": "spelled twice; a protobuf reader keeps the later {name}",
     "refused": "spelled twice as {name}; a protobuf reader refuses the card",
+    "name_kept": "spelled twice; a2a-sdk 0.3 keeps {name} whatever the order, other readers may keep this one",
 }
 
 

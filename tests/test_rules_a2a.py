@@ -538,3 +538,74 @@ def test_a_card_written_in_proto_field_names_is_a_1_0_card_with_one_finding_per_
     assert sorted(f.evidence.split(": ")[0] for f in found["SW-A2A-001"]) == [
         "/default_input_modes", "/default_output_modes", "/supported_interfaces"]
     assert set(found) == {"SW-A2A-001", "SW-A2A-012"}
+
+
+# --- 1.5.0: the snake_case spellings of 0.x members (SW-A2A-001 `legacy_field_name`, SW-A2A-019 `name_kept`) -------------
+
+def _legacy_card(**over) -> dict:
+    """A 0.3 card written with snake_case member names, as a literal (CodeQL takes values read under auth-named keys for
+    passwords)."""
+    card = {
+        "protocol_version": "0.3.0", "name": "Legacy router", "description": "Routes orders.",
+        "url": "https://agent.example.com/a2a", "preferred_transport": "JSONRPC",
+        "additional_interfaces": [{"url": "http://agent.example.com/grpc", "transport": "GRPC"}],
+        "version": "1.0.0", "capabilities": {},
+        "securitySchemes": {"legacy": {"type": "oauth2", "flows": {"client_credentials": {
+            "token_url": "http://auth.example.com/token", "scopes": {}}}}},
+        "security": [{"legacy": []}], "defaultInputModes": ["text/plain"], "defaultOutputModes": ["text/plain"],
+        "skills": [{"id": "route", "name": "Route", "description": "Routes an order.", "tags": ["orders"]}],
+    }
+    card.update(over)
+    return card
+
+
+def test_what_a_snake_case_0x_member_holds_is_judged_and_each_spelling_is_flagged():
+    found = _summary(_legacy_card())
+    assert ("SW-A2A-004", "/additionalInterfaces/0/url: http://agent.example.com/grpc") in found
+    assert ("SW-A2A-004", "/securitySchemes/legacy/flows/clientCredentials/tokenUrl: http://auth.example.com/token") in found
+    assert ("SW-A2A-002", "/: card format 0.3") in found
+    assert {evidence for rule, evidence in found if rule == "SW-A2A-001"} == {
+        f"{pointer}: the snake_case spelling of {name}, which not every A2A client reads" for pointer, name in (
+            ("/protocol_version", "protocolVersion"), ("/preferred_transport", "preferredTransport"),
+            ("/additional_interfaces", "additionalInterfaces"),
+            ("/securitySchemes/legacy/flows/client_credentials", "clientCredentials"),
+            ("/securitySchemes/legacy/flows/client_credentials/token_url", "tokenUrl"))}
+    assert not [rule for rule, _ in found if rule == "SW-A2A-019"]
+
+
+def test_a_snake_case_0x_card_is_judged_as_its_camel_case_twin():
+    """Apart from SW-A2A-001, the findings of its camelCase twin. Before 1.5.0 the snake_case card was format 0.2 (no
+    camelCase `protocolVersion`) and neither plain-HTTP URL was judged."""
+    camel = _legacy_card(protocolVersion="0.3.0", preferredTransport="JSONRPC",
+                         additionalInterfaces=[{"url": "http://agent.example.com/grpc", "transport": "GRPC"}])
+    for name in ("protocol_version", "preferred_transport", "additional_interfaces"):
+        del camel[name]
+    camel["securitySchemes"] = {"legacy": {"type": "oauth2", "flows": {"clientCredentials": {
+        "tokenUrl": "http://auth.example.com/token", "scopes": {}}}}}
+    snake = {(rule, evidence) for rule, evidence in _summary(_legacy_card()) if rule != "SW-A2A-001"}
+    assert snake == _summary(camel)
+
+
+def test_a_snake_case_0x_member_on_a_1_0_card_is_a_legacy_member():
+    found = _summary({**clean_card(), "preferred_transport": "GRPC"})
+    assert ("SW-A2A-002", "/preferredTransport: removed or renamed in A2A 1.0") in found
+    assert ("SW-A2A-001", "/preferred_transport: the snake_case spelling of preferredTransport, which not every A2A client "
+            "reads") in found
+
+
+def test_both_spellings_of_a_0x_member_are_sw_a2a_019_name_kept_whatever_the_order():
+    later = fired({**clean_card(), "preferredTransport": "JSONRPC", "preferred_transport": "GRPC"})
+    earlier = fired({"preferred_transport": "GRPC", **clean_card(), "preferredTransport": "JSONRPC"})
+    for found in (later, earlier):
+        assert [f.evidence for f in found["SW-A2A-019"]] == [
+            "/preferred_transport: spelled twice; a2a-sdk 0.3 keeps preferredTransport whatever the order, other readers "
+            "may keep this one"]
+        assert [f.evidence for f in found["SW-A2A-002"]] == ["/preferredTransport: removed or renamed in A2A 1.0"]
+        assert not [f for f in found.get("SW-A2A-001", []) if "preferred" in f.evidence]
+    assert later["SW-A2A-019"][0].fingerprint == earlier["SW-A2A-019"][0].fingerprint
+
+
+def test_a_snake_case_member_of_a_1_0_wrapper_scheme_is_not_a_0x_member():
+    card = clean_card()
+    card["securitySchemes"]["oauth"]["bearer_format"] = "JWT"
+    assert not [f for f in findings(card) if "bearer" in f.evidence]
