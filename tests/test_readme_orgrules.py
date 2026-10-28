@@ -36,7 +36,8 @@ def test_the_readme_limits_table_equals_pattern_limits():
 
 def test_the_readme_names_every_file_of_every_export():
     section = _section()
-    for target, mode in (("claude-code-hooks", "project"), ("claude-code-hooks", "managed"), ("kong", "project")):
+    for target, mode in (("claude-code-hooks", "project"), ("claude-code-hooks", "managed"), ("kong", "project"),
+                         ("zuplo", "project")):
         for path in build_export(baseline_pack(), target, built_at="2026-12-01T00:00:00Z", mode=mode):
             assert f"`{path}`" in section, (target, mode, path)
 

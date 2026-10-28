@@ -139,7 +139,7 @@ Ids 016 to 018 and 020 to 030 are reserved. `RuleSet.baseline()` returns these r
 
 ## Org rules, packs and exports
 
-Since 1.1.0 the engine also holds what the hosted product calls Ward: rules an organisation writes as data (org rules), policy packs, and the exports that turn a pack into enforcement for Claude Code hooks and Kong. All of it is pure, like the rest of the engine. In connected mode the command applies the organisation's CI policy (see Connected mode).
+Since 1.1.0 the engine also holds what the hosted product calls Ward: rules an organisation writes as data (org rules), policy packs, and the exports that turn a pack into enforcement for Claude Code hooks, Kong and Zuplo. All of it is pure, like the rest of the engine. In connected mode the command applies the organisation's CI policy (see Connected mode).
 
 ### Org rules
 
@@ -148,7 +148,7 @@ An org rule is a JSON object that `validate_org_rule(spec)` checks and `compile_
 - `id` is `SW-ORG-001` to `SW-ORG-999`; `title` 1 to 120 characters on one line; `severity` `critical`, `high`, `medium` or `low`; `owasp` and `nist` at most five identifiers each from the lists the baseline rules use; `malicious` (only with `critical`) makes a finding quarantine the package, as the baseline's malicious indicators do; unknown keys are refused.
 - `area` `skill` takes a pattern detection: `{"kind": "pattern", "files": "**/*.sh", "in": "commands", "pattern": "...", "case_sensitive": false}`. `files` is a path glob inside the skill (`*`, `?` and `[...]` within one folder, `**` for any number of folders; default `**`). `in` is `lines` (every line of every selected text file, the default) or `commands` (every shell command of the selected scripts and of the fenced code blocks of the selected Markdown files, with `\`, `|`, `&&` and `||` continuations joined, which is what a Claude Code hook sees as a Bash command). One finding per matching line or command.
 - `area` `mcp` takes one of eight server checks: `{"kind": "probe", "predicate": "auth_mode_in", "values": ["none", "static-key"]}`. The predicates are `auth_mode_in`, `transport_in`, `deprecated_feature_any`, `spec_version_below` (also true when the version is unknown), `endpoint_host_in` and `endpoint_host_not_in` (lower-case host names, or `*.example.com` for every subdomain, which does not match `example.com` itself), and `tool_name_matches` and `tool_description_matches`, which take a `pattern` and give one finding per tool at `tool:<name>`. A stdio server has no endpoint and is judged by `transport_in` and the two tool checks only.
-- `targets` names the exports that enforce the rule: `claude-code-hooks` (a pattern rule with `"in": "commands"`) and `kong` (any pattern rule). A server check has no target.
+- `targets` names the exports that enforce the rule: `claude-code-hooks` (a pattern rule with `"in": "commands"`), `kong` and `zuplo` (any pattern rule; a pattern the Zuplo guard cannot write for JavaScript is listed as not enforced there). A server check has no target. The target `zuplo` is read by engines from 1.6.0; the hosted product leaves it out of the policy it serves to an older scanner.
 
 Patterns use a small subset of regular expressions that the engine reads in bounded time and that Kong reads the same way:
 
@@ -223,8 +223,8 @@ The enforcement rules (`ENFORCEMENT_RULES`), and what an export of this release 
 |---|---|---|
 | `SW-HK-001` | Block remote scripts piped to a shell in agent shell tools | Claude Code hooks |
 | `SW-HK-002` | Block reads of credential files (`~/.aws`, `~/.ssh`, `.env`) | Claude Code hooks |
-| `SW-GW-003` | Deny MCP upstreams without OAuth | Not enforced by an export in this version (needs Kong's MCP plugins) |
-| `SW-GW-004` | Prompt-injection deny patterns on prompts and tool results | Kong, prompts only |
+| `SW-GW-003` | Deny MCP upstreams without OAuth | Not enforced by an export in this version (needs Kong's MCP plugins); the Zuplo export includes a script that checks it at deploy when your pipeline runs it |
+| `SW-GW-004` | Prompt-injection deny patterns on prompts and tool results | Kong, prompts only; Zuplo, MCP server responses |
 | `SW-EG-005` | Sandbox egress only to registry-admitted hosts | Not enforced by an export in this version |
 | `SW-GW-006` | Destructive tool verbs require human approval | Claude Code hooks (asks for approval) |
 | `SW-RG-007` | Registry admits only curated, auth-enabled entries on spec 2026-07-28 with no open critical or high finding | The hosted private registry's admission policy, not an export |
@@ -234,7 +234,7 @@ The enforcement rules (`ENFORCEMENT_RULES`), and what an export of this release 
 
 ### Exports
 
-`build_export(pack, target, built_at=..., mode=...)` returns the files of an export as `{path: bytes}`; `target` is one of `EXPORT_TARGETS` (`claude-code-hooks`, `kong`), and `PLANNED_TARGETS` (`zuplo`, `agentcore-policy`, `cloudflare-egress`) are not available yet. Every export holds `SPELLWARDEN-README.md`, which lists what the target enforces, what it cannot enforce and why, how to install it and the limits of its mode, and ends with: Validate field names against the vendor's current documentation before use.
+`build_export(pack, target, built_at=..., mode=...)` returns the files of an export as `{path: bytes}`; `target` is one of `EXPORT_TARGETS` (`claude-code-hooks`, `kong`, `zuplo`), and `PLANNED_TARGETS` (`agentcore-policy`, `cloudflare-egress`) are not available yet. Every export holds `SPELLWARDEN-README.md`, which lists what the target enforces, what it cannot enforce and why, how to install it and the limits of its mode, and ends with: Validate field names against the vendor's current documentation before use.
 
 **Claude Code hooks.** One guard script, `spellwarden_guard.py` (Python 3.8 or newer, standard library only, the pack's checks compiled in, never opening the network), run by a `PreToolUse` hook for Bash, PowerShell (Claude Code's shell tool on Windows), Read, Grep, Glob and MCP tools, and by a `PostToolUse` hook when SW-OB-008 is on. It denies piped remote scripts and credential-file reads, asks before destructive commands and destructive MCP tool verbs, and applies org rules with the `claude-code-hooks` target (deny for critical or high, ask for medium or low); when one command matches both, the deny wins. The command patterns are written for POSIX shells and read PowerShell commands as text. Windows paths are checked as given and with `\` read as `/`. On unreadable input, including an event larger than 1 MiB, it prints nothing and exits 0: the guard never blocks on its own failure, and a missing interpreter or a timeout lets the tool call proceed. An agent can therefore pass every check by making one tool call larger than 1 MiB. A missing or unreadable script is different: Python exits with status 2, which Claude Code reads as a block, so every matched tool call is refused until the script is restored. Every hook runs it as `python3 -I`, so the checkout cannot plant a module it imports. `SHA256SUMS` lists the script's SHA-256.
 
@@ -337,6 +337,46 @@ plugins:
 <!-- kong-example:end -->
 
 followed by one entry that joins the nine prompt-injection patterns, `(?i:ignore (all |any |the |your )?(previous|prior|above|earlier) (instructions|prompts|rules))|(?i:disregard (the |your )?(system|previous|prior))|...`.
+
+**Zuplo.** Five files: `zuplo/modules/spellwarden-mcp-guard.ts`, `zuplo/config/spellwarden-policies.json`, `zuplo/spellwarden-zuplo-check.mjs`, `SPELLWARDEN-README.md` and `SHA256SUMS` (it lists the four other files). The paths mirror a Zuplo project, so `modules/` and `config/` land where the README of the export says. `spellwarden-mcp-guard.ts` is an outbound policy for Zuplo's MCP Gateway, the same file for every pack of a release, written against Web standard APIs with a type-only import of Zuplo's types. It checks what MCP servers send through the gateway (results, errors, and the requests and notifications a server sends on the stream) against SW-GW-004's nine injection patterns and the org rules with the `zuplo` target, after removing invisible characters and normalising to NFKC, and answers a JSON-RPC error (code -32001, HTTP 200, the request's id) in place of a response that matches or that cannot be checked: a body over `maxBodyBytes` (1 MiB by default), an unsupported content encoding, a body that is neither JSON nor an event stream, nesting deeper than 64, a request that the server sends before its response. It checks again, in a response-sending hook, any response that a later policy replaced. `zuplo/config/spellwarden-policies.json` holds the policy entry to merge into `config/policies.json`: the pack's patterns are in its `options`, with `guard_sha256` and `options_sha256`. `spellwarden-zuplo-check.mjs` (Node 20 or later, no dependencies) checks that a project is wired as the export requires: the entry, the guard file and the options are the ones the export wrote, `compatibilityDate` is 2026-03-01 or later, every `McpProxyHandler` route lists the guard last among its outbound policies and, when SW-GW-003 is on in the pack, uses a `mcp-token-exchange-inbound` policy with an OAuth `authMode`. SW-GW-003 is therefore enforced only as far as your pipeline runs the script, and the export lists it as not enforced. A pattern that cannot be written as a JavaScript regular expression without the `u` flag is listed as not enforced; the differences from the engine's matching (UTF-16 windows, ASCII `\d \w \b`, JavaScript's case folding) are in the README of the export. The baseline pack's policies file begins:
+
+<!-- zuplo-example:start -->
+```json
+{
+  "policies": [
+    {
+      "name": "spellwarden-mcp-guard",
+      "policyType": "custom-code-outbound",
+      "handler": {
+        "export": "default",
+        "module": "$import(./modules/spellwarden-mcp-guard)",
+        "options": {
+          "spellwarden": {
+            "format": 1,
+            "pack_id": "baseline",
+            "pack": "Spellwarden Baseline for Agents",
+            "version": "1.0",
+            "built_at": "2026-12-01T00:00:00Z",
+            "engine": "<engine version>",
+            "rules_version": "2026.10.6",
+            "guard_sha256": "<sha256 of the guard file>",
+            "options_sha256": "<sha256 of the canonical options>"
+          },
+          "maxBodyBytes": 1048576,
+          "onTooLarge": "block",
+          "checks": [
+            {
+              "rule_id": "SW-GW-004",
+              "title": "Prompt-injection deny patterns on prompts and tool results",
+              "parts": [
+                "ignore (all |any |the |your )?(previous|prior|above|earlier) (instructions|prompts|rules)"
+              ],
+              "flags": "i",
+              "anchored_end": false
+```
+<!-- zuplo-example:end -->
+
+The three values in angle brackets are the engine version and the two SHA-256 digests; the rest is what the baseline pack exports.
 
 ## The `spellwarden` command
 
