@@ -479,7 +479,9 @@ def _fields(attributes: dict, cc: bool, service: object, span_kind: int | None) 
     redacted = False
     if server is None and method is not None and span_kind == 2:
         server = ident(service, 128)
-        if isinstance(service, str) and (service == UNKNOWN_SERVICE or service.startswith(UNKNOWN_SERVICE + ":")):
+        # A resource without service.name reads as unknown_service, as ResourceInfo does: the same placeholder.
+        if server is None or server == UNKNOWN_SERVICE or server.startswith(UNKNOWN_SERVICE + ":"):
+            server = server or UNKNOWN_SERVICE
             redacted = True
     out["mcp_server_name"] = server
     out["server_address"] = ident(attributes.get("server.address"), 253)
