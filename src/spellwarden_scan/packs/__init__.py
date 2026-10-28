@@ -133,6 +133,9 @@ PREDICATE_SINCE: Mapping[str, str] = {
     for name in (*SPEC_KEYS, *PATTERN_KEYS, *_DETECTION_KEYS, *PROBE_PREDICATES, *PATTERN_PREDICATES)
 }
 _VERSION_DEFAULT = "1.1.0"
+# Zuplo export spec 4.1, P22: the oldest engine whose `validate_pack` accepts each org rule target. The hosted backend
+# strips a target from the org rules it serves to a scanner older than its row (a target means nothing to a scan).
+TARGET_SINCE: Mapping[str, str] = {"claude-code-hooks": "1.1.0", "kong": "1.1.0", "zuplo": "1.6.0"}
 
 
 def _version_key(version: str) -> tuple[int, ...]:
@@ -266,6 +269,6 @@ def baseline_pack() -> PackDocument:
 
 __all__ = [
     "BASELINE_JSON", "ENFORCEMENT_IDS", "ENFORCEMENT_RULES", "MAX_DOCUMENT_BYTES", "MAX_ORG_RULES", "PACK_ERROR_CODES",
-    "PREDICATE_SINCE", "TARGET_IDS", "EnforcementRule", "PackDocument", "PackError", "baseline_pack", "canonical_json",
-    "make_pack_document", "org_rule_min_version", "pack_sha256", "validate_pack",
+    "PREDICATE_SINCE", "TARGET_IDS", "TARGET_SINCE", "EnforcementRule", "PackDocument", "PackError", "baseline_pack",
+    "canonical_json", "make_pack_document", "org_rule_min_version", "pack_sha256", "validate_pack",
 ]

@@ -102,9 +102,9 @@
         },
         "targets": {
           "type": "array",
-          "maxItems": 2,
+          "maxItems": 3,
           "uniqueItems": true,
-          "items": {"enum": ["claude-code-hooks", "kong"]}
+          "items": {"enum": ["claude-code-hooks", "kong", "zuplo"]}
         },
         "malicious": {"type": "boolean"},
         "detection": {"oneOf": [{"$ref": "#/$defs/patternDetection"}, {"$ref": "#/$defs/probeDetection"}]}

@@ -1,0 +1,107 @@
+{
+  "all-off": {
+    "claude-code-hooks:managed": {
+      "SHA256SUMS": "89daae27326c9af905c2acb194fcaae27300ee4d8adfa30edd18faf3b5ffda8e",
+      "SPELLWARDEN-README.md": "385dec9e88120390fe0e3733d676759b05b43f361df8465bbb87c16f51bcba4a",
+      "managed/linux/managed-settings.json": "e0c7bf547ae724075b0864ab53206e68ba906459d9f0c3891c2d4c7b678196fc",
+      "managed/macos/managed-settings.json": "e0c7bf547ae724075b0864ab53206e68ba906459d9f0c3891c2d4c7b678196fc",
+      "managed/spellwarden_guard.py": "ff0ede15b97170d9f92dbd8794730554cf638345412327d934a38c54e717bfd0",
+      "managed/windows/managed-settings.json": "e0c7bf547ae724075b0864ab53206e68ba906459d9f0c3891c2d4c7b678196fc"
+    },
+    "claude-code-hooks:project": {
+      ".claude/.gitignore": "3ee2f9b2508d6bff98c2c2cf5984780d04dadc74f39ac3b577a955b20e58431f",
+      ".claude/hooks/spellwarden_guard.py": "fe3813c32424c2a450977cb950e87c4d68b8d698c87cb51a7c21400e786a688d",
+      ".claude/settings.json": "78922a784ee78e9e50587e93628cd3b9d4dfbe49087adc4514e6781cea38cbb9",
+      "SHA256SUMS": "0d13982f501cad7b9f010bd01b38c05af683dd189d655937c7f4f47c8f953035",
+      "SPELLWARDEN-README.md": "73a0099bc4b87a7b7fae952e76d8eb7cd8132fbf6c7fc581bc879973c28961a2"
+    },
+    "kong:project": {
+      "SPELLWARDEN-README.md": "180b136e0cb385408652b472e4e752c472cf4e3d8b26930af245e3bb58c619fb",
+      "kong/spellwarden-3b1e8c2a9d7f4e605a1b2c3d4e5f6071-1.2.yaml": "fd438608d41be7323975a00feeff215618b115c630f9668207723cd5c445e583"
+    }
+  },
+  "baseline": {
+    "claude-code-hooks:managed": {
+      "SHA256SUMS": "5a16d9166d409e88f4d103cea542788fd1bbf0ca4796b3cbe53e508d2727a92d",
+      "SPELLWARDEN-README.md": "c0bb7d0ea7fc7b20a527fa76ccb11f0f85683fc8d8a0a45b4ba7b2fcc48fbbb4",
+      "managed/linux/managed-settings.json": "730c95d370b9f8e8fc1be8dea609be7e38ebc2d5a7c753ccd5c70b0cc10ba31b",
+      "managed/macos/managed-settings.json": "6e8b21c358f18b5d7e92aeef7982bbcf06c55c317344e104cf07178a9060619d",
+      "managed/spellwarden_guard.py": "5ff97cfb722f7e1ee8484023b74a1f780c00c9824612e725ecb180e870a6e71d",
+      "managed/windows/managed-settings.json": "a4b074bf52e0a6b6626ab091436519fbfe7f09d1bcb192daaa817b2b7dc41b67"
+    },
+    "claude-code-hooks:project": {
+      ".claude/.gitignore": "3ee2f9b2508d6bff98c2c2cf5984780d04dadc74f39ac3b577a955b20e58431f",
+      ".claude/hooks/spellwarden_guard.py": "0479a0951a4e37e854184cdd7fab1acd23f3aa324756c2a2e8dc633280f1e1fb",
+      ".claude/settings.json": "98beb47ffa2397e639e6b4cdd9b8927609bc9d0a5f970b6ea0c6faeb7bd57c4d",
+      "SHA256SUMS": "1804b045f98cfa34e14b664ae8dbb4bbd08b736c8ad815e6acab68f412d63bb8",
+      "SPELLWARDEN-README.md": "41ae24431f75aec06174dac5936f580a10c7cca671eb99dad8ad2cd8d4fdce8e"
+    },
+    "kong:project": {
+      "SPELLWARDEN-README.md": "ae71a2c17c0ee6754c47b02d74a3f6c2eca767380fc6b5c35e24d96ac756b223",
+      "kong/spellwarden-baseline-1.0.yaml": "a6aa382b286a3fbb29e060513a1e6f7c1a8a2b592f041ce3264784e2060e57bc"
+    }
+  },
+  "names-quotes": {
+    "claude-code-hooks:managed": {
+      "SHA256SUMS": "11e18d772e7322b843954873838f664724c5edf362f849b2c718abb43d509d14",
+      "SPELLWARDEN-README.md": "49d5f97fb160864105bbfa22b7a63868cf49314c662db830478b2a48b535645f",
+      "managed/linux/managed-settings.json": "730c95d370b9f8e8fc1be8dea609be7e38ebc2d5a7c753ccd5c70b0cc10ba31b",
+      "managed/macos/managed-settings.json": "6e8b21c358f18b5d7e92aeef7982bbcf06c55c317344e104cf07178a9060619d",
+      "managed/spellwarden_guard.py": "7d89e1c179083678cf6e5db11c6f3cd7f307fabef7842f5853db4efb288f0f51",
+      "managed/windows/managed-settings.json": "a4b074bf52e0a6b6626ab091436519fbfe7f09d1bcb192daaa817b2b7dc41b67"
+    },
+    "claude-code-hooks:project": {
+      ".claude/.gitignore": "3ee2f9b2508d6bff98c2c2cf5984780d04dadc74f39ac3b577a955b20e58431f",
+      ".claude/hooks/spellwarden_guard.py": "91d2589f1ee95d31ab5905342e7b92961c8491dc6b112fad590d145096e3f205",
+      ".claude/settings.json": "98beb47ffa2397e639e6b4cdd9b8927609bc9d0a5f970b6ea0c6faeb7bd57c4d",
+      "SHA256SUMS": "4b925ba4e50378dfc254772eafdc78a6d25e6b379c1dc84c31be61d4ffbc1fef",
+      "SPELLWARDEN-README.md": "96b75578937e7fec23b7b434838fdf7f4f8ffa59e0e052988ae71ce5556b3b8b"
+    },
+    "kong:project": {
+      "SPELLWARDEN-README.md": "b6c721392aa22465aaf1c8848fbd151b1bbb27823c34cf6555920348e07162f7",
+      "kong/spellwarden-3b1e8c2a9d7f4e605a1b2c3d4e5f6071-1.2.yaml": "f7491e76235627a63e6bb9b04ffaad2cfe60dbc32edf8343b80e44c8dede79f6"
+    }
+  },
+  "names-unicode": {
+    "claude-code-hooks:managed": {
+      "SHA256SUMS": "9f07896bfc997a64f8ccf5bf76ade99658e36b52737b6b7bde758c16744b84ac",
+      "SPELLWARDEN-README.md": "58fba2fa701af98ffb9f76e8f316ea608278068e3c33121be4b31fda19d3863e",
+      "managed/linux/managed-settings.json": "730c95d370b9f8e8fc1be8dea609be7e38ebc2d5a7c753ccd5c70b0cc10ba31b",
+      "managed/macos/managed-settings.json": "6e8b21c358f18b5d7e92aeef7982bbcf06c55c317344e104cf07178a9060619d",
+      "managed/spellwarden_guard.py": "d5ba95db6b2d8702ba8e583b34ff69d6656e5a7b2759d98118c59e970333aa7d",
+      "managed/windows/managed-settings.json": "a4b074bf52e0a6b6626ab091436519fbfe7f09d1bcb192daaa817b2b7dc41b67"
+    },
+    "claude-code-hooks:project": {
+      ".claude/.gitignore": "3ee2f9b2508d6bff98c2c2cf5984780d04dadc74f39ac3b577a955b20e58431f",
+      ".claude/hooks/spellwarden_guard.py": "e2a1be3f2ae85c5a6601c03bd52a802964aec1b9dd913513b08cd1a4ac5f721b",
+      ".claude/settings.json": "98beb47ffa2397e639e6b4cdd9b8927609bc9d0a5f970b6ea0c6faeb7bd57c4d",
+      "SHA256SUMS": "c93ee1166975e6285cf3669c3043ec5c88d6cd34fb5e9264b2d5c02bf50c7ef1",
+      "SPELLWARDEN-README.md": "b9b15a477533180661c6e42145af90887338880847844db16286d79683d79311"
+    },
+    "kong:project": {
+      "SPELLWARDEN-README.md": "805835ee7431812b8b7e0959db032c48d8cb267853a5d293f84521f794ac6fd1",
+      "kong/spellwarden-3b1e8c2a9d7f4e605a1b2c3d4e5f6071-1.2.yaml": "12426ee8e6e616bac17969a8d92a151c7e70f7f37ae9e9079683a9afb578d6c1"
+    }
+  },
+  "with-org-rules": {
+    "claude-code-hooks:managed": {
+      "SHA256SUMS": "71c5bfd1b0b6a242b0d1ac598748422bd3cdcdbfbc3fa2ee3a1358fda8813ee9",
+      "SPELLWARDEN-README.md": "ca918db88a2c30d0ed72b36eb2260e06f094b8c3cf6b3e9857d0ad8b5bb0f095",
+      "managed/linux/managed-settings.json": "a398dd113328d2fd73e093720249bd4ad016eaf34506ef716615ebc7c186e315",
+      "managed/macos/managed-settings.json": "1923a257f9efdfd8a32bf1dbc632914925021a314adfb8f0a1f7b45e7712d716",
+      "managed/spellwarden_guard.py": "9f4513ba8f0d27a29feb37161afad404e7c6a1d2b1d320cdab5968907a5c827d",
+      "managed/windows/managed-settings.json": "2b1f30afdfef2807dc1dfa449b227058a1c9c859fd37a2b92226c944fdefbbc4"
+    },
+    "claude-code-hooks:project": {
+      ".claude/.gitignore": "3ee2f9b2508d6bff98c2c2cf5984780d04dadc74f39ac3b577a955b20e58431f",
+      ".claude/hooks/spellwarden_guard.py": "3c1e17cd7718e92e72643474a74d1499cd3ba1478d7dfaaaa27fa03ff2327172",
+      ".claude/settings.json": "1df69f11b7c3b5e7ee28360cafc108de105336ee36099cf46867f54f56a40862",
+      "SHA256SUMS": "1588bb0ad5f287d746aeda41665d6d13f351bd67ff0c1e3198a8b36fae2d521a",
+      "SPELLWARDEN-README.md": "b9c537044735ee9227dc7c840f4887841f5d1309c4928730ed623a2fae7c6b6c"
+    },
+    "kong:project": {
+      "SPELLWARDEN-README.md": "5045453bb90929fbd7fa662a65a6777999bae2f2cfb7138ce1b84a00667ee313",
+      "kong/spellwarden-3b1e8c2a9d7f4e605a1b2c3d4e5f6071-1.2.yaml": "ae40856ca31f74ff14aba081a560d2cbe8debd26fa0dd767c5acdb0f1efeb63e"
+    }
+  }
+}
