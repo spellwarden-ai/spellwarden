@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.6.0 (RELEASE_DATE)
+## 1.6.0 (2026-10-28)
 
 The Zuplo export. A published policy pack can be exported to Zuplo's MCP Gateway, next to Claude Code hooks and Kong:
 `build_export(pack, "zuplo", built_at=...)` returns five files, a TypeScript outbound policy for Zuplo (the same file for
@@ -20,7 +20,8 @@ a Zuplo project is wired as the export requires, a README and `SHA256SUMS`.
 - New public names in `spellwarden_scan.exports.zuplo` (`zuplo_files`, `zuplo_part`, `options_sha256`, `JS_REASON`,
   `POLICY_NAME`, `GUARD_PATH`, `POLICIES_PATH`, `CHECK_PATH`) and `spellwarden_scan.packs.TARGET_SINCE`.
 - `make check-node` runs the guard and the check script under Node 24 against `fixtures/zuplo_vectors.json`; `make check`
-  stays Python-only. The rules version stays `2026.10.6` and the number of rules 60: no detection rule changed.
+  stays Python-only, and the release workflow runs both before it publishes. The rules version stays `2026.10.6` and the
+  number of rules 60: no detection rule changed.
 
 ## 1.5.0 (2026-10-27)
 
