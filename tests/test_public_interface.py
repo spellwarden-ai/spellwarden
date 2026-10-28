@@ -82,3 +82,34 @@ def test_pattern_limits_are_the_numbers_of_spec_5_2_2_and_read_only():
         pass
     else:  # pragma: no cover
         raise AssertionError("PATTERN_LIMITS must be a read-only mapping")
+
+
+# Runtime traces spec 4.7: the names of the subpackage `spellwarden_scan.otel` (1.7.0). The package does not import it,
+# and its `__all__` does not change (checked above).
+OTEL_NAMES = (
+    "CONTENT_KINDS", "ContentItem", "DEFAULT_LIMITS", "DIALECTS", "Normalised", "OtlpError", "OtlpLimits", "OtlpRequest",
+    "RECORD_KINDS", "Record", "ResourceInfo", "Stats", "count_records", "decode", "decompress", "encode_status",
+    "encode_success", "normalise",
+)
+
+
+def test_1_7_0_adds_the_otel_subpackage_and_pins_its_limits():
+    from spellwarden_scan import otel
+
+    assert otel.OTEL_NAMES == OTEL_NAMES
+    assert sorted(otel.__all__) == sorted(("OTEL_NAMES", *OTEL_NAMES))
+    for name in OTEL_NAMES:
+        assert hasattr(otel, name), name
+        assert name not in spellwarden_scan.__all__, name
+    limits = otel.DEFAULT_LIMITS
+    assert (limits.max_records, limits.max_depth, limits.max_attributes, limits.max_events, limits.max_value_bytes) == (
+        20_000, 16, 512, 256, 1_048_576)
+    try:
+        limits.max_records = 1  # type: ignore[misc]
+    except AttributeError:
+        pass
+    else:  # pragma: no cover
+        raise AssertionError("DEFAULT_LIMITS must be frozen")
+    assert otel.DIALECTS == ("claude_code", "claude_platform", "openinference", "genai_legacy", "genai", "mcp")
+    assert otel.RECORD_KINDS == ("agent", "model", "tool", "mcp", "decision", "connection", "skill", "content", "other")
+    assert otel.CONTENT_KINDS == ("system", "input", "output", "tool_arguments", "tool_result", "prompt", "response")

@@ -46,6 +46,7 @@ include = ["src/spellwarden_scan", "src/spellwarden_cli", "tests", "fixtures", "
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = ["slow: a timing test (runtime traces spec 4.9); `make check` and CI run it, with SPELLWARDEN_SPEED_FACTOR in CI"]
 
 [tool.ruff]
 line-length = 130
