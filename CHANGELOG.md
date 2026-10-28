@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.7.0 (RELEASE_DATE)
+## 1.7.0 (2026-10-28)
 
 Runtime traces. A new subpackage, `spellwarden_scan.otel`, reads OpenTelemetry traces and logs as Spellwarden's hosted
 receiver will read them: `decompress` and `decode` take an OTLP/HTTP request body (protobuf or JSON, gzip or not; the protobuf
