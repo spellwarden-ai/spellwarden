@@ -200,6 +200,7 @@ class _Context:
 # --- decompress -----------------------------------------------------------------------------------------------------
 
 _GZIP_MAGIC = b"\x1f\x8b"
+_GZIP_WINDOW = 1024
 
 
 def decompress(body: bytes, content_encoding: str | None, *, max_bytes: int) -> bytes:
@@ -212,24 +213,28 @@ def decompress(body: bytes, content_encoding: str | None, *, max_bytes: int) -> 
     if encoding != "gzip":
         raise OtlpError("unsupported_encoding", encoding)
     out = bytearray()
-    data = bytes(body)
-    if not data:
+    view = memoryview(body)
+    if not len(view):
         raise OtlpError("malformed", "empty gzip body")
-    while True:
-        inflater = zlib.decompressobj(16 + zlib.MAX_WBITS)
-        try:
-            out += inflater.decompress(data, max_bytes + 1 - len(out))
-        except zlib.error as exc:
-            raise OtlpError("malformed", "corrupt gzip stream") from exc
-        if len(out) > max_bytes:
-            raise OtlpError("too_large", f"more than {max_bytes} bytes uncompressed")
-        if not inflater.eof:
-            raise OtlpError("malformed", "truncated gzip stream")
-        data = inflater.unused_data
-        if not data:
-            return bytes(out)
-        if not data.startswith(_GZIP_MAGIC):
+    # The inflater copies whatever it did not consume into `unused_data`, so it is fed a window at a time and the
+    # position moves by offset: one copy of the whole remainder per member would be quadratic in the member count.
+    position = 0
+    while position < len(view):
+        if position and bytes(view[position : position + 2]) != _GZIP_MAGIC:
             raise OtlpError("malformed", "trailing bytes after the gzip stream")
+        inflater = zlib.decompressobj(16 + zlib.MAX_WBITS)
+        while not inflater.eof:
+            if position >= len(view):
+                raise OtlpError("malformed", "truncated gzip stream")
+            window = view[position : position + _GZIP_WINDOW]
+            try:
+                out += inflater.decompress(window, max_bytes + 1 - len(out))
+            except zlib.error as exc:
+                raise OtlpError("malformed", "corrupt gzip stream") from exc
+            if len(out) > max_bytes:
+                raise OtlpError("too_large", f"more than {max_bytes} bytes uncompressed")
+            position += len(window) - len(inflater.unused_data)
+    return bytes(out)
 
 
 # --- protobuf -------------------------------------------------------------------------------------------------------

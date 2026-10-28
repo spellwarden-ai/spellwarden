@@ -99,3 +99,13 @@ def test_concatenated_members_inflate_and_other_trailing_bytes_are_malformed():
         with pytest.raises(OtlpError) as raised:
             decompress(body, "gzip", max_bytes=100)
         assert raised.value.reason == "malformed", body
+
+
+@pytest.mark.parametrize("payload", [b"", b"x"])
+def test_decompress_many_members_costs_linear_time(payload):
+    # r0:F3: re-slicing the remaining input per member made this quadratic (about 6.7 s for 4 MiB of empty members).
+    member = gzip.compress(payload)
+    body = member * ((4 << 20) // len(member))
+    started = time.monotonic()
+    assert decompress(body, "gzip", max_bytes=16 << 20) == payload * (len(body) // len(member))
+    assert time.monotonic() - started < 2
