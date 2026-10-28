@@ -54,6 +54,24 @@ def test_int64_as_strings_or_numbers_and_enums_as_integers():
     assert span.attributes["c"] != span.attributes["c"]
 
 
+@pytest.mark.parametrize("span", [
+    {"startTimeUnixNano": "18446744073709551616"}, {"startTimeUnixNano": "-5", "endTimeUnixNano": "-1"},
+    {"endTimeUnixNano": 1e30}, {"kind": 2**31}, {"status": {"code": -(2**31) - 1}},
+    {"attributes": [{"key": "n", "value": {"intValue": "9223372036854775808"}}]},
+    {"events": [{"timeUnixNano": "-1"}]},
+])
+def test_integers_outside_their_protobuf_type_are_malformed(span):
+    with pytest.raises(OtlpError) as raised:
+        decode(_one_span(span), signal="traces", encoding="json")
+    assert raised.value.reason == "malformed"
+
+
+def test_integers_at_the_ends_of_their_protobuf_type_decode():
+    span = _span(_one_span({"startTimeUnixNano": "18446744073709551615", "kind": -(2**31),
+                            "attributes": [{"key": "n", "value": {"intValue": "-9223372036854775808"}}]}))
+    assert (span.start_time_unix_nano, span.kind, span.attributes["n"]) == (2**64 - 1, -(2**31), -(2**63))
+
+
 def test_unknown_keys_are_ignored_and_snake_case_is_accepted():
     body = json_bytes({"resource_spans": [{"resource": {"attributes": [{"key": "service.name", "value": {"string_value": "svc"}}]},
                                            "scope_spans": [{"scope": {"name": "s"}, "spans": [

@@ -523,18 +523,28 @@ def _dict(value: object) -> dict:
     return value
 
 
-def _json_int(value: object) -> int:
+# The range of each integer field's protobuf type, so that OTLP/JSON holds no value the protobuf encoding cannot.
+_UINT64 = (0, 2**64 - 1)  # fixed64 times
+_INT64 = (-(2**63), 2**63 - 1)  # AnyValue.int_value
+_INT32 = (-(2**31), 2**31 - 1)  # enums: span kind, status code, severity number
+
+
+def _json_int(value: object, bounds: tuple[int, int]) -> int:
     if value is None:
         return 0
     if isinstance(value, bool):
         raise OtlpError("malformed", "a boolean where an integer was expected")
     if isinstance(value, int):
-        return value
-    if isinstance(value, float) and value.is_integer():
-        return int(value)
-    if isinstance(value, str) and _INT.fullmatch(value):
-        return int(value)
-    raise OtlpError("malformed", "an integer was expected")
+        number = value
+    elif isinstance(value, float) and value.is_integer():
+        number = int(value)
+    elif isinstance(value, str) and _INT.fullmatch(value):
+        number = int(value)
+    else:
+        raise OtlpError("malformed", "an integer was expected")
+    if not bounds[0] <= number <= bounds[1]:
+        raise OtlpError("malformed", "an integer out of its field's range")
+    return number
 
 
 def _json_str(value: object, ctx: _Context) -> str:
@@ -578,7 +588,7 @@ def _json_any(value: object, ctx: _Context, depth: int) -> Value:
             raise OtlpError("malformed", "boolValue is not a boolean")
         return flag
     if "intValue" in obj or "int_value" in obj:
-        return _json_int(_get(obj, "intValue", "int_value"))
+        return _json_int(_get(obj, "intValue", "int_value"), _INT64)
     if "doubleValue" in obj or "double_value" in obj:
         return _json_double(_get(obj, "doubleValue", "double_value"))
     if "arrayValue" in obj or "array_value" in obj:
@@ -621,7 +631,8 @@ def _json_span(obj: dict, ctx: _Context) -> Span:
             ctx.events_skipped += 1
             continue
         event = _dict(item)
-        events.append(SpanEvent(_json_str(event.get("name"), ctx), _json_int(_get(event, "timeUnixNano", "time_unix_nano")),
+        events.append(SpanEvent(_json_str(event.get("name"), ctx),
+                                _json_int(_get(event, "timeUnixNano", "time_unix_nano"), _UINT64),
                                 _json_attributes(event, ctx)))
     status = _dict(obj.get("status"))
     return Span(
@@ -629,21 +640,21 @@ def _json_span(obj: dict, ctx: _Context) -> Span:
         span_id=_json_id(_get(obj, "spanId", "span_id"), _HEX16),
         parent_span_id=_json_id(_get(obj, "parentSpanId", "parent_span_id"), _HEX16),
         name=_json_str(obj.get("name"), ctx),
-        kind=_json_int(obj.get("kind")),
-        start_time_unix_nano=_json_int(_get(obj, "startTimeUnixNano", "start_time_unix_nano")),
-        end_time_unix_nano=_json_int(_get(obj, "endTimeUnixNano", "end_time_unix_nano")),
+        kind=_json_int(obj.get("kind"), _INT32),
+        start_time_unix_nano=_json_int(_get(obj, "startTimeUnixNano", "start_time_unix_nano"), _UINT64),
+        end_time_unix_nano=_json_int(_get(obj, "endTimeUnixNano", "end_time_unix_nano"), _UINT64),
         attributes=_json_attributes(obj, ctx),
         events=tuple(events),
-        status=SpanStatus(_json_int(status.get("code")), _json_str(status.get("message"), ctx)),
+        status=SpanStatus(_json_int(status.get("code"), _INT32), _json_str(status.get("message"), ctx)),
     )
 
 
 def _json_log(obj: dict, ctx: _Context) -> LogRecord:
     ctx.record()
     return LogRecord(
-        time_unix_nano=_json_int(_get(obj, "timeUnixNano", "time_unix_nano")),
-        observed_time_unix_nano=_json_int(_get(obj, "observedTimeUnixNano", "observed_time_unix_nano")),
-        severity_number=_json_int(_get(obj, "severityNumber", "severity_number")),
+        time_unix_nano=_json_int(_get(obj, "timeUnixNano", "time_unix_nano"), _UINT64),
+        observed_time_unix_nano=_json_int(_get(obj, "observedTimeUnixNano", "observed_time_unix_nano"), _UINT64),
+        severity_number=_json_int(_get(obj, "severityNumber", "severity_number"), _INT32),
         body=_json_any(obj.get("body"), ctx, 1) if obj.get("body") is not None else None,
         attributes=_json_attributes(obj, ctx),
         trace_id=_json_id(_get(obj, "traceId", "trace_id"), _HEX32),
