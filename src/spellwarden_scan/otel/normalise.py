@@ -153,11 +153,23 @@ def _cut(text: str, limit: int) -> str:
     return text if len(text) <= limit else text[:limit - 1] + "…"
 
 
+def _encodable(text: str) -> str:
+    """`text` with each lone surrogate replaced as `otlp` replaces them: a nested JSON parse (Claude Code's
+    `tool_parameters`) can decode a `\\ud800`-style escape that the outer string only held as six ASCII characters."""
+    if text.isascii():
+        return text
+    try:
+        text.encode("utf-8")
+    except UnicodeEncodeError:
+        return text.encode("utf-8", "surrogatepass").decode("utf-8", "replace")
+    return text
+
+
 def _plain_text(value: object) -> str | None:
-    """C0 and C1 controls removed, NFC; None for a non-string or an empty result."""
+    """C0 and C1 controls removed, lone surrogates replaced, NFC; None for a non-string or an empty result."""
     if not isinstance(value, str):
         return None
-    text = unicodedata.normalize("NFC", _CONTROL.sub("", value))
+    text = unicodedata.normalize("NFC", _CONTROL.sub("", _encodable(value)))
     return text or None
 
 
@@ -233,7 +245,7 @@ def kept_skill_uri(value: object) -> str | None:
         return url
     if not isinstance(value, str) or _CONTROL.search(value) or "\x7f" in value or "@" in value:
         return None
-    text = unicodedata.normalize("NFC", value).strip()
+    text = unicodedata.normalize("NFC", _encodable(value)).strip()
     match = _SCHEME_TEXT.fullmatch(text.split("?", 1)[0].split("#", 1)[0])
     if match is None or match.group(1)[:-1].lower() in _SPECIAL_SCHEMES:
         return None
