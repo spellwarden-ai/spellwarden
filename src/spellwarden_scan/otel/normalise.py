@@ -143,7 +143,7 @@ _CONTROL = re.compile("[\x00-\x1f\x80-\x9f]")
 _EMAIL = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
 _DECIMAL = re.compile(r"-?[0-9]{1,19}")
 _TOKEN_SEGMENT = re.compile(r"(?=[^/]*[A-Za-z])(?=[^/]*[0-9])[^/]{20,}")
-_SCHEME_TEXT = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*:[^?#]*")
+_SCHEME_TEXT = re.compile(r"([A-Za-z][A-Za-z0-9+.-]*:)(///[^?#]*|(?![/\\])[^?#/@]*(?:/[^?#]*)?)")
 _DEFAULT_PORTS = {"https": 443, "http": 80}
 _MAX_TOKENS = 10**9
 
@@ -220,16 +220,20 @@ def kept_url(value: object) -> str | None:
 
 
 def kept_skill_uri(value: object) -> str | None:
-    """`gen_ai.skill.source.uri`: as `kept_url`, else (no host, as `file:///opt/skills/code-review`) the scheme and
-    path text without query or fragment, cut to 2048."""
+    """`gen_ai.skill.source.uri`: as `kept_url`, else, only for a value with no authority (`file:///opt/skills/x`,
+    `scheme:` and a path), the scheme and path text without query or fragment, token-like segments replaced by `***`,
+    cut to 2048. A value with an authority or userinfo that `kept_url` refuses leaves the field absent."""
     url = kept_url(value)
     if url is not None:
         return url
     text = _plain_text(value)
     if text is None:
         return None
-    match = _SCHEME_TEXT.match(text.strip())
-    return None if match is None else _cut(match.group(0), 2048)
+    match = _SCHEME_TEXT.fullmatch(text.strip().split("?", 1)[0].split("#", 1)[0])
+    if match is None:
+        return None
+    path = "/".join("***" if _TOKEN_SEGMENT.fullmatch(segment) else segment for segment in match.group(2).split("/"))
+    return _cut(match.group(1) + path, 2048)
 
 
 def _first(attributes: dict, names: tuple[str, ...], limit: int) -> str | None:
