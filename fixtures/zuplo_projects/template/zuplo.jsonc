@@ -1,0 +1,7 @@
+// The settings of a Zuplo project, with the comments and the trailing commas that zuplo.jsonc allows.
+{
+  "version": 1,
+  /* The MCP Gateway needs 2026-03-01 or later. */
+  "compatibilityDate": "2026-03-01",
+  "note": "a string with // slashes, /* a comment */ and a trailing comma,}",
+}

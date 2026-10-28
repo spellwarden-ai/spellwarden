@@ -1,0 +1,6 @@
+{
+  "policies": [
+    {"name": "mcp-oauth", "policyType": "mcp-oauth-inbound", "handler": {"export": "McpOAuthInboundPolicy", "module": "$import(@zuplo/runtime)", "options": {}}},
+    {"name": "token-exchange", "policyType": "mcp-token-exchange-inbound", "handler": {"export": "McpTokenExchangeInboundPolicy", "module": "$import(@zuplo/runtime)", "options": {"authMode": "user-oauth"}}}
+  ]
+}
