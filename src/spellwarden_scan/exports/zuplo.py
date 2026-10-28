@@ -264,8 +264,9 @@ LIMITS = [
     "Text is normalised before matching: invisible characters are removed and the text is NFKC-normalised. An org rule "
     "written to find invisible or compatibility characters never matches here.",
     "The patterns are the engine's, run as JavaScript regular expressions without the `u` flag. `.` and `{m,n}` count UTF-16 "
-    "code units and `.` does not match U+2028 or U+2029; `\\s` does not match U+0085; `\\d`, `\\w` and `\\b` are ASCII; case "
-    "folding is JavaScript's; windows count UTF-16 code units; and the guard and the scanner read their own Unicode tables. "
+    "code units and `.` does not match U+2028 or U+2029; `\\s` does not match U+001C to U+001F or U+0085; `\\d`, `\\w` "
+    "and `\\b` are ASCII; case folding is JavaScript's; windows count UTF-16 code units; and the guard and the scanner read "
+    "their own Unicode tables. "
     "An org rule can miss a match longer than 512 characters that crosses a 4096-character window boundary, as in the hooks "
     "export.",
     "A response over `maxBodyBytes` (1 MiB; at most 16 MiB) is blocked unless `onTooLarge` is `allow`. A response that cannot "

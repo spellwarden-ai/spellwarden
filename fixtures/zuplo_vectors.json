@@ -1820,6 +1820,15 @@
    }
   },
   {
+   "name": "U+001F is not JavaScript white space",
+   "checks": "foo_s",
+   "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"foo\\u001fbar\"}]}}",
+   "engine_differs": true,
+   "expect": {
+    "outcome": "pass"
+   }
+  },
+  {
    "name": "a space is white space",
    "checks": "foo_s",
    "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"foo bar\"}]}}",
