@@ -28,6 +28,8 @@ Source = "https://github.com/spellwarden-ai/spellwarden"
 [dependency-groups]
 dev = [
     "jsonschema>=4.23",
+    # the reference OTLP decoder of tests/otel (runtime traces spec 4.9); never imported by the package (tests/test_pure.py)
+    "opentelemetry-proto==1.45.1",
     "pytest>=8.3",
     "ruff>=0.6",
 ]

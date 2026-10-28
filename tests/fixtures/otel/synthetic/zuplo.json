@@ -1,0 +1,18 @@
+{
+ "producer": "Zuplo MCP Gateway, OpenTelemetry plugin (Enterprise export)",
+ "source": "https://zuplo.com/docs/articles/opentelemetry",
+ "read": "2026-10-28",
+ "note": "Written from the documented spans, not recorded: JSON only; request, inbound policy, handler and fetch spans with no MCP or GenAI attributes, so Spellwarden ignores every one.",
+ "signal": "traces",
+ "encoding": "json",
+ "body": {"resourceSpans": [{"resource": {"attributes": [{"key": "service.name", "value": {"stringValue": "zuplo-mcp-gateway"}}]},
+  "scopeSpans": [{"scope": {"name": "zuplo"}, "spans": [
+   {"traceId": "c0ffee00c0ffee00c0ffee00c0ffee00", "spanId": "bb00000000000001", "name": "request", "kind": 2,
+    "startTimeUnixNano": "1761600200000000000", "endTimeUnixNano": "1761600200800000000",
+    "attributes": [{"key": "http.request.method", "value": {"stringValue": "POST"}}, {"key": "url.path", "value": {"stringValue": "/mcp"}}]},
+   {"traceId": "c0ffee00c0ffee00c0ffee00c0ffee00", "spanId": "bb00000000000002", "parentSpanId": "bb00000000000001", "name": "mcp-oauth-inbound", "kind": 1,
+    "startTimeUnixNano": "1761600200010000000", "endTimeUnixNano": "1761600200050000000", "attributes": []},
+   {"traceId": "c0ffee00c0ffee00c0ffee00c0ffee00", "spanId": "bb00000000000003", "parentSpanId": "bb00000000000001", "name": "fetch", "kind": 3,
+    "startTimeUnixNano": "1761600200100000000", "endTimeUnixNano": "1761600200700000000",
+    "attributes": [{"key": "server.address", "value": {"stringValue": "upstream.example.com"}}]}]}]}]}
+}
