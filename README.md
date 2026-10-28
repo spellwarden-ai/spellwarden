@@ -219,7 +219,7 @@ A policy pack is a JSON document (schema 1, `schemas/pack.schema.json`) naming w
 
 The enforcement rules (`ENFORCEMENT_RULES`), and what an export of this release enforces:
 
-| Id | Rule | Enforced by (1.1.0) |
+| Id | Rule | Enforced by (1.6.0) |
 |---|---|---|
 | `SW-HK-001` | Block remote scripts piped to a shell in agent shell tools | Claude Code hooks |
 | `SW-HK-002` | Block reads of credential files (`~/.aws`, `~/.ssh`, `.env`) | Claude Code hooks |
