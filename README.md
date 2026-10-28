@@ -392,6 +392,7 @@ spellwarden baseline list [PATH]
 spellwarden rules [--format text|json|markdown]
 spellwarden ci comment --provider github|gitlab --body FILE
 spellwarden ci-run gitlab
+spellwarden otel normalise PATH --signal traces|logs [--encoding auto|protobuf|json] [--content] [--max-records N] [--max-bytes N]
 spellwarden version
 ```
 
@@ -784,6 +785,28 @@ A package's identity is a hash over its bytes, as a forge archive of its directo
 ### Schemas and compatibility
 
 `schemas/` holds JSON Schemas (draft 2020-12) for the settings, the baseline, the lock file and the JSON report, including every closed list of values. Readers of the report must ignore fields they do not know; the settings and the baseline refuse them. From 1.0.0, removing or renaming a field or a value, or changing an exit code, is a major version; adding an optional field, a notice code or a rule is a minor one. Since 1.3.0 the report holds an optional `agents` list (one entry per A2A agent card the run read or fetched, written only when there is one), the rule-id pattern of the report and the baseline schema is `^SW-(SKL|MCP|CFG|REG|A2A|ORG)-[0-9]{3}$`, and the settings schema has the `a2a` mapping. A 1.2.x scanner refuses a settings file with an `a2a` mapping (`settings_invalid`, unknown key) and a baseline with an `SW-A2A` entry, as it would any later key or rule; a team that runs two scanner versions against one repository must upgrade both. In the same way a 1.3.x scanner refuses a baseline with an `SW-A2A-019` entry, the rule 1.4.0 added. Since 1.2.0 the report holds an optional `connected` block when a run was connected (the credential kind, the organisation, the run, the policy applied, the registry gate's counts and items, and the upload outcome), and `upload_truncated` and `upload_truncated_fields` after an upload that was cut; a free run adds none of them.
+
+## What Spellwarden keeps from your telemetry
+
+Spellwarden's hosted receiver at `https://otel.spellwarden.ai` accepts OpenTelemetry traces and logs over OTLP/HTTP (protobuf or JSON, gzip or not) from agents and gateways. The code that decides what it keeps is this package's `spellwarden_scan.otel` (since 1.7.0, standard library only, with its own protobuf reader), and the same code runs on your machine:
+
+```
+spellwarden otel normalise PATH --signal traces|logs [--encoding auto|protobuf|json] [--content] [--max-records N] [--max-bytes N]
+```
+
+It reads one file (an OTLP/HTTP request body, as your exporter would send it), inflates it when it is gzip, and prints `{"stats", "resources", "records"}` as JSON: every record Spellwarden would keep and the counts of what it would ignore. `--signal` is required for protobuf, since a traces body and a logs body cannot be told apart on the wire; for JSON it is read from `resourceSpans` or `resourceLogs`. `--content` also prints the content Spellwarden keeps only when an owner of your organisation turns content storage on. The command opens no network connection and needs no key; it exits 0, or 2 on a usage error or a body it refuses (the reason is on stderr: `malformed`, `too_large`, `too_many_records`, `too_deep` or `unsupported_encoding`).
+
+The rules, in short:
+
+- **An allow-list.** A field is kept only if the list of fields below names it. Every other attribute, resource attribute, event, link and body is dropped, including `user.id`, `user.email`, `user.account_uuid`, `enduser.id`, `organization.id`, `client.address` and host names. Session ids are kept as sent (cut to 128 characters), except that one shaped like an email address is replaced by a hash.
+- **Dialects** (`DIALECTS`), the first that matches: `claude_code` (span names `claude_code.*`, and Claude Code's log events), `claude_platform` (span names `anthropic.*` from the service `claude-platform`), `openinference` (`openinference.span.kind`), `genai_legacy` (`gen_ai.system` without `gen_ai.provider.name`), `genai` (`gen_ai.operation.name` or `gen_ai.provider.name`), `mcp` (`mcp.method.name`). A span of no dialect is ignored. Log records are kept for Claude Code's events (`api_request`, `api_error`, `tool_result`, `tool_decision`, `safety_event`, `skill_activated`, `mcp_server_connection`, `user_prompt`, `assistant_response`) and GenAI's content events.
+- **Record kinds** (`RECORD_KINDS`): `agent`, `model`, `tool`, `mcp`, `decision`, `connection`, `skill`, `content`, `other`. A record is `counted` when its kind is one of the first seven, except Claude Code's beta spans (Claude Code is counted from its log events) and a `safety_event` with no `tool_decision` to fold into. `other` records (chains, retrievers, Claude Code's execution and hook spans) are kept up to 100 a request or twice the counted ones, whichever is more.
+- **Fields of a record** (`Record`): the signal, dialect, kind, `counted` and the resource; the scope name; trace, span and parent span ids; the name; start, end and duration; MCP side (`client` or `server`); status (`ok`, `error`, `unset`), the error type and the JSON-RPC status code; the session (`conversation` or `session`, and its id); the GenAI operation, agent name, provider, model and token counts; the tool name, call id and type; the MCP method, server name, server address and port; the URL (scheme, host, port and path only, with path segments that look like tokens replaced by `***`) and its identity hash; the skill name and source URI; the decision kind, outcome, source, category, reason code and rule source; and `names_redacted`, true when the producer sent a placeholder instead of a real name. Identifiers and names are never masked: they have control characters removed, are NFC and are cut to a fixed length.
+- **Resources** (`ResourceInfo`): `service.name` (or `unknown_service`), `service.version`, `deployment.environment.name` and `telemetry.sdk.language`. Nothing else.
+- **Content** (`CONTENT_KINDS`: `system`, `input`, `output`, `tool_arguments`, `tool_result`, `prompt`, `response`) is a closed list of named attributes and events, such as `gen_ai.input.messages`, `gen_ai.tool.call.arguments`, OpenInference's `input.value` and Claude Code's `prompt`. It is built only when asked for (`normalise(request, content=True)`), cut to 32 KiB an item and 128 KiB a record, and returned apart from the record's fields. Spellwarden's service drops it unless your organisation turned content storage on, and masks credentials in it before storing it for 30 days.
+- **Bounds** (`DEFAULT_LIMITS`): at most 20,000 records a request and values nested 16 deep (a request past either is refused); at most 512 attributes on any one item and 256 events on a span, and 1 MiB for one value (the rest is skipped or cut, and counted).
+
+The receiver refuses bodies over 4 MiB as sent or 16 MiB decompressed: batch at 2,000 records, or turn gzip on.
 
 ## Versions
 
