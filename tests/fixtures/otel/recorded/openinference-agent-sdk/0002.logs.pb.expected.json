@@ -1,0 +1,70 @@
+{
+ "records": [
+  {
+   "counted": true,
+   "dialect": "claude_code",
+   "duration_ms": 2185,
+   "end_ns": 1793204909679000000,
+   "input_tokens": 1387,
+   "kind": "model",
+   "model": "claude-haiku-5-5",
+   "name": "claude_code.api_request",
+   "output_tokens": 285,
+   "provider": "anthropic",
+   "resource": 0,
+   "scope": "com.anthropic.claude_code.events",
+   "session_source": "session",
+   "session_value": "6028f018-0db2-654a-8711-7c488c32afb7",
+   "signal": "log",
+   "span_id": "3b866f596008f3f2",
+   "start_ns": 1793204909679000000,
+   "status": "unset",
+   "trace_id": "365d1dd830a3076d0515b024809f454e"
+  },
+  {
+   "content": [
+    {
+     "cut": false,
+     "kind": "response",
+     "text": "{\"title\":\"Spellwarden hook telemetry test\"}"
+    }
+   ],
+   "counted": false,
+   "dialect": "claude_code",
+   "end_ns": 1793204909679000000,
+   "kind": "content",
+   "model": "claude-haiku-5-5",
+   "name": "claude_code.assistant_response",
+   "provider": "anthropic",
+   "resource": 0,
+   "scope": "com.anthropic.claude_code.events",
+   "session_source": "session",
+   "session_value": "6028f018-0db2-654a-8711-7c488c32afb7",
+   "signal": "log",
+   "span_id": "3b866f596008f3f2",
+   "start_ns": 1793204909679000000,
+   "status": "unset",
+   "trace_id": "365d1dd830a3076d0515b024809f454e"
+  }
+ ],
+ "resources": [
+  {
+   "service_name": "claude-code",
+   "service_version": "2.1.310"
+  }
+ ],
+ "stats": {
+  "attributes_skipped": 0,
+  "by_dialect": {
+   "claude_code": 2
+  },
+  "content_cut": 0,
+  "content_items": 1,
+  "counted": 1,
+  "events_skipped": 0,
+  "ignored": 0,
+  "kept": 2,
+  "log_records": 2,
+  "spans": 0
+ }
+}

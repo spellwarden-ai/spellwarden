@@ -1,0 +1,90 @@
+{
+ "records": [
+  {
+   "content": [
+    {
+     "cut": false,
+     "kind": "system",
+     "text": "{\"content\":\"Answer questions about orders.\"}"
+    }
+   ],
+   "counted": false,
+   "dialect": "genai",
+   "end_ns": 1793205015981864574,
+   "kind": "content",
+   "name": "gen_ai.system.message",
+   "provider": "openai",
+   "resource": 0,
+   "scope": "opentelemetry.instrumentation.openai_v2",
+   "signal": "log",
+   "span_id": "d332e817fbfd1682",
+   "start_ns": 1793205015981864574,
+   "status": "unset",
+   "trace_id": "b7217b6db7e71a7c11e7f3a042ca24c0"
+  },
+  {
+   "content": [
+    {
+     "cut": false,
+     "kind": "input",
+     "text": "{\"content\":\"Where is order 42?\"}"
+    }
+   ],
+   "counted": false,
+   "dialect": "genai",
+   "end_ns": 1793205015981922607,
+   "kind": "content",
+   "name": "gen_ai.user.message",
+   "provider": "openai",
+   "resource": 0,
+   "scope": "opentelemetry.instrumentation.openai_v2",
+   "signal": "log",
+   "span_id": "d332e817fbfd1682",
+   "start_ns": 1793205015981922607,
+   "status": "unset",
+   "trace_id": "b7217b6db7e71a7c11e7f3a042ca24c0"
+  },
+  {
+   "content": [
+    {
+     "cut": false,
+     "kind": "output",
+     "text": "{\"index\":0,\"finish_reason\":\"tool_calls\",\"message\":{\"role\":\"assistant\",\"tool_calls\":[{\"id\":\"call_gate0001\",\"type\":\"function\",\"function\":{\"name\":\"get_order\",\"arguments\":\"{\\\"order_id\\\":\\\"42\\\"}\"}}]}}"
+    }
+   ],
+   "counted": false,
+   "dialect": "genai",
+   "end_ns": 1793205015988923980,
+   "kind": "content",
+   "name": "gen_ai.choice",
+   "provider": "openai",
+   "resource": 0,
+   "scope": "opentelemetry.instrumentation.openai_v2",
+   "signal": "log",
+   "span_id": "d332e817fbfd1682",
+   "start_ns": 1793205015988923980,
+   "status": "unset",
+   "trace_id": "b7217b6db7e71a7c11e7f3a042ca24c0"
+  }
+ ],
+ "resources": [
+  {
+   "sdk_language": "python",
+   "service_name": "gate-openai-legacy"
+  }
+ ],
+ "stats": {
+  "attributes_skipped": 0,
+  "by_dialect": {
+   "genai": 3
+  },
+  "content_cut": 0,
+  "content_items": 3,
+  "counted": 0,
+  "events_skipped": 0,
+  "ignored": 0,
+  "kept": 3,
+  "log_records": 3,
+  "spans": 0
+ }
+}

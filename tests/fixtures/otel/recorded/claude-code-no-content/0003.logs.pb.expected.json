@@ -1,0 +1,96 @@
+{
+ "records": [
+  {
+   "counted": true,
+   "decision_kind": "tool_decision",
+   "decision_outcome": "accept",
+   "decision_source": "config",
+   "dialect": "claude_code",
+   "end_ns": 1793204746481000000,
+   "kind": "decision",
+   "name": "claude_code.tool_decision",
+   "provider": "anthropic",
+   "resource": 0,
+   "scope": "com.anthropic.claude_code.events",
+   "session_source": "session",
+   "session_value": "6028f018-0db2-654a-8711-7c488c32afb7",
+   "signal": "log",
+   "span_id": "b2018d41ad6848b5",
+   "start_ns": 1793204746481000000,
+   "status": "unset",
+   "tool_call_id": "toolu_01RzdtaM1BZAfyfUeh37TikU",
+   "tool_name": "ToolSearch",
+   "tool_type": "builtin",
+   "trace_id": "54c084f81bc2940541dd1800285babb2"
+  },
+  {
+   "content": [
+    {
+     "cut": false,
+     "kind": "tool_arguments",
+     "text": "{\"query\":\"select:mcp__gate-orders__get_order,mcp__gate-search__search_orders\",\"max_results\":2}"
+    }
+   ],
+   "counted": true,
+   "dialect": "claude_code",
+   "duration_ms": 2,
+   "end_ns": 1793204746484000000,
+   "kind": "tool",
+   "name": "claude_code.tool_result",
+   "provider": "anthropic",
+   "resource": 0,
+   "scope": "com.anthropic.claude_code.events",
+   "session_source": "session",
+   "session_value": "6028f018-0db2-654a-8711-7c488c32afb7",
+   "signal": "log",
+   "span_id": "2011245c45844253",
+   "start_ns": 1793204746484000000,
+   "status": "ok",
+   "tool_call_id": "toolu_01RzdtaM1BZAfyfUeh37TikU",
+   "tool_name": "ToolSearch",
+   "trace_id": "54c084f81bc2940541dd1800285babb2"
+  },
+  {
+   "counted": true,
+   "dialect": "claude_code",
+   "duration_ms": 1628,
+   "end_ns": 1793204746494000000,
+   "input_tokens": 19576,
+   "kind": "model",
+   "model": "claude-fable-5-1",
+   "name": "claude_code.api_request",
+   "output_tokens": 101,
+   "provider": "anthropic",
+   "resource": 0,
+   "scope": "com.anthropic.claude_code.events",
+   "session_source": "session",
+   "session_value": "6028f018-0db2-654a-8711-7c488c32afb7",
+   "signal": "log",
+   "skill_name": "order-lookup",
+   "span_id": "2011245c45844253",
+   "start_ns": 1793204746494000000,
+   "status": "unset",
+   "trace_id": "54c084f81bc2940541dd1800285babb2"
+  }
+ ],
+ "resources": [
+  {
+   "service_name": "claude-code",
+   "service_version": "2.1.312"
+  }
+ ],
+ "stats": {
+  "attributes_skipped": 0,
+  "by_dialect": {
+   "claude_code": 3
+  },
+  "content_cut": 0,
+  "content_items": 1,
+  "counted": 3,
+  "events_skipped": 0,
+  "ignored": 2,
+  "kept": 3,
+  "log_records": 5,
+  "spans": 0
+ }
+}

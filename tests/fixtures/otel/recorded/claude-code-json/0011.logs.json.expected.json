@@ -1,0 +1,105 @@
+{
+ "records": [
+  {
+   "counted": true,
+   "dialect": "claude_code",
+   "duration_ms": 8415,
+   "end_ns": 1793204738494000000,
+   "input_tokens": 20526,
+   "kind": "model",
+   "model": "claude-fable-5-1",
+   "name": "claude_code.api_request",
+   "output_tokens": 306,
+   "provider": "anthropic",
+   "resource": 0,
+   "scope": "com.anthropic.claude_code.events",
+   "session_source": "session",
+   "session_value": "6028f018-0db2-654a-8711-7c488c32afb7",
+   "signal": "log",
+   "skill_name": "order-lookup",
+   "span_id": "820ecddb9af0611b",
+   "start_ns": 1793204738494000000,
+   "status": "unset",
+   "trace_id": "eae2f114df021aa966c3523cb344efe2"
+  },
+  {
+   "content": [
+    {
+     "cut": false,
+     "kind": "response",
+     "text": "All three steps completed and recorded. Nothing in the chain needed a follow-up call.\n\n1. **Order lookup via the order-lookup skill.** The skill instructed a single call to get_order on the gate-orders server. It returned:\n\n   ```\n   order 42: shipped\n   ```\n\n2. **Search on the gate-search server.** The search_orders tool with query \"order 42\" returned:\n\n   ```\n   1 order matches 'order 42': order 42\n   ```\n\n3. **Spellwarden hook check.** The Bash call with the exact curl-pipe-to-sh command was blocked before execution. The PreToolUse hook answered:\n\n   ```\n   Spellwarden SW-HK-001: Block remote scripts piped to a shell in agent shell tools (pack Spellwarden Baseline for Agents 1.0).\n   ```\n\n   The command never ran, so nothing was fetched or piped. I did not retry or work around it, as instructed."
+    }
+   ],
+   "counted": false,
+   "dialect": "claude_code",
+   "end_ns": 1793204738495000000,
+   "kind": "content",
+   "model": "claude-fable-5-1",
+   "name": "claude_code.assistant_response",
+   "provider": "anthropic",
+   "resource": 0,
+   "scope": "com.anthropic.claude_code.events",
+   "session_source": "session",
+   "session_value": "6028f018-0db2-654a-8711-7c488c32afb7",
+   "signal": "log",
+   "span_id": "820ecddb9af0611b",
+   "start_ns": 1793204738495000000,
+   "status": "unset",
+   "trace_id": "eae2f114df021aa966c3523cb344efe2"
+  },
+  {
+   "counted": true,
+   "dialect": "claude_code",
+   "duration_ms": 33333,
+   "end_ns": 1793204738503000000,
+   "kind": "connection",
+   "mcp_server_name": "gate-search",
+   "name": "claude_code.mcp_server_connection",
+   "provider": "anthropic",
+   "resource": 0,
+   "scope": "com.anthropic.claude_code.events",
+   "session_source": "session",
+   "session_value": "6028f018-0db2-654a-8711-7c488c32afb7",
+   "signal": "log",
+   "start_ns": 1793204738503000000,
+   "status": "unset"
+  },
+  {
+   "counted": true,
+   "dialect": "claude_code",
+   "duration_ms": 33127,
+   "end_ns": 1793204738717000000,
+   "kind": "connection",
+   "mcp_server_name": "gate-orders",
+   "name": "claude_code.mcp_server_connection",
+   "provider": "anthropic",
+   "resource": 0,
+   "scope": "com.anthropic.claude_code.events",
+   "session_source": "session",
+   "session_value": "6028f018-0db2-654a-8711-7c488c32afb7",
+   "signal": "log",
+   "start_ns": 1793204738717000000,
+   "status": "unset"
+  }
+ ],
+ "resources": [
+  {
+   "service_name": "claude-code",
+   "service_version": "2.1.312"
+  }
+ ],
+ "stats": {
+  "attributes_skipped": 0,
+  "by_dialect": {
+   "claude_code": 4
+  },
+  "content_cut": 0,
+  "content_items": 1,
+  "counted": 3,
+  "events_skipped": 0,
+  "ignored": 0,
+  "kept": 4,
+  "log_records": 4,
+  "spans": 0
+ }
+}

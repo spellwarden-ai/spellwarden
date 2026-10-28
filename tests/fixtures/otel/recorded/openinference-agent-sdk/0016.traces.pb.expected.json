@@ -1,0 +1,90 @@
+{
+ "records": [
+  {
+   "counted": false,
+   "dialect": "claude_code",
+   "duration_ms": 5278,
+   "end_ns": 1793204938255563906,
+   "input_tokens": 16241,
+   "kind": "model",
+   "model": "claude-fable-5-1",
+   "name": "claude_code.llm_request",
+   "output_tokens": 172,
+   "parent_span_id": "3b866f596008f3f2",
+   "provider": "anthropic",
+   "resource": 0,
+   "scope": "com.anthropic.claude_code.tracing",
+   "session_source": "conversation",
+   "session_value": "6028f018-0db2-654a-8711-7c488c32afb7",
+   "signal": "span",
+   "span_id": "1aa9a5326a291234",
+   "start_ns": 1793204932977000000,
+   "status": "ok",
+   "trace_id": "365d1dd830a3076d0515b024809f454e"
+  },
+  {
+   "counted": false,
+   "decision_kind": "blocked_on_user",
+   "decision_outcome": "reject",
+   "decision_source": "hook",
+   "dialect": "claude_code",
+   "duration_ms": 0,
+   "end_ns": 1793204938270424687,
+   "kind": "decision",
+   "name": "claude_code.tool.blocked_on_user",
+   "parent_span_id": "599fc0842762bdd5",
+   "provider": "anthropic",
+   "resource": 0,
+   "scope": "com.anthropic.claude_code.tracing",
+   "session_source": "conversation",
+   "session_value": "6028f018-0db2-654a-8711-7c488c32afb7",
+   "signal": "span",
+   "span_id": "0d651d76de05e470",
+   "start_ns": 1793204938270000000,
+   "status": "unset",
+   "trace_id": "365d1dd830a3076d0515b024809f454e"
+  },
+  {
+   "counted": false,
+   "dialect": "claude_code",
+   "duration_ms": 0,
+   "end_ns": 1793204938270523533,
+   "kind": "tool",
+   "name": "claude_code.tool",
+   "operation": "execute_tool",
+   "parent_span_id": "3b866f596008f3f2",
+   "provider": "anthropic",
+   "resource": 0,
+   "scope": "com.anthropic.claude_code.tracing",
+   "session_source": "conversation",
+   "session_value": "6028f018-0db2-654a-8711-7c488c32afb7",
+   "signal": "span",
+   "span_id": "599fc0842762bdd5",
+   "start_ns": 1793204938270000000,
+   "status": "unset",
+   "tool_call_id": "toolu_014DrANCRkcYvXdxvJy2kJ26",
+   "tool_name": "Bash",
+   "trace_id": "365d1dd830a3076d0515b024809f454e"
+  }
+ ],
+ "resources": [
+  {
+   "service_name": "claude-code",
+   "service_version": "2.1.310"
+  }
+ ],
+ "stats": {
+  "attributes_skipped": 0,
+  "by_dialect": {
+   "claude_code": 3
+  },
+  "content_cut": 0,
+  "content_items": 0,
+  "counted": 0,
+  "events_skipped": 0,
+  "ignored": 0,
+  "kept": 3,
+  "log_records": 0,
+  "spans": 3
+ }
+}

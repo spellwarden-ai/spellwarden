@@ -1,0 +1,166 @@
+{
+ "records": [
+  {
+   "agent_name": "order-helper",
+   "content": [
+    {
+     "cut": false,
+     "kind": "system",
+     "text": "[{\"type\":\"text\",\"content\":\"Answer questions about orders.\"}]"
+    },
+    {
+     "cut": false,
+     "kind": "input",
+     "text": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Where is order 42?\"}]}]"
+    },
+    {
+     "cut": false,
+     "kind": "output",
+     "text": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"pyd_ai_tool_call_id__get_order\",\"name\":\"get_order\",\"arguments\":{\"order_id\":\"a\"}}]}]"
+    }
+   ],
+   "counted": true,
+   "dialect": "genai",
+   "duration_ms": 7,
+   "end_ns": 1793205197309031951,
+   "input_tokens": 54,
+   "kind": "model",
+   "model": "test",
+   "name": "chat test",
+   "operation": "chat",
+   "output_tokens": 5,
+   "parent_span_id": "9269b61b4f177dc6",
+   "provider": "test",
+   "resource": 0,
+   "scope": "pydantic-ai",
+   "session_source": "conversation",
+   "session_value": "6028f018-0db2-654a-8711-7c488c32afb7",
+   "signal": "span",
+   "span_id": "13a21b7be95dcf60",
+   "start_ns": 1793205197301901521,
+   "status": "unset",
+   "trace_id": "f9181f81dccd002a0381582804412f7d"
+  },
+  {
+   "agent_name": "order-helper",
+   "content": [
+    {
+     "cut": false,
+     "kind": "tool_arguments",
+     "text": "{\"order_id\":\"a\"}"
+    },
+    {
+     "cut": false,
+     "kind": "tool_result",
+     "text": "order a: shipped"
+    }
+   ],
+   "counted": true,
+   "dialect": "genai",
+   "duration_ms": 0,
+   "end_ns": 1793205197310092188,
+   "kind": "tool",
+   "name": "execute_tool get_order",
+   "operation": "execute_tool",
+   "parent_span_id": "9269b61b4f177dc6",
+   "resource": 0,
+   "scope": "pydantic-ai",
+   "session_source": "conversation",
+   "session_value": "6028f018-0db2-654a-8711-7c488c32afb7",
+   "signal": "span",
+   "span_id": "83970a27cd212340",
+   "start_ns": 1793205197309559909,
+   "status": "unset",
+   "tool_call_id": "pyd_ai_tool_call_id__get_order",
+   "tool_name": "get_order",
+   "trace_id": "f9181f81dccd002a0381582804412f7d"
+  },
+  {
+   "agent_name": "order-helper",
+   "content": [
+    {
+     "cut": false,
+     "kind": "system",
+     "text": "[{\"type\":\"text\",\"content\":\"Answer questions about orders.\"}]"
+    },
+    {
+     "cut": false,
+     "kind": "input",
+     "text": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Where is order 42?\"}]},{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"pyd_ai_tool_call_id__get_order\",\"name\":\"get_order\",\"arguments\":{\"order_id\":\"a\"}}]},{\"role\":\"user\",\"parts\":[{\"type\":\"tool_call_response\",\"id\":\"pyd_ai_tool_call_id__get_order\",\"name\":\"get_order\",\"result\":\"order a: shipped\"}]}]"
+    },
+    {
+     "cut": false,
+     "kind": "output",
+     "text": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"{\\\"get_order\\\":\\\"order a: shipped\\\"}\"}]}]"
+    }
+   ],
+   "counted": true,
+   "dialect": "genai",
+   "duration_ms": 0,
+   "end_ns": 1793205197311205917,
+   "input_tokens": 57,
+   "kind": "model",
+   "model": "test",
+   "name": "chat test",
+   "operation": "chat",
+   "output_tokens": 11,
+   "parent_span_id": "9269b61b4f177dc6",
+   "provider": "test",
+   "resource": 0,
+   "scope": "pydantic-ai",
+   "session_source": "conversation",
+   "session_value": "6028f018-0db2-654a-8711-7c488c32afb7",
+   "signal": "span",
+   "span_id": "1995dcbf1653b75b",
+   "start_ns": 1793205197310794155,
+   "status": "unset",
+   "trace_id": "f9181f81dccd002a0381582804412f7d"
+  },
+  {
+   "agent_name": "order-helper",
+   "content": [
+    {
+     "cut": false,
+     "kind": "system",
+     "text": "[{\"type\":\"text\",\"content\":\"Answer questions about orders.\"}]"
+    }
+   ],
+   "counted": true,
+   "dialect": "genai",
+   "duration_ms": 10,
+   "end_ns": 1793205197311715984,
+   "kind": "agent",
+   "name": "invoke_agent order-helper",
+   "operation": "invoke_agent",
+   "resource": 0,
+   "scope": "pydantic-ai",
+   "session_source": "conversation",
+   "session_value": "6028f018-0db2-654a-8711-7c488c32afb7",
+   "signal": "span",
+   "span_id": "9269b61b4f177dc6",
+   "start_ns": 1793205197300978782,
+   "status": "unset",
+   "trace_id": "f9181f81dccd002a0381582804412f7d"
+  }
+ ],
+ "resources": [
+  {
+   "sdk_language": "python",
+   "service_name": "gate-pydantic-ai"
+  }
+ ],
+ "stats": {
+  "attributes_skipped": 0,
+  "by_dialect": {
+   "genai": 4
+  },
+  "content_cut": 0,
+  "content_items": 9,
+  "counted": 4,
+  "events_skipped": 0,
+  "ignored": 0,
+  "kept": 4,
+  "log_records": 0,
+  "spans": 4
+ }
+}

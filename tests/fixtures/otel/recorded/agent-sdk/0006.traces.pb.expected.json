@@ -1,0 +1,110 @@
+{
+ "records": [
+  {
+   "counted": false,
+   "decision_kind": "blocked_on_user",
+   "decision_outcome": "accept",
+   "decision_source": "config",
+   "dialect": "claude_code",
+   "duration_ms": 0,
+   "end_ns": 1793204823507814233,
+   "kind": "decision",
+   "name": "claude_code.tool.blocked_on_user",
+   "parent_span_id": "8a3ae1d25f8f740a",
+   "provider": "anthropic",
+   "resource": 0,
+   "scope": "com.anthropic.claude_code.tracing",
+   "session_source": "conversation",
+   "session_value": "6028f018-0db2-654a-8711-7c488c32afb7",
+   "signal": "span",
+   "span_id": "aeac669953126a74",
+   "start_ns": 1793204823507000000,
+   "status": "unset",
+   "trace_id": "042bb22cee7f6cfeb4eef9bf3b277e1e"
+  },
+  {
+   "counted": false,
+   "dialect": "claude_code",
+   "duration_ms": 1,
+   "end_ns": 1793204823509528651,
+   "kind": "other",
+   "name": "claude_code.tool.execution",
+   "parent_span_id": "8a3ae1d25f8f740a",
+   "provider": "anthropic",
+   "resource": 0,
+   "scope": "com.anthropic.claude_code.tracing",
+   "session_source": "conversation",
+   "session_value": "6028f018-0db2-654a-8711-7c488c32afb7",
+   "signal": "span",
+   "span_id": "7a525e01dcc8c8bc",
+   "start_ns": 1793204823508000000,
+   "status": "ok",
+   "tool_call_id": "toolu_014ZKCEBW8HQsssGpD3kDopw",
+   "trace_id": "042bb22cee7f6cfeb4eef9bf3b277e1e"
+  },
+  {
+   "counted": false,
+   "dialect": "claude_code",
+   "duration_ms": 2,
+   "end_ns": 1793204823509519444,
+   "kind": "tool",
+   "name": "claude_code.tool",
+   "operation": "execute_tool",
+   "parent_span_id": "39a7555e8ebf82f8",
+   "provider": "anthropic",
+   "resource": 0,
+   "scope": "com.anthropic.claude_code.tracing",
+   "session_source": "conversation",
+   "session_value": "6028f018-0db2-654a-8711-7c488c32afb7",
+   "signal": "span",
+   "span_id": "8a3ae1d25f8f740a",
+   "start_ns": 1793204823507000000,
+   "status": "unset",
+   "tool_call_id": "toolu_014ZKCEBW8HQsssGpD3kDopw",
+   "tool_name": "ToolSearch",
+   "trace_id": "042bb22cee7f6cfeb4eef9bf3b277e1e"
+  },
+  {
+   "counted": false,
+   "dialect": "claude_code",
+   "duration_ms": 4418,
+   "end_ns": 1793204823514417344,
+   "input_tokens": 15358,
+   "kind": "model",
+   "model": "claude-fable-5-1",
+   "name": "claude_code.llm_request",
+   "output_tokens": 113,
+   "parent_span_id": "39a7555e8ebf82f8",
+   "provider": "anthropic",
+   "resource": 0,
+   "scope": "com.anthropic.claude_code.tracing",
+   "session_source": "conversation",
+   "session_value": "6028f018-0db2-654a-8711-7c488c32afb7",
+   "signal": "span",
+   "span_id": "f4e966f01b3a7967",
+   "start_ns": 1793204819096000000,
+   "status": "ok",
+   "trace_id": "042bb22cee7f6cfeb4eef9bf3b277e1e"
+  }
+ ],
+ "resources": [
+  {
+   "service_name": "claude-code",
+   "service_version": "2.1.310"
+  }
+ ],
+ "stats": {
+  "attributes_skipped": 0,
+  "by_dialect": {
+   "claude_code": 4
+  },
+  "content_cut": 0,
+  "content_items": 0,
+  "counted": 0,
+  "events_skipped": 0,
+  "ignored": 0,
+  "kept": 4,
+  "log_records": 0,
+  "spans": 4
+ }
+}
