@@ -3,7 +3,7 @@
 ## 1.7.0 (RELEASE_DATE)
 
 Runtime traces. A new subpackage, `spellwarden_scan.otel`, reads OpenTelemetry traces and logs as Spellwarden's hosted
-receiver reads them: `decompress` and `decode` take an OTLP/HTTP request body (protobuf or JSON, gzip or not; the protobuf
+receiver will read them: `decompress` and `decode` take an OTLP/HTTP request body (protobuf or JSON, gzip or not; the protobuf
 reader is written by hand, so the package still depends on PyYAML and cryptography only), and `normalise` keeps an
 allow-list of fields from each span and log record of the producers it knows (Claude Code, the Claude Platform,
 OpenInference, the GenAI conventions old and current, MCP), with content apart and only when asked for.
