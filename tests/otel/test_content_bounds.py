@@ -24,6 +24,14 @@ def test_other_records_past_the_floor_are_ignored():
     assert (result.stats.kept, result.stats.ignored) == (100, 50)
 
 
+def test_content_cut_counts_the_kept_records_only():
+    big = "x" * 40_000  # over the 32 KiB of one item: each record cuts one
+    items = [{"name": "chain", "attributes": {"openinference.span.kind": "CHAIN", "input.value": big}}] * 150
+    result = _normalised({"signal": "traces", "resource": {"service.name": "a"}, "items": items}, True)
+    assert (result.stats.kept, result.stats.ignored) == (100, 50)
+    assert result.stats.content_items == 100 and result.stats.content_cut == 100
+
+
 def test_other_records_scale_with_the_counted_ones():
     chains = [{"name": "chain", "attributes": {"openinference.span.kind": "CHAIN"}}] * 200
     tools = [{"name": "tool", "attributes": {"openinference.span.kind": "TOOL"}}] * 60

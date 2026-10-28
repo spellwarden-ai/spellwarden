@@ -545,7 +545,7 @@ def _status(code: int, error: str | None, success: bool | None, forced_error: bo
     return "unset"
 
 
-def _span_record(span: Span, resource: int, scope: str, service: object, content: bool, stats: dict) -> dict | None:
+def _span_record(span: Span, resource: int, scope: str, service: object, content: bool) -> dict | None:
     dialect = _span_dialect(span, service)
     if dialect is None:
         return None
@@ -578,11 +578,11 @@ def _span_record(span: Span, resource: int, scope: str, service: object, content
     if content:
         items = _span_content(span, dialect, oi_kind if isinstance(oi_kind, str) else None)
         out["content"] = tuple(items.items)
-        stats["content_cut"] += items.cut
+        out["_content_cut"] = items.cut
     return out
 
 
-def _log_record(log: LogRecord, resource: int, scope: str, service: object, content: bool, stats: dict) -> dict | None:
+def _log_record(log: LogRecord, resource: int, scope: str, service: object, content: bool) -> dict | None:
     found = _log_dialect(log, service)
     if found is None:
         return None
@@ -613,7 +613,7 @@ def _log_record(log: LogRecord, resource: int, scope: str, service: object, cont
     if content:
         items = _log_content(log, dialect, event)
         out["content"] = tuple(items.items)
-        stats["content_cut"] += items.cut
+        out["_content_cut"] = items.cut
         if kind == "content" and not items.items:
             return None
     return out
@@ -644,7 +644,6 @@ def _fold_safety_events(records: list[dict]) -> list[dict]:
 
 def normalise(request: OtlpRequest, *, content: bool) -> Normalised:
     """Spec 4.4: one `Record` per kept span or log record, in request order, with its content only when `content`."""
-    stats = {"content_cut": 0}
     resources: list[ResourceInfo] = []
     built: list[dict] = []
     total = 0
@@ -654,12 +653,12 @@ def normalise(request: OtlpRequest, *, content: bool) -> Normalised:
         for scope in resource.scopes:
             for span in scope.spans:
                 total += 1
-                record = _span_record(span, index, scope.name, service, content, stats)
+                record = _span_record(span, index, scope.name, service, content)
                 if record is not None:
                     built.append(record)
             for log in scope.log_records:
                 total += 1
-                record = _log_record(log, index, scope.name, service, content, stats)
+                record = _log_record(log, index, scope.name, service, content)
                 if record is not None:
                     built.append(record)
     built = _fold_safety_events(built)
@@ -667,11 +666,14 @@ def normalise(request: OtlpRequest, *, content: bool) -> Normalised:
     allowed_other = max(OTHER_FLOOR, 2 * counted)
     kept: list[Record] = []
     others = 0
+    content_cut = 0  # of the kept records only: a record the cap or the safety fold drops cuts nothing returned
     for record in built:
+        cut = record.pop("_content_cut", 0)
         if record["kind"] == "other":
             others += 1
             if others > allowed_other:
                 continue
+        content_cut += cut
         kept.append(Record(**record))
     by_dialect: dict[str, int] = {}
     for record in kept:
@@ -681,6 +683,6 @@ def normalise(request: OtlpRequest, *, content: bool) -> Normalised:
         spans=spans, log_records=total - spans, kept=len(kept), ignored=total - len(kept), counted=counted,
         by_dialect=dict(sorted(by_dialect.items())), attributes_skipped=request.attributes_skipped,
         events_skipped=request.events_skipped, content_items=sum(len(record.content) for record in kept),
-        content_cut=stats["content_cut"],
+        content_cut=content_cut,
     )
     return Normalised(final, tuple(resources), tuple(kept))
