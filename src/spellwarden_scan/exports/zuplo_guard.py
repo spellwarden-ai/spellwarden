@@ -340,7 +340,23 @@ function textual(mime: string): boolean {
   return type.startsWith("text/") || TEXT_MIME.has(type);
 }
 
-function collect(value: Json, depth: number, out: string[]): void {
+// Where MCP puts media: a content block (an item of `result.content`, the `content` of an item of `result.messages`) and
+// resource contents (an item of `result.contents`, the `resource` of an embedded resource block). Only there are image and
+// audio `data` and non-text blobs skipped; everywhere else every string is checked.
+type Role = "" | "result" | "blocks" | "block" | "messages" | "message" | "contents" | "resource";
+
+function roleOf(role: Role, parent: { [key: string]: Json }, key: string, item: Json): Role {
+  if (role === "result") return key === "content" ? "blocks" : key === "messages" ? "messages" : key === "contents" ? "contents" : "";
+  if (role === "message" && key === "content") return Array.isArray(item) ? "blocks" : "block";
+  if (role === "block" && key === "resource" && parent.type === "resource") return "resource";
+  return "";
+}
+
+function itemRole(role: Role): Role {
+  return role === "blocks" ? "block" : role === "messages" ? "message" : role === "contents" ? "resource" : "";
+}
+
+function collect(value: Json, depth: number, out: string[], role: Role = ""): void {
   if (typeof value === "string") {
     if (out.push(value) > MAX_STRINGS) throw new Stop("too_many_strings");
     return;
@@ -348,30 +364,35 @@ function collect(value: Json, depth: number, out: string[]): void {
   if (typeof value !== "object" || value === null) return;
   if (depth > MAX_DEPTH) throw new Stop("too_deep");
   if (Array.isArray(value)) {
-    for (const item of value) collect(item, depth + 1, out);
+    const inner = itemRole(role);
+    for (const item of value) collect(item, depth + 1, out, inner);
     return;
   }
-  const media = value.type === "image" || value.type === "audio";
+  const kind: Role = role === "result" || role === "block" || role === "message" || role === "resource" ? role : "";
+  const media = kind === "block" && (value.type === "image" || value.type === "audio");
   for (const key of Object.keys(value)) {
     if (out.push(key) > MAX_STRINGS) throw new Stop("too_many_strings");
     const item = value[key];
     if (key === "data" && media) continue;
     if (key === "blob" && typeof item === "string") {
       const mime = value.mimeType;
-      if (typeof mime === "string" && !textual(mime)) continue;
-      let text: string;
-      try {
-        const binary = atob(item);
-        const bytes = new Uint8Array(binary.length);
-        for (let at = 0; at < binary.length; at++) bytes[at] = binary.charCodeAt(at);
-        text = utf8(bytes);
-      } catch {
-        throw new Stop("not_text");
+      if (typeof mime === "string" && !textual(mime)) {
+        if (kind === "resource") continue;
+      } else {
+        let text: string;
+        try {
+          const binary = atob(item);
+          const bytes = new Uint8Array(binary.length);
+          for (let at = 0; at < binary.length; at++) bytes[at] = binary.charCodeAt(at);
+          text = utf8(bytes);
+        } catch {
+          throw new Stop("not_text");
+        }
+        if (out.push(text) > MAX_STRINGS) throw new Stop("too_many_strings");
+        continue;
       }
-      if (out.push(text) > MAX_STRINGS) throw new Stop("too_many_strings");
-      continue;
     }
-    collect(item, depth + 1, out);
+    collect(item, depth + 1, out, roleOf(kind, value, key, item));
   }
 }
 
@@ -422,7 +443,7 @@ function stringsOf(messages: Message[]): string[] {
   const strings: string[] = [];
   for (const message of messages) {
     for (const key of ["result", "error", "params"]) {
-      if (has(message, key)) collect(message[key], 1, strings);
+      if (has(message, key)) collect(message[key], 1, strings, key === "result" ? "result" : "");
     }
   }
   return strings;
@@ -441,10 +462,12 @@ function couldNot(reason: Reason): string {
 async function check(response: Response, request: ZuploRequest, context: ZuploContext, valid: Valid, state: State, policyName: string): Promise<Response> {
   const type = mediaType(response);
   const success = response.status >= 200 && response.status < 300;
-  if (response.status === 202 || response.status === 204 || response.body === null || (!success && type !== "application/json")) return response;
+  if (response.status === 202 || response.status === 204 || response.body === null) return response;
   const encoding = (response.headers.get("content-encoding") ?? "").trim().toLowerCase();
   if (encoding !== "" && encoding !== "identity" && encoding !== "gzip" && encoding !== "br") throw new Stop("encoded");
   const events = success && type === "text/event-stream";
+  // An error answer that is not JSON is checked as one text: MCP clients put its body into the error the agent sees.
+  const plain = !success && type !== "application/json";
   if (events && request.method !== "POST") throw new Stop("not_post");
   const declared = (response.headers.get("content-length") ?? "").trim();
   if (/^[0-9]+$/.test(declared) && Number(declared) > valid.maxBodyBytes) {
@@ -457,17 +480,17 @@ async function check(response: Response, request: ZuploRequest, context: ZuploCo
   }
   const body = events ? await readEvents(response.body, valid, state) : await readAll(response.body, valid);
   if ("released" in body) return released(response, body.released, context);
+  let text = "";
   if (!events) {
     if (body.bytes.length === 0) return passed(response, body.bytes);
-    let text: string;
     try {
       text = utf8(body.bytes);
     } catch {
-      throw new Stop("not_json");
+      throw new Stop(plain ? "not_text" : "not_json");
     }
-    state.messages.push(...messagesOf(parseJson(text)));
+    if (!plain) state.messages.push(...messagesOf(parseJson(text)));
   }
-  const found = hits(stringsOf(state.messages), valid.checks);
+  const found = hits(plain ? [text] : stringsOf(state.messages), valid.checks);
   if (found.length === 0) return passed(response, body.bytes);
   const ids = [...new Set(found.map((item) => item.rule_id))];
   const names = ids.map((id) => `${id} (${found.find((item) => item.rule_id === id)?.title ?? ""})`);

@@ -258,7 +258,9 @@ INSTALL = [
 ]
 LIMITS = [
     "Only what MCP servers send is checked, not what the agent sends. JSON strings are checked as JSON decodes them, once: "
-    "text that is itself JSON-encoded inside a string is not decoded again.",
+    "text that is itself JSON-encoded inside a string is not decoded again. Image and audio data and binary blobs are "
+    "skipped only where MCP puts content (the content of a tool result or of a prompt message, the contents of a resource, "
+    "an embedded resource); everywhere else every string is checked.",
     "Text is normalised before matching: invisible characters are removed and the text is NFKC-normalised. An org rule "
     "written to find invisible or compatibility characters never matches here.",
     "The patterns are the engine's, run as JavaScript regular expressions without the `u` flag. `.` and `{m,n}` count UTF-16 "
@@ -267,7 +269,9 @@ LIMITS = [
     "An org rule can miss a match longer than 512 characters that crosses a 4096-character window boundary, as in the hooks "
     "export.",
     "A response over `maxBodyBytes` (1 MiB; at most 16 MiB) is blocked unless `onTooLarge` is `allow`. A response that cannot "
-    "be read as JSON or as an event stream, or that has an unsupported content encoding, is blocked.",
+    "be read as JSON or as an event stream, or that has an unsupported content encoding, is blocked. An error answer (a "
+    "status that is not 2xx) whose body is not JSON is checked as one text, because MCP clients show that body to the "
+    "agent; one that is not UTF-8 is blocked.",
     "Event streams are read until the response to the request, so progress notifications of a long tool call arrive with its "
     "result and notifications after it are dropped. A request that the server sends mid-call (sampling, elicitation) is "
     "refused with `server_request`.",

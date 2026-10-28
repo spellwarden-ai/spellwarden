@@ -24,7 +24,7 @@ describe("every vector", () => {
       const expect = vector.expect;
       if (expect.outcome === "pass") {
         assert.equal(out.status, vector.status ?? 200);
-        if (vector.status === 202 || vector.status === 204 || vector.no_body || ((vector.status ?? 200) >= 300 && (vector.media ?? "application/json") !== "application/json")) {
+        if (vector.status === 202 || vector.status === 204 || vector.no_body) {
           assert.equal(out, response, "an untouched answer is the same object");
           return;
         }

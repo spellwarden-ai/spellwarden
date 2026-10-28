@@ -136,6 +136,19 @@ json_case("binary blob", blob("application/octet-stream"), PASS)
 json_case("image data in clear", result({"content": [{"type": "image", "data": P, "mimeType": "image/png"}]}), PASS)
 json_case("audio data in clear", result({"content": [{"type": "audio", "data": P, "mimeType": "audio/wav"}]}), PASS)
 json_case("data beside type Image", result({"content": [{"type": "Image", "data": P}]}), BAD)
+# Media is skipped only where MCP puts content: a tool result's content, a prompt message's content, a resource's contents
+# and an embedded resource. Everywhere else every string is checked (owner, 2026-10-28).
+json_case("image data in clear in a prompt message", result({"messages": [{"role": "user", "content": {"type": "image", "data": P, "mimeType": "image/png"}}]}), PASS)
+json_case("audio data in clear in a prompt message's list of content", result({"messages": [{"role": "user", "content": [{"type": "audio", "data": P}]}]}), PASS)
+json_case("an image blob in the contents of a resource", result({"contents": [{"uri": "file:///a", "mimeType": "image/png", "blob": P}]}), PASS)
+json_case("an image blob of an embedded resource in a prompt message", result({"messages": [{"role": "user", "content": {"type": "resource", "resource": {"uri": "file:///a", "mimeType": "image/png", "blob": P}}}]}), PASS)
+json_case("image data in clear in structured content", result({"structuredContent": {"type": "image", "data": P}}), BAD)
+json_case("image data in a content list inside structured content", result({"structuredContent": {"content": [{"type": "image", "data": P}]}}), BAD)
+json_case("audio data in clear in error.data", {"jsonrpc": "2.0", "id": 4, "error": {"code": -32000, "message": "x", "data": {"type": "audio", "data": P}}}, block("matched", "SW-GW-004", id=4))
+json_case("image data in clear in the params of a notification", {"jsonrpc": "2.0", "method": "notifications/message", "params": {"data": {"type": "image", "data": P}}}, BAD)
+json_case("an image blob in structured content is checked as it is", result({"structuredContent": {"mimeType": "image/png", "blob": P}}), BAD)
+json_case("an image blob on a content block that is not an embedded resource", result({"content": [{"type": "text", "text": "x", "mimeType": "image/png", "blob": P}]}), BAD)
+json_case("a resource of a content block that is not an embedded resource", result({"content": [{"type": "text", "text": "x", "resource": {"mimeType": "image/png", "blob": P}}]}), BAD)
 
 # --- event streams -----------------------------------------------------------------------------------------------
 ANSWER = js(text_result("done"))
@@ -171,7 +184,7 @@ sse_case("an event that is a JSON string", sse(js("hello")), block("not_mcp"))
 case("an event line that is not UTF-8", block("not_json"), media="text/event-stream",
      body_b64=b64(b'data: {"jsonrpc":"2.0","id":1,"result":"' + bytes([0xFF]) + b'"}\n\n'))
 case("an event stream answering GET", block("not_post"), media="text/event-stream", method="GET", body=sse(ANSWER))
-case("an event stream answering a non-2xx status passes", PASS, status=500, media="text/event-stream", body=sse(BAD_ANSWER))
+case("an event stream answering a non-2xx status is checked as text", block("matched", "SW-GW-004", id=None), status=500, media="text/event-stream", body=sse(BAD_ANSWER))
 case("ten thousand events with the result", PASS, checks="none", media="text/event-stream",
      body_expand={"prefix": "", "repeat": sse(NOTE), "times": 9999, "suffix": sse(ANSWER)})
 case("more than ten thousand events", block("too_many_events"), checks="none", media="text/event-stream",
@@ -187,8 +200,19 @@ case("a body that is not UTF-8", block("not_json"), body_b64=b64(b'{"jsonrpc":"2
 case("whitespace only", block("not_json"), body="  \n ")
 case("a text/plain 200 with a body", block("not_mcp"), media="text/plain", body="hello")
 case("a text/plain 200 with no body", PASS, media="text/plain", body="")
-case("a text/plain 500", PASS, status=500, media="text/plain", body=P)
-case("a 500 with no content type", PASS, status=500, media="", body=P)
+# An error answer that is not JSON is checked as one text: MCP clients put its body into the error the agent sees
+# (owner, 2026-10-28).
+case("a text/plain 500 with the phrase", block("matched", "SW-GW-004", id=None), status=500, media="text/plain", body=P)
+case("a 500 with no content type and the phrase", BAD, status=500, media="", body=P)
+case("a clean text/plain 500", PASS, status=500, media="text/plain", body="Service unavailable")
+case("a clean text/html 404", PASS, status=404, media="text/html", body="<html><body>Not found</body></html>")
+case("a text/plain 401 with an org rule's phrase", block("matched", "SW-ORG-004"), checks="token", status=401, media="text/plain", body="token leak")
+case("a text/plain 500 with the phrase on its second line", BAD, status=500, media="text/plain", body="error\n" + P)
+case("a text/plain 500 with zero bytes", PASS, status=500, media="text/plain", body="")
+case("a text/plain 500 that is not UTF-8", block("not_text"), status=500, media="text/plain", body_b64=b64(b"oops \xff"))
+case("a text/plain 500 with content-encoding deflate", block("encoded"), status=500, media="text/plain", body="fine", encoding="deflate")
+case("a text/plain 500 over the limit", block("too_large"), status=500, media="text/plain", body="a" * 5000, options={"maxBodyBytes": 4096}, chunk_size=1000)
+case("a text/plain 500 over the limit, allowed", PASS, status=500, media="text/plain", body=P + "a" * 5000, options={"maxBodyBytes": 4096, "onTooLarge": "allow"}, chunk_size=1000)
 case("a JSON 500 that is clean", PASS, status=500, body=js({"error": "unavailable"}))
 case("a JSON 500 that is not JSON", block("not_json"), status=500, body="oops")
 case("a 202 answer", PASS, status=202, body="")

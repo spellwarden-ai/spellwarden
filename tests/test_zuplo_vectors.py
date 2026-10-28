@@ -57,15 +57,10 @@ def strings_of(vector: dict) -> list[str]:
         messages = R.messages_of(json.loads(vector["body"]))
     except (ValueError, R.Stop):
         return []
-    out: list[str] = []
     try:
-        for message in messages:
-            for key in ("result", "error", "params"):
-                if key in message:
-                    R.collect(message[key], 1, out)
+        return R.strings_of(messages)
     except R.Stop:
         return []
-    return out
 
 
 def engine_hit(pattern: str, case_sensitive: bool, text: str) -> bool:

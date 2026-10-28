@@ -273,7 +273,23 @@ def textual(mime: str) -> bool:
     return kind.startswith("text/") or kind in TEXT_MIME
 
 
-def collect(value, depth: int, out: list[str]) -> None:
+# Where MCP puts media: a content block (an item of `result.content`, the `content` of an item of `result.messages`) and
+# resource contents (an item of `result.contents`, the `resource` of an embedded resource block). Only there are image and
+# audio `data` and non-text blobs skipped; everywhere else every string is checked.
+ITEM_ROLE = {"blocks": "block", "messages": "message", "contents": "resource"}
+
+
+def role_of(role: str, parent: dict, key: str, item) -> str:
+    if role == "result":
+        return {"content": "blocks", "messages": "messages", "contents": "contents"}.get(key, "")
+    if role == "message" and key == "content":
+        return "blocks" if isinstance(item, list) else "block"
+    if role == "block" and key == "resource" and parent.get("type") == "resource":
+        return "resource"
+    return ""
+
+
+def collect(value, depth: int, out: list[str], role: str = "") -> None:
     if isinstance(value, str):
         out.append(value)
         if len(out) > MAX_STRINGS:
@@ -284,10 +300,12 @@ def collect(value, depth: int, out: list[str]) -> None:
     if depth > MAX_DEPTH:
         raise Stop("too_deep")
     if isinstance(value, list):
+        inner = ITEM_ROLE.get(role, "")
         for item in value:
-            collect(item, depth + 1, out)
+            collect(item, depth + 1, out, inner)
         return
-    media = value.get("type") in ("image", "audio")
+    kind = role if role in ("result", "block", "message", "resource") else ""
+    media = kind == "block" and value.get("type") in ("image", "audio")
     for key, item in value.items():
         out.append(key)
         if len(out) > MAX_STRINGS:
@@ -297,16 +315,29 @@ def collect(value, depth: int, out: list[str]) -> None:
         if key == "blob" and isinstance(item, str):
             mime = value.get("mimeType")
             if isinstance(mime, str) and not textual(mime):
+                if kind == "resource":
+                    continue
+            else:
+                try:
+                    text = forgiving_base64(item).decode("utf-8")
+                except (ValueError, UnicodeDecodeError):
+                    raise Stop("not_text") from None
+                out.append(text)
+                if len(out) > MAX_STRINGS:
+                    raise Stop("too_many_strings")
                 continue
-            try:
-                text = forgiving_base64(item).decode("utf-8")
-            except (ValueError, UnicodeDecodeError):
-                raise Stop("not_text") from None
-            out.append(text)
-            if len(out) > MAX_STRINGS:
-                raise Stop("too_many_strings")
-            continue
-        collect(item, depth + 1, out)
+        collect(item, depth + 1, out, role_of(kind, value, key, item))
+
+
+def strings_of(messages: list[dict]) -> list[str]:
+    """Every string the guard checks in `messages`, in its order: `result` (where media is skipped by position), `error`,
+    `params`."""
+    out: list[str] = []
+    for message in messages:
+        for key in ("result", "error", "params"):
+            if key in message:
+                collect(message[key], 1, out, "result" if key == "result" else "")
+    return out
 
 
 def expand(vector: dict) -> bytes:
@@ -355,12 +386,14 @@ def check_response(vector: dict, options: dict, checks: list[Check], state: list
     success = 200 <= status < 300
     data = expand(vector)
     limit, allow = options["maxBodyBytes"], options["onTooLarge"] == "allow"
-    if status in (202, 204) or vector.get("no_body") or (not success and media != "application/json"):
+    if status in (202, 204) or vector.get("no_body"):
         return {"outcome": "pass"}
     encoding = (vector.get("encoding") or "").strip().lower()
     if encoding not in ("", "identity", "gzip", "br"):
         raise Stop("encoded")
     events = success and media == "text/event-stream"
+    # An error answer that is not JSON is checked as one text: MCP clients put its body into the error the agent sees.
+    plain = not success and media != "application/json"
     if events and vector.get("method", "POST") != "POST":
         raise Stop("not_post")
     declared = vector.get("content_length")
@@ -374,6 +407,7 @@ def check_response(vector: dict, options: dict, checks: list[Check], state: list
         raise Stop("not_mcp")
     size = vector.get("chunk_size") or max(len(data), 1)
     chunks = [data[at:at + size] for at in range(0, len(data), size)]
+    text = ""
     if events:
         read = 0
         for number, chunk in enumerate(chunks):
@@ -392,12 +426,14 @@ def check_response(vector: dict, options: dict, checks: list[Check], state: list
             return {"outcome": "pass"}
         if len(data) == 0:
             return {"outcome": "pass"}
-        state.extend(messages_of(parse_json(utf8(data))))
-    strings: list[str] = []
-    for message in state:
-        for key in ("result", "error", "params"):
-            if key in message:
-                collect(message[key], 1, strings)
+        if plain:
+            try:
+                text = data.decode("utf-8")
+            except UnicodeDecodeError:
+                raise Stop("not_text") from None
+        else:
+            state.extend(messages_of(parse_json(utf8(data))))
+    strings = [text] if plain else strings_of(state)
     found = hits(strings, checks, strip_invisible=strip_invisible, nfkc=nfkc)
     if not found:
         return {"outcome": "pass"}
