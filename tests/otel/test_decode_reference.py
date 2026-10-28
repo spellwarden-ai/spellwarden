@@ -109,6 +109,45 @@ def test_a_body_with_every_value_type_and_unknown_fields():
     assert engine.resources[0].scopes[0].spans[0].attributes["array"] == (1, "x")
 
 
+def _field(number: int, payload: bytes) -> bytes:
+    """A length-delimited field (numbers under 16, payloads under 128 bytes per length byte, as here)."""
+    length, out = len(payload), bytearray()
+    while True:
+        out.append((length & 0x7F) | (0x80 if length > 0x7F else 0))
+        length >>= 7
+        if not length:
+            break
+    return bytes([number << 3 | 2]) + bytes(out) + payload
+
+
+def test_a_message_field_written_twice_is_merged_as_the_reference_merges_it():
+    from opentelemetry.proto.common.v1.common_pb2 import AnyValue, InstrumentationScope
+    from opentelemetry.proto.resource.v1.resource_pb2 import Resource
+    from opentelemetry.proto.trace.v1.trace_pb2 import ResourceSpans, ScopeSpans, Span, Status
+
+    def resource(**attributes):
+        message = Resource()
+        for key, value in attributes.items():
+            message.attributes.add(key=key, value=AnyValue(string_value=value))
+        return message
+
+    # Concatenated serialisations are one message with each field written twice: legal, and merged by protobuf.
+    span = (Span(trace_id=bytes(range(16)), span_id=bytes(range(8)), name="s", status=Status(code=2)).SerializeToString()
+            + Span(status=Status(message="bad")).SerializeToString())
+    scope = (ScopeSpans(scope=InstrumentationScope(name="lib")).SerializeToString()
+             + ScopeSpans(scope=InstrumentationScope(version="2.0")).SerializeToString() + _field(2, span))
+    resource_spans = (ResourceSpans(resource=resource(**{"service.name": "claude-code"})).SerializeToString()
+                      + ResourceSpans(resource=resource(**{"service.version": "2.0", "service.name": "other"})).SerializeToString()
+                      + _field(2, scope))
+    body = _field(1, resource_spans)
+    engine = decode(body, signal="traces", encoding="protobuf")
+    compare(engine, reference_decode(body, "traces"), "traces")
+    decoded = engine.resources[0]
+    assert decoded.attributes == {"service.name": "claude-code", "service.version": "2.0"}
+    assert (decoded.scopes[0].name, decoded.scopes[0].version) == ("lib", "2.0")
+    assert (decoded.scopes[0].spans[0].status.code, decoded.scopes[0].spans[0].status.message) == (2, "bad")
+
+
 def test_invalid_utf8_is_replaced():
     from opentelemetry.proto.collector.logs.v1.logs_service_pb2 import ExportLogsServiceRequest
 

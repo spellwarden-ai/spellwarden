@@ -315,16 +315,15 @@ class _Attributes:
         self.values.setdefault(key, value)
 
 
-def _pb_resource(buf: memoryview, ctx: _Context) -> dict:
-    attributes = _Attributes(ctx)
+# A singular message field written more than once is merged, as protobuf merges it: a resource's attributes collect
+# into one `_Attributes`, and a scope's or a status's fields keep the earlier value unless a later copy sets them.
+def _pb_resource(buf: memoryview, attributes: _Attributes) -> None:
     for number, wire, raw in fields(buf):
         if number == 1 and wire == LEN:
             attributes.add_pb(raw)
-    return attributes.values
 
 
-def _pb_scope_info(buf: memoryview, ctx: _Context) -> tuple[str, str]:
-    name = version = ""
+def _pb_scope_info(buf: memoryview, ctx: _Context, name: str, version: str) -> tuple[str, str]:
     for number, wire, raw in fields(buf):
         if number == 1 and wire == LEN:
             name = ctx.text(raw)
@@ -347,9 +346,8 @@ def _pb_event(buf: memoryview, ctx: _Context) -> SpanEvent:
     return SpanEvent(name, time, attributes.values)
 
 
-def _pb_status(buf: memoryview, ctx: _Context) -> SpanStatus:
-    code = 0
-    message = ""
+def _pb_status(buf: memoryview, ctx: _Context, status: SpanStatus) -> SpanStatus:
+    code, message = status.code, status.message
     for number, wire, raw in fields(buf):
         if number == 2 and wire == LEN:
             message = ctx.text(raw)
@@ -383,7 +381,7 @@ def _pb_span(buf: memoryview, ctx: _Context) -> Span:
                 else:
                     events.append(_pb_event(raw, ctx))
             elif number == 15:
-                status = _pb_status(raw, ctx)
+                status = _pb_status(raw, ctx, status)
         elif wire == FIXED64:
             if number == 7:
                 start = raw
@@ -427,7 +425,7 @@ def _pb_scope(buf: memoryview, ctx: _Context, signal: Signal) -> Scope:
     items: list = []
     for number, wire, raw in fields(buf):
         if number == 1 and wire == LEN:
-            name, version = _pb_scope_info(raw, ctx)
+            name, version = _pb_scope_info(raw, ctx, name, version)
         elif number == 2 and wire == LEN:
             items.append(_pb_span(raw, ctx) if signal == "traces" else _pb_log(raw, ctx))
     if signal == "traces":
@@ -440,14 +438,14 @@ def _pb_request(body: bytes, ctx: _Context, signal: Signal) -> tuple[Resource, .
     for number, wire, raw in fields(memoryview(body)):
         if number != 1 or wire != LEN:
             continue
-        attributes: dict = {}
+        attributes = _Attributes(ctx)
         scopes: list[Scope] = []
         for inner, inner_wire, part in fields(raw):
             if inner == 1 and inner_wire == LEN:
-                attributes = _pb_resource(part, ctx)
+                _pb_resource(part, attributes)
             elif inner == 2 and inner_wire == LEN:
                 scopes.append(_pb_scope(part, ctx, signal))
-        resources.append(Resource(attributes, tuple(scopes)))
+        resources.append(Resource(attributes.values, tuple(scopes)))
     return tuple(resources)
 
 
