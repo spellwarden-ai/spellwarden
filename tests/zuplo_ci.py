@@ -197,6 +197,37 @@ def route_with_two_methods(p: Project) -> None:
     expect(p, 1, [f"route GET /mcp/search: {NAME} is not in policies.outbound"], routes=3)
 
 
+def null_policies(p: Project) -> None:
+    p.policies_text = "null"
+    p.expect = {"exit": 2, "prefix": "spellwarden-zuplo-check: config/policies.json: expected a JSON object"}
+
+
+def null_settings(p: Project) -> None:
+    p.settings = "null"
+    p.expect = {"exit": 2, "prefix": "spellwarden-zuplo-check: zuplo.jsonc: expected a JSON object"}
+
+
+def null_routes(p: Project) -> None:
+    p.routes = None
+    p.expect = {"exit": 2, "prefix": "spellwarden-zuplo-check: config/routes.oas.json: expected a JSON object"}
+
+
+def null_spellwarden_block(p: Project) -> None:
+    entry = json.loads(json.dumps(p.entry))
+    entry["handler"]["options"]["spellwarden"] = None
+    p.entries = [entry]
+    p.expect = {"exit": 1, "lines": [f"policy {NAME}: options.spellwarden.format is not 1",
+                                     f"{GUARD_FILE}: the file differs from the guard of the export (guard_sha256)",
+                                     "spellwarden-zuplo-check: 2 MCP routes, 2 failures, pack null unknown"]}
+
+
+def malformed_route(p: Project) -> None:
+    p.route("/mcp/search")["policies"] = {"inbound": {}, "outbound": {}}
+    p.routes["paths"]["/other"] = {"post": {"x-zuplo-route": None}}
+    expect(p, 1, [f"route POST /mcp/search: {NAME} is not in policies.outbound",
+                  "route POST /mcp/search: SW-GW-003 needs a mcp-token-exchange-inbound policy with authMode user-oauth, shared-oauth, id-jag in policies.inbound"])
+
+
 CASES: dict[str, Callable[[Project], None]] = {
     "wired": wired, "guard-missing-on-one-route": guard_missing_on_one_route, "guard-not-last": guard_not_last,
     "two-entries": two_entries, "no-entry": no_entry, "edited-guard": edited_guard, "missing-guard": missing_guard,
@@ -207,6 +238,8 @@ CASES: dict[str, Callable[[Project], None]] = {
     "old-compatibility-date": old_compatibility_date, "later-compatibility-date": later_compatibility_date,
     "no-compatibility-date": no_compatibility_date, "mcp-server-handler": mcp_server_handler,
     "unparseable-policies": unparseable_policies, "route-with-two-methods": route_with_two_methods,
+    "null-policies": null_policies, "null-settings": null_settings, "null-routes": null_routes,
+    "null-spellwarden-block": null_spellwarden_block, "malformed-route": malformed_route,
 }
 
 

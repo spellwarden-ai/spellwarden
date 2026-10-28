@@ -544,6 +544,14 @@ const METHODS = ["get", "put", "post", "delete", "options", "head", "patch", "tr
 
 class Unreadable extends Error {}
 
+const isObject = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
+const list = (value) => (Array.isArray(value) ? value : []);
+
+function objectOf(value, relative) {
+  if (!isObject(value)) throw new Unreadable(`${relative}: expected a JSON object`);
+  return value;
+}
+
 function read(root, relative) {
   try {
     return readFileSync(join(root, relative));
@@ -553,12 +561,14 @@ function read(root, relative) {
 }
 
 function strictJson(root, relative) {
+  let value;
   try {
-    return JSON.parse(read(root, relative).toString("utf8"));
+    value = JSON.parse(read(root, relative).toString("utf8"));
   } catch (error) {
     if (error instanceof Unreadable) throw error;
     throw new Unreadable(`${relative}: not valid JSON (${error.message})`);
   }
+  return objectOf(value, relative);
 }
 
 // zuplo.jsonc: comments (// and /* */) and trailing commas removed outside strings, then read as JSON.
@@ -601,11 +611,13 @@ function trailingComma(text, index) {
 
 function jsonc(root, relative) {
   const text = read(root, relative).toString("utf8");
+  let value;
   try {
-    return JSON.parse(stripped(stripped(text, comment), trailingComma));
+    value = JSON.parse(stripped(stripped(text, comment), trailingComma));
   } catch (error) {
     throw new Unreadable(`${relative}: not valid JSONC (${error.message})`);
   }
+  return objectOf(value, relative);
 }
 
 // The canonical form of the options, as the engine writes it: keys sorted by UTF-16 code unit, no whitespace, integers
@@ -638,12 +650,12 @@ const sha256 = (data) => createHash("sha256").update(data).digest("hex");
 
 function inboundPolicies(names, byName) {
   const found = [];
-  for (const name of names ?? []) {
+  for (const name of list(names)) {
     const policy = byName.get(name);
     if (policy === undefined) continue;
     found.push(policy);
     if (policy.policyType === "composite-inbound") {
-      for (const inner of policy.handler?.options?.policies ?? []) {
+      for (const inner of list(policy.handler?.options?.policies)) {
         const nested = byName.get(inner);
         if (nested !== undefined) found.push(nested);
       }
@@ -685,7 +697,7 @@ function check(root) {
       failures.push(`${GUARD}: missing`);
     }
     if (guard !== null && sha256(guard) !== meta?.guard_sha256) failures.push(`${GUARD}: the file differs from the guard of the export (guard_sha256)`);
-    if (options !== null && meta !== undefined) {
+    if (isObject(options) && isObject(meta)) {
       const { options_sha256: declared, ...rest } = meta;
       if (sha256(canonical({ ...options, spellwarden: rest })) !== declared) failures.push(`policy ${POLICY}: the options differ from those of the export (options_sha256)`);
     }
@@ -704,13 +716,13 @@ function check(root) {
     for (const [path, item] of Object.entries(document.paths ?? {})) {
       for (const method of METHODS) {
         const route = item?.[method]?.["x-zuplo-route"];
-        if (route === undefined) continue;
+        if (!isObject(route)) continue;
         const exported = route.handler?.export;
         if (exported === "mcpServerHandler") notRequired++;
         if (exported !== "McpProxyHandler") continue;
         mcp++;
         const where = `route ${method.toUpperCase()} ${path}`;
-        const outbound = route.policies?.outbound ?? [];
+        const outbound = list(route.policies?.outbound);
         if (!outbound.includes(POLICY)) failures.push(`${where}: ${POLICY} is not in policies.outbound`);
         else if (outbound[outbound.length - 1] !== POLICY) failures.push(`${where}: ${POLICY} is not the last of policies.outbound`);
         if (deploy) {
