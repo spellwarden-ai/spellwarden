@@ -3,9 +3,10 @@ claim T2): the 401 with `WWW-Authenticate: Bearer resource_metadata=...`, the pr
 authorization server metadata (RFC 8414), dynamic client registration (RFC 7591), the authorization endpoint with PKCE S256
 and the `resource` parameter (RFC 8707) that redirects to a dev-login and then to a consent page with a form, and the token
 endpoint, plus two MCP routes `/mcp/a` and `/mcp/b` that accept only a token issued for their own resource. It follows the
-flow of https://zuplo.com/docs/mcp-gateway/how-it-works as the spec records it; at the gate's first run the real consent
-form's fields are compared with `CONSENT_FIELDS` and this file is corrected to match (the correction is recorded in the
-spec's release gate record). Standard library only, loopback only."""
+flow of https://zuplo.com/docs/mcp-gateway/how-it-works as the spec records it. The consent page and its form follow the
+real gateway's, as the release gate's first run read them under `zuplo dev` 7.13.1 (2026-10-28): the dev-login sends the
+browser to `/__zuplo/oauth/callback`, whose form posts a hidden `state` and a `decision` button (`cancel` "Cancel" or
+`approve` "Authorize") to `/__zuplo/oauth/setup`. Standard library only, loopback only."""
 from __future__ import annotations
 
 import base64
@@ -17,7 +18,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlencode, urlparse
 
 ROUTES = ("/mcp/a", "/mcp/b")
-CONSENT_FIELDS = ("request_id", "state", "decision")
+CONSENT_FIELDS = ("state", "decision")
 
 
 def s256(verifier: str) -> str:
@@ -105,17 +106,16 @@ def _make_handler(gateway: FakeGateway):
                 gateway.requests[request_id] = query
                 return self.redirect("/__zuplo/oauth/dev-login?" + urlencode({"request_id": request_id}))
             if url.path == "/__zuplo/oauth/dev-login":
-                return self.redirect("/oauth/consent?" + urlencode({"request_id": query.get("request_id", "")}),
+                return self.redirect("/__zuplo/oauth/callback?" + urlencode({"state": query.get("request_id", "")}),
                                      {"Set-Cookie": "dev_session=1; Path=/"})
-            if url.path == "/oauth/consent":
-                request = gateway.requests.get(query.get("request_id", ""))
+            if url.path == "/__zuplo/oauth/callback":
+                request = gateway.requests.get(query.get("state", ""))
                 if request is None or not self.signed_in():
                     return self.send(403, b"not signed in", kind="text/plain")
-                page = ('<html><body><h1>Allow access?</h1><form method="post" action="/oauth/consent">'
-                        f'<input type="hidden" name="request_id" value="{query["request_id"]}">'
-                        f'<input type="hidden" name="state" value="{request.get("state", "")}">'
-                        '<button type="submit" name="decision" value="deny">Deny</button>'
-                        '<button type="submit" name="decision" value="approve">Approve</button></form></body></html>')
+                page = ('<html><body><h1>Authorize access?</h1><form method="post" action="/__zuplo/oauth/setup">'
+                        f'<input type="hidden" name="state" value="{query["state"]}">'
+                        '<button type="submit" name="decision" value="cancel">Cancel</button>'
+                        '<button type="submit" name="decision" value="approve">Authorize</button></form></body></html>')
                 return self.send(200, page.encode("utf-8"), kind="text/html")
             return self.send(404)
 
@@ -135,9 +135,9 @@ def _make_handler(gateway: FakeGateway):
                 client_id = "client-" + secrets.token_hex(4)
                 gateway.clients[client_id] = {"redirect_uris": data.get("redirect_uris", [])}
                 return self.json({"client_id": client_id, "redirect_uris": data.get("redirect_uris", [])}, 201)
-            if url.path == "/oauth/consent":
+            if url.path == "/__zuplo/oauth/setup":
                 form = {key: values[0] for key, values in parse_qs(raw.decode("utf-8")).items()}
-                request = gateway.requests.get(form.get("request_id", ""))
+                request = gateway.requests.get(form.get("state", ""))
                 if request is None or not self.signed_in() or set(form) != set(CONSENT_FIELDS):
                     return self.send(400, b"bad consent form", kind="text/plain")
                 target = request["redirect_uri"]

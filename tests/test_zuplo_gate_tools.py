@@ -121,7 +121,7 @@ def test_t2_the_consent_form_is_read_from_the_page():
               '<button type="submit" name="d" value="yes">Allow access</button></form>')
     assert (form.action, form.method, form.hidden) == ("/c", "post", {"a": "1"})
     assert form.buttons == [("d", "no", "Deny"), ("d", "yes", "Allow access")]
-    assert set(CONSENT_FIELDS) == {"request_id", "state", "decision"}
+    assert set(CONSENT_FIELDS) == {"state", "decision"}
     assert C.metadata_url("https://auth.example/tenant") == "https://auth.example/.well-known/oauth-authorization-server/tenant"
     assert C.metadata_url("http://127.0.0.1:9000") == "http://127.0.0.1:9000/.well-known/oauth-authorization-server"
 
