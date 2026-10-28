@@ -13,8 +13,8 @@ from collections.abc import Sequence
 from spellwarden_scan.packs import ENFORCEMENT_RULES, PackDocument
 from spellwarden_scan.text import comment_safe
 
-EXPORT_TARGETS = ("claude-code-hooks", "kong")
-PLANNED_TARGETS = ("zuplo", "agentcore-policy", "cloudflare-egress")
+EXPORT_TARGETS = ("claude-code-hooks", "kong", "zuplo")
+PLANNED_TARGETS = ("agentcore-policy", "cloudflare-egress")
 EXPORT_MODES = ("project", "managed")
 README_NAME = "SPELLWARDEN-README.md"
 VENDOR_LINE = "Validate field names against the vendor's current documentation before use."
@@ -28,6 +28,8 @@ _HOOKS_EXPORT = "enforced by the Claude Code hooks export"
 _REGISTRY = "enforced by the private registry, not by an export"
 _EGRESS = "a sandbox egress proxy is not in this version"
 _MCP_PLUGINS = "needs Kong's MCP plugins"
+_ZUPLO_SCRIPT = ("checked at deploy by the included script when your pipeline runs it; the gateway does not refuse "
+                 "the route")
 # (enforcement rule id, export target) -> why an enabled rule is not enforced there (spec 5.5). Exactly the pairs
 # whose target is not in the rule's `enforced_by` (a test keeps it so).
 CANNOT_ENFORCE: dict[tuple[str, str], str] = {
@@ -43,9 +45,17 @@ CANNOT_ENFORCE: dict[tuple[str, str], str] = {
     ("SW-RG-007", "claude-code-hooks"): _REGISTRY,
     ("SW-OB-008", "kong"): "a protected audit trail of tool calls is not in this version",
     ("SW-OB-008", "claude-code-hooks"): "a local activity log is not an audit trail",
+    ("SW-HK-001", "zuplo"): _HOOKS_EXPORT,
+    ("SW-HK-002", "zuplo"): _HOOKS_EXPORT,
+    ("SW-GW-003", "zuplo"): _ZUPLO_SCRIPT,
+    ("SW-EG-005", "zuplo"): _EGRESS,
+    ("SW-GW-006", "zuplo"): _HOOKS_EXPORT,
+    ("SW-RG-007", "zuplo"): _REGISTRY,
+    ("SW-OB-008", "zuplo"): "Zuplo's audit logs are an Enterprise add-on set up in the Zuplo portal, not by this export",
 }
 # (rule id, target) -> the qualifier shown after the id of an enforced rule.
-ENFORCED_NOTES: dict[tuple[str, str], str] = {("SW-GW-004", "kong"): "prompts only"}
+ENFORCED_NOTES: dict[tuple[str, str], str] = {("SW-GW-004", "kong"): "prompts only",
+                                              ("SW-GW-004", "zuplo"): "MCP server responses"}
 _PACK_ID = re.compile(r"baseline|[0-9a-f]{32}")
 _VERSION = re.compile(r"[0-9]{1,3}\.[0-9]{1,4}")
 
@@ -119,8 +129,8 @@ def readme_text(doc: PackDocument, *, target: str, mode: str | None, built_at: s
 
 def build(doc: PackDocument, target: str, *, built_at: str, mode: str = "project") -> dict[str, bytes]:
     """The files of the export of `doc` to `target` (spec 5.5), README included. `mode` matters only for
-    `claude-code-hooks`. Raises ValueError for a target outside EXPORT_TARGETS, a mode outside EXPORT_MODES, or a
-    document whose id or version could not have passed `validate_pack` (they name files)."""
+    `claude-code-hooks` (`kong` and `zuplo` ignore it). Raises ValueError for a target outside EXPORT_TARGETS, a mode
+    outside EXPORT_MODES, or a document whose id or version could not have passed `validate_pack` (they name files)."""
     if target not in EXPORT_TARGETS:
         raise ValueError(f"unknown export target {target!r}")
     if mode not in EXPORT_MODES:
@@ -131,6 +141,10 @@ def build(doc: PackDocument, target: str, *, built_at: str, mode: str = "project
         from spellwarden_scan.exports.kong import kong_files
 
         return kong_files(doc, built_at=built_at)
+    if target == "zuplo":
+        from spellwarden_scan.exports.zuplo import zuplo_files
+
+        return zuplo_files(doc, built_at=built_at)
     from spellwarden_scan.exports.hooks import hooks_files  # Task 6 (spec 5.5.1)
 
     return hooks_files(doc, built_at=built_at, mode=mode)

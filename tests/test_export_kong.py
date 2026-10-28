@@ -52,12 +52,12 @@ def kong_rule(number: int, pattern: str, *, case_sensitive: bool = False) -> dic
 # --- dispatch and the coverage table ----------------------------------------------------------------------------
 
 def test_targets_and_modes():
-    assert EXPORT_TARGETS == ("claude-code-hooks", "kong")
-    assert PLANNED_TARGETS == ("zuplo", "agentcore-policy", "cloudflare-egress")
+    assert EXPORT_TARGETS == ("claude-code-hooks", "kong", "zuplo")
+    assert PLANNED_TARGETS == ("agentcore-policy", "cloudflare-egress")
     assert EXPORT_MODES == ("project", "managed")
 
 
-@pytest.mark.parametrize("target", ["zuplo", "agentcore-policy", "cloudflare-egress", "registry", "", "KONG"])
+@pytest.mark.parametrize("target", ["agentcore-policy", "cloudflare-egress", "registry", "", "KONG"])
 def test_build_refuses_a_target_outside_the_export_targets(target):
     with pytest.raises(ValueError):
         build(baseline_pack(), target, built_at=BUILT)

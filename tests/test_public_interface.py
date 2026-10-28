@@ -66,8 +66,8 @@ def test_1_2_0_adds_the_names_of_o3_spec_5_4():
 
 def test_build_export_is_exports_build_and_the_target_lists_are_the_spec_s():
     assert spellwarden_scan.build_export is exports.build
-    assert spellwarden_scan.EXPORT_TARGETS == ("claude-code-hooks", "kong")
-    assert spellwarden_scan.PLANNED_TARGETS == ("zuplo", "agentcore-policy", "cloudflare-egress")
+    assert spellwarden_scan.EXPORT_TARGETS == ("claude-code-hooks", "kong", "zuplo")
+    assert spellwarden_scan.PLANNED_TARGETS == ("agentcore-policy", "cloudflare-egress")
     assert spellwarden_scan.EXPORT_MODES == ("project", "managed")
 
 
