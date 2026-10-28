@@ -527,7 +527,7 @@ def pattern_search(compiled: CompiledPattern, text: str) -> bool:
 # --- Org rule specs (spec 5.2.1, 5.2.3) and their detection ------------------------------------------------
 
 AREAS = ("skill", "mcp")
-TARGETS = ("claude-code-hooks", "kong")
+TARGETS = ("claude-code-hooks", "kong", "zuplo")
 SPEC_KEYS = ("id", "title", "severity", "area", "owasp", "nist", "targets", "malicious", "detection")
 PATTERN_KEYS = ("kind", "files", "in", "pattern", "case_sensitive")
 PROBE_PREDICATES = ("auth_mode_in", "transport_in", "deprecated_feature_any", "spec_version_below",

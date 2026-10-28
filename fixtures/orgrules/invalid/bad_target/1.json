@@ -10,7 +10,7 @@
     "SR-3"
   ],
   "targets": [
-    "zuplo"
+    "agentcore-policy"
   ],
   "malicious": false,
   "detection": {

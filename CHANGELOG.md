@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.6.0 (2026-10-28)
+
+The Zuplo export. A published policy pack can be exported to Zuplo's MCP Gateway, next to Claude Code hooks and Kong:
+`build_export(pack, "zuplo", built_at=...)` returns five files, a TypeScript outbound policy for Zuplo (the same file for
+every pack), a `policies.json` entry that declares it with the pack's patterns in its options, a Node script that checks that
+a Zuplo project is wired as the export requires, a README and `SHA256SUMS`.
+
+- SW-GW-004 is enforced at runtime on what MCP servers send through the gateway: results, errors, and the requests and
+  notifications a server sends on the stream. The guard fails closed: a response that it was configured to check and could not
+  check is blocked with a JSON-RPC error (code -32001, HTTP 200). Kong enforces SW-GW-004 on prompts; the two exports cover the
+  two directions.
+- SW-GW-003 is checked at deploy by the included script when your pipeline runs it, and is listed as not enforced by this
+  target. Every other enforcement rule is listed as not enforced, with the reason, as the Kong export does.
+- `zuplo` moves from `PLANNED_TARGETS` to `EXPORT_TARGETS`, and org pattern rules can name it as a target
+  (`orgrules.TARGETS`, `schemas/pack.schema.json`, now up to three targets). An engine older than 1.6.0 refuses a pack that
+  names it; `packs.TARGET_SINCE` says which engine accepts which target, for a host that serves packs to older scanners.
+- The Claude Code hooks and Kong exports are byte-identical to 1.5.0's for every pack (`fixtures/export_hashes_1.5.0.json`).
+- New public names in `spellwarden_scan.exports.zuplo` (`zuplo_files`, `zuplo_part`, `options_sha256`, `JS_REASON`,
+  `POLICY_NAME`, `GUARD_PATH`, `POLICIES_PATH`, `CHECK_PATH`) and `spellwarden_scan.packs.TARGET_SINCE`.
+- `make check-node` runs the guard and the check script under Node 24 against `fixtures/zuplo_vectors.json`; `make check`
+  stays Python-only, and the release workflow runs both before it publishes. The rules version stays `2026.10.6` and the
+  number of rules 60: no detection rule changed.
+
 ## 1.5.0 (2026-10-27)
 
 Agent card members that A2A 1.0 removed are read in their snake_case spelling too. A 0.x card, or a 1.0 card that still

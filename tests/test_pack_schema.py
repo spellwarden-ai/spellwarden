@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 from jsonschema import Draft202012Validator
 
-from spellwarden_scan.orgrules import PROBE_PREDICATES
+from spellwarden_scan.orgrules import PROBE_PREDICATES, TARGETS
 from spellwarden_scan.packs import ENFORCEMENT_IDS, PackError, validate_pack
 from spellwarden_scan.rules import ORG_ALLOWED_NIST, ORG_ALLOWED_OWASP
 from spellwarden_scan.text import valid_block, valid_line
@@ -40,7 +40,8 @@ def test_the_closed_lists_equal_the_engine():
     # an organisation rule maps to the tags of 1.2.x only: the A2A tags are baseline-only (O4 spec 5.4; `A2A_ONLY_TAGS`)
     assert org["owasp"]["items"]["enum"] == list(ORG_ALLOWED_OWASP)
     assert org["nist"]["items"]["enum"] == list(ORG_ALLOWED_NIST)
-    assert org["targets"]["items"]["enum"] == ["claude-code-hooks", "kong"]
+    assert org["targets"]["items"]["enum"] == ["claude-code-hooks", "kong", "zuplo"]
+    assert org["targets"]["maxItems"] == len(TARGETS)
     predicates = [branch["properties"]["predicate"]["const"] for branch in SCHEMA["$defs"]["probeDetection"]["oneOf"]]
     assert predicates == list(PROBE_PREDICATES)
 

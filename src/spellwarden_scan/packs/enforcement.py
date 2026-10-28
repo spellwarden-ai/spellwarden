@@ -67,7 +67,7 @@ ENFORCEMENT_RULES: tuple[EnforcementRule, ...] = (
     _rule("SW-GW-003", "Deny MCP upstreams without OAuth", "high",
           owasp=("MCP01",), nist=("AC-3",), targets=("kong", "zuplo", "agentcore-policy"), enforced_by=()),
     _rule("SW-GW-004", "Prompt-injection deny patterns on prompts and tool results", "medium",
-          owasp=("ASI01", "MCP10"), nist=("SI-10",), targets=("kong", "zuplo"), enforced_by=("kong",)),
+          owasp=("ASI01", "MCP10"), nist=("SI-10",), targets=("kong", "zuplo"), enforced_by=("kong", "zuplo")),
     _rule("SW-EG-005", "Sandbox egress only to registry-admitted hosts", "medium",
           owasp=("ASI10",), nist=("SC-7",), targets=("cloudflare-egress",), enforced_by=()),
     _rule("SW-GW-006", "Destructive tool verbs require human approval", "high",

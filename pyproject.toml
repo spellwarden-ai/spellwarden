@@ -1,6 +1,6 @@
 [project]
 name = "spellwarden"
-version = "1.5.0"
+version = "1.6.0"
 description = "Spellwarden: the scan engine for agent skills, MCP servers and Claude Code configuration and A2A agent cards (spellwarden_scan, pure code, no I/O) and the spellwarden command that does the I/O (spellwarden_cli)."
 readme = "README.md"
 license = "Apache-2.0"
@@ -55,6 +55,8 @@ select = ["E", "F", "W", "B", "UP", "ARG"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["E501"]
+# The Zuplo guard and its check script are TypeScript and JavaScript held as text (Zuplo export spec 4.4, 4.5).
+"src/spellwarden_scan/exports/zuplo_guard.py" = ["E501"]
 # Moved and ported from the hosted backend verbatim (spec 6.8): its line length and its scripted test doubles stay.
 "src/spellwarden_cli/net.py" = ["E501"]
 "src/spellwarden_cli/probe.py" = ["E501"]

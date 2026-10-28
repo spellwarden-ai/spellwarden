@@ -108,3 +108,15 @@ def test_the_connected_e2e_job_scans_the_findings_repository_with_both_credentia
     assert "--no-deps" in run and "--require-hashes" in run and "docker/requirements.deps.txt" in run
     # no credential-shaped literal is written in the workflow
     assert not re.search(r"sw[kctri]_[A-Za-z0-9_-]{40}", (WORKFLOWS / "release.yml").read_text(encoding="utf-8"))
+
+
+def test_the_build_job_runs_the_node_checks_of_the_zuplo_guard_before_anything_is_published():
+    # Review r0:F3 of the Zuplo export: `make check` is Python only, so a tag whose guard text breaks a Node vector would
+    # publish. The build job, which every publishing job needs, runs `make check-node` on Node 24 after `make check`.
+    steps = _steps("release.yml", "build")
+    runs = [s.get("run", "") for s in steps]
+    assert runs.index("make check-node") > runs.index("make check")
+    node = [s for s in steps if str(s.get("uses", "")).startswith("actions/setup-node@")]
+    assert len(node) == 1 and node[0]["with"]["node-version"] == "24"
+    assert re.fullmatch(r"actions/setup-node@[0-9a-f]{40}", node[0]["uses"])
+    assert node[0]["uses"] == next(s["uses"] for s in _steps("check.yml", "zuplo") if str(s.get("uses", "")).startswith("actions/setup-node@"))

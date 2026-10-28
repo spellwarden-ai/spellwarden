@@ -27,6 +27,10 @@ jobs:
           test "${GITHUB_REF_NAME}" = "v${version}" || { echo "tag ${GITHUB_REF_NAME} is not v${version}"; exit 1; }
           echo "VERSION=${version}" >> "$GITHUB_ENV"
       - run: make check
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
+        with:
+          node-version: "24"
+      - run: make check-node
       - id: hashes
         name: Record the hashes of the files every later job uses
         run: |

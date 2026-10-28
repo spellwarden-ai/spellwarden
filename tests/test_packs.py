@@ -61,7 +61,7 @@ def test_the_eight_enforcement_rules_of_the_spec_table():
         "SW-HK-001": ("high", ("ASI04",), ("SR-3",), ("claude-code-hooks",), ("claude-code-hooks",)),
         "SW-HK-002": ("high", ("MCP01",), ("IA-5",), ("claude-code-hooks", "cloudflare-egress"), ("claude-code-hooks",)),
         "SW-GW-003": ("high", ("MCP01",), ("AC-3",), ("kong", "zuplo", "agentcore-policy"), ()),
-        "SW-GW-004": ("medium", ("ASI01", "MCP10"), ("SI-10",), ("kong", "zuplo"), ("kong",)),
+        "SW-GW-004": ("medium", ("ASI01", "MCP10"), ("SI-10",), ("kong", "zuplo"), ("kong", "zuplo")),
         "SW-EG-005": ("medium", ("ASI10",), ("SC-7",), ("cloudflare-egress",), ()),
         "SW-GW-006": ("high", ("ASI10",), ("AC-6",), ("agentcore-policy", "claude-code-hooks"), ("claude-code-hooks",)),
         "SW-RG-007": ("medium", ("ASI04",), ("SR-3",), ("registry",), ("registry",)),
@@ -135,7 +135,7 @@ def test_every_pack_error_code_has_a_fixture_directory():
 
 def test_the_fixture_set_is_the_one_the_generator_wrote():
     names = sorted(path.relative_to(PACKS).as_posix() for path in PACKS.rglob("*.json"))
-    assert len(names) == 39
+    assert len(names) == 40  # 1.6.0 added with-zuplo-rules
     assert names[:5] == ["invalid/bad_org_rule/baseline-id.json", "invalid/bad_org_rule/hooks-target-on-lines.json",
                          "invalid/bad_org_rule/id-000.json", "invalid/bad_org_rule/malicious-not-critical.json",
                          "invalid/bad_org_rule/pattern-too-long.json"]

@@ -1,0 +1,24 @@
+{
+  "openapi": "3.1.0",
+  "info": {"title": "MCP routes", "version": "1.0.0"},
+  "paths": {
+    "/mcp/search": {
+      "post": {
+        "operationId": "search",
+        "x-zuplo-route": {
+          "handler": {"export": "McpProxyHandler", "module": "$import(@zuplo/runtime/mcp-gateway)", "options": {"rewritePattern": "https://demo-mcp.example/search/mcp"}},
+          "policies": {"inbound": ["mcp-oauth", "token-exchange"], "outbound": ["spellwarden-mcp-guard"]}
+        }
+      }
+    },
+    "/mcp/orders": {
+      "post": {
+        "operationId": "orders",
+        "x-zuplo-route": {
+          "handler": {"export": "McpProxyHandler", "module": "$import(@zuplo/runtime/mcp-gateway)", "options": {"rewritePattern": "https://demo-mcp.example/orders/mcp"}},
+          "policies": {"inbound": ["mcp-oauth", "token-exchange"], "outbound": ["spellwarden-mcp-guard"]}
+        }
+      }
+    }
+  }
+}
