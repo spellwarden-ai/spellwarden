@@ -116,3 +116,22 @@ def test_the_synthetic_zuplo_fixture_is_json_only_and_decodes():
     assert fixture["encoding"] == "json"
     request = decode(json_bytes(fixture["body"]), signal="traces", encoding="json")
     assert request.record_count == 3
+
+
+def test_a_lone_surrogate_escape_becomes_replacement_characters_in_every_string():
+    """r0:F2. `json.loads` keeps a lone `\\ud800` as a surrogate that no UTF-8 writer can encode; protobuf strings decode
+    with errors=replace, so the JSON path does too (same bytes, same result), in values, keys and names alike."""
+    body = ('{"resourceSpans":[{"resource":{"attributes":[{"key":"k\\ud800","value":{"stringValue":"v\\udc00"}}]},'
+            '"scopeSpans":[{"scope":{"name":"s\\ud800"},"spans":[{"name":"x\\ud800","attributes":'
+            '[{"key":"gen_ai.operation.name","value":{"stringValue":"chat\\udfff"}},'
+            '{"key":"ok","value":{"stringValue":"\\ud83d\\ude00"}}]}]}]}]}').encode("ascii")
+    request = decode(body, signal="traces", encoding="json")
+    scope = request.resources[0].scopes[0]
+    span = scope.spans[0]
+    replaced = b"\xed\xa0\x80".decode("utf-8", "replace")
+    assert span.name == "x" + replaced
+    assert span.attributes["gen_ai.operation.name"] == "chat" + b"\xed\xbf\xbf".decode("utf-8", "replace")
+    assert span.attributes["ok"] == "\U0001F600"
+    assert ("k" + replaced) in request.resources[0].attributes
+    assert scope.name == "s" + replaced
+    json.dumps([span.name, span.attributes, scope.name, request.resources[0].attributes]).encode("utf-8")

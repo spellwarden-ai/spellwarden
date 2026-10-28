@@ -112,3 +112,13 @@ def test_usage_errors_exit_two(run_cli, tmp_path):
     assert run_cli(["otel", "normalise"])[0] == 2
     assert run_cli(["otel", "normalise", "x", "--max-records", "0"])[0] == 2
     assert run_cli(["otel"])[0] == 2
+
+
+def test_a_lone_surrogate_escape_in_json_prints_and_exits_zero(run_cli, tmp_path):
+    """r0:F2: the JSON is valid, so the command prints records, never an internal error."""
+    path = tmp_path / "surrogate.json"
+    path.write_bytes(b'{"resourceSpans":[{"resource":{"attributes":[]},"scopeSpans":[{"spans":[{"name":"x\\ud800",'
+                     b'"attributes":[{"key":"gen_ai.operation.name","value":{"stringValue":"chat"}}]}]}]}]}')
+    code, out, err = run_cli(["otel", "normalise", str(path), "--content"])
+    assert (code, err) == (0, "")
+    assert json.loads(out)["records"][0]["name"] == "x" + b"\xed\xa0\x80".decode("utf-8", "replace")

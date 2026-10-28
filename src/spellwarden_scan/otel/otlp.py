@@ -183,6 +183,12 @@ class _Context:
 
     def json_text(self, value: str) -> str:
         limit = self.limits.max_value_bytes
+        if not value.isascii():
+            try:
+                value.encode("utf-8")
+            except UnicodeEncodeError:
+                # A lone `\ud800`-style escape: protobuf strings decode with errors=replace, so the JSON path does too.
+                value = value.encode("utf-8", "surrogatepass").decode("utf-8", "replace")
         if len(value) * 4 > limit:
             raw = value.encode("utf-8", "surrogatepass")
             if len(raw) > limit:
