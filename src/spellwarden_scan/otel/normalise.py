@@ -145,6 +145,7 @@ _DECIMAL = re.compile(r"-?[0-9]{1,19}")
 _TOKEN_SEGMENT = re.compile(r"(?=[^/]*[A-Za-z])(?=[^/]*[0-9])[^/]{20,}")
 _SCHEME_TEXT = re.compile(r"([A-Za-z][A-Za-z0-9+.-]*:)(///[^?#]*|(?![/\\])[^?#/@]*(?:/[^?#]*)?)")
 _DEFAULT_PORTS = {"https": 443, "http": 80}
+_SPECIAL_SCHEMES = frozenset({"http", "https", "ws", "wss", "ftp"})
 _MAX_TOKENS = 10**9
 
 
@@ -222,15 +223,19 @@ def kept_url(value: object) -> str | None:
 def kept_skill_uri(value: object) -> str | None:
     """`gen_ai.skill.source.uri`: as `kept_url`, else, only for a value with no authority (`file:///opt/skills/x`,
     `scheme:` and a path), the scheme and path text without query or fragment, token-like segments replaced by `***`,
-    cut to 2048. A value with an authority or userinfo that `kept_url` refuses leaves the field absent."""
+    cut to 2048. A value with an authority or userinfo that `kept_url` refuses leaves the field absent.
+
+    The fallback reads the value as `kept_url` saw it, so removing a control character cannot make an authority, and it
+    refuses any `@` (userinfo to some URL parser, whatever the slashes before it) and the special schemes, whose
+    host-less forms (`https:///user:pw@host/x`) URL parsers read as an authority."""
     url = kept_url(value)
     if url is not None:
         return url
-    text = _plain_text(value)
-    if text is None:
+    if not isinstance(value, str) or _CONTROL.search(value) or "\x7f" in value or "@" in value:
         return None
-    match = _SCHEME_TEXT.fullmatch(text.strip().split("?", 1)[0].split("#", 1)[0])
-    if match is None:
+    text = unicodedata.normalize("NFC", value).strip()
+    match = _SCHEME_TEXT.fullmatch(text.split("?", 1)[0].split("#", 1)[0])
+    if match is None or match.group(1)[:-1].lower() in _SPECIAL_SCHEMES:
         return None
     path = "/".join("***" if _TOKEN_SEGMENT.fullmatch(segment) else segment for segment in match.group(2).split("/"))
     return _cut(match.group(1) + path, 2048)
