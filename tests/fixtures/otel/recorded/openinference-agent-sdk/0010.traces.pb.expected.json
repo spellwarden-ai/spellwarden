@@ -1,0 +1,53 @@
+{
+ "records": [
+  {
+   "content": [
+    {
+     "cut": false,
+     "kind": "tool_arguments",
+     "text": "{\"order_id\":\"42\"}"
+    },
+    {
+     "cut": false,
+     "kind": "tool_result",
+     "text": "\"{\\\"result\\\":\\\"order 42: shipped\\\"}\""
+    }
+   ],
+   "counted": true,
+   "dialect": "openinference",
+   "duration_ms": 35,
+   "end_ns": 1793204929648690252,
+   "kind": "tool",
+   "name": "mcp__gate-orders__get_order",
+   "parent_span_id": "dfc7ba773a4c5d43",
+   "resource": 0,
+   "scope": "openinference.instrumentation.claude_agent_sdk",
+   "signal": "span",
+   "span_id": "878226984d960257",
+   "start_ns": 1793204929613582352,
+   "status": "ok",
+   "tool_name": "mcp__gate-orders__get_order",
+   "trace_id": "365d1dd830a3076d0515b024809f454e"
+  }
+ ],
+ "resources": [
+  {
+   "sdk_language": "python",
+   "service_name": "gate-openinference"
+  }
+ ],
+ "stats": {
+  "attributes_skipped": 0,
+  "by_dialect": {
+   "openinference": 1
+  },
+  "content_cut": 0,
+  "content_items": 2,
+  "counted": 1,
+  "events_skipped": 0,
+  "ignored": 0,
+  "kept": 1,
+  "log_records": 0,
+  "spans": 1
+ }
+}

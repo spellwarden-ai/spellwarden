@@ -1,0 +1,28 @@
+{
+ "producer": "Kong AI Gateway, OpenTelemetry plugin with Gen AI attributes (3.13 and later)",
+ "source": "https://developer.konghq.com/ai-gateway/llm-open-telemetry",
+ "read": "2026-10-28",
+ "note": "Written from the documented attributes, not recorded: protobuf only, an LLM span named {operation} {model} under Kong's own spans, a tool call span.",
+ "signal": "traces",
+ "encoding": "protobuf",
+ "body": {"resourceSpans": [{"resource": {"attributes": [{"key": "service.name", "value": {"stringValue": "kong"}}]},
+  "scopeSpans": [{"scope": {"name": "kong-internal", "version": "0.1.0"}, "spans": [
+   {"traceId": "9c1b2a3d4e5f60718293a4b5c6d7e8f9", "spanId": "aa00000000000001", "name": "kong", "kind": 2,
+    "startTimeUnixNano": "1761600100000000000", "endTimeUnixNano": "1761600101500000000",
+    "attributes": [{"key": "http.request.method", "value": {"stringValue": "POST"}}]},
+   {"traceId": "9c1b2a3d4e5f60718293a4b5c6d7e8f9", "spanId": "aa00000000000002", "parentSpanId": "aa00000000000001", "name": "chat gpt-4o-mini", "kind": 3,
+    "startTimeUnixNano": "1761600100100000000", "endTimeUnixNano": "1761600101400000000",
+    "attributes": [{"key": "gen_ai.operation.name", "value": {"stringValue": "chat"}},
+                   {"key": "gen_ai.provider.name", "value": {"stringValue": "openai"}},
+                   {"key": "gen_ai.request.model", "value": {"stringValue": "gpt-4o-mini"}},
+                   {"key": "gen_ai.response.model", "value": {"stringValue": "gpt-4o-mini-2024-07-18"}},
+                   {"key": "gen_ai.usage.input_tokens", "value": {"intValue": "512"}},
+                   {"key": "gen_ai.usage.output_tokens", "value": {"intValue": "64"}},
+                   {"key": "gen_ai.response.finish_reasons", "value": {"arrayValue": {"values": [{"stringValue": "tool_calls"}]}}}]},
+   {"traceId": "9c1b2a3d4e5f60718293a4b5c6d7e8f9", "spanId": "aa00000000000003", "parentSpanId": "aa00000000000002", "name": "execute_tool get_order", "kind": 1,
+    "startTimeUnixNano": "1761600101300000000", "endTimeUnixNano": "1761600101350000000",
+    "attributes": [{"key": "gen_ai.operation.name", "value": {"stringValue": "execute_tool"}},
+                   {"key": "gen_ai.tool.name", "value": {"stringValue": "get_order"}},
+                   {"key": "gen_ai.tool.call.id", "value": {"stringValue": "call_abc123"}},
+                   {"key": "gen_ai.tool.type", "value": {"stringValue": "function"}}]}]}]}]}
+}

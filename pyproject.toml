@@ -1,6 +1,6 @@
 [project]
 name = "spellwarden"
-version = "1.6.0"
+version = "1.7.0"
 description = "Spellwarden: the scan engine for agent skills, MCP servers and Claude Code configuration and A2A agent cards (spellwarden_scan, pure code, no I/O) and the spellwarden command that does the I/O (spellwarden_cli)."
 readme = "README.md"
 license = "Apache-2.0"
@@ -28,6 +28,8 @@ Source = "https://github.com/spellwarden-ai/spellwarden"
 [dependency-groups]
 dev = [
     "jsonschema>=4.23",
+    # the reference OTLP decoder of tests/otel (runtime traces spec 4.9); never imported by the package (tests/test_pure.py)
+    "opentelemetry-proto==1.45.1",
     "pytest>=8.3",
     "ruff>=0.6",
 ]
@@ -44,6 +46,7 @@ include = ["src/spellwarden_scan", "src/spellwarden_cli", "tests", "fixtures", "
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = ["slow: a timing test (runtime traces spec 4.9); `make check` and CI run it, with SPELLWARDEN_SPEED_FACTOR in CI"]
 
 [tool.ruff]
 line-length = 130

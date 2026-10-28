@@ -1,0 +1,53 @@
+{
+ "records": [
+  {
+   "content": [
+    {
+     "cut": false,
+     "kind": "tool_arguments",
+     "text": "{\"query\":\"select:mcp__gate-orders__get_order,mcp__gate-search__search_orders\"}"
+    },
+    {
+     "cut": false,
+     "kind": "tool_result",
+     "text": "{\"matches\":[\"mcp__gate-orders__get_order\",\"mcp__gate-search__search_orders\"],\"query\":\"select:mcp__gate-orders__get_order,mcp__gate-search__search_orders\",\"total_deferred_tools\":19}"
+    }
+   ],
+   "counted": true,
+   "dialect": "openinference",
+   "duration_ms": 8,
+   "end_ns": 1793204918766194247,
+   "kind": "tool",
+   "name": "ToolSearch",
+   "parent_span_id": "dfc7ba773a4c5d43",
+   "resource": 0,
+   "scope": "openinference.instrumentation.claude_agent_sdk",
+   "signal": "span",
+   "span_id": "bd44ccea6f166acf",
+   "start_ns": 1793204918757864363,
+   "status": "ok",
+   "tool_name": "ToolSearch",
+   "trace_id": "365d1dd830a3076d0515b024809f454e"
+  }
+ ],
+ "resources": [
+  {
+   "sdk_language": "python",
+   "service_name": "gate-openinference"
+  }
+ ],
+ "stats": {
+  "attributes_skipped": 0,
+  "by_dialect": {
+   "openinference": 1
+  },
+  "content_cut": 0,
+  "content_items": 2,
+  "counted": 1,
+  "events_skipped": 0,
+  "ignored": 0,
+  "kept": 1,
+  "log_records": 0,
+  "spans": 1
+ }
+}

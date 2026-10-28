@@ -8,6 +8,11 @@ on:
 permissions:
   contents: read
 
+# Runtime traces spec 4.9: shared runners are slower than a development machine, so tests/otel/test_speed.py
+# multiplies its 2.0 s budget by this factor.
+env:
+  SPELLWARDEN_SPEED_FACTOR: "3"
+
 jobs:
   image:
     # Spec 7.2: the image builds with no network after the wheelhouse step, and runs as uid 10001 on a root-owned

@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.7.0 (2026-10-28)
+
+Runtime traces. A new subpackage, `spellwarden_scan.otel`, reads OpenTelemetry traces and logs as Spellwarden's hosted
+receiver will read them: `decompress` and `decode` take an OTLP/HTTP request body (protobuf or JSON, gzip or not; the protobuf
+reader is written by hand, so the package still depends on PyYAML and cryptography only), and `normalise` keeps an
+allow-list of fields from each span and log record of the producers it knows (Claude Code, the Claude Platform,
+OpenInference, the GenAI conventions old and current, MCP), with content apart and only when asked for.
+
+- New command `spellwarden otel normalise PATH`: prints what Spellwarden would keep from a file of your own telemetry. It
+  reads the file and sends nothing. README, "What Spellwarden keeps from your telemetry".
+- New public names in `spellwarden_scan.otel` (`OTEL_NAMES`): `CONTENT_KINDS`, `ContentItem`, `DEFAULT_LIMITS`,
+  `DIALECTS`, `Normalised`, `OtlpError`, `OtlpLimits`, `OtlpRequest`, `RECORD_KINDS`, `Record`, `ResourceInfo`, `Stats`,
+  `count_records`, `decode`, `decompress`, `encode_status`, `encode_success`, `normalise`. `spellwarden_scan.__all__` does
+  not change and the package does not import the subpackage.
+- The tests compare the decoder with the reference `opentelemetry-proto` 1.45.1 package, a development dependency only.
+- Scan results, exports, rules and the command's behaviour outside `otel normalise` are those of 1.6.0. The rules version
+  stays `2026.10.6` and the number of rules 60: no detection rule changed.
+
 ## 1.6.0 (2026-10-28)
 
 The Zuplo export. A published policy pack can be exported to Zuplo's MCP Gateway, next to Claude Code hooks and Kong:

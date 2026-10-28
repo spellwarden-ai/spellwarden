@@ -1,0 +1,44 @@
+{
+ "records": [
+  {
+   "counted": true,
+   "dialect": "genai_legacy",
+   "duration_ms": 7,
+   "end_ns": 1793205015988945551,
+   "input_tokens": 52,
+   "kind": "model",
+   "model": "gpt-4o-mini-2024-07-18",
+   "name": "chat gpt-4o-mini",
+   "operation": "chat",
+   "output_tokens": 17,
+   "provider": "openai",
+   "resource": 0,
+   "scope": "opentelemetry.instrumentation.openai_v2",
+   "signal": "span",
+   "span_id": "d332e817fbfd1682",
+   "start_ns": 1793205015981831433,
+   "status": "unset",
+   "trace_id": "b7217b6db7e71a7c11e7f3a042ca24c0"
+  }
+ ],
+ "resources": [
+  {
+   "sdk_language": "python",
+   "service_name": "gate-openai-legacy"
+  }
+ ],
+ "stats": {
+  "attributes_skipped": 0,
+  "by_dialect": {
+   "genai_legacy": 1
+  },
+  "content_cut": 0,
+  "content_items": 0,
+  "counted": 1,
+  "events_skipped": 0,
+  "ignored": 0,
+  "kept": 1,
+  "log_records": 0,
+  "spans": 1
+ }
+}

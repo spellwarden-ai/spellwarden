@@ -1,0 +1,92 @@
+{
+ "records": [
+  {
+   "counted": true,
+   "dialect": "mcp",
+   "duration_ms": 340,
+   "end_ns": 1793204965878975716,
+   "kind": "mcp",
+   "mcp_method": "initialize",
+   "name": "MCP send initialize",
+   "resource": 0,
+   "scope": "mcp-python-sdk",
+   "side": "client",
+   "signal": "span",
+   "span_id": "75e4b1caef1abf7c",
+   "start_ns": 1793204965538079301,
+   "status": "unset",
+   "trace_id": "a798e0a406c8a282a4b327ad269f398a"
+  },
+  {
+   "counted": true,
+   "dialect": "mcp",
+   "duration_ms": 1,
+   "end_ns": 1793204965880763102,
+   "kind": "mcp",
+   "mcp_method": "tools/list",
+   "name": "MCP send tools/list",
+   "resource": 0,
+   "scope": "mcp-python-sdk",
+   "side": "client",
+   "signal": "span",
+   "span_id": "4686f25a80afd129",
+   "start_ns": 1793204965879488114,
+   "status": "unset",
+   "trace_id": "20c6ec4a1433846a65a432d15a644d65"
+  },
+  {
+   "counted": true,
+   "dialect": "mcp",
+   "duration_ms": 0,
+   "end_ns": 1793204965882253051,
+   "kind": "tool",
+   "mcp_method": "tools/call",
+   "name": "MCP send tools/call get_order",
+   "resource": 0,
+   "scope": "mcp-python-sdk",
+   "side": "client",
+   "signal": "span",
+   "span_id": "1967bc85a8d379aa",
+   "start_ns": 1793204965881254318,
+   "status": "unset",
+   "trace_id": "cf5ec473f85d49f146797a73530a4ace"
+  },
+  {
+   "counted": true,
+   "dialect": "mcp",
+   "duration_ms": 3,
+   "end_ns": 1793204965912039890,
+   "kind": "tool",
+   "mcp_method": "tools/call",
+   "name": "MCP send tools/call get_order",
+   "resource": 0,
+   "scope": "mcp-python-sdk",
+   "side": "client",
+   "signal": "span",
+   "span_id": "764d80613a4bde2d",
+   "start_ns": 1793204965908902043,
+   "status": "unset",
+   "trace_id": "7056c81229e27de97285eb250ea5bec0"
+  }
+ ],
+ "resources": [
+  {
+   "sdk_language": "python",
+   "service_name": "gate-mcp-client"
+  }
+ ],
+ "stats": {
+  "attributes_skipped": 0,
+  "by_dialect": {
+   "mcp": 4
+  },
+  "content_cut": 0,
+  "content_items": 0,
+  "counted": 4,
+  "events_skipped": 0,
+  "ignored": 0,
+  "kept": 4,
+  "log_records": 0,
+  "spans": 4
+ }
+}

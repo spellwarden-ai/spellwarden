@@ -1,0 +1,53 @@
+{
+ "records": [
+  {
+   "content": [
+    {
+     "cut": false,
+     "kind": "tool_arguments",
+     "text": "{\"skill\":\"order-lookup\",\"args\":\"order 42\"}"
+    },
+    {
+     "cut": false,
+     "kind": "tool_result",
+     "text": "{\"success\":true,\"commandName\":\"order-lookup\"}"
+    }
+   ],
+   "counted": true,
+   "dialect": "openinference",
+   "duration_ms": 25,
+   "end_ns": 1793204914191588988,
+   "kind": "tool",
+   "name": "Skill",
+   "parent_span_id": "dfc7ba773a4c5d43",
+   "resource": 0,
+   "scope": "openinference.instrumentation.claude_agent_sdk",
+   "signal": "span",
+   "span_id": "dfce869ced9e48f2",
+   "start_ns": 1793204914166222226,
+   "status": "ok",
+   "tool_name": "Skill",
+   "trace_id": "365d1dd830a3076d0515b024809f454e"
+  }
+ ],
+ "resources": [
+  {
+   "sdk_language": "python",
+   "service_name": "gate-openinference"
+  }
+ ],
+ "stats": {
+  "attributes_skipped": 0,
+  "by_dialect": {
+   "openinference": 1
+  },
+  "content_cut": 0,
+  "content_items": 2,
+  "counted": 1,
+  "events_skipped": 0,
+  "ignored": 0,
+  "kept": 1,
+  "log_records": 0,
+  "spans": 1
+ }
+}

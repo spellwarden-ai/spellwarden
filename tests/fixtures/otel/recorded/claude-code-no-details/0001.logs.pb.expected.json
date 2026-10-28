@@ -1,0 +1,103 @@
+{
+ "records": [
+  {
+   "counted": true,
+   "dialect": "claude_code",
+   "duration_ms": 41,
+   "end_ns": 1793204759919000000,
+   "kind": "connection",
+   "name": "claude_code.mcp_server_connection",
+   "provider": "anthropic",
+   "resource": 0,
+   "scope": "com.anthropic.claude_code.events",
+   "session_source": "session",
+   "session_value": "6028f018-0db2-654a-8711-7c488c32afb7",
+   "signal": "log",
+   "start_ns": 1793204759919000000,
+   "status": "unset"
+  },
+  {
+   "counted": true,
+   "dialect": "claude_code",
+   "duration_ms": 524,
+   "end_ns": 1793204760349000000,
+   "kind": "connection",
+   "name": "claude_code.mcp_server_connection",
+   "provider": "anthropic",
+   "resource": 0,
+   "scope": "com.anthropic.claude_code.events",
+   "session_source": "session",
+   "session_value": "6028f018-0db2-654a-8711-7c488c32afb7",
+   "signal": "log",
+   "start_ns": 1793204760349000000,
+   "status": "unset"
+  },
+  {
+   "content": [
+    {
+     "cut": false,
+     "kind": "prompt",
+     "text": "<REDACTED>"
+    },
+    {
+     "cut": false,
+     "kind": "prompt",
+     "text": "<REDACTED>"
+    }
+   ],
+   "counted": false,
+   "dialect": "claude_code",
+   "end_ns": 1793204760421000000,
+   "kind": "content",
+   "name": "claude_code.user_prompt",
+   "provider": "anthropic",
+   "resource": 0,
+   "scope": "com.anthropic.claude_code.events",
+   "session_source": "session",
+   "session_value": "6028f018-0db2-654a-8711-7c488c32afb7",
+   "signal": "log",
+   "span_id": "c3af930032c90cc8",
+   "start_ns": 1793204760421000000,
+   "status": "unset",
+   "trace_id": "ea19ab5d141e881bf7570c5cc5c7e021"
+  },
+  {
+   "counted": true,
+   "dialect": "claude_code",
+   "duration_ms": 36,
+   "end_ns": 1793204760462000000,
+   "kind": "connection",
+   "name": "claude_code.mcp_server_connection",
+   "provider": "anthropic",
+   "resource": 0,
+   "scope": "com.anthropic.claude_code.events",
+   "session_source": "session",
+   "session_value": "6028f018-0db2-654a-8711-7c488c32afb7",
+   "signal": "log",
+   "span_id": "c3af930032c90cc8",
+   "start_ns": 1793204760462000000,
+   "status": "unset",
+   "trace_id": "ea19ab5d141e881bf7570c5cc5c7e021"
+  }
+ ],
+ "resources": [
+  {
+   "service_name": "claude-code",
+   "service_version": "2.1.312"
+  }
+ ],
+ "stats": {
+  "attributes_skipped": 0,
+  "by_dialect": {
+   "claude_code": 4
+  },
+  "content_cut": 0,
+  "content_items": 2,
+  "counted": 3,
+  "events_skipped": 0,
+  "ignored": 6,
+  "kept": 4,
+  "log_records": 10,
+  "spans": 0
+ }
+}

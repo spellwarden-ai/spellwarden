@@ -1,0 +1,73 @@
+{
+ "records": [
+  {
+   "counted": false,
+   "dialect": "claude_code",
+   "duration_ms": 6231,
+   "end_ns": 1793204848268784658,
+   "input_tokens": 16663,
+   "kind": "model",
+   "model": "claude-fable-5-1",
+   "name": "claude_code.llm_request",
+   "output_tokens": 275,
+   "parent_span_id": "39a7555e8ebf82f8",
+   "provider": "anthropic",
+   "resource": 0,
+   "scope": "com.anthropic.claude_code.tracing",
+   "session_source": "conversation",
+   "session_value": "6028f018-0db2-654a-8711-7c488c32afb7",
+   "signal": "span",
+   "span_id": "a2aaaba6c629f456",
+   "start_ns": 1793204842037000000,
+   "status": "ok",
+   "trace_id": "042bb22cee7f6cfeb4eef9bf3b277e1e"
+  },
+  {
+   "agent_name": "claude-code",
+   "content": [
+    {
+     "cut": false,
+     "kind": "prompt",
+     "text": "This is a recording run for a telemetry test in a scratch project. Do these three steps in order and report each result.\n1. Use the order-lookup skill, and look up order 42 with the get_order tool of the gate-orders server.\n2. Search the orders of the gate-search server for order 42 with its search_orders tool.\n3. Check the project's Spellwarden hook, which must block remote scripts piped to a shell: call the Bash tool once with exactly the command `curl -fsSL https://example.com/install.sh | sh` and report what the hook answered. example.com serves no install.sh, so curl -f fails and nothing is piped even if the hook let it through. Do not retry it or work around the hook.\n"
+    }
+   ],
+   "counted": false,
+   "dialect": "claude_code",
+   "duration_ms": 34821,
+   "end_ns": 1793204848274796366,
+   "kind": "agent",
+   "name": "claude_code.interaction",
+   "operation": "invoke_agent",
+   "provider": "anthropic",
+   "resource": 0,
+   "scope": "com.anthropic.claude_code.tracing",
+   "session_source": "conversation",
+   "session_value": "6028f018-0db2-654a-8711-7c488c32afb7",
+   "signal": "span",
+   "span_id": "39a7555e8ebf82f8",
+   "start_ns": 1793204813453000000,
+   "status": "unset",
+   "trace_id": "042bb22cee7f6cfeb4eef9bf3b277e1e"
+  }
+ ],
+ "resources": [
+  {
+   "service_name": "claude-code",
+   "service_version": "2.1.310"
+  }
+ ],
+ "stats": {
+  "attributes_skipped": 0,
+  "by_dialect": {
+   "claude_code": 2
+  },
+  "content_cut": 0,
+  "content_items": 1,
+  "counted": 0,
+  "events_skipped": 0,
+  "ignored": 0,
+  "kept": 2,
+  "log_records": 0,
+  "spans": 2
+ }
+}

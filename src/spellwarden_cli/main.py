@@ -103,6 +103,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     lockfile.add_parser(commands)
     baseline.add_parser(commands)
+    from spellwarden_cli import otelcmd
+
+    otelcmd.add_parser(commands)
     return parser
 
 

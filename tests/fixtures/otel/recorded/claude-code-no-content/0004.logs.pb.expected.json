@@ -1,0 +1,110 @@
+{
+ "records": [
+  {
+   "counted": true,
+   "dialect": "claude_code",
+   "duration_ms": 1684,
+   "end_ns": 1793204748203000000,
+   "input_tokens": 19960,
+   "kind": "model",
+   "model": "claude-fable-5-1",
+   "name": "claude_code.api_request",
+   "output_tokens": 59,
+   "provider": "anthropic",
+   "resource": 0,
+   "scope": "com.anthropic.claude_code.events",
+   "session_source": "session",
+   "session_value": "6028f018-0db2-654a-8711-7c488c32afb7",
+   "signal": "log",
+   "skill_name": "order-lookup",
+   "span_id": "2011245c45844253",
+   "start_ns": 1793204748203000000,
+   "status": "unset",
+   "trace_id": "54c084f81bc2940541dd1800285babb2"
+  },
+  {
+   "content": [
+    {
+     "cut": false,
+     "kind": "tool_arguments",
+     "text": "{\"mcp_server_name\":\"gate-orders\",\"mcp_tool_name\":\"get_order\"}"
+    }
+   ],
+   "counted": true,
+   "decision_kind": "tool_decision",
+   "decision_outcome": "accept",
+   "decision_source": "config",
+   "dialect": "claude_code",
+   "end_ns": 1793204748225000000,
+   "kind": "decision",
+   "mcp_server_name": "gate-orders",
+   "name": "claude_code.tool_decision",
+   "provider": "anthropic",
+   "resource": 0,
+   "scope": "com.anthropic.claude_code.events",
+   "session_source": "session",
+   "session_value": "6028f018-0db2-654a-8711-7c488c32afb7",
+   "signal": "log",
+   "span_id": "2bcc7037b2abee6b",
+   "start_ns": 1793204748225000000,
+   "status": "unset",
+   "tool_call_id": "toolu_01QF4iVS6iNYTfuSkfiMkLvK",
+   "tool_name": "get_order",
+   "tool_type": "mcp",
+   "trace_id": "54c084f81bc2940541dd1800285babb2"
+  },
+  {
+   "content": [
+    {
+     "cut": false,
+     "kind": "tool_arguments",
+     "text": "{\"mcp_server_name\":\"gate-orders\",\"mcp_tool_name\":\"get_order\"}"
+    },
+    {
+     "cut": false,
+     "kind": "tool_arguments",
+     "text": "{\"order_id\":\"42\"}"
+    }
+   ],
+   "counted": true,
+   "dialect": "claude_code",
+   "duration_ms": 8,
+   "end_ns": 1793204748234000000,
+   "kind": "tool",
+   "mcp_server_name": "gate-orders",
+   "name": "claude_code.tool_result",
+   "provider": "anthropic",
+   "resource": 0,
+   "scope": "com.anthropic.claude_code.events",
+   "session_source": "session",
+   "session_value": "6028f018-0db2-654a-8711-7c488c32afb7",
+   "signal": "log",
+   "span_id": "2011245c45844253",
+   "start_ns": 1793204748234000000,
+   "status": "ok",
+   "tool_call_id": "toolu_01QF4iVS6iNYTfuSkfiMkLvK",
+   "tool_name": "get_order",
+   "trace_id": "54c084f81bc2940541dd1800285babb2"
+  }
+ ],
+ "resources": [
+  {
+   "service_name": "claude-code",
+   "service_version": "2.1.312"
+  }
+ ],
+ "stats": {
+  "attributes_skipped": 0,
+  "by_dialect": {
+   "claude_code": 3
+  },
+  "content_cut": 0,
+  "content_items": 3,
+  "counted": 3,
+  "events_skipped": 0,
+  "ignored": 4,
+  "kept": 3,
+  "log_records": 7,
+  "spans": 0
+ }
+}

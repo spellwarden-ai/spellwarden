@@ -1,0 +1,135 @@
+{
+ "records": [
+  {
+   "counted": true,
+   "dialect": "claude_code",
+   "duration_ms": 1540,
+   "end_ns": 1793204444090000000,
+   "input_tokens": 20106,
+   "kind": "model",
+   "model": "claude-fable-5-1",
+   "name": "claude_code.api_request",
+   "output_tokens": 74,
+   "provider": "anthropic",
+   "resource": 0,
+   "scope": "com.anthropic.claude_code.events",
+   "session_source": "session",
+   "session_value": "6028f018-0db2-654a-8711-7c488c32afb7",
+   "signal": "log",
+   "skill_name": "order-lookup",
+   "span_id": "c96b73ae16b159d1",
+   "start_ns": 1793204444090000000,
+   "status": "unset",
+   "trace_id": "73a2d918d6c316e4f9531a869afed252"
+  },
+  {
+   "content": [
+    {
+     "cut": false,
+     "kind": "response",
+     "text": "Step 1 done. Now step 2, the search."
+    }
+   ],
+   "counted": false,
+   "dialect": "claude_code",
+   "end_ns": 1793204444090000000,
+   "kind": "content",
+   "model": "claude-fable-5-1",
+   "name": "claude_code.assistant_response",
+   "provider": "anthropic",
+   "resource": 0,
+   "scope": "com.anthropic.claude_code.events",
+   "session_source": "session",
+   "session_value": "6028f018-0db2-654a-8711-7c488c32afb7",
+   "signal": "log",
+   "span_id": "c96b73ae16b159d1",
+   "start_ns": 1793204444090000000,
+   "status": "unset",
+   "trace_id": "73a2d918d6c316e4f9531a869afed252"
+  },
+  {
+   "content": [
+    {
+     "cut": false,
+     "kind": "tool_arguments",
+     "text": "{\"mcp_server_name\":\"gate-search\",\"mcp_tool_name\":\"search_orders\"}"
+    }
+   ],
+   "counted": true,
+   "decision_kind": "tool_decision",
+   "decision_outcome": "accept",
+   "decision_source": "config",
+   "dialect": "claude_code",
+   "end_ns": 1793204444100000000,
+   "kind": "decision",
+   "mcp_server_name": "gate-search",
+   "name": "claude_code.tool_decision",
+   "provider": "anthropic",
+   "resource": 0,
+   "scope": "com.anthropic.claude_code.events",
+   "session_source": "session",
+   "session_value": "6028f018-0db2-654a-8711-7c488c32afb7",
+   "signal": "log",
+   "span_id": "a1af4f2edc4eaf2c",
+   "start_ns": 1793204444100000000,
+   "status": "unset",
+   "tool_call_id": "toolu_01BWpaBYE8bpDVHGAvQXZUh5",
+   "tool_name": "search_orders",
+   "tool_type": "mcp",
+   "trace_id": "73a2d918d6c316e4f9531a869afed252"
+  },
+  {
+   "content": [
+    {
+     "cut": false,
+     "kind": "tool_arguments",
+     "text": "{\"mcp_server_name\":\"gate-search\",\"mcp_tool_name\":\"search_orders\"}"
+    },
+    {
+     "cut": false,
+     "kind": "tool_arguments",
+     "text": "{\"query\":\"42\"}"
+    }
+   ],
+   "counted": true,
+   "dialect": "claude_code",
+   "duration_ms": 6,
+   "end_ns": 1793204444108000000,
+   "kind": "tool",
+   "mcp_server_name": "gate-search",
+   "name": "claude_code.tool_result",
+   "provider": "anthropic",
+   "resource": 0,
+   "scope": "com.anthropic.claude_code.events",
+   "session_source": "session",
+   "session_value": "6028f018-0db2-654a-8711-7c488c32afb7",
+   "signal": "log",
+   "span_id": "c96b73ae16b159d1",
+   "start_ns": 1793204444108000000,
+   "status": "ok",
+   "tool_call_id": "toolu_01BWpaBYE8bpDVHGAvQXZUh5",
+   "tool_name": "search_orders",
+   "trace_id": "73a2d918d6c316e4f9531a869afed252"
+  }
+ ],
+ "resources": [
+  {
+   "service_name": "claude-code",
+   "service_version": "2.1.312"
+  }
+ ],
+ "stats": {
+  "attributes_skipped": 0,
+  "by_dialect": {
+   "claude_code": 4
+  },
+  "content_cut": 0,
+  "content_items": 4,
+  "counted": 3,
+  "events_skipped": 0,
+  "ignored": 4,
+  "kept": 4,
+  "log_records": 8,
+  "spans": 0
+ }
+}
