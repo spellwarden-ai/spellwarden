@@ -63,6 +63,20 @@ jobs:
       - run: uv python pin ${{ matrix.python }}
       - run: make check
 
+  # The Zuplo export (Zuplo export spec 4.7): its guard and check script are TypeScript and JavaScript, run here by Node 24
+  # against the vectors of fixtures/zuplo_vectors.json and the projects of tests/zuplo_ci.py. `make check` is Python-only.
+  zuplo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5.4.2
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
+        with:
+          node-version: "24"
+      - run: make check-node
+
   # The Action promises macOS and Windows runners, and the containment rules of spec 6.13 differ per platform
   # (spec 7.1). The Makefile's `check` target is spelled out: GNU make is not on every Windows image.
   check-os:
