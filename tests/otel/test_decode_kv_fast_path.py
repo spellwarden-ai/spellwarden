@@ -28,8 +28,8 @@ LAYOUTS = [
 ]
 
 
-@pytest.mark.parametrize("data", LAYOUTS)
-@pytest.mark.parametrize("limits", [OtlpLimits(), OtlpLimits(max_value_bytes=2)])
+@pytest.mark.parametrize("data", LAYOUTS, ids=[f"layout-{n}" for n in range(len(LAYOUTS))])
+@pytest.mark.parametrize("limits", [OtlpLimits(), OtlpLimits(max_value_bytes=2)], ids=["default-limits", "values-cut-at-2"])
 def test_the_fast_path_answers_what_the_field_reader_answers(data, limits):
     fast, slow = otlp._Context(limits), otlp._Context(limits)
     assert otlp._pb_kv(memoryview(data), fast, 1) == otlp._pb_kv_fields(memoryview(data), slow, 1)

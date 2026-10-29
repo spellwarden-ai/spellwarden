@@ -77,7 +77,8 @@ def _field(number: int, wire: int) -> bytes:
     len_field(1, b"k" * 128) + varint_field(2, 128) + varint_field(17, 1 << 40),
     len_field(300, b"") + len_field(1, b"x" * 70_000),
     varint_field(1, 0) + struct.pack("<B", 1 << 3 | 1) + b"\x01" * 8 + struct.pack("<B", 2 << 3 | 5) + b"\x02" * 4,
-])
+], ids=["one-byte-sizes", "two-byte-sizes", "long-key-number-and-70000-bytes", "fixed64-and-fixed32"])
+# Short ids: pytest exports the id as PYTEST_CURRENT_TEST, and Windows refuses a variable over 32,767 characters.
 def test_one_byte_keys_and_lengths_read_as_the_long_form_does(data):
     reference = []
     pos, end, buf = 0, len(data), memoryview(data)
@@ -102,7 +103,7 @@ def test_one_byte_keys_and_lengths_read_as_the_long_form_does(data):
     (_field(1, 0), "truncated varint"),
     (_field(1, 2) + b"\x05abc", "length past the end"),
     (b"\x00", "field number 0"),
-])
+], ids=["truncated-length", "truncated-varint", "length-past-the-end", "field-number-0"])
 def test_the_fast_paths_refuse_what_the_long_form_refuses(data, message):
     with pytest.raises(WireError, match=message):
         list(fields(memoryview(data)))
