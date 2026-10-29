@@ -32,12 +32,14 @@ def test_the_section_shows_the_command_and_the_tables():
         assert f"`{name}`" in text, name
 
 
-def test_no_hosted_endpoint_is_named_before_the_hosted_receiver_is_live():
-    # 1.7.0 ships before the hosted receiver (the owner's decision Q1 of 2026-10-28); the hosted plan replaces this test
-    # with the endpoint once the production check has passed.
-    for text in (section(), entry()):
-        assert "otel.spellwarden.ai" not in text
-        assert "receiver reads" not in text and "receiver at" not in text
+def test_the_section_names_the_hosted_endpoint_now_that_it_is_live():
+    # The hosted receiver passed its production check on 2026-10-29 (code runtime traces spec, section 18), so the
+    # section names it; the 1.7.0 entry, released before it, still does not.
+    text = section()
+    assert "`https://otel.spellwarden.ai`" in text
+    assert "`/v1/traces` and `/v1/logs`" in text and "`x-api-key`" in text
+    assert "will accept" not in text
+    assert "otel.spellwarden.ai" not in entry()
 
 
 def test_the_command_list_has_the_usage_line():
