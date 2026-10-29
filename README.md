@@ -788,7 +788,7 @@ A package's identity is a hash over its bytes, as a forge archive of its directo
 
 ## What Spellwarden keeps from your telemetry
 
-Spellwarden's hosted product will accept OpenTelemetry traces and logs over OTLP/HTTP (protobuf or JSON, gzip or not) from agents and gateways; the dashboard will give the address and an ingest key when it does. The code that decides what it keeps is this package's `spellwarden_scan.otel` (since 1.7.0, standard library only, with its own protobuf reader), and the same code runs on your machine today:
+Spellwarden's hosted product accepts OpenTelemetry traces and logs over OTLP/HTTP (protobuf or JSON, gzip or not) from agents and gateways at `https://otel.spellwarden.ai` (`/v1/traces` and `/v1/logs`), with an ingest key sent as `Authorization: Bearer` or `x-api-key`. Create the key in the dashboard under Settings, API keys (access Ingest); the page Settings, Runtime traces gives the settings for the OpenTelemetry SDK, Claude Code, the Claude Platform and the OpenTelemetry Collector. The code that decides what it keeps is this package's `spellwarden_scan.otel` (since 1.7.0, standard library only, with its own protobuf reader), and the same code runs on your machine:
 
 ```
 spellwarden otel normalise PATH --signal traces|logs [--encoding auto|protobuf|json] [--content] [--max-records N] [--max-bytes N]
