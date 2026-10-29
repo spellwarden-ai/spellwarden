@@ -64,3 +64,46 @@ def test_lengths_past_the_end_are_refused(body):
 def test_signed64():
     assert signed64((1 << 64) - 1) == -1
     assert signed64(5) == 5
+
+
+# --- the one-byte fast paths (10,000-span production check, code runtime traces spec 18) --------------------------
+
+def _field(number: int, wire: int) -> bytes:
+    return varint_bytes(number << 3 | wire)
+
+
+@pytest.mark.parametrize("data", [
+    len_field(1, b"k" * 127) + varint_field(2, 127),
+    len_field(1, b"k" * 128) + varint_field(2, 128) + varint_field(17, 1 << 40),
+    len_field(300, b"") + len_field(1, b"x" * 70_000),
+    varint_field(1, 0) + struct.pack("<B", 1 << 3 | 1) + b"\x01" * 8 + struct.pack("<B", 2 << 3 | 5) + b"\x02" * 4,
+], ids=["one-byte-sizes", "two-byte-sizes", "long-key-number-and-70000-bytes", "fixed64-and-fixed32"])
+# Short ids: pytest exports the id as PYTEST_CURRENT_TEST, and Windows refuses a variable over 32,767 characters.
+def test_one_byte_keys_and_lengths_read_as_the_long_form_does(data):
+    reference = []
+    pos, end, buf = 0, len(data), memoryview(data)
+    while pos < end:
+        key, pos = read_varint(buf, pos, end)
+        number, wire = key >> 3, key & 7
+        if wire == 0:
+            value, pos = read_varint(buf, pos, end)
+        elif wire == 2:
+            length, pos = read_varint(buf, pos, end)
+            value, pos = bytes(buf[pos:pos + length]), pos + length
+        elif wire == 1:
+            value, pos = struct.unpack_from("<Q", buf, pos)[0], pos + 8
+        else:
+            value, pos = struct.unpack_from("<I", buf, pos)[0], pos + 4
+        reference.append((number, wire, value))
+    assert [(n, w, bytes(v) if isinstance(v, memoryview) else v) for n, w, v in fields(buf)] == reference
+
+
+@pytest.mark.parametrize("data, message", [
+    (_field(1, 2), "truncated varint"),
+    (_field(1, 0), "truncated varint"),
+    (_field(1, 2) + b"\x05abc", "length past the end"),
+    (b"\x00", "field number 0"),
+], ids=["truncated-length", "truncated-varint", "length-past-the-end", "field-number-0"])
+def test_the_fast_paths_refuse_what_the_long_form_refuses(data, message):
+    with pytest.raises(WireError, match=message):
+        list(fields(memoryview(data)))

@@ -270,6 +270,22 @@ def _pb_any(buf: memoryview, ctx: _Context, depth: int) -> Value:
 
 
 def _pb_kv(buf: memoryview, ctx: _Context, depth: int) -> tuple[str, Value]:
+    # The usual layout, read without the field iterator: field 1 (the key, under 128 bytes) then field 2 (an AnyValue
+    # of exactly one string field, under 128 bytes), and nothing after. Anything else takes the general path below,
+    # which gives the same answer for this layout.
+    size = len(buf)
+    if depth <= ctx.limits.max_depth and size >= 4 and buf[0] == 0x0A and buf[1] < 0x80:
+        key_end = 2 + buf[1]
+        if key_end + 2 <= size and buf[key_end] == 0x12 and buf[key_end + 1] < 0x80:
+            any_end = key_end + 2 + buf[key_end + 1]
+            if any_end == size and any_end - key_end >= 4 and buf[key_end + 2] == 0x0A \
+                    and buf[key_end + 3] < 0x80 and key_end + 4 + buf[key_end + 3] == any_end:
+                return ctx.text(buf[2:key_end]), ctx.text(buf[key_end + 4:any_end])
+    return _pb_kv_fields(buf, ctx, depth)
+
+
+def _pb_kv_fields(buf: memoryview, ctx: _Context, depth: int) -> tuple[str, Value]:
+    """A KeyValue of any layout, field by field (the last key and the last value win)."""
     key = ""
     value: Value = None
     for number, wire, raw in fields(buf):

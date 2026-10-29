@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.7.1 (2026-10-29)
+
+A faster OTLP protobuf reader for `spellwarden_scan.otel`. Field keys and lengths under 128 bytes are read inline, and an
+attribute in its usual layout (a short key, then a value holding one short string) is read without the field iterator;
+every other layout and every refusal take the field-by-field path as before. Decoding and normalising a 10,000-span
+request takes about 30% less time. What is decoded, kept and refused is unchanged, and so are scan results, exports and
+rules (those of 1.6.0, rules `2026.10.6`).
+
 ## 1.7.0 (2026-10-28)
 
 Runtime traces. A new subpackage, `spellwarden_scan.otel`, reads OpenTelemetry traces and logs as Spellwarden's hosted

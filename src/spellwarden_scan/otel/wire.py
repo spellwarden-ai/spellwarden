@@ -41,20 +41,33 @@ def fields(buf: memoryview, start: int = 0, end: int | None = None) -> Iterator[
     if end is None:
         end = len(buf)
     pos = start
+    # Keys and lengths under 128 are one byte, read inline; longer ones, and every error, go through read_varint.
     while pos < end:
-        key, pos = read_varint(buf, pos, end)
+        key = buf[pos]
+        if key < 0x80:
+            pos += 1
+        else:
+            key, pos = read_varint(buf, pos, end)
         number, wire = key >> 3, key & 7
         if number == 0:
             raise WireError("field number 0")
-        if wire == VARINT:
-            value, pos = read_varint(buf, pos, end)
-            yield number, wire, value
-        elif wire == LEN:
-            length, pos = read_varint(buf, pos, end)
+        if wire == LEN:
+            if pos < end and buf[pos] < 0x80:
+                length = buf[pos]
+                pos += 1
+            else:
+                length, pos = read_varint(buf, pos, end)
             if length > end - pos:
                 raise WireError("length past the end")
             yield number, wire, buf[pos:pos + length]
             pos += length
+        elif wire == VARINT:
+            if pos < end and buf[pos] < 0x80:
+                value = buf[pos]
+                pos += 1
+            else:
+                value, pos = read_varint(buf, pos, end)
+            yield number, wire, value
         elif wire == FIXED64:
             if end - pos < 8:
                 raise WireError("truncated fixed64")
