@@ -24,3 +24,29 @@ def test_no_rule_row_sits_outside_the_marked_section():
     outside = text[:text.index(START)] + text[text.index(END) + len(END):]
     stray = [line for line in outside.splitlines() if line.startswith("| SW-")]
     assert stray == [], f"rule rows outside the generated section: {stray[:3]}"
+
+
+CHANGELOG = Path(__file__).resolve().parents[1] / "CHANGELOG.md"
+
+
+def test_the_readme_names_the_reserved_numbers_and_the_malicious_indicators():
+    text = README.read_text(encoding="utf-8").replace("\r\n", "\n")
+    assert "SW-CFG-011 are reserved" in text
+    malicious = sorted(rule.id for rule in RuleSet.baseline() if rule.malicious_indicator)
+    assert malicious == ["SW-CFG-006", "SW-CFG-007", "SW-SKL-004", "SW-SKL-008", "SW-SKL-032"]
+    assert "Five rules are malicious indicators" in text
+    assert "(SW-SKL-004, SW-SKL-008, SW-SKL-032, SW-CFG-006, SW-CFG-007)" in text
+
+
+def test_the_changelog_has_the_1_8_0_entry_with_the_nine_titles_and_the_older_scanner_note():
+    text = CHANGELOG.read_text(encoding="utf-8").replace("\r\n", "\n")
+    assert text.index("## 1.8.0") < text.index("## 1.7.1")
+    entry = text[text.index("## 1.8.0"):text.index("## 1.7.1")]
+    ids = {f"SW-SKL-{n:03d}" for n in range(32, 38)} | {"SW-CFG-012", "SW-CFG-013", "SW-CFG-014"}
+    new = [rule for rule in RuleSet.baseline() if rule.id in ids]
+    assert len(new) == 9
+    for rule in new:
+        assert f"`{rule.id}`" in entry and rule.title in entry, rule.id
+    for needle in ("`2026.11.1`", "69 rules", "unmatched"):
+        assert needle in entry, needle
+    assert "SW-CFG-011" in entry

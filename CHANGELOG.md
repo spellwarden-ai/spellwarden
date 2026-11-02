@@ -1,5 +1,46 @@
 # Changelog
 
+## 1.8.0 (2026-11-02)
+
+Nine new rules. The rules version is `2026.11.1` and the scanner now has 69 rules. Every rule that existed before detects
+what it did in 1.7.1, and the new ones fire on none of the fixtures, sample servers and golden reports recorded before
+them; a scan of content that none of the new rules flags gives the findings 1.7.1 gave it.
+
+Skill packages:
+
+- `SW-SKL-032` "Instructions lure the user into running a password-protected download or a pasted script" (critical,
+  ASI04, ASI09, SR-3, SI-3). A malicious-indicator rule: an open finding quarantines the package, and a baseline entry for
+  it may last at most 30 days.
+- `SW-SKL-033` "Skill drives the user's own signed-in browser over a remote-debugging port" (high, ASI03, AC-6, IA-5).
+- `SW-SKL-034` "TLS certificate checks switched off where credentials are sent" (high, MCP01, SC-8, IA-5).
+- `SW-SKL-035` "Agent told to spend money on its own with no confirmation or cap" (high, ASI02, ASI09, AC-3, AC-6).
+- `SW-SKL-036` "Frontmatter pre-approves an unscoped shell or interpreter" (medium, ASI02, ASI03, AC-6, CM-7).
+- `SW-SKL-037` "Executable downloaded from a moving reference and run without an integrity check" (medium, ASI04, ASI05,
+  SR-3, SI-7).
+
+Agent configuration:
+
+- `SW-CFG-012` "MCP server configured to approve every tool call automatically" (high, ASI02, AC-6, CM-7).
+- `SW-CFG-013` "Database or cluster MCP server with write access although a read-only mode exists" (high, MCP02, ASI03,
+  AC-3, AC-6).
+- `SW-CFG-014` "Insecure or credential-bearing MCP server in a configuration copy" (high, MCP01, ASI04, IA-5, CM-7). It
+  reads copies of MCP client configurations (`.mcp.json.bak`, `.vscode/mcp.json.old`), a new kind of document that no other
+  rule, item, lock entry or count sees. A copy that does not parse is skipped without a notice.
+
+`SW-CFG-011` is reserved and not used.
+
+- The model of an MCP server entry gains an optional `options` field (the approval and trust settings `SW-CFG-012` reads).
+  It is read in process and never written out, so the JSON of a document and the lock file are unchanged.
+- Four OWASP identifiers (`ASI02`, `ASI05`, `ASI09`, `MCP02`) and two NIST controls (`CM-7`, `SI-3`) are allowed in the
+  baseline. Organisation rules keep the tag lists of 1.2.x, so a pack is still readable by every 1.2.x scanner
+  (`ORG_ALLOWED_OWASP` and `ORG_ALLOWED_NIST` are unchanged; `A2A_ONLY_TAGS` is now `BASELINE_ONLY_TAGS`).
+- The SARIF rule table gains nine descriptors, so the index of every result after `SW-CFG-010`, and after `SW-SKL-031`, in
+  it moves. The text and JSON listings of `spellwarden rules` gain nine lines.
+- A scanner older than 1.8.0 reads a baseline that names one of the new ids without error, because the rule-id pattern
+  accepts it: the entry matches nothing there, `baseline list` shows it as `unmatched`, `baseline prune` removes it, and
+  that scanner reports none of the new findings. A team that runs two scanner versions against one repository should
+  upgrade both.
+
 ## 1.7.1 (2026-10-29)
 
 A faster OTLP protobuf reader for `spellwarden_scan.otel`. Field keys and lengths under 128 bytes are read inline, and an

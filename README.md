@@ -66,7 +66,7 @@ The score is `12 x (0.6 S + 0.2 M + 0.2 E)`: `S = max(0, 1 - (6 critical + 3 hig
 
 ## The rules
 
-Ids are `SW-SKL-NNN` (skill packages), `SW-MCP-NNN` (probed MCP servers), `SW-CFG-NNN` (agent configuration files: MCP client configurations, Claude Code settings and hooks, plugin marketplaces), `SW-REG-NNN` (the registry gate of connected mode) and `SW-A2A-NNN` (A2A agent cards). Mappings use the OWASP Agentic Top 10 (ASI) and OWASP MCP Top 10 (MCP) identifiers and NIST SP 800-53 base controls, labelled as a provisional mapping to SP 800-53 base controls. Four rules are malicious indicators: an open finding from one of them quarantines the package.
+Ids are `SW-SKL-NNN` (skill packages), `SW-MCP-NNN` (probed MCP servers), `SW-CFG-NNN` (agent configuration files: MCP client configurations, Claude Code settings and hooks, plugin marketplaces), `SW-REG-NNN` (the registry gate of connected mode) and `SW-A2A-NNN` (A2A agent cards). Mappings use the OWASP Agentic Top 10 (ASI) and OWASP MCP Top 10 (MCP) identifiers and NIST SP 800-53 base controls, labelled as a provisional mapping to SP 800-53 base controls. Five rules are malicious indicators: an open finding from one of them quarantines the package.
 
 <!-- rules:start -->
 | Id | Title | Severity | OWASP | NIST |
@@ -88,6 +88,12 @@ Ids are `SW-SKL-NNN` (skill packages), `SW-MCP-NNN` (probed MCP servers), `SW-CF
 | SW-SKL-015 | Frontmatter missing or invalid (name, description) | low | ASI04 | SR-3 |
 | SW-SKL-019 | Fetches external URL content into context without an allowlist | medium | ASI01, MCP10 | SI-10 |
 | SW-SKL-031 | Missing license and version metadata | low | ASI04 | SR-3 |
+| SW-SKL-032 | Instructions lure the user into running a password-protected download or a pasted script (malicious indicator) | critical | ASI04, ASI09 | SR-3, SI-3 |
+| SW-SKL-033 | Skill drives the user's own signed-in browser over a remote-debugging port | high | ASI03 | AC-6, IA-5 |
+| SW-SKL-034 | TLS certificate checks switched off where credentials are sent | high | MCP01 | SC-8, IA-5 |
+| SW-SKL-035 | Agent told to spend money on its own with no confirmation or cap | high | ASI02, ASI09 | AC-3, AC-6 |
+| SW-SKL-036 | Frontmatter pre-approves an unscoped shell or interpreter | medium | ASI02, ASI03 | AC-6, CM-7 |
+| SW-SKL-037 | Executable downloaded from a moving reference and run without an integrity check | medium | ASI04, ASI05 | SR-3, SI-7 |
 | SW-MCP-001 | Server lists tools without authentication | high | MCP01 | AC-3 |
 | SW-MCP-002 | Static key authentication instead of OAuth | medium | MCP01 | IA-5 |
 | SW-MCP-003 | OAuth dynamic client registration (deprecated; use Client ID Metadata Documents) | medium | MCP01 | IA-5 |
@@ -109,6 +115,9 @@ Ids are `SW-SKL-NNN` (skill packages), `SW-MCP-NNN` (probed MCP servers), `SW-CF
 | SW-CFG-008 | Settings switch off approval prompts | high | ASI10 | AC-6 |
 | SW-CFG-009 | Marketplace plugin source not pinned to a commit | medium | ASI04 | SR-3 |
 | SW-CFG-010 | Literal value under a secret name in an MCP server configuration | high | MCP01 | IA-5 |
+| SW-CFG-012 | MCP server configured to approve every tool call automatically | high | ASI02 | AC-6, CM-7 |
+| SW-CFG-013 | Database or cluster MCP server with write access although a read-only mode exists | high | ASI03, MCP02 | AC-3, AC-6 |
+| SW-CFG-014 | Insecure or credential-bearing MCP server in a configuration copy | high | ASI04, MCP01 | IA-5, CM-7 |
 | SW-REG-001 | Skill package not admitted in the organisation's private registry | high | ASI04 | SR-3 |
 | SW-REG-002 | MCP server not admitted in the organisation's private registry | high | MCP10 | SR-3 |
 | SW-REG-003 | Agent content the private registry cannot judge | high | ASI04 | SR-3 |
@@ -135,7 +144,7 @@ Ids are `SW-SKL-NNN` (skill packages), `SW-MCP-NNN` (probed MCP servers), `SW-CF
 
 SW-REG-001 to SW-REG-003 are the registry gate of connected mode (Enterprise). They fire only in a connected run.
 
-Ids 016 to 018 and 020 to 030 are reserved. `RuleSet.baseline()` returns these rules; `ruleset.with_rules(extra)` adds your own `Rule` objects built with `spellwarden_scan.rules.make_rule`.
+The numbers SW-SKL-016 to 018, SW-SKL-020 to 030 and SW-CFG-011 are reserved and unused. `RuleSet.baseline()` returns these rules; `ruleset.with_rules(extra)` adds your own `Rule` objects built with `spellwarden_scan.rules.make_rule`.
 
 ## Org rules, packs and exports
 
@@ -358,7 +367,7 @@ followed by one entry that joins the nine prompt-injection patterns, `(?i:ignore
             "version": "1.0",
             "built_at": "2026-12-01T00:00:00Z",
             "engine": "<engine version>",
-            "rules_version": "2026.10.6",
+            "rules_version": "2026.11.1",
             "guard_sha256": "<sha256 of the guard file>",
             "options_sha256": "<sha256 of the canonical options>"
           },
@@ -407,8 +416,9 @@ In that set the scanner finds:
 | Item | Where | Judged by |
 |---|---|---|
 | Skill | every directory holding a `SKILL.md`, with every file below it (a nested `SKILL.md` starts its own skill) | the `SW-SKL` rules |
-| MCP client configuration | `.mcp.json`, `.vscode/mcp.json`, `.cursor/mcp.json`; each server in it is an item of its own | `SW-CFG-001` to `004`, `010`; `SW-MCP` rules under `--probe` |
+| MCP client configuration | `.mcp.json`, `.vscode/mcp.json`, `.cursor/mcp.json`; each server in it is an item of its own | `SW-CFG-001` to `004`, `010`, `012`, `013`; `SW-MCP` rules under `--probe` |
 | Claude Code settings | `.claude/settings.json`, `.claude/settings.local.json` (with their hooks) | `SW-CFG-005` to `008` |
+| Copy of an MCP client configuration | `.mcp.json.<suffix>` at any depth and `mcp.json.<suffix>` inside `.vscode` or `.cursor` (`.mcp.json.bak`, `.vscode/mcp.json.old`); a copy that does not parse is skipped without a notice | `SW-CFG-014` only: no other rule, item, lock entry or count sees a copy |
 | Plugin marketplace | `.claude-plugin/marketplace.json` and every plugin it lists (a local source `./` is the marketplace's own directory) | `SW-CFG-009`; a local plugin's skills, `.mcp.json`, `hooks/hooks.json` and `.claude-plugin/plugin.json` are scanned like the files above |
 | A2A agent card | `.well-known/agent-card.json` at any depth, `.well-known/agent.json` and any other file named `agent-card.json` (when it is a card), and the files `a2a.cards` lists; remote agents under `--probe` | the `SW-A2A` rules; see "Checking A2A agent cards" |
 
@@ -463,7 +473,7 @@ accepted:
     expires: 2027-01-31
 ```
 
-An entry accepts one finding, by fingerprint, from `added` to `expires`. It needs a reason, may last at most 365 days, and at most 30 days for a malicious-indicator rule (SW-SKL-004, SW-SKL-008, SW-CFG-006, SW-CFG-007). An invalid entry accepts nothing and fails the scan (exit 2); an expired one stops accepting, and the report says which entry expired on which date. Accepted findings stay in every report, marked as accepted with their reason. `spellwarden baseline add --all --reason "..."` accepts every current finding (90 days by default), `prune` removes entries that no longer match anything, `list` shows each entry's state. These three commands work on the files in your working tree. They scan without a connection, so they cannot see an `SW-REG` or `SW-ORG` finding: `prune` keeps an entry that names such a rule until it has expired (and 30 more days), `list` shows it as `connected` instead of `unmatched`, and to accept one you give its fingerprint from a connected report with `--rule` (and `--finding-path`): `spellwarden baseline add --fingerprint FP --rule SW-REG-001 --finding-path skills/setup --reason "..."`, at most 90 days for `SW-REG` and 365 for `SW-ORG`.
+An entry accepts one finding, by fingerprint, from `added` to `expires`. It needs a reason, may last at most 365 days, and at most 30 days for a malicious-indicator rule (SW-SKL-004, SW-SKL-008, SW-SKL-032, SW-CFG-006, SW-CFG-007). An invalid entry accepts nothing and fails the scan (exit 2); an expired one stops accepting, and the report says which entry expired on which date. Accepted findings stay in every report, marked as accepted with their reason. `spellwarden baseline add --all --reason "..."` accepts every current finding (90 days by default), `prune` removes entries that no longer match anything, `list` shows each entry's state. These three commands work on the files in your working tree. They scan without a connection, so they cannot see an `SW-REG` or `SW-ORG` finding: `prune` keeps an entry that names such a rule until it has expired (and 30 more days), `list` shows it as `connected` instead of `unmatched`, and to accept one you give its fingerprint from a connected report with `--rule` (and `--finding-path`): `spellwarden baseline add --fingerprint FP --rule SW-REG-001 --finding-path skills/setup --reason "..."`, at most 90 days for `SW-REG` and 365 for `SW-ORG`.
 
 On a pull or merge request the scan reads the baseline from the base revision, like the settings file (see "Settings"): a request cannot accept its own finding. To accept a finding that a request introduces, merge the baseline entry first, in a request of its own; an entry that matches nothing yet is valid.
 
@@ -784,7 +794,7 @@ A package's identity is a hash over its bytes, as a forge archive of its directo
 
 ### Schemas and compatibility
 
-`schemas/` holds JSON Schemas (draft 2020-12) for the settings, the baseline, the lock file and the JSON report, including every closed list of values. Readers of the report must ignore fields they do not know; the settings and the baseline refuse them. From 1.0.0, removing or renaming a field or a value, or changing an exit code, is a major version; adding an optional field, a notice code or a rule is a minor one. Since 1.3.0 the report holds an optional `agents` list (one entry per A2A agent card the run read or fetched, written only when there is one), the rule-id pattern of the report and the baseline schema is `^SW-(SKL|MCP|CFG|REG|A2A|ORG)-[0-9]{3}$`, and the settings schema has the `a2a` mapping. A 1.2.x scanner refuses a settings file with an `a2a` mapping (`settings_invalid`, unknown key) and a baseline with an `SW-A2A` entry, as it would any later key or rule; a team that runs two scanner versions against one repository must upgrade both. In the same way a 1.3.x scanner refuses a baseline with an `SW-A2A-019` entry, the rule 1.4.0 added. Since 1.2.0 the report holds an optional `connected` block when a run was connected (the credential kind, the organisation, the run, the policy applied, the registry gate's counts and items, and the upload outcome), and `upload_truncated` and `upload_truncated_fields` after an upload that was cut; a free run adds none of them.
+`schemas/` holds JSON Schemas (draft 2020-12) for the settings, the baseline, the lock file and the JSON report, including every closed list of values. Readers of the report must ignore fields they do not know; the settings and the baseline refuse them. From 1.0.0, removing or renaming a field or a value, or changing an exit code, is a major version; adding an optional field, a notice code or a rule is a minor one. Since 1.3.0 the report holds an optional `agents` list (one entry per A2A agent card the run read or fetched, written only when there is one), the rule-id pattern of the report and the baseline schema is `^SW-(SKL|MCP|CFG|REG|A2A|ORG)-[0-9]{3}$`, and the settings schema has the `a2a` mapping. A 1.2.x scanner refuses a settings file with an `a2a` mapping (`settings_invalid`, unknown key) and a baseline with an `SW-A2A` entry, as it would any later key or rule; a team that runs two scanner versions against one repository must upgrade both. In the same way a 1.3.x scanner refuses a baseline with an `SW-A2A-019` entry, the rule 1.4.0 added. Rules 1.8.0 added (`SW-SKL-032` to `037`, `SW-CFG-012` to `014`, rules version `2026.11.1`) follow the same policy: a scanner older than 1.8.0 reads a baseline that names one of them without error, but the entry matches nothing there, so `baseline list` shows it as unmatched, `baseline prune` removes it, and the older scanner reports none of the new findings. `SW-SKL-032` is a malicious-indicator rule, so an entry for it may last at most 30 days from 1.8.0 on. Since 1.2.0 the report holds an optional `connected` block when a run was connected (the credential kind, the organisation, the run, the policy applied, the registry gate's counts and items, and the upload outcome), and `upload_truncated` and `upload_truncated_fields` after an upload that was cut; a free run adds none of them.
 
 ## What Spellwarden keeps from your telemetry
 
