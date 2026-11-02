@@ -1,0 +1,411 @@
+"""SW-SKL-037: executable downloaded from a moving reference and run without an integrity check.
+The rule is not registered yet, so the tests call the module's `detect` directly."""
+from __future__ import annotations
+
+import ast
+import inspect
+import time
+
+import pytest
+from conftest import GENERATED, SKILL_FIXTURES, _read_dir, clean_md, make_package
+
+from spellwarden_scan.package import Package
+from spellwarden_scan.rules import growth_skl_037
+from spellwarden_scan.rules.growth_skl_037 import MALICIOUS, NIST, OWASP, RULE_ID, SEVERITY, TITLE, detect
+
+NEW_IDS = frozenset({f"SW-SKL-{n:03d}" for n in range(32, 38)} | {f"SW-CFG-{n:03d}" for n in range(12, 15)})
+SUM = "0123456789abcdef" * 4
+
+
+def run(body: str = "", **extra: str):
+    return list(detect(Package.build(make_package({"SKILL.md": clean_md() + body, **extra}))))
+
+
+def fenced(*lines: str, language: str = "bash") -> str:
+    return f"\n```{language}\n" + "\n".join(lines) + "\n```\n"
+
+
+def line_number(body: str, needle: str) -> int:
+    for number, line in enumerate((clean_md() + body).splitlines(), start=1):
+        if needle in line:
+            return number
+    raise AssertionError(needle)
+
+
+def test_module_constants():
+    assert RULE_ID == "SW-SKL-037"
+    assert TITLE == "Executable downloaded from a moving reference and run without an integrity check"
+    assert SEVERITY == "medium"
+    assert OWASP == ("ASI04", "ASI05")
+    assert NIST == ("SR-3", "SI-7")
+    assert MALICIOUS is False
+
+
+def test_module_imports_no_rule_modules_at_top_level():
+    tree = ast.parse(inspect.getsource(growth_skl_037))
+    imported = {node.module for node in tree.body if isinstance(node, ast.ImportFrom)}
+    assert not {"spellwarden_scan.rules.skill", "spellwarden_scan.rules.config"} & imported
+
+
+# --- shell: curl / wget / PowerShell ------------------------------------------------------------
+
+LATEST = "curl -L https://downloads.example.com/acme/tool/releases/latest/download/tool -o tool && chmod +x tool && ./tool"
+
+
+def test_latest_release_download_made_executable_and_run_fires_at_the_download_line():
+    body = fenced("echo start", LATEST)
+    findings = run(body)
+    assert len(findings) == 1
+    finding = findings[0]
+    assert finding.rule_id == RULE_ID
+    assert finding.severity == "medium"
+    assert finding.title == TITLE
+    assert finding.location.path == "SKILL.md"
+    assert finding.location.line == line_number(body, "releases/latest")
+    assert finding.malicious_indicator is False
+    assert "releases/latest" in finding.evidence
+    assert len(finding.evidence) <= 300
+    assert len(finding.fingerprint) == 64
+
+
+def test_the_block_in_a_markdown_file_is_read_at_the_file_line():
+    body = "\nText before.\n\nMore text.\n" + fenced("# fetch", LATEST)
+    assert [f.location.line for f in run(body)] == [line_number(body, "releases/latest")]
+
+
+def test_script_file_is_read_and_a_continued_command_reports_its_first_line():
+    script = "#!/bin/sh\nset -e\ncurl -L \\\n  https://downloads.example.com/acme/tool/releases/latest/download/tool \\\n  -o tool\nchmod +x tool\n./tool\n"
+    findings = run(**{"scripts/setup.sh": script})
+    assert [(f.location.path, f.location.line) for f in findings] == [("scripts/setup.sh", 3)]
+
+
+def test_download_with_remote_name_and_chmod_in_a_later_command():
+    body = fenced("curl -fsSLO https://downloads.example.com/acme/tool/releases/latest/download/tool", "chmod 755 tool", "sudo ./tool install")
+    assert len(run(body)) == 1
+
+
+def test_wget_output_document_then_run_through_an_interpreter():
+    body = fenced("wget -q -O install.sh https://raw.example.com/acme/tool/main/install.sh", "bash install.sh")
+    assert len(run(body)) == 1
+
+
+def test_wget_without_output_name_uses_the_url_file_name():
+    body = fenced("wget https://raw.githubusercontent.com/example-owner/example-repo/master/bin/runner", "chmod +x runner")
+    assert len(run(body)) == 1
+
+
+def test_redirect_to_a_file_counts_as_a_download():
+    body = fenced("curl -s https://downloads.example.com/tool/releases/latest/download/tool > /tmp/tool", "chmod +x /tmp/tool")
+    assert len(run(body)) == 1
+
+
+def test_raw_default_branch_paths_are_moving():
+    for url in ("https://raw.githubusercontent.com/example-owner/example-repo/main/run.sh",
+                "https://raw.githubusercontent.com/example-owner/example-repo/HEAD/run.sh",
+                "https://raw.githubusercontent.com/example-owner/example-repo/refs/heads/master/run.sh",
+                "https://git.example.org/example-owner/example-repo/-/raw/main/run.sh",
+                "https://git.example.org/example-owner/example-repo/raw/master/run.sh"):
+        body = fenced(f"curl -L {url} -o run.sh", "chmod +x run.sh")
+        assert len(run(body)) == 1, url
+
+
+def test_url_with_no_version_segment_is_moving():
+    body = fenced("curl -L https://downloads.example.com/acme/tool-linux-amd64 -o tool", "chmod +x tool")
+    assert len(run(body)) == 1
+
+
+def test_extraction_into_a_bin_directory_from_a_pipe():
+    body = fenced("curl -L https://downloads.example.com/acme/tool/releases/latest/download/tool.tar.gz | tar -xz -C /usr/local/bin tool")
+    assert len(run(body)) == 1
+    home = fenced("wget -qO- https://downloads.example.com/acme/tool/releases/latest/download/tool.tgz | tar xz --directory=~/.local/bin")
+    assert len(run(home)) == 1
+
+
+def test_extraction_of_a_downloaded_archive_into_a_bin_directory():
+    body = fenced("curl -L -o tool.tgz https://downloads.example.com/acme/tool/releases/latest/download/tool.tgz",
+                  "sudo tar -xzf tool.tgz -C /usr/local/bin")
+    assert len(run(body)) == 1
+
+
+def test_move_into_a_bin_directory_is_an_execute_step():
+    body = fenced("curl -L -o tool https://downloads.example.com/acme/tool/releases/latest/download/tool", "mv tool ~/.local/bin/tool")
+    assert len(run(body)) == 1
+
+
+def test_powershell_download_then_run():
+    ps = "Invoke-WebRequest -Uri https://downloads.example.com/acme/tool/releases/latest/download/tool.exe -OutFile tool.exe\n.\\tool.exe /quiet\n"
+    findings = run(**{"scripts/setup.ps1": ps})
+    assert [f.location.line for f in findings] == [1]
+    body = fenced("iwr https://downloads.example.com/acme/tool/releases/latest/download/tool.exe -OutFile tool.exe; Start-Process tool.exe",
+                  language="powershell")
+    assert len(run(body)) == 1
+
+
+def test_execute_step_must_name_the_downloaded_file():
+    body = fenced("curl -L https://downloads.example.com/acme/tool/releases/latest/download/tool -o tool", "chmod +x other", "./other")
+    assert run(body) == []
+
+
+def test_execute_step_more_than_five_commands_later_is_out_of_the_window():
+    commands = ["curl -L https://downloads.example.com/acme/tool/releases/latest/download/tool -o tool"] + ["echo step"] * 6 + ["chmod +x tool"]
+    assert run(fenced(*commands)) == []
+    near = ["curl -L https://downloads.example.com/acme/tool/releases/latest/download/tool -o tool"] + ["echo step"] * 4 + ["chmod +x tool"]
+    assert len(run(fenced(*near))) == 1
+
+
+def test_only_the_download_line_is_reported_once_per_download():
+    body = fenced(LATEST, "echo done", LATEST.replace("-o tool", "-o other").replace("chmod +x tool", "chmod +x other").replace("./tool", "./other"))
+    assert len(run(body)) == 2
+
+
+# --- python and javascript -----------------------------------------------------------------------
+
+PY = (
+    "import os, subprocess, urllib.request\n"
+    'urllib.request.urlretrieve("https://downloads.example.com/acme/tool/releases/latest/download/tool", "tool")\n'
+    'os.chmod("tool", 0o755)\n'
+    'subprocess.run(["./tool", "--init"], check=True)\n'
+)
+
+
+def test_python_download_then_chmod_and_subprocess_fires_at_the_url_line():
+    findings = run(**{"scripts/fetch.py": PY})
+    assert [(f.location.path, f.location.line) for f in findings] == [("scripts/fetch.py", 2)]
+
+
+def test_python_requests_write_then_spawn_without_chmod():
+    code = (
+        "import requests, subprocess\n"
+        'r = requests.get("https://raw.githubusercontent.com/example-owner/example-repo/main/helper.py")\n'
+        'open("helper_bin", "wb").write(r.content)\n'
+        'subprocess.run(["python3", "helper_bin"])\n'
+    )
+    assert [f.location.line for f in run(**{"scripts/fetch.py": code})] == [2]
+
+
+def test_python_in_a_fenced_block():
+    body = fenced(*PY.splitlines(), language="python")
+    assert [f.location.line for f in run(body)] == [line_number(body, "urlretrieve")]
+
+
+def test_python_download_with_a_url_constant_defined_earlier():
+    code = (
+        "import os, urllib.request\n"
+        'URL = "https://downloads.example.com/acme/tool/releases/latest/download/tool"\n'
+        "target = os.path.join(os.getcwd(), 'tool')\n"
+        "urllib.request.urlretrieve(URL, target)\n"
+        "os.chmod(target, 0o755)\n"
+    )
+    assert [f.location.line for f in run(**{"scripts/fetch.py": code})] == [2]
+
+
+def test_javascript_stream_to_a_file_then_chmod_and_exec():
+    code = (
+        'const fs = require("fs"); const https = require("https"); const { execFileSync } = require("child_process");\n'
+        'const file = fs.createWriteStream("tool");\n'
+        'https.get("https://downloads.example.com/acme/tool/releases/latest/download/tool", (res) => {\n'
+        "  res.pipe(file);\n"
+        '  file.on("finish", () => { fs.chmodSync("tool", 0o755); execFileSync("./tool"); });\n'
+        "});\n"
+    )
+    assert [f.location.line for f in run(**{"scripts/fetch.js": code})] == [3]
+
+
+def test_python_download_never_made_executable_is_quiet():
+    code = (
+        "import urllib.request\n"
+        'urllib.request.urlretrieve("https://downloads.example.com/acme/tool/releases/latest/download/data.bin", "data.bin")\n'
+        'print(open("data.bin", "rb").read()[:4])\n'
+    )
+    assert run(**{"scripts/fetch.py": code}) == []
+
+
+def test_python_with_a_non_executable_mode_is_quiet():
+    code = PY.replace("0o755", "0o644")
+    assert run(**{"scripts/fetch.py": code.replace('subprocess.run(["./tool", "--init"], check=True)', "print('ok')")}) == []
+
+
+def test_python_download_pinned_to_a_version_is_quiet():
+    code = PY.replace("releases/latest/download", "releases/download/v2.4.1")
+    assert run(**{"scripts/fetch.py": code}) == []
+
+
+def test_python_with_a_hash_comparison_is_quiet():
+    code = PY + (
+        "import hashlib\n"
+        f'if hashlib.sha256(open("tool", "rb").read()).hexdigest() != "{SUM}":\n'
+        "    raise SystemExit(1)\n"
+    )
+    assert run(**{"scripts/fetch.py": code}) == []
+
+
+# --- git clone ------------------------------------------------------------------------------------
+
+def test_git_clone_without_a_tag_then_install_inside_it():
+    body = fenced("git clone https://git.example.org/acme/helper-kit.git", "cd helper-kit", "pip install .")
+    findings = run(body)
+    assert [f.location.line for f in findings] == [line_number(body, "git clone")]
+    one_line = fenced("git clone --depth 1 https://git.example.org/acme/helper-kit.git kit && cd kit && ./install.sh")
+    assert len(run(one_line)) == 1
+
+
+def test_git_clone_install_by_path_without_cd():
+    body = fenced("git clone https://git.example.org/acme/helper-kit.git", "pip install ./helper-kit")
+    assert len(run(body)) == 1
+    other = fenced("git clone https://git.example.org/acme/helper-kit.git", "bash helper-kit/install.sh")
+    assert len(run(other)) == 1
+
+
+def test_git_clone_of_a_default_branch_is_moving_even_when_named():
+    body = fenced("git clone --branch main https://git.example.org/acme/helper-kit.git", "cd helper-kit", "make install")
+    assert len(run(body)) == 1
+
+
+def test_git_clone_of_a_tag_is_quiet():
+    body = fenced("git clone --branch v2.4.1 https://git.example.org/acme/helper-kit.git", "cd helper-kit", "pip install .")
+    assert run(body) == []
+    short = fenced("git clone -b v2.4.1 --depth 1 https://git.example.org/acme/helper-kit.git", "cd helper-kit", "make install")
+    assert run(short) == []
+
+
+def test_git_clone_then_checkout_of_a_commit_is_quiet():
+    body = fenced("git clone https://git.example.org/acme/helper-kit.git", "cd helper-kit", "git checkout 3f9a1c2d7b", "pip install .")
+    assert run(body) == []
+
+
+def test_git_clone_only_read_is_quiet():
+    body = fenced("git clone https://git.example.org/acme/helper-kit.git", "cd helper-kit", "ls", "cat README.md")
+    assert run(body) == []
+
+
+# --- negatives -------------------------------------------------------------------------------------
+
+def test_explicit_version_tag_with_sha256_check_is_quiet():
+    body = fenced(
+        "curl -L https://downloads.example.com/acme/tool/releases/download/v2.4.1/tool -o tool",
+        f'echo "{SUM}  tool" | sha256sum -c -',
+        "chmod +x tool",
+        "./tool",
+    )
+    assert run(body) == []
+
+
+def test_explicit_version_tag_alone_is_not_a_moving_reference():
+    body = fenced("curl -L https://downloads.example.com/acme/tool/releases/download/v2.4.1/tool -o tool", "chmod +x tool", "./tool")
+    assert run(body) == []
+    dated = fenced("curl -L https://downloads.example.com/acme/tool/2026.11.1/tool-linux -o tool", "chmod +x tool")
+    assert run(dated) == []
+    variable = fenced("curl -L https://downloads.example.com/acme/tool/${VERSION}/tool -o tool", "chmod +x tool")
+    assert run(variable) == []
+
+
+@pytest.mark.parametrize("check", [
+    f'echo "{SUM}  tool" | sha256sum -c - || exit 1',
+    f'echo "{SUM}  tool" | sha256sum --check --status',
+    "shasum -a 256 -c tool.sha256",
+    f'[ "$(sha256sum tool | cut -d" " -f1)" = "{SUM}" ] || exit 1',
+    "gpg --verify tool.sig tool",
+    "cosign verify-blob --signature tool.sig tool",
+    "minisign -Vm tool -P RWQexampleexampleexampleexampleexampleexampleexample",
+])
+def test_integrity_check_in_the_same_block_suppresses(check):
+    body = fenced("curl -L https://downloads.example.com/acme/tool/releases/latest/download/tool -o tool", check, "chmod +x tool", "./tool")
+    assert run(body) == []
+
+
+def test_hashing_without_a_comparison_is_not_a_check():
+    body = fenced("curl -L https://downloads.example.com/acme/tool/releases/latest/download/tool -o tool", "sha256sum tool", "chmod +x tool", "./tool")
+    assert len(run(body)) == 1
+
+
+def test_a_check_in_another_block_does_not_suppress():
+    body = fenced(LATEST) + "\nOther page.\n" + fenced("sha256sum -c tool.sha256")
+    assert len(run(body)) == 1
+
+
+def test_weights_download_never_executed_is_quiet():
+    body = fenced("curl -L https://models.example.org/acme/releases/latest/download/style-model.gguf -o style-model.gguf", "ls -l style-model.gguf")
+    assert run(body) == []
+    data = fenced("curl -L https://downloads.example.com/acme/releases/latest/download/rules.json -o rules.json", "chmod +x rules.json")
+    assert run(data) == []
+
+
+def test_reachability_check_to_dev_null_is_quiet():
+    body = fenced('curl -s -o /dev/null -w "%{http_code}" https://downloads.example.com/acme/tool/releases/latest/', "chmod +x tool", "./tool")
+    assert run(body) == []
+    ps = fenced("curl -sSL https://downloads.example.com/acme/tool/releases/latest/download/tool > /dev/null", "chmod +x tool")
+    assert run(ps) == []
+
+
+def test_package_manager_installs_are_quiet():
+    body = fenced("pip install requests", "npm install --save-dev prettier", "brew install acme/tap/tool", "cargo install tool-cli")
+    assert run(body) == []
+
+
+def test_download_to_stdout_is_not_this_rule():
+    body = fenced("curl -fsSL https://downloads.example.com/acme/tool/releases/latest/download/install.sh | sh")
+    assert run(body) == []
+
+
+def test_prose_outside_fences_and_non_shell_blocks_are_quiet():
+    prose = f"\nRun `{LATEST}` yourself.\n"
+    assert run(prose) == []
+    assert run(fenced(LATEST, language="text")) == []
+
+
+def test_output_is_bounded():
+    commands = [f"curl -L https://downloads.example.com/acme/t{n}/releases/latest/download/t{n} -o t{n} && chmod +x t{n}" for n in range(200)]
+    assert 0 < len(run(fenced(*commands))) <= 25
+
+
+# --- linear time ------------------------------------------------------------------------------------
+
+@pytest.mark.parametrize("unit", [
+    "curl https://x.example.com/releases/latest/download/t -o t && ",
+    "curl -o ",
+    "https://",
+    "git clone ",
+    "chmod +x t; ./t; ",
+    "urlretrieve(",
+    "sha256sum -c ; ",
+    "| tar -xz -C ",
+])
+def test_long_lines_are_read_in_linear_time(unit):
+    line = (unit * (300_000 // len(unit) + 1))[:300_000]
+    assert len(line) == 300_000
+    started = time.perf_counter()
+    run(fenced(line))
+    run(**{"scripts/long.sh": line + "\n", "scripts/long.py": line + "\n", "scripts/long.js": line + "\n"})
+    assert time.perf_counter() - started < 1.0
+
+
+# --- fixtures ----------------------------------------------------------------------------------------
+
+def test_positive_fixture_fires_at_each_download_line():
+    findings = list(detect(Package.build(_read_dir(SKILL_FIXTURES / RULE_ID / "positive"))))
+    assert sorted((f.location.path, f.location.line) for f in findings) == [
+        ("SKILL.md", 17), ("scripts/bootstrap.sh", 4), ("scripts/fetch_linter.py", 6),
+    ]
+
+
+def test_negative_fixture_is_quiet():
+    assert list(detect(Package.build(_read_dir(SKILL_FIXTURES / RULE_ID / "negative")))) == []
+
+
+# --- invariant 4: no finding on any existing skill fixture ---------------------------------------------
+
+def _existing_skill_packages():
+    for directory in sorted(SKILL_FIXTURES.iterdir()):
+        if not directory.is_dir() or directory.name in NEW_IDS:
+            continue
+        for side in sorted(p for p in directory.iterdir() if p.is_dir()):
+            generator = GENERATED.get(f"{directory.name}/{side.name}")
+            yield f"{directory.name}/{side.name}", (generator() if generator is not None else _read_dir(side))
+
+
+def test_no_finding_on_any_existing_skill_fixture():
+    seen = 0
+    for name, files in _existing_skill_packages():
+        seen += 1
+        assert list(detect(Package.build(files))) == [], name
+    assert seen >= 30
