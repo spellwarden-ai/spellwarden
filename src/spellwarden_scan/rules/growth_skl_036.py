@@ -9,8 +9,9 @@ scope, with a wildcard scope (`Bash(*)`, `Bash(:*)`), or with a scope that is a 
 the body, a fenced example in an authoring guide, a subagent's `tools:` capability list, a nested key.
 
 The finding is at the offending entry's line: the list item's line, or the `allowed-tools:` line for a one-line value.
-Entries are cut out of the value with one forward scan and located by a cursor that only moves forward, so a long
-line is read in linear time. The module is registered by the rule set, not here."""
+Entries are cut out of the value with one forward scan and located by a cursor that only moves forward; an entry the
+raw text does not contain (YAML unescaped it) costs one search to the end of the key block, so after a few such misses
+the rest are placed on the key line without searching, and a long line is read in linear time. The module is registered by the rule set, not here."""
 from __future__ import annotations
 
 from collections.abc import Iterator
@@ -30,6 +31,7 @@ MALICIOUS = False
 _KEY = "allowed-tools"
 _PER_FILE = 5
 _PER_PACKAGE = 10
+_MISSES = 8  # entries the raw text does not contain (YAML escapes) that may be searched for before the key line is used
 
 _SHELL_TOOLS = frozenset({"bash", "shell", "powershell"})
 _WILDCARDS = frozenset({"*", ":*"})
@@ -123,17 +125,22 @@ def _key_block(lines: tuple[str, ...], first: int, end: int) -> tuple[int, int] 
 
 
 def _located(lines: tuple[str, ...], key_line: int, stop: int, entries: Iterator[str]) -> Iterator[tuple[str, int]]:
-    """`(entry, 1-based line)` for each entry, found with a cursor that never moves back; the key line when not found."""
+    """`(entry, 1-based line)` for each entry, found with a cursor that never moves back; the key line when not found.
+    Only `_MISSES` failed searches are made, each reads the rest of the block; later entries are not searched for."""
     row, col = key_line, lines[key_line].find(":") + 1
+    misses = 0
     for entry in entries:
         line = key_line
         probe_row, probe_col = row, col
-        while probe_row < stop:
+        while probe_row < stop and misses < _MISSES:
             at = lines[probe_row].find(entry, probe_col) if entry else -1
             if at != -1:
                 line, row, col = probe_row, probe_row, at + len(entry)
                 break
             probe_row, probe_col = probe_row + 1, 0
+        else:
+            if misses < _MISSES:
+                misses += 1
         yield entry, line + 1
 
 

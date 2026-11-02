@@ -178,6 +178,16 @@ def test_long_allowed_tools_line_is_read_in_linear_time(token):
     assert len(findings) <= 10
 
 
+def test_escaped_entries_that_are_not_in_the_raw_text_are_read_in_linear_time():
+    # YAML unescapes "\x42a\x73h" to Bash, so the raw text never contains the entry that the parser returns.
+    entry = '"\\x42a\\x73h", '
+    line = "allowed-tools: [" + entry * (280_000 // len(entry)) + "]"
+    start = time.perf_counter()
+    findings = run(line)
+    assert time.perf_counter() - start < 1.0
+    assert at(findings) == [("SKILL.md", 4)]
+
+
 def test_output_is_bounded():
     front = "allowed-tools:\n" + "".join(f"  - Bash({name}:*)\n" for name in ("python", "node", "deno", "bun", "ruby", "perl", "sh", "zsh")).rstrip("\n")
     findings = run(front)
