@@ -9,11 +9,15 @@ scope, with a wildcard scope (`Bash(*)`, `Bash(:*)`), or with a scope that is a 
 the body, a fenced example in an authoring guide, a subagent's `tools:` capability list, a nested key.
 
 The finding is at the offending entry's line: the list item's line, or the `allowed-tools:` line for a one-line value.
-Entries are cut out of the value with one forward scan and located by a cursor that only moves forward; an entry the
-raw text does not contain (YAML unescaped it) costs one search to the end of the key block, so after a few such misses
-the rest are placed on the key line without searching, and a long line is read in linear time. The module is registered by the rule set, not here."""
+Whether the key is there and what it holds come from the parsed frontmatter; the text is read only to place a finding.
+Entries are cut out of the value with one forward scan, and only the entries that will be reported (at most five per
+file) are located, each by a forward search for the whole entry from the previous one; an entry the raw text does not
+contain (YAML unescaped it), or a key the text does not show plainly, is placed on the key line, or on the
+frontmatter's first line. A long line is therefore read in linear time. The module is registered by the rule set, not
+here."""
 from __future__ import annotations
 
+import re
 from collections.abc import Iterator
 
 from spellwarden_scan.evidence import excerpt, fingerprint
@@ -31,14 +35,20 @@ MALICIOUS = False
 _KEY = "allowed-tools"
 _PER_FILE = 5
 _PER_PACKAGE = 10
-_MISSES = 8  # entries the raw text does not contain (YAML escapes) that may be searched for before the key line is used
 
 _SHELL_TOOLS = frozenset({"bash", "shell", "powershell"})
 _WILDCARDS = frozenset({"*", ":*"})
 _INTERPRETERS = frozenset({
     "python", "python3", "node", "deno", "bun", "ruby", "perl", "bash", "sh", "zsh", "pwsh", "powershell", "npx", "uvx",
-    "pip", "source", "eval",
+    "pip", "pip3", "source", "eval",
 })
+# Launchers run whatever follows them: alone, or followed by an interpreter, they are as general as the interpreter.
+_LAUNCHERS = frozenset({"env", "xargs", "exec", "command", "sudo", "nohup", "time"})
+_INLINE_CODE = frozenset({"-c", "-e", "--eval", "-"})
+_VERSIONED = re.compile(r"^(python|ruby|perl|node|pip|pwsh)[0-9][0-9.]*$")
+_ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+_BOUNDARY_BEFORE = " \t,[-\"'"
+_BOUNDARY_AFTER = " \t,]\"'#\r\n"
 _SEPARATORS = " \t\r\n,"
 
 
@@ -88,7 +98,35 @@ def _unscoped(entry: str) -> bool:
         if scope.endswith(suffix):
             scope = scope[: -len(suffix)].rstrip()
             break
-    return scope in _INTERPRETERS
+    return _general(scope.split())
+
+
+def _program(word: str) -> str:
+    """`/usr/bin/python3.12` -> `python3`: the base name, without `.exe` and without a version after the name."""
+    name = word.replace("\\", "/").rsplit("/", 1)[-1]
+    name = name.removesuffix(".exe")
+    versioned = _VERSIONED.match(name)
+    if versioned:
+        major = name[len(versioned.group(1)):].split(".", 1)[0]
+        return versioned.group(1) + ("3" if major == "3" and versioned.group(1) in ("python", "pip") else "")
+    return name
+
+
+def _general(words: list[str]) -> bool:
+    """A scope that runs anything: an interpreter or launcher alone, an interpreter given inline code (`-c`, `-e`,
+    `--eval`, `-`) or `-m` with no module, or a launcher (`env`, `xargs`, ...) followed by one of those."""
+    while words and _ASSIGNMENT.match(words[0]):
+        words = words[1:]
+    if not words:
+        return False
+    program = _program(words[0])
+    if program in _LAUNCHERS:
+        rest = [word for word in words[1:] if not word.startswith("-")]
+        return not rest or _general(rest)
+    if program not in _INTERPRETERS:
+        return False
+    # `python3 -m pytest` is one module; `python3 -m` alone, or inline code, runs anything.
+    return len(words) == 1 or words[1] in _INLINE_CODE or (words[1] == "-m" and len(words) == 2)
 
 
 def _frontmatter_lines(unit: TextFile) -> tuple[int, int] | None:
@@ -124,24 +162,21 @@ def _key_block(lines: tuple[str, ...], first: int, end: int) -> tuple[int, int] 
     return found, stop
 
 
-def _located(lines: tuple[str, ...], key_line: int, stop: int, entries: Iterator[str]) -> Iterator[tuple[str, int]]:
-    """`(entry, 1-based line)` for each entry, found with a cursor that never moves back; the key line when not found.
-    Only `_MISSES` failed searches are made, each reads the rest of the block; later entries are not searched for."""
-    row, col = key_line, lines[key_line].find(":") + 1
-    misses = 0
-    for entry in entries:
-        line = key_line
-        probe_row, probe_col = row, col
-        while probe_row < stop and misses < _MISSES:
-            at = lines[probe_row].find(entry, probe_col) if entry else -1
-            if at != -1:
-                line, row, col = probe_row, probe_row, at + len(entry)
-                break
-            probe_row, probe_col = probe_row + 1, 0
-        else:
-            if misses < _MISSES:
-                misses += 1
-        yield entry, line + 1
+def _find_entry(lines: tuple[str, ...], entry: str, row: int, col: int, stop: int) -> tuple[int, int] | None:
+    """The first whole occurrence of `entry` at or after `(row, col)` before line `stop`: `(row, column after it)`.
+    One forward pass over the block: each line is searched once, occurrence after occurrence."""
+    while row < stop:
+        line = lines[row]
+        at = line.find(entry, col)
+        while at != -1:
+            end = at + len(entry)
+            before = line[at - 1] if at > 0 else " "
+            after = line[end] if end < len(line) else "\n"
+            if before in _BOUNDARY_BEFORE and (after in _BOUNDARY_AFTER or entry.endswith(")")) and after != "(":
+                return row, end
+            at = line.find(entry, at + 1)
+        row, col = row + 1, 0
+    return None
 
 
 def detect(package: Package) -> Iterator[Finding]:
@@ -150,22 +185,28 @@ def detect(package: Package) -> Iterator[Finding]:
         span = _frontmatter_lines(unit)
         if span is None:
             continue
-        block = _key_block(unit.lines, *span)
-        if block is None:
-            continue
         try:
             mapping, _ = parse_frontmatter(unit.text)
         except FrontmatterError:
             continue
-        if _KEY not in mapping:
+        if not isinstance(mapping, dict) or _KEY not in mapping:
             continue
-        key_line, stop = block
+        # The parsed mapping decides; the text only places the finding. A key the text does not show plainly (quoted
+        # oddly, a flow mapping) is placed on the frontmatter's first line.
+        block = _key_block(unit.lines, *span)
+        key_line, stop = block if block is not None else (span[0], span[1])
+        row, col = key_line, max(unit.lines[key_line].find(":") + 1, 0)
         seen: set[str] = set()
         in_file = 0
-        for entry, line in _located(unit.lines, key_line, stop, _entries(mapping[_KEY])):
+        for entry in _entries(mapping[_KEY]):
             if not _unscoped(entry) or entry in seen:
                 continue
             seen.add(entry)
+            found = _find_entry(unit.lines, entry, row, col, stop) if entry else None
+            line = key_line + 1
+            if found is not None:
+                row, col = found
+                line = row + 1
             matched = f"{_KEY}: {entry}"
             yield Finding(RULE_ID, SEVERITY, TITLE, Location(unit.path, line), excerpt(matched),
                           fingerprint(RULE_ID, unit.path, matched), MALICIOUS)

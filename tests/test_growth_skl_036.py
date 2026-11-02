@@ -188,6 +188,39 @@ def test_escaped_entries_that_are_not_in_the_raw_text_are_read_in_linear_time():
     assert at(findings) == [("SKILL.md", 4)]
 
 
+@pytest.mark.parametrize("entry", [
+    "Bash(/usr/bin/python3:*)", "Bash(python3.12:*)", "Bash(env python3:*)", "Bash(env:*)", "Bash(xargs:*)",
+    "Bash(python3 -c:*)", "Bash(node -e:*)", "Bash(python -m:*)", "Bash(sudo bash:*)", "Bash(PYTHONPATH=. python3:*)",
+])
+def test_interpreter_scopes_by_path_version_launcher_or_inline_code_fire(entry):
+    assert at(run(f"allowed-tools: Read, {entry}")) == [("SKILL.md", 4)]
+
+
+@pytest.mark.parametrize("entry", ["Bash(python3 scripts/report.py:*)", "Bash(env FOO=1 mytool deploy:*)", "Bash(/opt/acme/bin/acme sync:*)"])
+def test_scopes_to_one_script_or_tool_stay_quiet_whatever_the_path(entry):
+    assert run(f"allowed-tools: Read, {entry}") == []
+
+
+def test_the_parsed_key_decides_even_when_the_text_does_not_show_it_plainly():
+    # An escaped key (`allowed\x2dtools`) and a complex key (`? allowed-tools`): YAML reads `allowed-tools`, the text
+    # has no plain `allowed-tools:` line. Before, such a file was skipped.
+    assert at(run('"allowed\\x2dtools": Read, Bash')) == [("SKILL.md", 4)]
+    assert at(run("? allowed-tools\n: Read, Bash")) == [("SKILL.md", 5)]
+
+
+def test_a_list_item_after_many_escaped_entries_keeps_its_own_line():
+    # Review r1:F3: the entries YAML unescapes are not searched for at all, so a later plain `- Bash` keeps its line.
+    escaped = "".join(f'  - "\\x42a\\x73h({n}"\n' for n in range(12))
+    front = "allowed-tools:\n" + escaped + "  - Read\n  - Bash"
+    findings = run(front)
+    assert ("SKILL.md", 4 + 1 + 12 + 1) in at(findings)
+
+
+def test_a_bare_entry_is_not_placed_inside_an_earlier_scoped_one():
+    front = "allowed-tools:\n  - Bash(gh pr view:*)\n  - Bash"
+    assert at(run(front)) == [("SKILL.md", 6)]
+
+
 def test_output_is_bounded():
     front = "allowed-tools:\n" + "".join(f"  - Bash({name}:*)\n" for name in ("python", "node", "deno", "bun", "ruby", "perl", "sh", "zsh")).rstrip("\n")
     findings = run(front)
