@@ -1,4 +1,4 @@
-"""The ten `config` rules of spec 5.3: MCP client configurations, Claude Code settings and hooks, and plugin
+"""The thirteen `config` rules of spec 5.3: MCP client configurations, Claude Code settings and hooks, and plugin
 marketplaces, judged from parsed `ConfigDocument`s. Each `detect(config: AgentConfig)` yields `Finding`s whose
 location is the configuration file and the entry's line. The fingerprint's `matched` is the JSON encoding of
 `[item kind, item name, field, value]` (a hook: `["hook", event, matcher, "command", value]`), so it is
@@ -17,6 +17,9 @@ from spellwarden_scan.model import ConfigDocument, Finding, HookCommand, Locatio
 from spellwarden_scan.package import CodeBlock
 from spellwarden_scan.rules import Rule, make_rule
 from spellwarden_scan.rules import patterns as P
+from spellwarden_scan.rules.growth_cfg_012 import detect as _cfg_012
+from spellwarden_scan.rules.growth_cfg_013 import detect as _cfg_013
+from spellwarden_scan.rules.growth_cfg_014 import detect as _cfg_014
 from spellwarden_scan.rules.patterns import name_tokens, secret_named
 from spellwarden_scan.rules.skill import (
     _host_of, _legacy_ipv4, decodes_and_runs, logical_commands, pipes_remote_to_shell,
@@ -34,10 +37,14 @@ TITLES = {
     "SW-CFG-008": "Settings switch off approval prompts",
     "SW-CFG-009": "Marketplace plugin source not pinned to a commit",
     "SW-CFG-010": "Literal value under a secret name in an MCP server configuration",
+    "SW-CFG-012": "MCP server configured to approve every tool call automatically",
+    "SW-CFG-013": "Database or cluster MCP server with write access although a read-only mode exists",
+    "SW-CFG-014": "Insecure or credential-bearing MCP server in a configuration copy",
 }
 _SEVERITY = {"SW-CFG-001": "high", "SW-CFG-002": "critical", "SW-CFG-003": "medium", "SW-CFG-004": "medium",
              "SW-CFG-005": "high", "SW-CFG-006": "critical", "SW-CFG-007": "critical", "SW-CFG-008": "high",
-             "SW-CFG-009": "medium", "SW-CFG-010": "high"}
+             "SW-CFG-009": "medium", "SW-CFG-010": "high", "SW-CFG-012": "high", "SW-CFG-013": "high",
+             "SW-CFG-014": "high"}
 _MALICIOUS = frozenset({"SW-CFG-006", "SW-CFG-007"})
 
 
@@ -940,4 +947,7 @@ RULES: tuple[Rule, ...] = (
     make_rule("SW-CFG-008", TITLES["SW-CFG-008"], "high", "config", owasp=("ASI10",), nist=("AC-6",), detect=_cfg_008),
     make_rule("SW-CFG-009", TITLES["SW-CFG-009"], "medium", "config", owasp=("ASI04",), nist=("SR-3",), detect=_cfg_009),
     make_rule("SW-CFG-010", TITLES["SW-CFG-010"], "high", "config", owasp=("MCP01",), nist=("IA-5",), detect=_cfg_010),
+    make_rule("SW-CFG-012", TITLES["SW-CFG-012"], "high", "config", owasp=("ASI02",), nist=("AC-6", "CM-7"), detect=_cfg_012),
+    make_rule("SW-CFG-013", TITLES["SW-CFG-013"], "high", "config", owasp=("MCP02", "ASI03"), nist=("AC-3", "AC-6"), detect=_cfg_013),
+    make_rule("SW-CFG-014", TITLES["SW-CFG-014"], "high", "config", owasp=("MCP01", "ASI04"), nist=("IA-5", "CM-7"), detect=_cfg_014),
 )

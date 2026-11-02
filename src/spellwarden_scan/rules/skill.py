@@ -1,4 +1,4 @@
-"""The 17 skill rules of spec 5.3. Each `detect(package)` is a generator of
+"""The 23 skill rules of spec 5.3. Each `detect(package)` is a generator of
 `Finding`s: one per matching line (or per file for SW-SKL-010), the evidence
 the matched line (masked), the fingerprint `rule_id NUL path NUL line`."""
 from __future__ import annotations
@@ -14,6 +14,12 @@ from spellwarden_scan.model import Finding, Location
 from spellwarden_scan.package import SCRIPT_EXTENSIONS, CodeBlock, Package, TextFile
 from spellwarden_scan.rules import Rule, make_rule
 from spellwarden_scan.rules import patterns as P
+from spellwarden_scan.rules.growth_skl_032 import detect as _skl_032
+from spellwarden_scan.rules.growth_skl_033 import detect as _skl_033
+from spellwarden_scan.rules.growth_skl_034 import detect as _skl_034
+from spellwarden_scan.rules.growth_skl_035 import detect as _skl_035
+from spellwarden_scan.rules.growth_skl_036 import detect as _skl_036
+from spellwarden_scan.rules.growth_skl_037 import detect as _skl_037
 
 _I = re.IGNORECASE
 
@@ -696,6 +702,12 @@ TITLES = {
     "SW-SKL-015": "Frontmatter missing or invalid (name, description)",
     "SW-SKL-019": "Fetches external URL content into context without an allowlist",
     "SW-SKL-031": "Missing license and version metadata",
+    "SW-SKL-032": "Instructions lure the user into running a password-protected download or a pasted script",
+    "SW-SKL-033": "Skill drives the user's own signed-in browser over a remote-debugging port",
+    "SW-SKL-034": "TLS certificate checks switched off where credentials are sent",
+    "SW-SKL-035": "Agent told to spend money on its own with no confirmation or cap",
+    "SW-SKL-036": "Frontmatter pre-approves an unscoped shell or interpreter",
+    "SW-SKL-037": "Executable downloaded from a moving reference and run without an integrity check",
 }
 
 RULES: tuple[Rule, ...] = (
@@ -716,4 +728,10 @@ RULES: tuple[Rule, ...] = (
     make_rule("SW-SKL-015", TITLES["SW-SKL-015"], "low", "skill", owasp=("ASI04",), nist=("SR-3",), detect=_skl_015, targets=("registry",)),
     make_rule("SW-SKL-019", TITLES["SW-SKL-019"], "medium", "skill", owasp=("ASI01", "MCP10"), nist=("SI-10",), detect=_skl_019, targets=("kong",)),
     make_rule("SW-SKL-031", TITLES["SW-SKL-031"], "low", "skill", owasp=("ASI04",), nist=("SR-3",), detect=_skl_031, targets=("registry",)),
+    make_rule("SW-SKL-032", TITLES["SW-SKL-032"], "critical", "skill", owasp=("ASI04", "ASI09"), nist=("SR-3", "SI-3"), detect=_skl_032, malicious=True),
+    make_rule("SW-SKL-033", TITLES["SW-SKL-033"], "high", "skill", owasp=("ASI03",), nist=("AC-6", "IA-5"), detect=_skl_033),
+    make_rule("SW-SKL-034", TITLES["SW-SKL-034"], "high", "skill", owasp=("MCP01",), nist=("SC-8", "IA-5"), detect=_skl_034),
+    make_rule("SW-SKL-035", TITLES["SW-SKL-035"], "high", "skill", owasp=("ASI02", "ASI09"), nist=("AC-3", "AC-6"), detect=_skl_035),
+    make_rule("SW-SKL-036", TITLES["SW-SKL-036"], "medium", "skill", owasp=("ASI02", "ASI03"), nist=("AC-6", "CM-7"), detect=_skl_036),
+    make_rule("SW-SKL-037", TITLES["SW-SKL-037"], "medium", "skill", owasp=("ASI04", "ASI05"), nist=("SR-3", "SI-7"), detect=_skl_037),
 )
