@@ -224,6 +224,20 @@ def test_many_servers_and_arguments_give_bounded_output_in_linear_time():
     assert len(findings) <= 2000
 
 
+def test_many_host_occurrences_in_one_url_are_read_in_linear_time():
+    # Review r1:F2: the query used to be sliced and parsed again after every host occurrence.
+    url = "https://mcp.supabase.com/mcp?project_ref=abc" + "&x=/mcp.supabase.com?" * 20_000
+    started = time.perf_counter()
+    findings = run({"db": {"type": "http", "url": url}})
+    assert time.perf_counter() - started < 1.0
+    assert len(findings) == 1  # no read_only=true: still reported
+
+
+def test_the_query_of_the_first_host_occurrence_decides():
+    assert run({"db": {"type": "http", "url": "https://mcp.supabase.com/mcp?project_ref=abc&read_only=true#frag?x"}}) == []
+    assert len(run({"db": {"type": "http", "url": "https://mcp.supabase.com/mcp?project_ref=abc#read_only=true"}})) == 1
+
+
 # --- fixtures and invariant 4 -------------------------------------------------------------------------------------
 
 def _fixture_documents(side: str):

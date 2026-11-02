@@ -97,7 +97,8 @@ def _mentions(entry: McpServerEntry, wanted) -> bool:
 
 
 def _hosted_queries(text: str) -> Iterator[str]:
-    """The query string after each `mcp.supabase.com` host occurrence in `text` (host boundaries checked)."""
+    """The query string after the first `mcp.supabase.com` host occurrence in `text` (host boundaries checked): a URL
+    names its host once, and reading only the first occurrence keeps the work linear in the text (review r1:F2)."""
     lowered = text.lower()
     start = lowered.find(_HOSTED)
     while start >= 0:
@@ -105,8 +106,11 @@ def _hosted_queries(text: str) -> Iterator[str]:
         before_ok = start == 0 or lowered[start - 1] in "/@"
         after_ok = end == len(lowered) or lowered[end] in "/?#:"
         if before_ok and after_ok:
-            rest = text[end:].partition("#")[0]
-            yield rest.partition("?")[2]
+            fragment = text.find("#", end)
+            stop = len(text) if fragment < 0 else fragment
+            mark = text.find("?", end, stop)
+            yield "" if mark < 0 else text[mark + 1:stop]
+            return
         start = lowered.find(_HOSTED, end)
 
 
