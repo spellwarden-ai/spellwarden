@@ -15,6 +15,7 @@ registered by the rule set, not here."""
 from __future__ import annotations
 
 import re
+from bisect import bisect_left
 from collections.abc import Iterator
 
 from spellwarden_scan.evidence import excerpt, fingerprint
@@ -192,7 +193,8 @@ def detect(package: Package) -> Iterator[Finding]:
         for index, low in enumerate(lines):
             if not _capability(low):
                 continue
-            if any(abs(index - other) <= _NEAR for other in autonomy):
+            nearest = bisect_left(autonomy, index - _NEAR)
+            if nearest < len(autonomy) and autonomy[nearest] <= index + _NEAR:
                 yield _finding(source.path, index + 1, source.lines[index])
                 total += 1
                 break

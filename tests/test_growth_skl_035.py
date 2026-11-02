@@ -219,6 +219,25 @@ def test_long_line_of_the_trigger_tokens_is_read_in_linear_time():
     assert len(findings[0].evidence) <= 300
 
 
+def test_many_short_lines_far_apart_are_read_in_linear_time():
+    # F1: capability lines all more than _NEAR lines from every autonomy line must not rescan the autonomy list.
+    n = 20_000
+    body = "x402\n" * n + "\n" * 20 + "autonomously\n" * n
+    started = time.perf_counter()
+    findings = run("\n" + body)
+    assert time.perf_counter() - started < 2
+    assert findings == []
+
+
+def test_many_short_lines_with_autonomy_nearby_still_fire_once():
+    n = 20_000
+    body = "x402\n" * n + "autonomously\n" * n
+    started = time.perf_counter()
+    findings = run("\n" + body)
+    assert time.perf_counter() - started < 2
+    assert len(findings) == 1
+
+
 def test_long_quiet_lines_are_read_in_linear_time():
     for line in ("wallet " * 50_000, "x402 " * 60_000, "without asking " * 20_000, "= " * 150_000,
                  "never pay without asking the user " * 10_000):
