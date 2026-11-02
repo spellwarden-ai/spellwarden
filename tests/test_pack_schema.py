@@ -37,7 +37,7 @@ def test_the_closed_lists_equal_the_engine():
     rules = SCHEMA["properties"]["rules"]["prefixItems"]
     assert [item["properties"]["id"]["const"] for item in rules] == list(ENFORCEMENT_IDS)
     org = SCHEMA["$defs"]["orgRule"]["properties"]
-    # an organisation rule maps to the tags of 1.2.x only: the A2A tags are baseline-only (O4 spec 5.4; `A2A_ONLY_TAGS`)
+    # an organisation rule maps to the tags of 1.2.x only: the tags added since are baseline-only (`BASELINE_ONLY_TAGS`)
     assert org["owasp"]["items"]["enum"] == list(ORG_ALLOWED_OWASP)
     assert org["nist"]["items"]["enum"] == list(ORG_ALLOWED_NIST)
     assert org["targets"]["items"]["enum"] == ["claude-code-hooks", "kong", "zuplo"]
