@@ -1,0 +1,21 @@
+{
+  "autoApprove": ["search"],
+  "trust": true,
+  "mcpServers": {
+    "notes": {
+      "command": "notes-server",
+      "args": ["--stdio"],
+      "autoApprove": [],
+      "alwaysAllow": [],
+      "trust": false
+    },
+    "tickets": {
+      "type": "http",
+      "url": "https://tickets.example.com/mcp",
+      "default_tools_approval_mode": "prompt",
+      "tools": {
+        "close_ticket": {"approval_mode": "prompt"}
+      }
+    }
+  }
+}
