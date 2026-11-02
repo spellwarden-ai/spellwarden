@@ -189,7 +189,7 @@ def test_extract_and_pass_used_apart_are_quiet():
 
 def test_cli_flags_are_quiet():
     assert run("\nDownload https://files.example.com/dl/tool.zip then run `tool --pass secret1` or `tool --password-file f`.\n") == []
-    assert run("\nDownload https://files.example.com/dl/tool.zip and run tool --password=hunter2.\n") == []
+    assert run("\nDownload https://files.example.com/dl/tool.zip and run tool --password=swordfish2.\n") == []
 
 
 def test_test_verdict_table_is_quiet():

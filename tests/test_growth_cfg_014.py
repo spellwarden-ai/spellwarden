@@ -89,8 +89,8 @@ def test_plain_http_to_a_remote_host_fires_at_the_server_line():
 
 
 def test_transport_does_not_matter_and_userinfo_is_masked():
-    (finding,) = run({"api": {"command": "x", "url": "http://user:hunter2pass@mcp.example.com/api"}})
-    assert "hunter2pass" not in finding.evidence and "***@mcp.example.com" in finding.evidence
+    (finding,) = run({"api": {"command": "x", "url": "http://user:swordfish2pass@mcp.example.com/api"}})
+    assert "swordfish2pass" not in finding.evidence and "***@mcp.example.com" in finding.evidence
 
 
 @pytest.mark.parametrize("url", ["http://localhost:3000/mcp", "http://127.0.0.1/mcp", "http://[::1]:8080/mcp",

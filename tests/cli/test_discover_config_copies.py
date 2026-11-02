@@ -1,7 +1,6 @@
 """SW-CFG-014 discovery: configuration copies (`.mcp.json.bak`, `.vscode/mcp.json.old`, ...) are documents of their own
 kind that only SW-CFG-014 reads. No existing rule, item, lock entry, count, exit code or output field changes because a
-copy exists. The rule is not registered until the batch's integration task, so the finding tests extend the baseline
-rule set with it here; the byte-identity tests run the real command."""
+copy exists. The byte-identity tests run the real command."""
 from __future__ import annotations
 
 import json
@@ -9,8 +8,6 @@ import json
 import pytest
 
 from spellwarden_scan import RuleSet
-from spellwarden_scan.rules import make_rule
-from spellwarden_scan.rules.growth_cfg_014 import NIST, OWASP, RULE_ID, SEVERITY, TITLE, detect
 
 from spellwarden_cli.discover import discover
 from spellwarden_cli.files import list_files
@@ -26,10 +23,11 @@ SKILL = "---\nname: demo\ndescription: A demo skill.\n---\n\nRead the task.\n"
 
 
 def rules_with_cfg_014() -> RuleSet:
-    # The batch's last task registers the rule with the full tag set; `CM-7` is not an allowed tag before that.
-    rule = make_rule(RULE_ID, TITLE, SEVERITY, "config", owasp=OWASP, nist=tuple(n for n in NIST if n != "CM-7"),
-                     detect=detect)
-    return RuleSet.baseline().with_rules([rule])
+    return RuleSet.baseline()
+
+
+def rules_without_cfg_014() -> RuleSet:
+    return RuleSet(rule for rule in RuleSet.baseline() if rule.id != "SW-CFG-014")
 
 
 def _discover(root):
@@ -112,9 +110,9 @@ def test_a_repository_with_only_a_copy_still_yields_the_copys_finding(make_repo,
     assert reported == [("SW-CFG-014", ".vscode/mcp.json.bak")]
 
 
-def test_the_baseline_rule_set_reads_nothing_from_a_copy(make_repo, tmp_path):
+def test_no_other_rule_reads_anything_from_a_copy(make_repo, tmp_path):
     repo = make_repo(tmp_path / "repo", {".mcp.json": SAFE, ".mcp.json.bak": PLAIN_HTTP})
-    assert engine_findings(_discover(repo), RuleSet.baseline(), []) == []
+    assert engine_findings(_discover(repo), rules_without_cfg_014(), []) == []
 
 
 def test_a_copy_beside_a_clean_configuration_is_not_a_judged_document(make_repo, tmp_path):

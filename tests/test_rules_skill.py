@@ -20,15 +20,35 @@ def md(*lines: str, **front: str) -> str:
     return clean_md(**front) + "\n".join(lines) + "\n"
 
 
-def test_rule_table_has_17_rules_with_the_spec_ids_and_mappings():
+def test_rule_table_has_23_rules_with_the_spec_ids_and_mappings():
     ids = [r.id for r in RULES.by_area("skill")]
     assert ids == ["SW-SKL-001", "SW-SKL-002", "SW-SKL-003", "SW-SKL-004", "SW-SKL-005", "SW-SKL-006", "SW-SKL-007",
                    "SW-SKL-008", "SW-SKL-009", "SW-SKL-010", "SW-SKL-011", "SW-SKL-012", "SW-SKL-013", "SW-SKL-014",
-                   "SW-SKL-015", "SW-SKL-019", "SW-SKL-031"]
+                   "SW-SKL-015", "SW-SKL-019", "SW-SKL-031", "SW-SKL-032", "SW-SKL-033", "SW-SKL-034", "SW-SKL-035", "SW-SKL-036",
+                   "SW-SKL-037"]
     assert RULES.get("SW-SKL-004").malicious_indicator and RULES.get("SW-SKL-008").malicious_indicator
+    assert [r.id for r in RULES.by_area("skill") if r.malicious_indicator] == ["SW-SKL-004", "SW-SKL-008", "SW-SKL-032"]
     assert RULES.get("SW-SKL-019").owasp_agentic == ("ASI01",) and RULES.get("SW-SKL-019").owasp_mcp == ("MCP10",)
     assert RULES.get("SW-SKL-011").nist == ("IA-5",) and RULES.get("SW-SKL-011").severity_default == "critical"
     assert [r.severity_default for r in RULES.ordered_for_scan("skill")][:3] == ["critical"] * 3
+
+def test_the_six_rules_of_1_8_0_have_their_titles_severities_and_mappings():
+    table = {r.id: (r.title, r.severity_default, r.owasp_agentic + r.owasp_mcp, r.nist, r.malicious_indicator)
+             for r in RULES.by_area("skill") if r.id >= "SW-SKL-032"}
+    assert table == {
+        "SW-SKL-032": ("Instructions lure the user into running a password-protected download or a pasted script",
+                       "critical", ("ASI04", "ASI09"), ("SR-3", "SI-3"), True),
+        "SW-SKL-033": ("Skill drives the user's own signed-in browser over a remote-debugging port",
+                       "high", ("ASI03",), ("AC-6", "IA-5"), False),
+        "SW-SKL-034": ("TLS certificate checks switched off where credentials are sent",
+                       "high", ("MCP01",), ("SC-8", "IA-5"), False),
+        "SW-SKL-035": ("Agent told to spend money on its own with no confirmation or cap",
+                       "high", ("ASI02", "ASI09"), ("AC-3", "AC-6"), False),
+        "SW-SKL-036": ("Frontmatter pre-approves an unscoped shell or interpreter",
+                       "medium", ("ASI02", "ASI03"), ("AC-6", "CM-7"), False),
+        "SW-SKL-037": ("Executable downloaded from a moving reference and run without an integrity check",
+                       "medium", ("ASI04", "ASI05"), ("SR-3", "SI-7"), False),
+    }
 
 
 def test_001_injection_phrases_fire_once_per_line_with_the_line_as_evidence():
