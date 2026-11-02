@@ -35,7 +35,6 @@ NIST = ("SR-3", "SI-7")
 MALICIOUS = False
 
 _SHELL_WINDOW = 5  # commands after the download that may hold its execute step
-_STAGE_WINDOW = 8  # `|` stages read after a download, in its own command and in each command of the window
 _PROGRAM_WINDOW = 12  # non-blank lines of a Python or JavaScript script
 _PROGRAM_LEAD = 6  # lines before the URL that may open the destination file
 _PER_PACKAGE = 25
@@ -353,27 +352,64 @@ def _mode_executable(token: str) -> bool:
     return False
 
 
-def _runs_target(stage: tuple[str, ...], target: str) -> bool:
+def _key(path: str) -> str:
+    """What `_same_path` compares: the base name of the normalised path; empty for an option or nothing."""
+    normal = _normal(path)
+    return "" if not normal or normal.startswith("-") else _basename(normal)
+
+
+def _run_names(stage: tuple[str, ...]) -> frozenset[str]:
+    """The keys (`_key`) of every file this stage makes executable or runs: the arguments of an execute-mode `chmod`,
+    the command itself, the script an interpreter runs, and what is moved or extracted into a bin directory. Worked out
+    once per stage, so a download is matched against the stages after it by a set lookup (linear in the stages)."""
     name, index = _name(stage)
     rest = stage[index + 1:]
+    names: set[str] = set()
     if name == "chmod":
         arguments = [token for token in rest if not token.startswith("-") or token.startswith(("-x", "+x"))]
         modes = [token for token in arguments if _mode_executable(token)]
-        return bool(modes) and any(_same_path(token, target) for token in arguments if token not in modes)
-    if _same_path(stage[index], target) and (stage[index].startswith(("./", ".\\", "/", "~", "$")) or "/" in stage[index]
-                                             or name == _basename(target).lower().removesuffix(".exe")):
-        return True
+        if modes:
+            names.update(_key(token) for token in arguments if token not in modes)
+        return frozenset(names - {""})
+    # The command itself (`./tool`, `/opt/x/tool`, `tool`): `_same_path` matches its base name, and a bare name equal
+    # to the download's base name runs it too.
+    names.add(_key(stage[index]))
     if name in _INTERPRETERS:
         for token in rest:
-            if token.startswith("-"):
-                continue
-            return _same_path(token, target)
-        return False
-    if name in _PLACERS:
-        return any(_same_path(token, target) for token in rest) and any(_bin_dir(token) for token in rest)
-    if name in _EXTRACTORS:
-        return any(_same_path(token, target) for token in rest) and any(_bin_dir(token) for token in rest)
-    return False
+            if not token.startswith("-"):
+                names.add(_key(token))
+                break
+    elif name in _PLACERS or name in _EXTRACTORS:
+        if any(_bin_dir(token) for token in rest):
+            names.update(_key(token) for token in rest)
+    return frozenset(names - {""})
+
+
+def _runs_target(stage: tuple[str, ...], target: str) -> bool:
+    key = _key(target)
+    return bool(key) and key in _run_names(stage)
+
+
+@dataclass(frozen=True)
+class _Facts:
+    """Per command, worked out once: the run names of each stage's later stages (`later[i]`: stages after `i`),
+    whether a later stage extracts into a bin directory, and the run names of all its stages."""
+    later: tuple[frozenset[str], ...]
+    later_tar: tuple[bool, ...]
+    names: frozenset[str]
+
+
+def _facts(command: _Command) -> _Facts:
+    stages = command.stages
+    later: list[frozenset[str]] = [frozenset()] * len(stages)
+    later_tar = [False] * len(stages)
+    union: frozenset[str] = frozenset()
+    tar = False
+    for number in range(len(stages) - 1, -1, -1):
+        later[number], later_tar[number] = union, tar
+        union = union | _run_names(stages[number])
+        tar = tar or (_name(stages[number])[0] in _EXTRACTORS and _tar_to_bin(stages[number]))
+    return _Facts(tuple(later), tuple(later_tar), union)
 
 
 def _verifies(commands: list[_Command]) -> bool:
@@ -477,8 +513,9 @@ def _clone_runs(stage: tuple[str, ...], directory: str, inside: bool) -> bool:
     return False
 
 
-def _stage_hit(command: _Command, number: int, window: list[_Command]) -> bool:
-    """Whether stage `number` of `command` is a moving download that is made executable, or a moving clone that is run."""
+def _stage_hit(command: _Command, number: int, facts: _Facts, window_names: frozenset[str]) -> bool:
+    """Whether stage `number` of `command` is a moving download that a later stage, or a command of the window, makes
+    executable or runs (every later stage is read: no position limit, and the lookups are set lookups)."""
     stage = command.stages[number]
     name, index = _name(stage)
     if name in _CURL_LIKE:
@@ -488,12 +525,12 @@ def _stage_hit(command: _Command, number: int, window: list[_Command]) -> bool:
         target = _download_target(stage, "curl" if name == "start-bitstransfer" else name, index, url)
         if target is None:
             return False
-        later = command.stages[number + 1:number + 1 + _STAGE_WINDOW]
         if target == "":
-            return any(_name(item)[0] in _EXTRACTORS and _tar_to_bin(item) for item in later)
+            return facts.later_tar[number]
         if _data_file(target):
             return False
-        return any(_runs_target(item, target) for item in (*later, *(s for c in window for s in c.stages[:_STAGE_WINDOW])))
+        key = _key(target)
+        return bool(key) and (key in facts.later[number] or key in window_names)
     return False
 
 
@@ -513,18 +550,21 @@ def _shell_hits(commands: list[_Command]) -> Iterator[tuple[int, str]]:
     pinned_later = [False] * (len(commands) + 1)  # a commit is checked out in some command after this one
     for position in range(len(commands) - 1, -1, -1):
         pinned_later[position] = pinned_later[position + 1] or _pins_commit(commands[position])
+    facts = [_facts(command) for command in commands]
     for position, command in enumerate(commands):
         window = commands[position + 1:position + 1 + _SHELL_WINDOW]
+        # Each command is in at most `_SHELL_WINDOW` windows, so these unions stay linear in the unit's size.
+        window_names = frozenset().union(*(fact.names for fact in facts[position + 1:position + 1 + _SHELL_WINDOW]))
         if "downloadfile(" in command.text.lower():
-            hit = _download_file_call(command, window)
+            hit = _download_file_call(command, window_names)
         else:
-            hit = any(_stage_hit(command, number, window) for number in range(len(command.stages)))
+            hit = any(_stage_hit(command, number, facts[position], window_names) for number in range(len(command.stages)))
             hit = hit or _clone_hit(command, window, pinned_later[position + 1])
         if hit:
             yield command.line, command.text
 
 
-def _download_file_call(command: _Command, window: list[_Command]) -> bool:
+def _download_file_call(command: _Command, window_names: frozenset[str]) -> bool:
     low = command.text.lower()
     at = low.find("downloadfile(")
     arguments = _call_args(command.text, at + len("downloadfile("))
@@ -533,7 +573,8 @@ def _download_file_call(command: _Command, window: list[_Command]) -> bool:
     url, target = arguments[0].strip("'\" "), arguments[1].strip("'\" ")
     if not url.lower().startswith(("http://", "https://")) or not _moving(url) or _data_file(target):
         return False
-    return any(_runs_target(stage, target) for item in window for stage in item.stages)
+    key = _key(target)
+    return bool(key) and key in window_names
 
 
 def _clone_executes(window: list[_Command], directory: str) -> bool:

