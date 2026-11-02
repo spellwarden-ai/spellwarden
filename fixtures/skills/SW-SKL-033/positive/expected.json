@@ -1,0 +1,22 @@
+{
+ "findings": [
+  {
+   "rule_id": "SW-SKL-033",
+   "severity": "high",
+   "path": "SKILL.md",
+   "line": 14
+  },
+  {
+   "rule_id": "SW-SKL-033",
+   "severity": "high",
+   "path": "scripts/attach.mjs",
+   "line": 7
+  },
+  {
+   "rule_id": "SW-SKL-033",
+   "severity": "high",
+   "path": "scripts/clone.py",
+   "line": 10
+  }
+ ]
+}

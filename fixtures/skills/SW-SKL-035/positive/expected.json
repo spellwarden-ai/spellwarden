@@ -1,0 +1,16 @@
+{
+ "findings": [
+  {
+   "rule_id": "SW-SKL-035",
+   "severity": "high",
+   "path": "SKILL.md",
+   "line": 14
+  },
+  {
+   "rule_id": "SW-SKL-035",
+   "severity": "high",
+   "path": "references/wallet.md",
+   "line": 8
+  }
+ ]
+}

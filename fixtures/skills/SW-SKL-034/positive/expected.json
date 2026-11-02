@@ -1,0 +1,28 @@
+{
+ "findings": [
+  {
+   "rule_id": "SW-SKL-034",
+   "severity": "high",
+   "path": "SKILL.md",
+   "line": 17
+  },
+  {
+   "rule_id": "SW-SKL-019",
+   "severity": "medium",
+   "path": "scripts/fetch.py",
+   "line": 11
+  },
+  {
+   "rule_id": "SW-SKL-034",
+   "severity": "high",
+   "path": "scripts/fetch.py",
+   "line": 12
+  },
+  {
+   "rule_id": "SW-SKL-034",
+   "severity": "high",
+   "path": "scripts/pull.js",
+   "line": 4
+  }
+ ]
+}

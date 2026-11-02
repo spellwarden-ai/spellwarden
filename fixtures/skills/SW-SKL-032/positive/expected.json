@@ -1,0 +1,34 @@
+{
+ "findings": [
+  {
+   "rule_id": "SW-SKL-032",
+   "severity": "critical",
+   "path": "SKILL.md",
+   "line": 16
+  },
+  {
+   "rule_id": "SW-SKL-032",
+   "severity": "critical",
+   "path": "SKILL.md",
+   "line": 17
+  },
+  {
+   "rule_id": "SW-SKL-032",
+   "severity": "critical",
+   "path": "SKILL.md",
+   "line": 21
+  },
+  {
+   "rule_id": "SW-SKL-004",
+   "severity": "critical",
+   "path": "SKILL.md",
+   "line": 26
+  },
+  {
+   "rule_id": "SW-SKL-032",
+   "severity": "critical",
+   "path": "SKILL.md",
+   "line": 26
+  }
+ ]
+}

@@ -1,0 +1,28 @@
+{
+ "findings": [
+  {
+   "rule_id": "SW-SKL-019",
+   "severity": "medium",
+   "path": "scripts/fetch.py",
+   "line": 14
+  },
+  {
+   "rule_id": "SW-SKL-019",
+   "severity": "medium",
+   "path": "scripts/fetch.py",
+   "line": 21
+  },
+  {
+   "rule_id": "SW-SKL-019",
+   "severity": "medium",
+   "path": "scripts/health.py",
+   "line": 10
+  },
+  {
+   "rule_id": "SW-SKL-019",
+   "severity": "medium",
+   "path": "scripts/health.py",
+   "line": 15
+  }
+ ]
+}

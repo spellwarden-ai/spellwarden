@@ -1,0 +1,16 @@
+{
+ "findings": [
+  {
+   "rule_id": "SW-CFG-014",
+   "severity": "high",
+   "path": ".mcp.json.disabled",
+   "line": 3
+  },
+  {
+   "rule_id": "SW-CFG-014",
+   "severity": "high",
+   "path": ".mcp.json.full",
+   "line": 3
+  }
+ ]
+}

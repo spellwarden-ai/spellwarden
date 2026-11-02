@@ -1,0 +1,22 @@
+{
+ "findings": [
+  {
+   "rule_id": "SW-SKL-037",
+   "severity": "medium",
+   "path": "SKILL.md",
+   "line": 17
+  },
+  {
+   "rule_id": "SW-SKL-037",
+   "severity": "medium",
+   "path": "scripts/bootstrap.sh",
+   "line": 4
+  },
+  {
+   "rule_id": "SW-SKL-037",
+   "severity": "medium",
+   "path": "scripts/fetch_linter.py",
+   "line": 6
+  }
+ ]
+}

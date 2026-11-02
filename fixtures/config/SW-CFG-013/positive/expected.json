@@ -1,0 +1,40 @@
+{
+ "findings": [
+  {
+   "rule_id": "SW-CFG-013",
+   "severity": "high",
+   "path": ".mcp.json",
+   "line": 3
+  },
+  {
+   "rule_id": "SW-CFG-003",
+   "severity": "medium",
+   "path": ".mcp.json",
+   "line": 7
+  },
+  {
+   "rule_id": "SW-CFG-013",
+   "severity": "high",
+   "path": ".mcp.json",
+   "line": 7
+  },
+  {
+   "rule_id": "SW-CFG-003",
+   "severity": "medium",
+   "path": ".mcp.json",
+   "line": 14
+  },
+  {
+   "rule_id": "SW-CFG-013",
+   "severity": "high",
+   "path": ".mcp.json",
+   "line": 14
+  },
+  {
+   "rule_id": "SW-CFG-013",
+   "severity": "high",
+   "path": ".mcp.json",
+   "line": 18
+  }
+ ]
+}
