@@ -133,14 +133,31 @@ def _options(entry: _Obj) -> dict:
                 options[key] = option
     tools = entry.get("tools")
     if isinstance(tools, _Obj):
-        for index, (tool, body) in enumerate(tools.items()):
-            if index >= _MAX_OPTION_TOOLS:
-                break
+        # Every entry is read (cheap and linear); at most `_MAX_OPTION_TOOLS` are kept, the ones that approve calls
+        # first, so padding a server with ordinary tools cannot push an approving one out. Names are cut for the key, and
+        # when two cut names meet, the approving value is kept, so a later entry cannot hide an earlier one.
+        approving: list[tuple[str, dict]] = []
+        others: list[tuple[str, dict]] = []
+        for tool, body in tools.items():
             if isinstance(body, _Obj) and "approval_mode" in body:
                 option = _option(body, "approval_mode", body.lines["approval_mode"])
-                if option is not None:
-                    options[f"tools.{tool[:_MAX_OPTION_TEXT]}.approval_mode"] = option
+                if option is None:
+                    continue
+                if _approving(option["value"]):
+                    if len(approving) < _MAX_OPTION_TOOLS:
+                        approving.append((tool, option))
+                elif len(others) < _MAX_OPTION_TOOLS:
+                    others.append((tool, option))
+        for tool, option in (approving + others)[:_MAX_OPTION_TOOLS]:
+            key = f"tools.{tool[:_MAX_OPTION_TEXT]}.approval_mode"
+            kept = options.get(key)
+            if kept is None or (_approving(option["value"]) and not _approving(kept["value"])):
+                options[key] = option
     return options
+
+
+def _approving(value: Any) -> bool:
+    return isinstance(value, str) and value.lower() == "approve"
 
 
 def _server(name: str, line: int, entry: _Obj) -> McpServerEntry:

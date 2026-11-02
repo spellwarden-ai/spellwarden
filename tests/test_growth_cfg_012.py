@@ -99,6 +99,19 @@ def test_options_are_bounded():
     assert len(options) <= 300
 
 
+def test_an_approving_tool_after_many_ordinary_ones_is_kept():
+    tools = {f"t{n}": {"approval_mode": "prompt"} for n in range(500)}
+    tools["shell_exec"] = {"approval_mode": "approve"}
+    findings = run({"ops": {"command": "ops", "tools": tools}})
+    assert len(findings) == 1 and "tools.shell_exec.approval_mode" in findings[0].evidence
+
+
+def test_a_later_tool_with_the_same_cut_name_cannot_hide_an_approving_one():
+    long = "x" * 300
+    tools = {long + "a": {"approval_mode": "approve"}, long + "b": {"approval_mode": "prompt"}}
+    assert len(run({"ops": {"command": "ops", "tools": tools}})) == 1
+
+
 # --- the rule ------------------------------------------------------------------------------------------------------
 
 def test_non_empty_auto_approve_fires_at_the_key_line():
