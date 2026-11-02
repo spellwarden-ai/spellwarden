@@ -147,3 +147,21 @@ def test_a_copy_does_not_change_the_lock_file(make_repo, run_cli, tmp_path):
     for repo in (plain, copied):
         assert run_cli(["lock", str(repo)])[0] == 0
     assert (plain / ".spellwarden/lock.json").read_bytes() == (copied / ".spellwarden/lock.json").read_bytes()
+
+
+def test_a_file_the_agent_loads_is_never_a_copy_whatever_its_name(make_repo, tmp_path):
+    # A plugin manifest that references `./.mcp.json.prod` makes it an MCP document: the existing rules report it and
+    # SW-CFG-014 stays silent, since the file is loaded, not a copy.
+    repo = make_repo(tmp_path / "repo", {
+        ".claude-plugin/marketplace.json": json.dumps({"name": "acme", "plugins": [{"name": "plug", "source": "./plug"}]}),
+        "plug/.claude-plugin/plugin.json": json.dumps({"name": "plug", "mcpServers": "./.mcp.json.prod"}),
+        "plug/.mcp.json.prod": PLAIN_HTTP,
+        "plug/.mcp.json.bak": PLAIN_HTTP,
+    })
+    found = _discover(repo)
+    assert "plug/.mcp.json.prod" in [document.path for document in found.documents]
+    assert _copy_paths(found) == ["plug/.mcp.json.bak"]
+    reported = [(f.finding.rule_id, f.finding.location.path) for f in engine_findings(found, rules_with_cfg_014(), [])]
+    assert ("SW-CFG-001", "plug/.mcp.json.prod") in reported
+    assert ("SW-CFG-014", "plug/.mcp.json.prod") not in reported
+    assert ("SW-CFG-014", "plug/.mcp.json.bak") in reported

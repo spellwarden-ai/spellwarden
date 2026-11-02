@@ -166,11 +166,12 @@ def _is_config_copy(path: str) -> bool:
 
 
 def _config_copies(builder: _Builder) -> list[ConfigDocument]:
-    """The copies that parse as an MCP client configuration with a top-level `mcpServers` object, in path order. A copy that
+    """The copies that parse as an MCP client configuration with a top-level `mcpServers` object, in path order. A file the
+    agent loads (already a document, e.g. referenced by a plugin manifest) is never a copy. A copy that
     cannot be read, is over the size limit or does not parse is skipped without a notice or an error: it is not a
     configuration the agent loads, only a file named like one."""
     copies: list[ConfigDocument] = []
-    for path in sorted(p for p in builder.entries if p in builder.paths and _is_config_copy(p)):
+    for path in sorted(p for p in builder.entries if p in builder.paths and p not in builder.documents and _is_config_copy(p)):
         if builder.entries[path].size > MAX_DOCUMENT_BYTES:
             continue
         content = builder.contents.get(path)
