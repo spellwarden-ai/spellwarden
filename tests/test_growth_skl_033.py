@@ -177,6 +177,15 @@ def test_dedicated_profile_folder_does_not_fire():
     assert run(INTENT, **{"scripts/open.sh": "chrome --remote-debugging-port=9222 --user-data-dir=$HOME/.tab-helper/profile\n"}) == []
 
 
+def test_profile_directory_default_inside_a_dedicated_user_data_dir_does_not_fire():
+    # Review r0:F8, decided: `--profile-directory` names a profile inside the user data directory. Without
+    # `--user-data-dir` that is the user's own (fires, above); inside a dedicated folder it is that folder's own profile.
+    script = "chrome --remote-debugging-port=9222 --user-data-dir=$HOME/.tab-helper/profile --profile-directory=Default\n"
+    assert run(INTENT, **{"scripts/open.sh": script}) == []
+    own = "chrome --remote-debugging-port=9222 --user-data-dir=\"$HOME/.config/google-chrome\" --profile-directory=Default\n"
+    assert lines_of(run(INTENT, **{"scripts/open.sh": own})) == [1]
+
+
 def test_a_folder_that_only_starts_like_a_default_root_does_not_fire():
     script = (
         'dir = Path.home() / ".config" / "google-chrome-agent"\n'

@@ -4,7 +4,8 @@ Read over the Markdown files and the scripts (`.js`, `.mjs`, `.ts`, `.py`, `.ps1
 
 * attach: text that turns remote debugging on in the user's running browser (`chrome://inspect/#remote-debugging`,
   "Allow remote debugging"), code that reads `DevToolsActivePort` next to a default browser profile directory, or a launch
-  with `--remote-debugging-port` that names no profile of its own. It fires only when the same file, or the skill's
+  with `--remote-debugging-port` that names no profile of its own (`--profile-directory`, `Default` included, names a
+  profile inside the user data directory: it is the user's own only when no dedicated `--user-data-dir` is given). It fires only when the same file, or the skill's
   SKILL.md, says the point is to reuse the user's identity ("your existing Chrome", "already logged in", ...);
 * clone: a default profile root (Chrome, Edge or Brave under the user's home) used as the source of a recursive copy, or as
   the user data directory, in a skill that also launches with a debugging port or a persistent context.
