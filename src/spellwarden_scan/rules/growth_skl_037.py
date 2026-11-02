@@ -35,6 +35,7 @@ NIST = ("SR-3", "SI-7")
 MALICIOUS = False
 
 _SHELL_WINDOW = 5  # commands after the download that may hold its execute step
+_STAGE_WINDOW = 8  # `|` stages read after a download, in its own command and in each command of the window
 _PROGRAM_WINDOW = 12  # non-blank lines of a Python or JavaScript script
 _PROGRAM_LEAD = 6  # lines before the URL that may open the destination file
 _PER_PACKAGE = 25
@@ -487,12 +488,12 @@ def _stage_hit(command: _Command, number: int, window: list[_Command]) -> bool:
         target = _download_target(stage, "curl" if name == "start-bitstransfer" else name, index, url)
         if target is None:
             return False
-        later = command.stages[number + 1:]
+        later = command.stages[number + 1:number + 1 + _STAGE_WINDOW]
         if target == "":
             return any(_name(item)[0] in _EXTRACTORS and _tar_to_bin(item) for item in later)
         if _data_file(target):
             return False
-        return any(_runs_target(item, target) for item in (*later, *(s for c in window for s in c.stages)))
+        return any(_runs_target(item, target) for item in (*later, *(s for c in window for s in c.stages[:_STAGE_WINDOW])))
     return False
 
 

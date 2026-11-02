@@ -379,6 +379,24 @@ def test_long_lines_are_read_in_linear_time(unit):
     assert time.perf_counter() - started < 1.0
 
 
+def test_many_pipe_stages_in_one_command_are_read_in_linear_time():
+    same = "curl -L https://dl.example.com/tool -o tool | " * 8_000 + "true"
+    distinct = "".join(f"curl -L https://dl.example.com/t{n} -o t{n} | " for n in range(8_000)) + "true"
+    for line in (same, distinct):
+        started = time.perf_counter()
+        run(**{"scripts/a.sh": line + "\n"})
+        run(fenced(line))
+        assert time.perf_counter() - started < 1.0
+    # many stages in the command and in each command of its execute window
+    started = time.perf_counter()
+    run(**{"scripts/b.sh": "\n".join([same] * 6) + "\n"})
+    assert time.perf_counter() - started < 1.0
+
+
+def test_download_run_by_a_nearby_pipe_stage_still_fires():
+    assert run(**{"scripts/a.sh": "curl -L https://dl.example.com/tool -o tool | cat | ./tool\n"})
+
+
 # --- fixtures ----------------------------------------------------------------------------------------
 
 def test_positive_fixture_fires_at_each_download_line():
