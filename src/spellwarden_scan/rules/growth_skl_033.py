@@ -95,6 +95,7 @@ def _copies(low: str) -> bool:
     if any(call in low for call in _COPY_CALLS):
         return True
     tokens = low.split()
+    recurse = "-recurse" in low  # once per line: a scan per `copy-item` token would be quadratic
     for index, token in enumerate(tokens):
         name = token.lstrip("\"'`(;&|$")
         following = tokens[index + 1:index + 7]
@@ -106,7 +107,7 @@ def _copies(low: str) -> bool:
                     return True
         elif name == "robocopy" and any(flag in _ROBOCOPY_RECURSIVE for flag in following):
             return True
-        elif name == "copy-item" and "-recurse" in low:
+        elif name == "copy-item" and recurse:
             return True
     return False
 

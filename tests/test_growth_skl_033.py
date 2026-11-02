@@ -273,6 +273,18 @@ def test_long_line_is_read_in_linear_time(unit):
     assert time.perf_counter() - started < 1.0
 
 
+@pytest.mark.parametrize("unit", ["copy-item ", "cp ", "robocopy ", "rsync -"])
+def test_long_copy_command_line_is_read_in_linear_time(unit):
+    # the clone gate is open, so every line is examined for a copy command
+    launch = "chrome --remote-debugging-port=9222 --user-data-dir=/tmp/x\n"
+    line = (unit * (300_000 // len(unit) + 1))[:300_000]
+    files = {"SKILL.md": clean_md() + INTENT, "scripts/x.sh": launch + line + "\n"}
+    package = Package.build(make_package(files))
+    started = time.perf_counter()
+    list(detect(package))
+    assert time.perf_counter() - started < 1.0
+
+
 def test_output_is_bounded():
     script = "chrome --remote-debugging-port=9222\n" * 5_000
     assert len(run(INTENT, **{"scripts/x.sh": script})) <= 10
