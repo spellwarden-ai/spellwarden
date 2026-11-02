@@ -42,10 +42,17 @@ _MALICIOUS = frozenset({"SW-CFG-006", "SW-CFG-007"})
 
 
 class AgentConfig:
-    """What config rules see: the judged documents (no error, or `truncated`) and their entries, in path order."""
+    """What config rules see: the judged documents (no error, or `truncated`) and their entries, in path order. Copies of
+    MCP client configurations (kind `mcp_copy`) are held apart: `documents` and every accessor but `copy_servers` leave
+    them out, so only SW-CFG-014 can see one."""
 
     def __init__(self, documents: Iterable[ConfigDocument]) -> None:
-        self.documents: tuple[ConfigDocument, ...] = tuple(sorted(documents, key=lambda d: d.path))
+        ordered = sorted(documents, key=lambda d: d.path)
+        self.documents: tuple[ConfigDocument, ...] = tuple(d for d in ordered if d.kind != "mcp_copy")
+        self.copies: tuple[ConfigDocument, ...] = tuple(d for d in ordered if d.kind == "mcp_copy")
+
+    def copy_servers(self) -> Iterator[tuple[ConfigDocument, McpServerEntry]]:
+        return ((doc, entry) for doc in self.copies for entry in doc.servers)
 
     def servers(self) -> Iterator[tuple[ConfigDocument, McpServerEntry]]:
         return ((doc, entry) for doc in self.documents for entry in doc.servers)

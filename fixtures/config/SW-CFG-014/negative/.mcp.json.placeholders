@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "tracker": {
+      "command": "npx",
+      "args": ["-y", "tracker-mcp-server"],
+      "env": {
+        "API_KEY": "<your-api-key>",
+        "ACCESS_TOKEN": "your-access-token-goes-here",
+        "SECRET": "changeme-changeme-changeme"
+      }
+    }
+  }
+}

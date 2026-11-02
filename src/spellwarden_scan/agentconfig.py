@@ -223,6 +223,15 @@ def _build_mcp(parts: _Parts, root: _Obj, _path: str) -> None:
     _servers(parts, [root.get("mcpServers"), root.get("servers")])
 
 
+def _build_mcp_copy(parts: _Parts, root: _Obj, _path: str) -> None:
+    """A copy of an MCP client configuration (`.mcp.json.bak`): only a top-level `mcpServers` object makes one; anything
+    else is refused, and discovery skips the copy without a word."""
+    servers = root.get("mcpServers")
+    if not isinstance(servers, _Obj):
+        raise _Refused("not_an_object")
+    _servers(parts, [servers])
+
+
 def _build_settings(parts: _Parts, root: _Obj, _path: str) -> None:
     permissions = root.get("permissions")
     if isinstance(permissions, _Obj):
@@ -316,6 +325,12 @@ def parse_mcp_config(path: str, content: bytes) -> ConfigDocument:
     return _parse("mcp", path, content, _build_mcp)
 
 
+def parse_mcp_copy(path: str, content: bytes) -> ConfigDocument:
+    """A file named like an MCP client configuration plus a suffix (`.mcp.json.bak`, `.vscode/mcp.json.old`). Its kind,
+    `mcp_copy`, is read by SW-CFG-014 only and is not one of `DOC_KINDS`: no output names it."""
+    return _parse("mcp_copy", path, content, _build_mcp_copy)
+
+
 def parse_settings(path: str, content: bytes) -> ConfigDocument:
     """`.claude/settings.json` and `.claude/settings.local.json`: the SW-CFG-008 flags and the hook commands."""
     return _parse("settings", path, content, _build_settings)
@@ -337,7 +352,7 @@ def parse_plugin_manifest(path: str, content: bytes) -> ConfigDocument:
     return _parse("plugin", path, content, _build_plugin)
 
 
-_PARSERS = {"mcp": parse_mcp_config, "hooks": parse_hooks, "settings": parse_settings,
+_PARSERS = {"mcp": parse_mcp_config, "mcp_copy": parse_mcp_copy, "hooks": parse_hooks, "settings": parse_settings,
             "marketplace": parse_marketplace, "plugin": parse_plugin_manifest}
 
 

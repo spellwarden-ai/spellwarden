@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "tracker": {
+      "command": "npx",
+      "args": ["-y", "tracker-mcp-server"],
+      "env": {
+        "API_KEY": "ghp_0123456789abcdefghijklmnopqrstuvwxyz"
+      }
+    }
+  }
+}

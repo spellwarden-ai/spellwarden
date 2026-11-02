@@ -293,7 +293,8 @@ class EnabledPlugin(_Model):
 @dataclass(frozen=True, slots=True)
 class ConfigDocument(_Model):
     """One parsed agent-configuration file (spec 5.2). `kind` is `mcp`, `hooks`, `settings`, `marketplace` or
-    `plugin`; `error` is None or one of `agentconfig.DOCUMENT_ERRORS`, and only `truncated` keeps entries.
+    `plugin`, or `mcp_copy` (a copy of an MCP client configuration: only SW-CFG-014 reads it, no output names it);
+    `error` is None or one of `agentconfig.DOCUMENT_ERRORS`, and only `truncated` keeps entries.
     `sha256` hashes the canonical JSON of the whole document when it parsed, else its raw bytes."""
     path: str
     kind: str

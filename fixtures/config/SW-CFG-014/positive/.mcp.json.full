@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "ledger": {
+      "type": "http",
+      "url": "http://mcp.example.com/ledger"
+    },
+    "local-only": {
+      "type": "http",
+      "url": "http://localhost:3000/mcp"
+    }
+  }
+}
