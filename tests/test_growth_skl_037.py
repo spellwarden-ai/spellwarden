@@ -405,6 +405,14 @@ def test_an_execute_step_far_along_a_pipeline_or_deep_in_the_next_command_still_
     assert run(**{"scripts/b.sh": deep})
 
 
+def test_a_pipeline_of_many_distinct_run_steps_is_read_in_linear_time():
+    # Each stage runs a different file: the per-command facts must not copy a growing set per stage.
+    line = "curl -L https://dl.example.com/t0 -o t0 | " + "".join(f"./t{n} | " for n in range(1, 30_000)) + "./t0"
+    started = time.perf_counter()
+    assert run(**{"scripts/a.sh": line + "\n"})
+    assert time.perf_counter() - started < 1.0
+
+
 def test_many_downloads_followed_by_one_large_command_are_read_in_linear_time():
     # Review r1:F1: each download stage used to re-read the next command; now each command is read once.
     downloads = "".join(f"curl -L https://dl.example.com/t{n} -o t{n} | " for n in range(5_000)) + "true"

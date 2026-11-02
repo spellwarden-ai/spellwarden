@@ -392,24 +392,24 @@ def _runs_target(stage: tuple[str, ...], target: str) -> bool:
 
 @dataclass(frozen=True)
 class _Facts:
-    """Per command, worked out once: the run names of each stage's later stages (`later[i]`: stages after `i`),
-    whether a later stage extracts into a bin directory, and the run names of all its stages."""
-    later: tuple[frozenset[str], ...]
-    later_tar: tuple[bool, ...]
+    """Per command, worked out once in one pass: the last stage that runs or makes executable each name, the last
+    stage that extracts into a bin directory (-1 when none), and every name its stages run. A download at stage `i` is
+    run later in its command when the name's last stage is after `i`; no per-stage set is built, so the work stays
+    linear in the command's tokens whatever the number of stages."""
+    last_run: dict[str, int]
+    last_tar: int
     names: frozenset[str]
 
 
 def _facts(command: _Command) -> _Facts:
-    stages = command.stages
-    later: list[frozenset[str]] = [frozenset()] * len(stages)
-    later_tar = [False] * len(stages)
-    union: frozenset[str] = frozenset()
-    tar = False
-    for number in range(len(stages) - 1, -1, -1):
-        later[number], later_tar[number] = union, tar
-        union = union | _run_names(stages[number])
-        tar = tar or (_name(stages[number])[0] in _EXTRACTORS and _tar_to_bin(stages[number]))
-    return _Facts(tuple(later), tuple(later_tar), union)
+    last_run: dict[str, int] = {}
+    last_tar = -1
+    for number, stage in enumerate(command.stages):
+        for name in _run_names(stage):
+            last_run[name] = number
+        if _name(stage)[0] in _EXTRACTORS and _tar_to_bin(stage):
+            last_tar = number
+    return _Facts(last_run, last_tar, frozenset(last_run))
 
 
 def _verifies(commands: list[_Command]) -> bool:
@@ -526,11 +526,11 @@ def _stage_hit(command: _Command, number: int, facts: _Facts, window_names: froz
         if target is None:
             return False
         if target == "":
-            return facts.later_tar[number]
+            return facts.last_tar > number
         if _data_file(target):
             return False
         key = _key(target)
-        return bool(key) and (key in facts.later[number] or key in window_names)
+        return bool(key) and (facts.last_run.get(key, -1) > number or key in window_names)
     return False
 
 
