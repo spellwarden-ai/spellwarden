@@ -1,0 +1,53 @@
+{
+  "mcpServers": {
+    "shop-db-hosted": {
+      "type": "http",
+      "url": "https://mcp.supabase.com/mcp?project_ref=exampleprojectref&read_only=true"
+    },
+    "shop-docs": {
+      "type": "http",
+      "url": "https://mcp.supabase.com/mcp?features=docs"
+    },
+    "shop-db-local": {
+      "command": "bunx",
+      "args": ["@supabase/mcp-server-supabase@latest", "--read-only", "--project-ref=exampleprojectref"],
+      "env": {
+        "SUPABASE_ACCESS_TOKEN": "${SUPABASE_ACCESS_TOKEN}"
+      }
+    },
+    "staging-cluster": {
+      "command": "npx",
+      "args": ["-y", "mcp-server-kubernetes"],
+      "env": {
+        "ALLOW_ONLY_NON_DESTRUCTIVE_TOOLS": "true"
+      }
+    },
+    "prod-cluster": {
+      "command": "kubernetes-mcp-server",
+      "args": ["--read-only"]
+    },
+    "qa-cluster": {
+      "command": "kubernetes-mcp-server",
+      "args": ["--disable-destructive"]
+    },
+    "old-cluster": {
+      "command": "kubernetes-mcp-server",
+      "disabled": true
+    },
+    "reports-db": {
+      "command": "reports-db-mcp",
+      "env": {
+        "ACCESS_MODE": "restricted",
+        "ALLOW_DELETE_OPERATION": "false",
+        "ALLOW_INSERT_OPERATION": "false"
+      }
+    },
+    "audit-db": {
+      "command": "audit-db-mcp",
+      "readOnly": true,
+      "env": {
+        "ACCESS_MODE": "unrestricted"
+      }
+    }
+  }
+}
