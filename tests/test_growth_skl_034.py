@@ -508,6 +508,27 @@ def test_loopback_fallback_is_remote_when_the_readme_documents_a_remote_value_fo
     assert len(run(**{"scripts/a.py": _FALLBACK_SCRIPT, "README.md": readme})) == 1
 
 
+def test_a_key_that_only_shares_a_line_with_a_remote_link_is_not_documented_remote():
+    readme = "# Acme Grid\n\nSee https://docs.example.com/setup for `acmegrid.url`: keep it on localhost.\n"
+    assert run(**{"scripts/a.py": _FALLBACK_SCRIPT, "README.md": readme}) == []
+
+
+def test_a_connection_string_spelled_with_a_separator_or_a_url_with_a_password_is_a_credential():
+    code = "```js\nconst pool = new Pool({ connection_string: process.env.PG, ssl: { rejectUnauthorized: false } });\n```\n"
+    assert len(run(code)) == 1
+    code = ("```python\nengine = create_engine('postgresql://app:s3cr3tpw@db.example.com/app',"
+            " connect_args={'sslmode': 'require'}, verify=False)\n```\n")
+    assert len(run(code)) == 1
+
+
+def test_a_url_variable_that_carries_a_token_or_is_reassigned_is_not_a_plain_url():
+    script = 'FEED_URL="https://feeds.example.com/x?token=abc123"\ncurl -k "$FEED_URL"\n'
+    assert len(run(**{"scripts/a.sh": script})) == 1
+    script = ('TARGET="https://api.example.com/v1"\nTARGET="Authorization: Bearer abc123"\n'
+              'curl -k -H "$TARGET" https://api.example.com/v1\n')
+    assert len(run(**{"scripts/a.sh": script})) == 1
+
+
 def test_loopback_fallback_stays_loopback_without_a_documented_remote_value():
     assert run(**{"scripts/a.py": _FALLBACK_SCRIPT}) == []
     local = "# Acme Grid\n\nSet `acmegrid.url` to `https://localhost:9443` while developing.\n"

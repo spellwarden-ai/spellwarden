@@ -87,7 +87,9 @@ _SCOPE_START = re.compile(r"^\s*(?:(?:export|default|async|public|private|static
 _ARGUMENT = re.compile(r"[(,]\s*(?:[a-z_][a-z0-9_]*\s*[=:]\s*)?([a-z_][a-z0-9_]*)\s*(?=[,)])")
 _AUTH_ARG = re.compile(r"(?<![a-z0-9_])auth\s*[:=]")
 _CRED_PHRASES = ("authorization", "bearer ", "x-api-key", "cookiejar", "cookie-jar", "cookie_jar", "cookie jar",
-                 "connectionstring", "database_url")
+                 "connectionstring", "connection_string", "connection-string", "database_url")
+# A URL with user info that carries a password (`postgres://user:secret@db.example.com/app`) is a credential itself.
+_USERINFO_URL = re.compile(r"[a-z][a-z0-9+.-]{0,15}://[^\s/@:\"'`]{1,64}:[^\s/@\"'`]{1,256}@")
 _CRED_WORDS = frozenset({"password", "passwd", "pwd", "secret", "token", "apikey", "cookie", "cookies"})
 _URL_HOST = re.compile(r"""[a-z][a-z0-9+.-]{0,15}://([^/\s"'`?#)>]*)""")
 _LOOPBACK_V4 = re.compile(r"(?<![0-9.])127\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}(?![0-9])")
@@ -141,7 +143,7 @@ def _words(low: str) -> frozenset[str]:
 
 def _has_credential(low: str, words: frozenset[str]) -> bool:
     return (any(p in low for p in _CRED_PHRASES) or bool(words & _CRED_WORDS) or ("api" in words and "key" in words)
-            or _AUTH_ARG.search(low) is not None)
+            or _AUTH_ARG.search(low) is not None or ("@" in low and _USERINFO_URL.search(low) is not None))
 
 
 def _hosts(low: str) -> list[str]:
@@ -206,36 +208,55 @@ class _Documented:
                     self._read(low)
 
     def _read(self, low: str) -> None:
+        """A key or stem counts only when the remote URL is its value: `key=https://...`, `key: "https://..."`, `set
+        key to https://...`, not a key that merely shares a line with a link (review r0:F5)."""
         for match in _TOKEN.finditer(low):
             token = match.group(0)
-            stem = _stem(token)
-            if stem:
-                self.stems.add(stem)
             j = match.end()
             while j < len(low) and low[j] in " \t`\"'*":
                 j += 1
             if j < len(low) and low[j] in "=:":
-                self.keys.add(token)
+                j += 1
+            elif low.startswith("to ", j):  # prose: set `key` to `https://...`
+                j += 3
+            else:
+                continue
+            while j < len(low) and low[j] in " \t`\"'*":
+                j += 1
+            value = low[j:j + 300].split(None, 1)[0] if j < len(low) else ""
+            if "://" not in value or not _remote_url(value):
+                continue
+            self.keys.add(token)
+            stem = _stem(token)
+            if stem:
+                self.stems.add(stem)
 
     def has(self, key: str) -> bool:
         return key in self.keys or (_stem(key) or key) in self.stems
 
 
 def _assigned_names(lines: Iterable[str]) -> tuple[set[str], set[str]]:
-    """Names assigned a value that holds a credential phrase, and names assigned just a URL (no user info)."""
+    """Names assigned a value that holds a credential, and names that are only ever assigned a plain URL: no user
+    info, no query or fragment, no credential word. One other assignment of any kind takes a name out of the URL set,
+    so a reassignment can never hide a credential (review r1:F2)."""
     credential: set[str] = set()
     url: set[str] = set()
+    other: set[str] = set()
     for line in lines:
         low = line.lower()
         match = _ASSIGNED.match(low)
         if match is None or low[match.end():match.end() + 1] == "=":
             continue
-        value = low[match.end():]
-        if any(phrase in value for phrase in _CRED_PHRASES):
-            credential.add(match.group(1))
-        elif _PLAIN_URL.fullmatch(value.strip().strip("\"'`;")):
-            url.add(match.group(1))
-    return credential, url - credential
+        name, value = match.group(1), low[match.end():]
+        plain = value.strip().strip("\"'`;")
+        if any(phrase in value for phrase in _CRED_PHRASES) or _USERINFO_URL.search(value):
+            credential.add(name)
+        elif (_PLAIN_URL.fullmatch(plain) and "?" not in plain and "#" not in plain
+              and not _words(plain) & _CRED_WORDS):
+            url.add(name)
+        else:
+            other.add(name)
+    return credential, url - credential - other
 
 
 def _loopback_marker(low: str) -> bool:
