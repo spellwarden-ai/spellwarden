@@ -961,21 +961,23 @@ def _span_command_word(span: str) -> str:
     return name[:-4] if name.endswith(".exe") else name
 
 
-def _fenced_lines(package: Package, path: str) -> set[int]:
-    """The line numbers of the fenced blocks of a file, their fence lines included."""
+def _fenced_lines(blocks: list[CodeBlock]) -> set[int]:
+    """The line numbers of the fenced blocks of one file, their fence lines included."""
     lines: set[int] = set()
-    for block in package.code_blocks:
-        if block.path == path:
-            count = block.text.count("\n") + 1 if block.text else 0
-            lines.update(range(block.first_line - 1, block.first_line + count + 1))
+    for block in blocks:
+        count = block.text.count("\n") + 1 if block.text else 0
+        lines.update(range(block.first_line - 1, block.first_line + count + 1))
     return lines
 
 
 def _span_hits(package: Package, logical_commands) -> Iterator[tuple[str, int, str]]:
     """Inline spans of the Markdown files that run a download command on a URL, each read as a shell command of its
     own. A checksum or signature check in any span of the file silences the file's spans."""
+    blocks_by_path: dict[str, list[CodeBlock]] = {}
+    for block in package.code_blocks:
+        blocks_by_path.setdefault(block.path, []).append(block)
     for file in package.instructions():
-        fenced = _fenced_lines(package, file.path)
+        fenced = _fenced_lines(blocks_by_path.get(file.path, []))
         kept: list[CodeBlock] = []
         every: list[_Command] = []
         for number, line in enumerate(file.lines, start=1):

@@ -677,6 +677,15 @@ def test_a_long_variable_url_line_after_a_latest_tag_is_read_in_linear_time():
     assert time.perf_counter() - started < 1.0
 
 
+def test_many_markdown_files_with_many_fenced_blocks_are_read_in_linear_time():
+    block = "\n```text\nplain\n```\n"
+    body = clean_md() + block * 300
+    files = {f"references/r{n}.md": body for n in range(600)}
+    started = time.perf_counter()
+    run(**files)
+    assert time.perf_counter() - started < 1.0
+
+
 # --- fixtures ----------------------------------------------------------------------------------------
 
 def test_positive_fixture_fires_at_each_download_line():
