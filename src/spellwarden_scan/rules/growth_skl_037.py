@@ -1,18 +1,31 @@
 """SW-SKL-037: executable downloaded from a moving reference and run without an integrity check.
 
-Read over the skill's scripts and fenced code blocks (`Package.scripts()`):
+Read over the skill's scripts and fenced code blocks (`Package.scripts()`), and over the single-backtick inline code
+spans of Markdown prose (a span is read when its command word is `curl`, `wget` or a PowerShell download and it holds an
+http(s) URL; a checksum or signature check in any span of the file silences the file's spans):
 
 * shell and PowerShell: a download written to a file (`curl -o/-O` or a redirect, `wget -O`, `Invoke-WebRequest
   -OutFile`, `DownloadFile`) or piped into `tar -x` with a bin directory as target, followed in the same command or in
   the next five commands by an execute step on that file (`chmod +x`, a mode with an execute bit, a move or extraction
-  into a bin directory, a direct run or a run through an interpreter);
+  into a bin directory, a direct run or a run through an interpreter). A download piped into an extracting `tar`,
+  `unzip`, `7z` or `bsdtar` with no bin directory is an execute step when a command of the window then moves a file into
+  a bin directory or makes one executable. When the script resolves the latest tag from a `releases/latest` URL into a
+  variable and a command builds a `/releases/download/$TAG/...` URL, a download of a whole-token `$VAR` (not an output
+  option's value) or of that templated URL is a moving download;
 * Python and JavaScript: a download written to a file, followed within twelve lines by an execute-mode `chmod` or a
-  spawn of that file;
+  spawn of that file. A name assigned (`NAME =`, `const NAME =`, with or without a type annotation) from a URL that is
+  explicitly moving (`releases/latest`, a raw default-branch path, a default-branch archive) makes every other line that
+  names it a moving reference too (one hop; the window, write and execute checks are the same);
 * a `git clone` of the default branch (no `--branch <tag>`, no later checkout of a commit) followed within five
   commands by an install or a run inside the clone.
 
+The shell keywords `if`, `elif`, `while`, `until`, `then`, `do`, `else` and `!` are skipped like wrappers, so
+`if ! git clone ...; then` and `then curl ...` are read as the clone and the download. The window is five significant
+commands: a command that is only a keyword (`then`, `else`, `fi`, `do`, `done`, `esac`) or whose command word is
+`echo`, `printf` or `:` does not count.
+
 The URL is a moving reference: `/releases/latest/`, `/releases/download/latest/`, a raw default-branch path, a branch
-archive, or a path with no version segment at all. The unit is quiet when it checks integrity (a checksum verified, a
+archive (the strong kinds), or a path with no version segment at all (the weak kind). The unit is quiet when it checks integrity (a checksum verified, a
 hash compared to a value, a signature verified). Data files, `/dev/null` and package-manager installs have no
 execute step on a download and stay quiet. The finding is at the download's line.
 
@@ -20,6 +33,8 @@ Commands are cut once, left to right, at unquoted `;`, `&&`, `||`, `&` and newli
 long line is read in linear time. The module is registered by the rule set, not here."""
 from __future__ import annotations
 
+import re
+from bisect import bisect_right
 from collections.abc import Iterator
 from dataclasses import dataclass
 
@@ -53,6 +68,9 @@ _DATA_SUFFIXES = (".json", ".csv", ".tsv", ".txt", ".md", ".html", ".xml", ".yam
 _NULL_TARGETS = frozenset({"/dev/null", "nul", "$null", "-"})
 
 _WRAPPERS = frozenset({"sudo", "doas", "exec", "nohup", "time", "command", "env", "start-process", "start", "&", "call"})
+_SHELL_KEYWORDS = frozenset({"if", "elif", "while", "until", "then", "do", "else", "!"})  # skipped like wrappers
+_BARE_KEYWORDS = frozenset({"then", "else", "fi", "do", "done", "esac"})  # a command made only of one of these does not count
+_QUIET_COMMANDS = frozenset({"echo", "printf", ":"})  # nor does an echo: it neither runs nor places anything
 _CURL_LIKE = frozenset({"curl", "wget", "invoke-webrequest", "iwr", "invoke-restmethod", "irm", "start-bitstransfer"})
 _OUT_OPTIONS = frozenset({"-o", "--output", "-outfile", "-destination", "--output-document"})
 _INTERPRETERS = frozenset({"sh", "bash", "zsh", "dash", "python", "python3", "py", "node", "ruby", "perl", "pwsh", "powershell"})
@@ -194,7 +212,7 @@ def _head(stage: tuple[str, ...]) -> int:
     size = len(stage)
     while index < size:
         word = stage[index].lower()
-        if word in _WRAPPERS or (word.startswith("-") and index) or ("=" in word and not word.startswith(("/", "-", "."))
+        if word in _WRAPPERS or word in _SHELL_KEYWORDS or (word.startswith("-") and index) or ("=" in word and not word.startswith(("/", "-", "."))
                                                                      and word.split("=", 1)[0].replace("_", "").isalnum()):
             index += 1
             continue
@@ -230,36 +248,45 @@ def _version_like(segment: str) -> bool:
     return len(low) >= 8 and low[:4].isdigit() and low[4] in "-._" and low[5:7].isdigit()
 
 
-def _moving(url: str) -> bool:
+def _moving_kind(url: str, latest: bool = False) -> str:
+    """`"strong"` for an explicit moving reference (`releases/latest`, a raw default-branch path, a branch archive),
+    `"weak"` for a path with no version segment at all, `""` when the URL is pinned or not a URL. With `latest` (the
+    script resolved the latest tag into a variable) a `releases/download/<segment with $>` URL is strong too."""
     text = url.split("#", 1)[0].split("?", 1)[0]
     scheme_end = text.find("://")
     if scheme_end == -1:
-        return False
+        return ""
     host, _, path = text[scheme_end + 3:].partition("/")
     host = host.rsplit("@", 1)[-1].split(":", 1)[0].lower()
     segments = [part for part in path.split("/") if part]
     if not segments or "." not in host:
-        return False
+        return ""
     lows = [part.lower() for part in segments]
     for index, part in enumerate(lows):
         if part == "releases" and index + 1 < len(lows):
             after = lows[index + 1]
             if after == "latest" or (after == "download" and index + 2 < len(lows) and lows[index + 2] == "latest"):
-                return True
+                return "strong"
+            if latest and after == "download" and index + 2 < len(lows) and "$" in lows[index + 2]:
+                return "strong"
         if part == "raw" and index + 1 < len(lows) and lows[index + 1] in ("main", "master", "head"):
-            return True
+            return "strong"
         if part == "archive" and index + 1 < len(lows):
             ref = lows[index + 3] if lows[index + 1:index + 3] == ["refs", "heads"] and index + 3 < len(lows) else lows[index + 1]
             if ref.split(".", 1)[0] in ("main", "master", "head"):
-                return True
+                return "strong"
     if host == "raw.githubusercontent.com":
         ref = lows[2:3]
         if ref and ref[0] in ("main", "master", "head"):
-            return True
+            return "strong"
         if lows[2:4] == ["refs", "heads"] and lows[4:5] and lows[4] in ("main", "master", "head"):
-            return True
-        return False
-    return not any(_version_like(part) for part in segments)
+            return "strong"
+        return ""
+    return "" if any(_version_like(part) for part in segments) else "weak"
+
+
+def _moving(url: str, latest: bool = False) -> bool:
+    return _moving_kind(url, latest) != ""
 
 
 # --- shell downloads ---------------------------------------------------------------------------------------------
@@ -343,6 +370,41 @@ def _tar_to_bin(stage: tuple[str, ...]) -> bool:
     return extracts and directory
 
 
+def _extracts(stage: tuple[str, ...]) -> bool:
+    """An extracting `tar`, `bsdtar`, `unzip` or `7z` stage, whatever its target directory."""
+    name, index = _name(stage)
+    rest = stage[index + 1:]
+    if name in ("tar", "bsdtar"):
+        for position, token in enumerate(rest):
+            if token == "--extract" or (token.startswith("-") and not token.startswith("--") and "x" in token[1:] and token[1:].isalpha()) \
+                    or (position == 0 and token.isalpha() and "x" in token and set(token) <= set("xzfvjJpCOa")):
+                return True
+        return False
+    if name == "unzip":
+        return not any(token in ("-l", "-t", "-v", "-z", "-Z") for token in rest)
+    if name in ("7z", "7za"):
+        return next((token for token in rest if not token.startswith("-")), "") in ("x", "e")
+    return False
+
+
+def _chmod_executable_files(stage: tuple[str, ...]) -> bool:
+    """An execute-mode `chmod` that names at least one file."""
+    name, index = _name(stage)
+    if name != "chmod":
+        return False
+    arguments = [token for token in stage[index + 1:] if not token.startswith("-") or token.startswith(("-x", "+x"))]
+    modes = [token for token in arguments if _mode_executable(token)]
+    return bool(modes) and any(token not in modes and _key(token) for token in arguments)
+
+
+def _places_bin(stage: tuple[str, ...]) -> bool:
+    """A move or copy with a bin directory among its arguments, or an execute-mode `chmod` on a file."""
+    name, index = _name(stage)
+    if name in _PLACERS:
+        return any(_bin_dir(token) for token in stage[index + 1:])
+    return _chmod_executable_files(stage)
+
+
 def _mode_executable(token: str) -> bool:
     low = token.lower()
     if "+" in low and "x" in low.split("+", 1)[1]:
@@ -393,23 +455,32 @@ def _runs_target(stage: tuple[str, ...], target: str) -> bool:
 @dataclass(frozen=True)
 class _Facts:
     """Per command, worked out once in one pass: the last stage that runs or makes executable each name, the last
-    stage that extracts into a bin directory (-1 when none), and every name its stages run. A download at stage `i` is
+    stage that extracts into a bin directory and the last that extracts anywhere (-1 when none), whether a stage places
+    a file in a bin directory or makes one executable, and every name its stages run. A download at stage `i` is
     run later in its command when the name's last stage is after `i`; no per-stage set is built, so the work stays
     linear in the command's tokens whatever the number of stages."""
     last_run: dict[str, int]
     last_tar: int
     names: frozenset[str]
+    last_extract: int = -1
+    places_bin: bool = False
 
 
 def _facts(command: _Command) -> _Facts:
     last_run: dict[str, int] = {}
     last_tar = -1
+    last_extract = -1
+    places_bin = False
     for number, stage in enumerate(command.stages):
         for name in _run_names(stage):
             last_run[name] = number
-        if _name(stage)[0] in _EXTRACTORS and _tar_to_bin(stage):
-            last_tar = number
-    return _Facts(last_run, last_tar, frozenset(last_run))
+        if _name(stage)[0] in _EXTRACTORS:
+            if _tar_to_bin(stage):
+                last_tar = number
+            if _extracts(stage):
+                last_extract = number
+        places_bin = places_bin or _places_bin(stage)
+    return _Facts(last_run, last_tar, frozenset(last_run), last_extract, places_bin)
 
 
 def _verifies(commands: list[_Command]) -> bool:
@@ -513,20 +584,43 @@ def _clone_runs(stage: tuple[str, ...], directory: str, inside: bool) -> bool:
     return False
 
 
-def _stage_hit(command: _Command, number: int, facts: _Facts, window_names: frozenset[str]) -> bool:
+_VARIABLE = re.compile(r"\$[A-Za-z_][A-Za-z0-9_]*\Z")
+
+
+def _variable_url(stage: tuple[str, ...], index: int) -> str:
+    """The first whole-token `$VAR` argument of a download stage that is not the value of an output option or a
+    redirect (the cleaned token of `"$URL"` and `"${URL}"` is `$URL`)."""
+    for position in range(index + 1, len(stage)):
+        token = stage[position]
+        if not _VARIABLE.match(token):
+            continue
+        before = stage[position - 1].lower() if position > index + 1 else ""
+        short = before.startswith("-") and not before.startswith("--") and before[1:].isalpha() and before.endswith("o")
+        if before in _OUT_OPTIONS or before in (">", ">>") or short:
+            continue
+        return token
+    return ""
+
+
+def _stage_hit(command: _Command, number: int, facts: _Facts, window_names: frozenset[str], window_places_bin: bool = False,
+               latest: bool = False) -> bool:
     """Whether stage `number` of `command` is a moving download that a later stage, or a command of the window, makes
-    executable or runs (every later stage is read: no position limit, and the lookups are set lookups)."""
+    executable or runs (every later stage is read: no position limit, and the lookups are set lookups). `latest`: the
+    script resolved the latest tag and builds a `releases/download/$TAG` URL."""
     stage = command.stages[number]
     name, index = _name(stage)
     if name in _CURL_LIKE:
         url = _first_url(stage)
-        if not url or not _moving(url):
+        moving = bool(url) and _moving(url, latest)
+        if not url and latest:
+            moving = bool(_variable_url(stage, index))
+        if not moving:
             return False
         target = _download_target(stage, "curl" if name == "start-bitstransfer" else name, index, url)
         if target is None:
             return False
         if target == "":
-            return facts.last_tar > number
+            return facts.last_tar > number or (facts.last_extract > number and window_places_bin)
         if _data_file(target):
             return False
         key = _key(target)
@@ -544,21 +638,45 @@ def _clone_hit(command: _Command, window: list[_Command], pinned_later: bool) ->
     return False
 
 
-def _shell_hits(commands: list[_Command]) -> Iterator[tuple[int, str]]:
-    if _verifies(commands):
+def _significant(command: _Command) -> bool:
+    """Whether the command counts towards a window: not a bare keyword (`then`, `fi`, ...), not an `echo`/`printf`/`:`."""
+    first = command.stages[0]
+    if len(command.stages) == 1 and all(token.lower() in _BARE_KEYWORDS for token in first):
+        return False
+    return _name(first)[0] not in _QUIET_COMMANDS
+
+
+def _resolves_latest(command: _Command) -> bool:
+    """The command captures (`$(...)` or backticks) the output of a request to a URL whose path ends in `releases/latest`."""
+    text = command.text
+    if "$(" not in text and "`" not in text:
+        return False
+    return any(url.split("#", 1)[0].split("?", 1)[0].rstrip("/").lower().endswith("/releases/latest") for url in _urls(text))
+
+
+def _shell_hits(commands: list[_Command], verified: bool = False) -> Iterator[tuple[int, str]]:
+    """`verified`: the caller already checked the integrity of the unit (it did it over a whole file's inline spans)."""
+    if not verified and _verifies(commands):
         return
     pinned_later = [False] * (len(commands) + 1)  # a commit is checked out in some command after this one
     for position in range(len(commands) - 1, -1, -1):
         pinned_later[position] = pinned_later[position + 1] or _pins_commit(commands[position])
     facts = [_facts(command) for command in commands]
+    significant = [position for position, command in enumerate(commands) if _significant(command)]
+    latest = any(_resolves_latest(command) for command in commands) and any("/releases/download/$" in c.text for c in commands)
     for position, command in enumerate(commands):
-        window = commands[position + 1:position + 1 + _SHELL_WINDOW]
-        # Each command is in at most `_SHELL_WINDOW` windows, so these unions stay linear in the unit's size.
-        window_names = frozenset().union(*(fact.names for fact in facts[position + 1:position + 1 + _SHELL_WINDOW]))
+        # The window is the next `_SHELL_WINDOW` significant commands, found by position in the precomputed list; each
+        # command is in at most `_SHELL_WINDOW` windows, so these unions stay linear in the unit's size.
+        first = bisect_right(significant, position)
+        chosen = significant[first:first + _SHELL_WINDOW]
+        window = [commands[at] for at in chosen]
+        window_names = frozenset().union(*(facts[at].names for at in chosen))
+        window_places_bin = any(facts[at].places_bin for at in chosen)
         if "downloadfile(" in command.text.lower():
             hit = _download_file_call(command, window_names)
         else:
-            hit = any(_stage_hit(command, number, facts[position], window_names) for number in range(len(command.stages)))
+            hit = any(_stage_hit(command, number, facts[position], window_names, window_places_bin, latest)
+                      for number in range(len(command.stages)))
             hit = hit or _clone_hit(command, window, pinned_later[position + 1])
         if hit:
             yield command.line, command.text
@@ -719,6 +837,33 @@ def _program_verifies(lines: list[str]) -> bool:
     return False
 
 
+_ASSIGNED = re.compile(r"\s*(?:(?:export\s+)?(?:const|let|var)\s+)?([A-Za-z_$][\w$]*)\s*(?::[^=]*)?=(?!=)")
+_IDENTIFIER = re.compile(r"[A-Za-z_$][\w$]*")
+
+
+def _strong_names(rows: list[tuple[int, str]]) -> dict[str, int]:
+    """The names assigned (`NAME =`, `const NAME =`, an optional type annotation) from a row whose URL is strong, each
+    with the index of the row that last assigns it."""
+    names: dict[str, int] = {}
+    for position, (_number, text) in enumerate(rows):
+        if "://" not in text:
+            continue
+        assigned = _ASSIGNED.match(text)
+        if assigned and any(_moving_kind(url) == "strong" for url in _urls(text)):
+            names[assigned.group(1)] = position
+    return names
+
+
+def _names_constant(text: str, position: int, names: dict[str, int]) -> bool:
+    """The row names (as a whole word) a constant holding an explicitly moving URL, other than within the program window
+    after the constant's own row, which that row's own window already reads."""
+    for found in _IDENTIFIER.finditer(text):
+        defined = names.get(found.group(0))
+        if defined is not None and defined != position and not 0 < position - defined <= _PROGRAM_WINDOW:
+            return True
+    return False
+
+
 def _program_hits(unit: TextFile | CodeBlock, comment: str) -> Iterator[tuple[int, str]]:
     rows: list[tuple[int, str]] = []
     if isinstance(unit, CodeBlock):
@@ -731,8 +876,10 @@ def _program_hits(unit: TextFile | CodeBlock, comment: str) -> Iterator[tuple[in
             rows.append((number, text))
     if _program_verifies([text for _number, text in rows]):
         return
+    names = _strong_names(rows)
     for position, (number, text) in enumerate(rows):
-        if not any(_moving(url) for url in _urls(text)):
+        # An anchor: a moving URL, or (one hop) a line that names a constant holding an explicitly moving URL.
+        if not any(_moving(url) for url in _urls(text)) and not (names and _names_constant(text, position, names)):
             continue
         window = rows[position:position + _PROGRAM_WINDOW + 1]
         if not any(any(marker in line.lower() for marker in _FETCH_MARKERS) for _n, line in window):
@@ -773,11 +920,81 @@ def _finding(path: str, line: int, matched: str) -> Finding:
     return Finding(RULE_ID, SEVERITY, TITLE, Location(path, line), excerpt(matched), fingerprint(RULE_ID, path, matched), MALICIOUS)
 
 
-def detect(package: Package) -> Iterator[Finding]:
-    # Imported here: rules/skill.py imports this module when the rule is registered, so a top-level import would cycle.
-    from spellwarden_scan.rules.skill import logical_commands
+# --- inline code spans in Markdown prose -------------------------------------------------------------------------
 
-    reported: set[tuple[str, int]] = set()
+def _inline_spans(line: str) -> Iterator[str]:
+    """The single-backtick code spans of one line: an opening run of one backtick, closed by the next run, which must
+    also be one backtick (a longer run is not a closer and the opener stays literal). Each character is read once."""
+    index = 0
+    size = len(line)
+    while True:
+        index = line.find("`", index)
+        if index == -1:
+            return
+        end = index
+        while end < size and line[end] == "`":
+            end += 1
+        if end - index != 1:
+            index = end  # a run of several backticks opens a different kind of span: not read
+            continue
+        close = line.find("`", end)
+        if close == -1:
+            return
+        stop = close
+        while stop < size and line[stop] == "`":
+            stop += 1
+        if stop - close == 1:
+            yield line[end:close]
+            index = stop
+        else:
+            index = close  # the longer run is read again as an opener of its own
+
+
+def _span_command_word(span: str) -> str:
+    text = span.strip()
+    if text.startswith("$ "):
+        text = text[2:]
+    tokens = tuple(cleaned for cleaned in (_clean(token) for token in text.split(None, 12)[:12]) if cleaned)
+    if not tokens:
+        return ""
+    name = _basename(tokens[_head(tokens)]).lower()
+    return name[:-4] if name.endswith(".exe") else name
+
+
+def _fenced_lines(package: Package, path: str) -> set[int]:
+    """The line numbers of the fenced blocks of a file, their fence lines included."""
+    lines: set[int] = set()
+    for block in package.code_blocks:
+        if block.path == path:
+            count = block.text.count("\n") + 1 if block.text else 0
+            lines.update(range(block.first_line - 1, block.first_line + count + 1))
+    return lines
+
+
+def _span_hits(package: Package, logical_commands) -> Iterator[tuple[str, int, str]]:
+    """Inline spans of the Markdown files that run a download command on a URL, each read as a shell command of its
+    own. A checksum or signature check in any span of the file silences the file's spans."""
+    for file in package.instructions():
+        fenced = _fenced_lines(package, file.path)
+        kept: list[CodeBlock] = []
+        every: list[_Command] = []
+        for number, line in enumerate(file.lines, start=1):
+            if number in fenced or "`" not in line:
+                continue
+            for span in _inline_spans(line):
+                unit = CodeBlock(file.path, "sh", span, number)
+                every.extend(_commands(unit, logical_commands))
+                low = span.lower()
+                if _span_command_word(span) in _CURL_LIKE and ("http://" in low or "https://" in low):
+                    kept.append(unit)
+        if not kept or _verifies(every):
+            continue
+        for unit in kept:
+            for line, matched in _shell_hits(list(_commands(unit, logical_commands)), verified=True):
+                yield file.path, line, matched
+
+
+def _unit_hits(package: Package, logical_commands) -> Iterator[tuple[str, int, str]]:
     for unit in package.scripts():
         kind = _kind(unit)
         if kind == "shell":
@@ -789,9 +1006,19 @@ def detect(package: Package) -> Iterator[Finding]:
         else:
             continue
         for line, matched in hits:
-            if (unit.path, line) in reported:
-                continue
-            reported.add((unit.path, line))
-            yield _finding(unit.path, line, matched)
-            if len(reported) >= _PER_PACKAGE:
-                return
+            yield unit.path, line, matched
+    yield from _span_hits(package, logical_commands)
+
+
+def detect(package: Package) -> Iterator[Finding]:
+    # Imported here: rules/skill.py imports this module when the rule is registered, so a top-level import would cycle.
+    from spellwarden_scan.rules.skill import logical_commands
+
+    reported: set[tuple[str, int]] = set()
+    for path, line, matched in _unit_hits(package, logical_commands):
+        if (path, line) in reported:
+            continue
+        reported.add((path, line))
+        yield _finding(path, line, matched)
+        if len(reported) >= _PER_PACKAGE:
+            return

@@ -147,9 +147,9 @@ def test_execute_step_must_name_the_downloaded_file():
 
 
 def test_execute_step_more_than_five_commands_later_is_out_of_the_window():
-    commands = ["curl -L https://downloads.example.com/acme/tool/releases/latest/download/tool -o tool"] + ["echo step"] * 6 + ["chmod +x tool"]
+    commands = ["curl -L https://downloads.example.com/acme/tool/releases/latest/download/tool -o tool"] + ["ls -l"] * 6 + ["chmod +x tool"]
     assert run(fenced(*commands)) == []
-    near = ["curl -L https://downloads.example.com/acme/tool/releases/latest/download/tool -o tool"] + ["echo step"] * 4 + ["chmod +x tool"]
+    near = ["curl -L https://downloads.example.com/acme/tool/releases/latest/download/tool -o tool"] + ["ls -l"] * 4 + ["chmod +x tool"]
     assert len(run(fenced(*near))) == 1
 
 
@@ -347,10 +347,11 @@ def test_download_to_stdout_is_not_this_rule():
     assert run(body) == []
 
 
-def test_prose_outside_fences_and_non_shell_blocks_are_quiet():
-    prose = f"\nRun `{LATEST}` yourself.\n"
-    assert run(prose) == []
+def test_bare_prose_and_non_shell_blocks_are_quiet_but_an_inline_span_is_read():
+    assert run(f"\nRun {LATEST} yourself.\n") == []
     assert run(fenced(LATEST, language="text")) == []
+    # since 1.8.0 a single-backtick inline span that runs a download is read as a command of its own
+    assert len(run(f"\nRun `{LATEST}` yourself.\n")) == 1
 
 
 def test_output_is_bounded():
@@ -419,6 +420,260 @@ def test_many_downloads_followed_by_one_large_command_are_read_in_linear_time():
     large = "./" + "a" * 200_000 + " " + "b" * 100_000
     started = time.perf_counter()
     run(**{"scripts/a.sh": downloads + "\n" + large + "\n"})
+    assert time.perf_counter() - started < 1.0
+
+
+# --- 1.8.0 revision: inline spans, extract then place, latest tag resolved, moving constants, keywords --------
+
+REL_TGZ = "https://github.com/example-org/tool/releases/latest/download/tool-linux-amd64.tar.gz"
+RAW_INSTALL = "https://raw.githubusercontent.com/example-org/tool/main/install.sh"
+API_LATEST = "https://api.github.com/repos/example-org/tool/releases/latest"
+TEMPLATE = "https://github.com/example-org/tool/releases/download/${TAG}/tool-linux-amd64"
+LATEST_TAG = f"TAG=$(curl -fsSL {API_LATEST} | grep tag_name | cut -d '\"' -f 4)"
+
+
+def lines_of(findings):
+    return [(f.location.path, f.location.line) for f in findings]
+
+
+def test_inline_span_extracting_into_a_bin_directory_fires_at_the_span_line():
+    body = f"\n- Install the CLI with `curl -fsSL {REL_TGZ} | tar xz -C /usr/local/bin tool` and check `tool --version`.\n"
+    assert lines_of(run(body)) == [("SKILL.md", line_number(body, "releases/latest"))]
+
+
+def test_inline_span_with_a_dollar_prompt_and_sudo_is_read():
+    body = f"\n1. Run `$ sudo curl -fsSL {REL_TGZ} | tar xz -C /usr/local/bin tool`.\n"
+    assert lines_of(run(body)) == [("SKILL.md", line_number(body, "releases/latest"))]
+
+
+def test_inline_span_extracting_then_moving_into_a_bin_directory_fires():
+    body = f"\n- Install: `curl -fsSL {REL_TGZ} | tar xz && sudo mv tool /usr/local/bin/`\n"
+    assert lines_of(run(body)) == [("SKILL.md", line_number(body, "releases/latest"))]
+
+
+def test_fenced_extract_then_move_into_a_bin_directory_fires_at_the_download_line():
+    body = fenced(f"curl -sL {REL_TGZ} | tar xz", "sudo mv tool /usr/local/bin/")
+    assert lines_of(run(body)) == [("SKILL.md", line_number(body, "releases/latest"))]
+
+
+def test_fenced_extract_then_chmod_of_the_extracted_file_fires():
+    body = fenced(f"curl -sL {REL_TGZ} | tar xz", "chmod +x tool")
+    assert len(run(body)) == 1
+
+
+def test_extract_without_a_bin_destination_or_chmod_is_quiet():
+    for step in ("mv tool-main newname", 'cp -r tool-main/skills "$WORKSPACE/"'):
+        archive = "https://github.com/example-org/tool/archive/refs/heads/main.tar.gz"
+        assert run(fenced(f"curl -sL {archive} | tar xz", step)) == [], step
+        assert run(f"\n- Fetch `curl -sL {archive} | tar xz && {step}`\n") == [], step
+
+
+def test_inline_span_piping_a_default_branch_script_into_sh_is_quiet():
+    body = f"\n- Install: `curl -sSfL {RAW_INSTALL} | sh -s -- -b /usr/local/bin`\n"
+    assert run(body) == []
+
+
+def test_inline_span_that_is_not_a_download_command_is_not_read():
+    body = f"\n- Install: `echo curl {REL_TGZ} -o tool && chmod +x tool` and `tool --help`\n"
+    assert run(body) == []
+
+
+def test_inline_span_that_downloads_and_chmods_is_quiet_when_another_span_verifies_a_checksum():
+    body = ("\n- Fetch `curl -fsSL https://github.com/example-org/tool/releases/latest/download/tool -o tool && chmod +x tool`\n"
+            "- Then run `sha256sum -c tool.sha256` before using it.\n")
+    assert run(body) == []
+    assert len(run(body.split("- Then")[0])) == 1
+
+
+def test_inline_span_inside_a_fenced_line_is_reported_once_by_the_fenced_path():
+    span = "curl -L https://github.com/example-org/tool/releases/latest/download/tool -o tool"
+    body = fenced(f"`{span}` && chmod +x tool")
+    assert lines_of(run(body)) == [("SKILL.md", line_number(body, "releases/latest"))]
+    quoted = fenced(f'echo "run `{span} && chmod +x tool` now"')
+    assert run(quoted) == []
+
+
+def test_several_inline_spans_are_each_their_own_unit():
+    body = ("\n- First `curl -L https://github.com/example-org/a/releases/latest/download/a -o a` then `chmod +x a`.\n"
+            "- Second `curl -L https://github.com/example-org/b/releases/latest/download/b -o b && chmod +x b`.\n")
+    assert lines_of(run(body)) == [("SKILL.md", line_number(body, "example-org/b"))]
+
+
+def test_double_backtick_spans_and_unclosed_spans_are_not_inline_spans():
+    body = ("\n- Install ``curl -L https://github.com/example-org/a/releases/latest/download/a -o a && chmod +x a`` now.\n"
+            "- Broken `curl -L https://github.com/example-org/b/releases/latest/download/b -o b && chmod +x b\n")
+    assert run(body) == []
+
+
+def test_latest_tag_resolved_then_templated_download_through_a_variable_fires_at_the_curl_line():
+    script = ("#!/bin/sh\nset -e\n" + LATEST_TAG + "\n" + f'URL="{TEMPLATE}"\n'
+              'curl -fsSL "$URL" -o "$HOME/.local/bin/tool"\nchmod +x "$HOME/.local/bin/tool"\n')
+    assert lines_of(run(**{"scripts/install.sh": script})) == [("scripts/install.sh", 5)]
+    braces = script.replace('"$URL"', '"${URL}"')
+    assert lines_of(run(**{"scripts/install.sh": braces})) == [("scripts/install.sh", 5)]
+
+
+def test_latest_tag_resolved_then_templated_download_inside_a_quoted_heredoc_fires():
+    script = ("#!/bin/sh\n" + LATEST_TAG + "\ncat > /tmp/install-tool.sh <<'EOF'\n" + f'URL="{TEMPLATE}"\n'
+              'curl -fsSL "$URL" -o "$HOME/.local/bin/tool"\nchmod +x "$HOME/.local/bin/tool"\nEOF\nsh /tmp/install-tool.sh\n')
+    assert lines_of(run(**{"scripts/install.sh": script})) == [("scripts/install.sh", 5)]
+
+
+def test_literal_templated_url_after_the_latest_tag_is_moving():
+    script = "#!/bin/sh\n" + LATEST_TAG + f'\ncurl -fsSL "{TEMPLATE}" -o tool\nchmod +x tool\n'
+    assert lines_of(run(**{"scripts/install.sh": script})) == [("scripts/install.sh", 3)]
+
+
+def test_variable_download_without_a_resolved_latest_tag_is_quiet():
+    plain = f'#!/bin/sh\nURL="{TEMPLATE}"\ncurl -fsSL "$URL" -o tool\nchmod +x tool\n'
+    assert run(**{"scripts/install.sh": plain}) == []
+    no_template = ("#!/bin/sh\n" + LATEST_TAG + '\nURL="https://downloads.example.com/dl/tool-$TAG"\n'
+                   'curl "$URL" -o tool\nchmod +x tool\n')
+    assert run(**{"scripts/install.sh": no_template}) == []
+
+
+def test_the_output_variable_is_not_taken_for_the_url():
+    for download in ('curl -fsSL -o "$OUT"', 'curl -fsSLo "$OUT"', 'curl -fsSL --output "$OUT"', 'curl -fsSL > "$OUT"'):
+        script = "#!/bin/sh\n" + LATEST_TAG + f'\nURL="{TEMPLATE}"\n{download}\nchmod +x "$OUT"\n'
+        assert run(**{"scripts/install.sh": script}) == [], download
+
+
+def test_latest_tag_download_followed_by_a_checksum_comparison_is_quiet():
+    script = ("#!/bin/sh\n" + LATEST_TAG + "\n" + f'URL="{TEMPLATE}"\n'
+              'curl -fsSL "$URL" -o tool\nACTUAL=$(sha256sum tool | cut -d " " -f1)\n'
+              '[ "$ACTUAL" = "$EXPECTED" ] || exit 1\nchmod +x tool\n')
+    assert run(**{"scripts/install.sh": script}) == []
+    unchecked = script.replace('ACTUAL=$(sha256sum tool | cut -d " " -f1)\n[ "$ACTUAL" = "$EXPECTED" ] || exit 1\n', "")
+    assert len(run(**{"scripts/install.sh": unchecked})) == 1
+
+
+def test_latest_tag_download_to_a_data_file_is_quiet():
+    script = ("#!/bin/sh\n" + LATEST_TAG + "\n" + f'URL="{TEMPLATE}"\n'
+              'curl -fsSL "$URL" -o config.json\nchmod +x config.json\n')
+    assert run(**{"scripts/install.sh": script}) == []
+
+
+PY_CONSTANT = (
+    "import os\nimport urllib.request\n\n"
+    'BASE = "https://github.com/example-org/tool/releases/latest/download"\n'
+    + "".join(f"\n\ndef helper_{n}():\n    return {n}\n" for n in range(10))
+    + "\n\ndef install(asset, dest):\n"
+    '    url = f"{BASE}/{asset}"\n'
+    "    data = urllib.request.urlopen(url).read()\n"
+    '    with open(dest, "wb") as handle:\n'
+    "        handle.write(data)\n"
+    "    os.chmod(dest, 0o755)\n"
+)
+
+
+def test_python_constant_holding_a_latest_url_is_an_anchor_far_from_its_definition():
+    lines = PY_CONSTANT.splitlines()
+    assert next(n for n, text in enumerate(lines, 1) if "BASE" in text and "{" not in text) < next(
+        n for n, text in enumerate(lines, 1) if "url = f" in text) - 30
+    expected = next(n for n, text in enumerate(lines, 1) if "url = f" in text)
+    assert lines_of(run(**{"scripts/fetch.py": PY_CONSTANT})) == [("scripts/fetch.py", expected)]
+
+
+def test_javascript_const_with_a_type_annotation_and_a_python_annotation_are_collected():
+    annotated = PY_CONSTANT.replace('BASE = "', 'BASE: str = "')
+    assert len(run(**{"scripts/fetch.py": annotated})) == 1
+    js = (
+        'const fs = require("fs"); const https = require("https");\n'
+        'const BASE: string = "https://github.com/example-org/tool/releases/latest/download";\n'
+        + "".join(f"function helper{n}() {{ return {n}; }}\n" for n in range(40))
+        + "function install(asset, dest) {\n"
+        "  const file = fs.createWriteStream(dest);\n"
+        "  https.get(`${BASE}/${asset}`, (res) => {\n"
+        "    res.pipe(file);\n"
+        '    file.on("finish", () => { fs.chmodSync(dest, 0o755); });\n'
+        "  });\n"
+        "}\n"
+    )
+    assert len(run(**{"scripts/fetch.ts": js})) == 1
+
+
+def test_python_constant_with_a_weak_url_is_not_an_anchor():
+    weak = PY_CONSTANT.replace("https://github.com/example-org/tool/releases/latest/download", "https://api.example.com/download")
+    assert run(**{"scripts/fetch.py": weak}) == []
+
+
+def test_python_latest_constant_whose_download_is_never_made_executable_or_run_is_quiet():
+    unrun = PY_CONSTANT.replace("    os.chmod(dest, 0o755)\n", "    print(len(data))\n")
+    assert run(**{"scripts/fetch.py": unrun}) == []
+
+
+def test_python_name_that_only_contains_the_constant_name_is_not_a_mention():
+    other = PY_CONSTANT.replace('url = f"{BASE}/{asset}"', 'url = f"{BASEMENT}/{asset}"')
+    assert run(**{"scripts/fetch.py": other}) == []
+
+
+CLONE_IF = (
+    'if ! git clone --depth 1 https://github.com/example-org/tool.git "$DIR" 2>/dev/null; then\n'
+    '  echo "clone failed"\n  echo "see the docs"\n  exit 1\nfi\necho "cloned"\ncd "$DIR"\nif ! npm install; then\n  exit 2\nfi\n'
+)
+
+
+def test_clone_inside_an_if_negation_then_install_fires_at_the_clone_line():
+    assert lines_of(run(**{"scripts/setup.sh": "#!/bin/sh\n" + CLONE_IF})) == [("scripts/setup.sh", 2)]
+    body = fenced(*CLONE_IF.splitlines())
+    assert lines_of(run(body)) == [("SKILL.md", line_number(body, "git clone"))]
+
+
+def test_download_after_a_then_keyword_on_the_same_line_is_read():
+    script = ("#!/bin/sh\nif [ ! -x tool ]; then curl -L https://downloads.example.com/acme/tool/releases/latest/download/tool -o tool "
+              "&& chmod +x tool; fi\n")
+    assert lines_of(run(**{"scripts/setup.sh": script})) == [("scripts/setup.sh", 2)]
+
+
+def test_clone_followed_only_by_mkdir_and_copying_data_files_is_quiet():
+    script = ('#!/bin/sh\nif git clone --depth 1 https://github.com/example-org/tool.git "$tmp/x"; then\n'
+              '  mkdir -p out\n  cp "$tmp/x/"*.json out/\nfi\n')
+    assert run(**{"scripts/setup.sh": script}) == []
+
+
+def test_pinned_clone_in_an_if_negation_is_quiet():
+    script = ("#!/bin/sh\nif ! git clone --branch v1.2.3 https://github.com/example-org/tool.git dir; then\n"
+              "  echo failed\n  exit 1\nfi\ncd dir\nmake\n")
+    assert run(**{"scripts/setup.sh": script}) == []
+
+
+def test_clone_window_counts_significant_commands_only():
+    clone = "git clone https://github.com/example-org/tool.git dir"
+    far = ["#!/bin/sh", clone] + ["ls -l"] * 6 + ["cd dir", "npm install"]
+    assert run(**{"scripts/setup.sh": "\n".join(far) + "\n"}) == []
+    near = ["#!/bin/sh", clone] + ["ls -l"] * 3 + ["echo a", ":", "then", "cd dir", "npm install"]
+    assert len(run(**{"scripts/setup.sh": "\n".join(near) + "\n"})) == 1
+
+
+@pytest.mark.parametrize("unit", [
+    "`curl https://x.example.com/releases/latest/download/t -o t` ",
+    "`$ curl https://x.example.com/v1.2.3/t | tar xz` and ``curl `` ",
+    "` ` `curl ",
+])
+def test_inline_spans_are_read_in_linear_time(unit):
+    line = (unit * (300_000 // len(unit) + 1))[:300_000]
+    assert len(line) == 300_000
+    started = time.perf_counter()
+    run("\n- " + line + "\n")
+    assert time.perf_counter() - started < 1.0
+
+
+def test_thousands_of_keyword_only_commands_are_read_in_linear_time():
+    keywords = "then\nfi\ndone\nelse\nesac\ndo\n"
+    clone = "git clone https://github.com/example-org/tool.git dir\n"
+    started = time.perf_counter()
+    clone_found = run(**{"scripts/a.sh": clone + keywords * 1_000 + "echo x\n" * 5_000 + "cd dir\nnpm install\n"})
+    download_found = run(**{"scripts/b.sh": "curl -L https://dl.example.com/tool -o tool\n" + keywords * 1_000 + "chmod +x tool\n"})
+    assert time.perf_counter() - started < 1.0
+    assert len(clone_found) == 1 and len(download_found) == 1
+
+
+def test_a_long_variable_url_line_after_a_latest_tag_is_read_in_linear_time():
+    unit = f"curl -fsSL $URL -o t && {TEMPLATE} ; "
+    line = (unit * (300_000 // len(unit) + 1))[:300_000]
+    started = time.perf_counter()
+    run(**{"scripts/a.sh": LATEST_TAG + "\n" + line + "\n"})
+    run(fenced(LATEST_TAG, line))
     assert time.perf_counter() - started < 1.0
 
 
