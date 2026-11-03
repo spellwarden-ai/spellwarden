@@ -520,3 +520,12 @@ def test_many_copied_parameters_with_many_long_call_sites_are_traced_in_linear_t
     run(INTENT, **{"scripts/a.js": script})
     assert time.perf_counter() - started < 2.0
 
+
+def test_a_deeply_indented_definition_is_still_traced():
+    pad = " " * 600
+    script = (f"{pad}function getDefault() {{\n{pad}  return join(home, '.config', 'google-chrome');\n{pad}}}\n"
+              + "\n" * 25
+              + f"{pad}function clone(src, dst) {{\n{pad}  cpSync(src, dst, {{recursive: true}});\n{pad}}}\n"
+              f"{pad}const d = getDefault();\n{pad}clone(d, OWN_DIR);\nlaunch(['--remote-debugging-port=9222']);\n")
+    assert len(run(INTENT, **{"scripts/a.js": script})) == 1
+

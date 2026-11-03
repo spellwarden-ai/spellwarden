@@ -77,7 +77,7 @@ _NEAR_COPY = 12
 _NEAR_USER_DATA = 5
 _MAX_ARGS = 400  # characters of a call read for its arguments
 _MAX_CALLS = 200  # call sites of one function looked at
-_MAX_DEF = 400  # characters of a line read for a definition or an assignment (they are short; a long line is not one)
+_MAX_DEF = 2000  # characters read for a definition or an assignment, counted after the indentation
 _NAME = r"[a-z_$][\w$]*"
 _DEF_PATTERNS = (
     re.compile(rf"\s*(?:export\s+)?(?:default\s+)?(?:async\s+)?function(?:\s*\*\s*|\s+)({_NAME})\s*\(([^)]*)\)"),
@@ -193,7 +193,7 @@ class _Trace:
         self.owner = [-1] * len(raw)
         stack: list[tuple[int, int]] = []  # (indent, def id)
         for index, line in enumerate(raw):
-            head = line[:_MAX_DEF]
+            head = line.lstrip()[:_MAX_DEF]  # indentation never pushes a definition past the cap
             found = self._definition(head) if ("function" in head or "def " in head or "=>" in head) else None
             if found is not None:
                 indent = len(line) - len(line.lstrip())
@@ -214,7 +214,7 @@ class _Trace:
         if self.root_funcs:
             for line in raw:
                 if "=" in line:
-                    match = _ASSIGN.match(line[:_MAX_DEF])
+                    match = _ASSIGN.match(line.lstrip()[:_MAX_DEF])
                     if match and match.group(2) in self.root_funcs:
                         self.root_vars.add(match.group(1))
         self._calls: dict[str, list[tuple[int, int]]] | None = None
