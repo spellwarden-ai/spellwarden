@@ -426,6 +426,18 @@ def test_many_function_definitions_are_traced_in_linear_time():
     assert time.perf_counter() - started < 1.0
 
 
+def test_many_copy_lines_in_one_function_with_many_long_call_sites_are_traced_in_linear_time():
+    calls = "".join(f"copyprofile('{'a' * 380}{n}', dst)\n" for n in range(200))
+    script = (
+        "// --remote-debugging-port\nfunction copyprofile(src) {\n" + "  cp -r src dest\n" * 8_000 + "}\n" + calls
+    )
+    package = Package.build(make_package({"SKILL.md": clean_md(), "scripts/c.js": script}))
+    assert len(package.text_files) == 2  # the script is under the size cap, so it is really read
+    started = time.perf_counter()
+    list(detect(package))
+    assert time.perf_counter() - started < 1.0
+
+
 # --- fixtures -----------------------------------------------------------------------------------
 
 def _fixture(side: str) -> Package:

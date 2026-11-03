@@ -216,6 +216,7 @@ class _Trace:
                     if match and match.group(2) in self.root_funcs:
                         self.root_vars.add(match.group(1))
         self._calls: dict[str, list[tuple[int, int]]] | None = None
+        self._fed: dict[tuple[int, int], bool] = {}  # (owner def id, parameter position) -> some caller passes a root
         self._scan = scan
 
     @staticmethod
@@ -265,6 +266,12 @@ class _Trace:
         if owner < 0 or source not in self.params[owner]:
             return False
         position = self.params[owner].index(source)
+        key = (owner, position)
+        if key not in self._fed:
+            self._fed[key] = self._fed_a_root(owner, position)
+        return self._fed[key]
+
+    def _fed_a_root(self, owner: int, position: int) -> bool:
         for line, paren in self._call_sites().get(self.names[owner], ()):
             args = _split_args(self.raw[line], paren)
             if position < len(args) and self._is_root(args[position], line):
