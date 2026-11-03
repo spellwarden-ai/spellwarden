@@ -10,7 +10,8 @@ Skill packages:
 
 - `SW-SKL-032` "Instructions lure the user into running a password-protected download or a pasted script" (critical,
   ASI04, ASI09, SR-3, SI-3). A malicious-indicator rule: an open finding quarantines the package, and a baseline entry for
-  it may last at most 30 days.
+  it may last at most 30 days. An encoded one-liner that pipes a remote fetch to a shell is reported by `SW-SKL-004` and
+  by this rule on purpose: one names the decode-and-run, the other the lure.
 - `SW-SKL-036` "Frontmatter pre-approves an unscoped shell or interpreter" (medium, ASI02, ASI03, AC-6, CM-7).
 - `SW-SKL-037` "Executable downloaded from a moving reference and run without an integrity check" (medium, ASI04, ASI05,
   SR-3, SI-7).
@@ -28,8 +29,8 @@ Agent configuration:
 - Four OWASP identifiers (`ASI02`, `ASI05`, `ASI09`, `MCP02`) and two NIST controls (`CM-7`, `SI-3`) are allowed in the
   baseline. Organisation rules keep the tag lists of 1.2.x, so a pack is still readable by every 1.2.x scanner
   (`ORG_ALLOWED_OWASP` and `ORG_ALLOWED_NIST` are unchanged; `A2A_ONLY_TAGS` is now `BASELINE_ONLY_TAGS`).
-- The SARIF rule table gains nine descriptors, so the index of every result after `SW-CFG-010`, and after `SW-SKL-031`, in
-  it moves. The text and JSON listings of `spellwarden rules` gain nine lines.
+- The SARIF rule table gains five descriptors, so the index of every result after `SW-CFG-010`, and after `SW-SKL-031`, in
+  it moves. The text and JSON listings of `spellwarden rules` gain five lines.
 - A scanner older than 1.8.0 reads a baseline that names one of the new ids without error, because the rule-id pattern
   accepts it: the entry matches nothing there, `baseline list` shows it as `unmatched`, `baseline prune` removes it, and
   that scanner reports none of the new findings. A team that runs two scanner versions against one repository should

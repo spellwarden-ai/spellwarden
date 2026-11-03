@@ -6,10 +6,12 @@ Three lures are read over the Markdown files of a skill package (SKILL.md, refer
   executable, an extraction password written right next to a short literal, and a verb that runs the download;
 * a paste-site lure: a URL on a snippet or paste host within three lines of a copy or paste instruction and a
   terminal word;
-* an encoded one-liner: `echo '<base64>' | base64 -d | bash` whose decoded text pipes a remote fetch to a shell.
+* an encoded one-liner: `echo '<base64>' | base64 -d | bash` whose decoded text pipes a remote fetch to a shell. SW-SKL-004
+  reports the same line on purpose: it names the decode-and-run, this rule the lure around it.
 
-Each lure is reported once, at its first line. Lines that list such hosts as indicators to detect or block are
-skipped. Everything is a plain string scan or an anchored, unambiguous pattern, so a long line is read in linear
+Each lure is reported once, at its first line. A section whose heading names indicators or IOCs lists lures rather
+than being one, and is skipped; no other word silences a lure. Only lines within one window of an http(s) URL or a paste
+host are analysed. Everything is a plain string scan or an anchored, unambiguous pattern, so a long line is read in linear
 time. The module is registered by the rule set, not here."""
 from __future__ import annotations
 
@@ -37,8 +39,9 @@ _RUN_VERBS = frozenset({"run", "runs", "running", "execute", "executes", "execut
                         "install", "installs", "installing"})
 _PASTE_VERBS = frozenset({"copy", "copies", "copied", "paste", "pasted", "pasting"})
 _TERMINAL_WORDS = frozenset({"terminal", "powershell", "cmd"})
-_INDICATOR_WORDS = frozenset({"detect", "detects", "detected", "detecting", "detection", "block", "blocks", "blocked",
-                              "blocking", "blocklist", "indicator", "indicators", "ioc", "iocs"})
+# Only a heading that names indicators or IOCs makes its section a list of lures rather than a lure (Fable review F1):
+# words such as detect or block cost an author nothing to add to a real lure, so they never silence one.
+_INDICATOR_WORDS = frozenset({"indicator", "indicators", "ioc", "iocs"})
 _NOT_A_PASSWORD = frozenset({"ok", "yes", "no", "none", "true", "false", "fail", "failed", "pass", "passed", "n/a", "na"})
 _EXTRACT_LEAD_INS = ("extract using ", "extract with ", "unzip using ", "unzip with ", "unpack using ", "unpack with ",
                      "extract it using ", "extract it with ")
@@ -165,9 +168,12 @@ def _has_password(line: str) -> bool:
 class _Features:
     """What one line contributes to a window: computed once per line, so windows cost nothing."""
 
-    __slots__ = ("archive", "password", "run", "paste_link", "paste_verb", "terminal", "indicator")
+    __slots__ = ("archive", "password", "run", "paste_link", "paste_verb", "terminal")
 
-    def __init__(self, line: str) -> None:
+    def __init__(self, line: str | None) -> None:
+        if line is None:  # a line no lure window can reach: it contributes nothing
+            self.archive = self.password = self.run = self.paste_link = self.paste_verb = self.terminal = False
+            return
         words = _words(line)
         self.archive = _has_archive_link(line)
         self.password = _has_password(line)
@@ -175,7 +181,12 @@ class _Features:
         self.paste_link = _has_paste_link(line)
         self.paste_verb = bool(words & _PASTE_VERBS)
         self.terminal = bool(words & _TERMINAL_WORDS)
-        self.indicator = bool(words & _INDICATOR_WORDS)
+
+
+def _anchor(line: str) -> bool:
+    """A line that may hold an archive link (it needs an http(s) URL) or a paste link (it needs a paste host)."""
+    low = line.lower()
+    return "://" in low or any(host in low for host in _PASTE_HOSTS)
 
 
 def _met(window: list[_Features], needs: tuple[tuple[str, ...], ...]) -> bool:
@@ -201,7 +212,7 @@ def _windows(features: list[_Features], headings: list[bool], needs: tuple[tuple
             if _met(window, needs):
                 if size > 1 and _met(window[1:], needs):
                     break  # the lure starts on a later line: that start reports it
-                if not (any(item.indicator for item in window) or headings[index]):
+                if not headings[index]:
                     yield index, size
                     index += size - 1
                 break
@@ -209,13 +220,20 @@ def _windows(features: list[_Features], headings: list[bool], needs: tuple[tuple
 
 
 def _lure_windows(lines: tuple[str, ...]) -> Iterator[tuple[int, int]]:
-    features = [_Features(line) for line in lines]
-    # The heading in force at each line says "detect", "block" or "indicator": the section lists lures, it is not one.
+    # Every lure window holds an archive or paste link, so only lines within one window of a link are analysed; the
+    # others contribute nothing (most lines of a large package), which keeps the rule cheap.
+    near = [False] * len(lines)
+    for index, line in enumerate(lines):
+        if _anchor(line):
+            for at in range(max(0, index - _WINDOW + 1), min(len(lines), index + _WINDOW)):
+                near[at] = True
+    features = [_Features(line if near[index] else None) for index, line in enumerate(lines)]
+    # The heading in force at each line names indicators or IOCs: the section lists lures, it is not one.
     headings: list[bool] = []
     indicator_heading = False
-    for line, item in zip(lines, features, strict=True):
+    for line in lines:
         if line.lstrip().startswith("#"):
-            indicator_heading = item.indicator
+            indicator_heading = bool(_words(line) & _INDICATOR_WORDS)
         headings.append(indicator_heading)
     archive = _windows(features, headings, (("archive",), ("password",), ("run",)), ("archive", "password", "run"))
     paste = _windows(features, headings, (("paste_link",), ("paste_verb",), ("terminal",)),

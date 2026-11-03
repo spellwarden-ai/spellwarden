@@ -1,5 +1,5 @@
 """Phase C spec 5.1 and claim E10, O3 spec 5.2 and claim E2, O4 spec 5.4 and claim E1: `spellwarden rules` lists the 38
-detection rules of 1.0.0 and the nine of 1.8.0, in area order after them the three registry gate rules, and last the nineteen A2A rules. The
+detection rules of 1.0.0 and the five of 1.8.0, in area order after them the three registry gate rules, and last the nineteen A2A rules. The
 enforcement rules of the packs (SW-HK, SW-GW, SW-EG, SW-RG, SW-OB) are not detection rules and organisation rules are never
 loaded by the CLI."""
 from __future__ import annotations

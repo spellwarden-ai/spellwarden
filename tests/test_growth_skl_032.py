@@ -215,8 +215,16 @@ def test_indicator_list_naming_a_paste_host_is_quiet():
         "- Archives such as https://files.example.com/dl/a.zip (pass: 1234) that the reader is told to run.\n"
     )
     assert run(body) == []
+
+
+def test_detect_or_block_words_do_not_silence_a_lure():
+    # Fable review F1: only a heading that names indicators or IOCs excludes its section; any other word costs an author
+    # nothing to add to a real lure.
     one_line = "\nDetect this lure: download https://files.example.com/dl/a.zip (pass: 1234), then run it.\n"
-    assert run(one_line) == []
+    assert len(run(one_line)) == 1
+    blocking = ("\n## Blocking issues\n\n**Windows**: download https://files.example.com/dl/helper.zip "
+                "(pass: 1234) and run the installer.\n")
+    assert len(run(blocking)) == 1
 
 
 # --- linear time ------------------------------------------------------------------------------
