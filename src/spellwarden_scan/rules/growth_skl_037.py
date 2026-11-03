@@ -857,12 +857,13 @@ def _strong_names(rows: list[tuple[int, str]]) -> dict[str, int]:
     return names
 
 
-def _names_constant(text: str, position: int, names: dict[str, int]) -> bool:
-    """The row names (as a whole word) a constant holding an explicitly moving URL, other than within the program window
-    after the constant's own row, which that row's own window already reads."""
+def _names_constant(text: str, position: int, names: dict[str, int], hit: set[int]) -> bool:
+    """The row names (as a whole word) a constant holding an explicitly moving URL whose own row has not already been
+    reported: whatever the distance, so an execute step past the constant's own window is still read from the mention's
+    window (review r1:F3), and one download is reported once."""
     for found in _IDENTIFIER.finditer(text):
         defined = names.get(found.group(0))
-        if defined is not None and defined != position and not 0 < position - defined <= _PROGRAM_WINDOW:
+        if defined is not None and defined != position and defined not in hit:
             return True
     return False
 
@@ -880,9 +881,10 @@ def _program_hits(unit: TextFile | CodeBlock, comment: str) -> Iterator[tuple[in
     if _program_verifies([text for _number, text in rows]):
         return
     names = _strong_names(rows)
+    hit: set[int] = set()
     for position, (number, text) in enumerate(rows):
         # An anchor: a moving URL, or (one hop) a line that names a constant holding an explicitly moving URL.
-        if not any(_moving(url) for url in _urls(text)) and not (names and _names_constant(text, position, names)):
+        if not any(_moving(url) for url in _urls(text)) and not (names and _names_constant(text, position, names, hit)):
             continue
         window = rows[position:position + _PROGRAM_WINDOW + 1]
         if not any(any(marker in line.lower() for marker in _FETCH_MARKERS) for _n, line in window):
@@ -898,6 +900,7 @@ def _program_hits(unit: TextFile | CodeBlock, comment: str) -> Iterator[tuple[in
         if not written:
             continue
         if any(_execute_line(line, words or set()) for _n, line in window):
+            hit.add(position)
             yield number, text.strip()
 
 

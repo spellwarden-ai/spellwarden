@@ -574,6 +574,24 @@ def test_python_constant_holding_a_latest_url_is_an_anchor_far_from_its_definiti
     assert lines_of(run(**{"scripts/fetch.py": PY_CONSTANT})) == [("scripts/fetch.py", expected)]
 
 
+def test_a_constant_mentioned_close_to_its_definition_with_the_execute_step_far_after_still_fires():
+    # Review r1:F3: the mention is within 12 rows of the constant, the chmod more than 12 rows after the constant.
+    script = (
+        "import os, urllib.request\n"
+        'BASE = "https://github.com/example-org/tool/releases/latest/download"\n'
+        "def install(dest):\n"
+        '    url = f"{BASE}/tool-linux"\n'
+        "    data = urllib.request.urlopen(url).read()\n"
+        "    with open(dest, 'wb') as out:\n"
+        "        out.write(data)\n"
+        + "".join(f"    step_{n} = {n}\n" for n in range(7))
+        + "    os.chmod(dest, 0o755)\n"
+    )
+    lines = script.splitlines()
+    expected = next(n for n, text in enumerate(lines, 1) if "url = f" in text)
+    assert lines_of(run(**{"scripts/fetch.py": script})) == [("scripts/fetch.py", expected)]
+
+
 def test_javascript_const_with_a_type_annotation_and_a_python_annotation_are_collected():
     annotated = PY_CONSTANT.replace('BASE = "', 'BASE: str = "')
     assert len(run(**{"scripts/fetch.py": annotated})) == 1
