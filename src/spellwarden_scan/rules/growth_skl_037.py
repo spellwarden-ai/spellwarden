@@ -639,9 +639,12 @@ def _clone_hit(command: _Command, window: list[_Command], pinned_later: bool) ->
 
 
 def _significant(command: _Command) -> bool:
-    """Whether the command counts towards a window: not a bare keyword (`then`, `fi`, ...), not an `echo`/`printf`/`:`."""
+    """Whether the command counts towards a window: not a bare keyword (`then`, `fi`, ...), not a lone `echo`/`printf`/`:`.
+    An echo that feeds a pipe (`echo y | sh install.sh`) has a later stage that runs something, so it counts."""
     first = command.stages[0]
-    if len(command.stages) == 1 and all(token.lower() in _BARE_KEYWORDS for token in first):
+    if len(command.stages) > 1:
+        return True
+    if all(token.lower() in _BARE_KEYWORDS for token in first):
         return False
     return _name(first)[0] not in _QUIET_COMMANDS
 

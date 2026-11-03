@@ -645,6 +645,40 @@ def test_clone_window_counts_significant_commands_only():
     assert len(run(**{"scripts/setup.sh": "\n".join(near) + "\n"})) == 1
 
 
+DOWNLOAD = "curl -L https://downloads.example.com/acme/tool/releases/latest/download/tool -o tool.sh"
+
+
+@pytest.mark.parametrize("feed", ["echo y | sh tool.sh", "printf 'y\\n' | sudo bash tool.sh"])
+def test_answers_piped_into_the_downloaded_installer_still_fire_at_the_download_line(feed):
+    body = fenced(DOWNLOAD, feed)
+    findings = run(body)
+    assert len(findings) == 1
+    assert findings[0].location.line == line_number(body, "releases/latest")
+
+
+def test_an_echo_pipe_that_does_not_run_the_download_is_quiet():
+    assert run(fenced(DOWNLOAD, "echo y | tee answers.txt")) == []
+    assert run(fenced(DOWNLOAD, "echo y | sh other.sh")) == []
+
+
+def test_a_lone_echo_still_does_not_count_towards_the_window():
+    near = [DOWNLOAD] + ["echo a", ":", "printf b"] * 3 + ["sh tool.sh"]
+    assert len(run(fenced(*near))) == 1  # six quiet commands are skipped, so the run is still the first significant one
+    far = [DOWNLOAD] + ["ls -l"] * 6 + ["sh tool.sh"]
+    assert run(fenced(*far)) == []
+
+
+def test_many_echo_pipelines_are_read_in_linear_time():
+    lines = [DOWNLOAD] + ["echo y | cat"] * 30_000 + ["echo y | sh tool.sh"]
+    started = time.perf_counter()
+    run(**{"scripts/a.sh": "\n".join(lines) + "\n"})
+    run(**{"scripts/b.sh": ("echo y | " * 30_000 + "sh tool.sh") + "\n"})
+    line = (("echo y | sh tool.sh; " + DOWNLOAD + "; ") * 20_000)[:300_000]
+    assert len(line) == 300_000
+    run(fenced(line))
+    assert time.perf_counter() - started < 1.0
+
+
 @pytest.mark.parametrize("unit", [
     "`curl https://x.example.com/releases/latest/download/t -o t` ",
     "`$ curl https://x.example.com/v1.2.3/t | tar xz` and ``curl `` ",
