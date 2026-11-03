@@ -526,6 +526,7 @@ def test_a_deeply_indented_definition_is_still_traced():
     script = (f"{pad}function getDefault() {{\n{pad}  return join(home, '.config', 'google-chrome');\n{pad}}}\n"
               + "\n" * 25
               + f"{pad}function clone(src, dst) {{\n{pad}  cpSync(src, dst, {{recursive: true}});\n{pad}}}\n"
-              f"{pad}const d = getDefault();\n{pad}clone(d, OWN_DIR);\nlaunch(['--remote-debugging-port=9222']);\n")
-    assert len(run(INTENT, **{"scripts/a.js": script})) == 1
+              f"{pad}const d = getDefault();\n{pad}clone(d, OWN_DIR);\nchromium.launchPersistentContext(OWN_DIR);\n")
+    copy_line = script.splitlines().index(f"{pad}  cpSync(src, dst, {{recursive: true}});") + 1
+    assert lines_of(run(INTENT, **{"scripts/a.js": script})) == [copy_line]
 
