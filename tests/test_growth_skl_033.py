@@ -456,6 +456,7 @@ def test_positive_fixture_fires_and_negative_fixture_does_not():
     "--remote-debugging-port=", "--remote-debugging-port=9222 --profile-directory=Default ",
     ".config/google-chrome ", "google-chrome-", "your existing ", "cp -r ", "chrome://inspect/#remote-debugging ",
     '", "', "Google/Chrome/User Data/", "://inspect/#remote-debugging ", "chrome-devtools-mcp --auto-connect ",
+    "cdp 日常浏览器 ", "c('x', d); ",
 ])
 def test_long_line_is_read_in_linear_time(unit):
     line = (unit * (300_000 // len(unit) + 1))[:300_000]
