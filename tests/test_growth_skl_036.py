@@ -221,6 +221,17 @@ def test_a_bare_entry_is_not_placed_inside_an_earlier_scoped_one():
     assert at(run(front)) == [("SKILL.md", 6)]
 
 
+def test_a_reference_document_with_frontmatter_is_not_read():
+    reference = "---\nname: brand kit\nallowed-tools: Bash, Read\n---\n# Guide\n"
+    assert run("allowed-tools: Read", **{"references/kit/README.md": reference}) == []
+    assert at(run("allowed-tools: Read", **{"agents/runner.md": reference})) == [("agents/runner.md", 3)]
+
+
+def test_command_v_is_a_lookup_not_a_launcher():
+    assert run("allowed-tools: Read, Bash(command -v:*)") == []
+    assert at(run("allowed-tools: Read, Bash(command:*)")) == [("SKILL.md", 4)]
+
+
 def test_output_is_bounded():
     front = "allowed-tools:\n" + "".join(f"  - Bash({name}:*)\n" for name in ("python", "node", "deno", "bun", "ruby", "perl", "sh", "zsh")).rstrip("\n")
     findings = run(front)

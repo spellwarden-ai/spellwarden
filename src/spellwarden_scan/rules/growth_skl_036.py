@@ -1,7 +1,7 @@
 """SW-SKL-036: frontmatter pre-approves an unscoped shell or interpreter.
 
-Read over the leading YAML frontmatter of every Markdown file in the package that has one (SKILL.md and the command
-or agent files shipped beside it), key `allowed-tools` in any form: a comma- or space-separated string, a flow list or
+Read over the leading YAML frontmatter of SKILL.md and of the Markdown files in a `commands/` or `agents/` directory of
+the package (the command and agent files an agent loads; a reference document with frontmatter is not read), key `allowed-tools` in any form: a comma- or space-separated string, a flow list or
 a block list. An entry fires when it is, case-insensitively, a shell tool (`Bash`, `Shell`, `PowerShell`) with no
 scope, with a wildcard scope (`Bash(*)`, `Bash(:*)`), or with a scope that is a general interpreter or launcher alone
 (`Bash(python3:*)`, `Bash(node)`, `Bash(npx:*)`, ...). A shell scoped to one task-specific command
@@ -120,6 +120,8 @@ def _general(words: list[str]) -> bool:
     if not words:
         return False
     program = _program(words[0])
+    if program == "command" and any(word in ("-v", "-V") for word in words[1:]):
+        return False  # `command -v x` only looks a program up
     if program in _LAUNCHERS:
         rest = [word for word in words[1:] if not word.startswith("-")]
         return not rest or _general(rest)
@@ -179,9 +181,17 @@ def _find_entry(lines: tuple[str, ...], entry: str, row: int, col: int, stop: in
     return None
 
 
+def _loaded(path: str) -> bool:
+    """SKILL.md (or `skill.md`), or a Markdown file inside a `commands/` or `agents/` directory of the package."""
+    parts = path.replace("\\", "/").split("/")
+    return parts[-1].lower() == "skill.md" or any(part.lower() in ("commands", "agents") for part in parts[:-1])
+
+
 def detect(package: Package) -> Iterator[Finding]:
     reported = 0
     for unit in package.instructions():
+        if not _loaded(unit.path):
+            continue
         span = _frontmatter_lines(unit)
         if span is None:
             continue
