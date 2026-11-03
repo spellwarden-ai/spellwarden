@@ -224,6 +224,15 @@ def test_many_servers_and_arguments_give_bounded_output_in_linear_time():
     assert len(findings) <= 2000
 
 
+@pytest.mark.parametrize("path", ["tests/fixtures/case-1/.mcp.json", "test/.cursor/mcp.json", "pkg/testdata/.vscode/mcp.json"])
+def test_a_configuration_under_a_test_or_fixture_directory_is_quiet(path):
+    assert run({"k8s": {"command": "kubernetes-mcp-server"}}, path=path) == []
+
+
+def test_a_directory_that_only_contains_the_word_test_still_fires():
+    assert len(run({"k8s": {"command": "kubernetes-mcp-server"}}, path="contest-app/.mcp.json")) == 1
+
+
 def test_many_host_occurrences_in_one_url_are_read_in_linear_time():
     # Review r1:F2: the query used to be sliced and parsed again after every host occurrence.
     url = "https://mcp.supabase.com/mcp?project_ref=abc" + "&x=/mcp.supabase.com?" * 20_000

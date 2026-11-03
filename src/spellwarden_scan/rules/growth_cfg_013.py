@@ -13,7 +13,10 @@ depth; no other document kind). A small registry names the write-capable servers
 
 A restricting switch (`--read-only`, or a `read_only` / `readOnly` key of the server object), a disabled entry
 (`disabled: true` or `enabled: false`) and a documentation-only Supabase server (`features` naming only `docs`) are quiet.
-A server yields at most one finding, at its line, and its evidence names the missing switch. Every scan is a plain
+A configuration under a test or fixture directory (a path segment `test`, `tests`, `__tests__`, `fixtures`,
+`__fixtures__`, `testdata` or `test-data`) is quiet: no client loads it, and security tools keep deliberately
+vulnerable configurations there (gate 9.2). A server yields at most one finding, at its line, and its evidence names
+the missing switch. Every scan is a plain
 string scan, linear in the size of the entry. The module is registered by the rule set, not here."""
 from __future__ import annotations
 
@@ -199,12 +202,19 @@ def _missing(entry: McpServerEntry) -> str | None:
     return None
 
 
+_TEST_DIRS = frozenset({"test", "tests", "__tests__", "fixtures", "__fixtures__", "testdata", "test-data"})
+
+
+def _under_tests(path: str) -> bool:
+    return any(part.lower() in _TEST_DIRS for part in path.replace("\\", "/").split("/")[:-1])
+
+
 def detect(config) -> Iterator[Finding]:
     # Imported here, not at the top: rules/config.py will import this module to register it (import cycle).
     from spellwarden_scan.rules.config import config_matched
 
     for doc, entry in config.servers():
-        if doc.kind != "mcp" or _disabled(entry):
+        if doc.kind != "mcp" or _disabled(entry) or _under_tests(doc.path):
             continue
         missing = _missing(entry)
         if missing is None:
