@@ -61,6 +61,20 @@ def test_x402_client_that_pays_automatically_fires():
     assert at(run(body)) == [("SKILL.md", BODY_FIRST_LINE + 1)]
 
 
+def test_consent_to_use_a_tool_is_not_a_confirm_before_pay_step():
+    body = ("\nThe agent has a wallet and pays for missing capabilities autonomously.\n"
+            "Use the x402 client; the wallet pays per request.\n\n"
+            "| When | What to do |\n|---|---|\n| A capability is missing | Suggest the image tool and wait for confirmation |\n")
+    assert len(run(body)) == 1
+
+
+def test_waiting_for_confirmation_of_a_payment_stays_a_safeguard():
+    body = ("\nThe agent has a wallet and pays for missing capabilities autonomously.\n"
+            "Use the x402 client; the wallet pays per request.\n\n"
+            "Before each request, suggest the price and wait for confirmation of the payment.\n")
+    assert run(body) == []
+
+
 def test_wallet_transfer_with_no_confirmation_needed_fires():
     body = (
         "\n```bash\n"

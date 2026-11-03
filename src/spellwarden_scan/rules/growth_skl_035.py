@@ -125,10 +125,33 @@ def _negated_safeguard(tokens: list[str]) -> bool:
     return "need" in tokens[-4:] and bool(_SAFEGUARD_NEGATORS & set(tokens[-4:]))
 
 
+_GENERIC_CONSENT = frozenset({"wait for confirmation", "wait for approval", "wait for the user", "ask for confirmation",
+                              "ask for approval", "ask for permission"})
+_SUGGEST = frozenset({"suggest", "suggests", "suggested", "suggesting", "offer", "offers", "recommend", "recommends"})
+_PAY_CONTEXT = frozenset({
+    "pay", "pays", "paid", "paying", "payment", "payments", "purchase", "purchases", "buy", "buys", "spend", "spending",
+    "transaction", "transactions", "transfer", "transfers", "swap", "swaps", "trade", "trades", "charge", "charges",
+    "cost", "costs", "price", "fee", "fees", "amount", "invoice", "order", "orders", "wallet", "funds", "usdc", "x402",
+    "402",
+})
+
+
+def _suggestion_consent(low: str, index: int, phrase: str, tokens: list[str]) -> bool:
+    """`Suggest the tool ... and wait for confirmation`: consent to use a tool, not a confirm-before-pay step. True when
+    the phrase is generic, its clause opens with a suggestion, and no money word stands in the clause before or after."""
+    if phrase not in _GENERIC_CONSENT or not set(tokens) & _SUGGEST or set(tokens) & _PAY_CONTEXT:
+        return False
+    after = low[index + len(phrase):index + len(phrase) + 48]
+    for mark in ".;:!?":
+        after = after.split(mark, 1)[0]
+    return not set(_TOKEN.findall(after)) & _PAY_CONTEXT
+
+
 def _safeguard(low: str) -> bool:
     for phrase in _SAFEGUARDS:
         for index in _occurrences(low, phrase):
-            if not _negated_safeguard(_clause_tokens(_prefix(low, index))):
+            tokens = _clause_tokens(_prefix(low, index))
+            if not _negated_safeguard(tokens) and not _suggestion_consent(low, index, phrase, tokens):
                 return True
     return False
 
