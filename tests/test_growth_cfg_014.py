@@ -34,6 +34,37 @@ def run(servers: dict, path: str = ".mcp.json.bak"):
     return list(detect(config(copy_of(servers, path))))
 
 
+@pytest.mark.parametrize("args", [["-y", "agent-flow@alpha", "mcp", "start"], ["@acme/mcp-server@latest"], ["acme-mcp@next"]])
+def test_a_package_on_a_moving_distribution_tag_fires(args):
+    findings = run({"flow": {"command": "npx", "args": args}})
+    assert len(findings) == 1 and "flow: npx" in findings[0].evidence
+
+
+@pytest.mark.parametrize("args", [["acme-mcp@1.4.2"], ["acme-mcp"], ["@acme/mcp-server@v2"], ["./local@latest"]])
+def test_a_pinned_bare_or_local_package_is_quiet_in_a_copy(args):
+    assert run({"flow": {"command": "npx", "args": args}}) == []
+
+
+@pytest.mark.parametrize("root", ["C:\\Users\\alex", "/home/alex", "/Users/alex/", "~", "/", "D:\\", "$HOME", "/mnt/c"])
+def test_a_filesystem_server_granted_a_home_or_a_root_fires_without_naming_the_path(root):
+    findings = run({"files": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", root]}})
+    assert len(findings) == 1 and "home directory or a root" in findings[0].evidence
+    assert "alex" not in findings[0].evidence
+
+
+def test_a_filesystem_server_granted_a_project_folder_is_quiet():
+    args = ["-y", "@modelcontextprotocol/server-filesystem", "/home/alex/projects/site", "./docs"]
+    assert run({"files": {"command": "npx", "args": args}}) == []
+
+
+def test_a_shell_allowlist_with_general_tools_fires_and_a_narrow_one_is_quiet():
+    broad = {"shell": {"command": "uvx", "args": ["mcp-shell-server"], "env": {"ALLOW_COMMANDS": "ls,cat,find,sed,python3.12"}}}
+    findings = run(broad)
+    assert len(findings) == 1 and "find, sed, python" in findings[0].evidence
+    narrow = {"shell": {"command": "uvx", "args": ["mcp-shell-server"], "env": {"ALLOW_COMMANDS": "ls,cat,pwd"}}}
+    assert run(narrow) == []
+
+
 def test_module_constants():
     assert RULE_ID == "SW-CFG-014"
     assert TITLE == "Insecure or credential-bearing MCP server in a configuration copy"
