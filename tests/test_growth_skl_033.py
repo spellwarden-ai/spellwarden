@@ -500,3 +500,23 @@ def test_no_finding_on_any_existing_skill_fixture():
         seen += 1
         assert list(detect(Package.build(files))) == [], name
     assert seen >= 30
+
+
+def test_a_definition_line_of_many_spaces_is_read_in_linear_time():
+    # A `function` keyword followed by a long run of spaces must not backtrack (two adjacent `\s*` around an optional `*`).
+    script = ("launch(['--remote-debugging-port=9222']);\nconst target = cpSync(src, dst, {recursive: true});\nfunction"
+              + " " * 300_000 + "(\n")
+    started = time.perf_counter()
+    run(INTENT, **{"scripts/a.js": script})
+    assert time.perf_counter() - started < 1.0
+
+
+def test_many_copied_parameters_with_many_long_call_sites_are_traced_in_linear_time():
+    params = ", ".join(f"p{n}" for n in range(2_000))
+    body = "".join(f"  cpSync(p{n}, own, {{recursive: true}});\n" for n in range(2_000))
+    calls = "".join(f"clone({', '.join(['x'] * 120)});\n" for _ in range(200))
+    script = f"function clone({params}) {{\n{body}}}\n{calls}launch(['--remote-debugging-port=9222']);\n"
+    started = time.perf_counter()
+    run(INTENT, **{"scripts/a.js": script})
+    assert time.perf_counter() - started < 2.0
+

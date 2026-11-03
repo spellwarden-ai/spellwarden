@@ -77,9 +77,10 @@ _NEAR_COPY = 12
 _NEAR_USER_DATA = 5
 _MAX_ARGS = 400  # characters of a call read for its arguments
 _MAX_CALLS = 200  # call sites of one function looked at
+_MAX_DEF = 400  # characters of a line read for a definition or an assignment (they are short; a long line is not one)
 _NAME = r"[a-z_$][\w$]*"
 _DEF_PATTERNS = (
-    re.compile(rf"\s*(?:export\s+)?(?:default\s+)?(?:async\s+)?function\s*\*?\s*({_NAME})\s*\(([^)]*)\)"),
+    re.compile(rf"\s*(?:export\s+)?(?:default\s+)?(?:async\s+)?function(?:\s*\*\s*|\s+)({_NAME})\s*\(([^)]*)\)"),
     re.compile(rf"\s*(?:export\s+)?(?:const|let|var)\s+({_NAME})\s*=\s*(?:async\s*)?(?:\(([^)]*)\)|({_NAME}))\s*=>"),
     re.compile(rf"\s*(?:async\s+)?def\s+({_NAME})\s*\(([^)]*)\)"),
 )
@@ -192,7 +193,8 @@ class _Trace:
         self.owner = [-1] * len(raw)
         stack: list[tuple[int, int]] = []  # (indent, def id)
         for index, line in enumerate(raw):
-            found = self._definition(line) if ("function" in line or "def " in line or "=>" in line) else None
+            head = line[:_MAX_DEF]
+            found = self._definition(head) if ("function" in head or "def " in head or "=>" in head) else None
             if found is not None:
                 indent = len(line) - len(line.lstrip())
                 while stack and stack[-1][0] >= indent:
@@ -212,11 +214,11 @@ class _Trace:
         if self.root_funcs:
             for line in raw:
                 if "=" in line:
-                    match = _ASSIGN.match(line)
+                    match = _ASSIGN.match(line[:_MAX_DEF])
                     if match and match.group(2) in self.root_funcs:
                         self.root_vars.add(match.group(1))
         self._calls: dict[str, list[tuple[int, int]]] | None = None
-        self._fed: dict[tuple[int, int], bool] = {}  # (owner def id, parameter position) -> some caller passes a root
+        self._fed: dict[int, frozenset[int]] = {}  # owner def id -> the parameter positions some caller passes a root
         self._scan = scan
 
     @staticmethod
@@ -263,20 +265,32 @@ class _Trace:
         if self._is_root(source):
             return True
         owner = self.owner[index]
-        if owner < 0 or source not in self.params[owner]:
+        if owner < 0:
             return False
-        position = self.params[owner].index(source)
-        key = (owner, position)
-        if key not in self._fed:
-            self._fed[key] = self._fed_a_root(owner, position)
-        return self._fed[key]
+        position = self._positions(owner).get(source)
+        if position is None:
+            return False
+        if owner not in self._fed:
+            self._fed[owner] = self._fed_positions(owner)
+        return position in self._fed[owner]
 
-    def _fed_a_root(self, owner: int, position: int) -> bool:
+    def _positions(self, owner: int) -> dict[str, int]:
+        """Each parameter name of a definition and its position (the first one wins, as in a call)."""
+        positions: dict[str, int] = {}
+        for at, name in enumerate(self.params[owner]):
+            if name and name not in positions:
+                positions[name] = at
+        return positions
+
+    def _fed_positions(self, owner: int) -> frozenset[int]:
+        """Every parameter position of a definition that some caller passes a root: each call site is split once, so
+        the work per definition is its call sites times `_MAX_ARGS`, whatever the number of parameters (review r1:F1)."""
+        fed: set[int] = set()
         for line, paren in self._call_sites().get(self.names[owner], ()):
-            args = _split_args(self.raw[line], paren)
-            if position < len(args) and self._is_root(args[position], line):
-                return True
-        return False
+            for at, arg in enumerate(_split_args(self.raw[line], paren)):
+                if at not in fed and self._is_root(arg, line):
+                    fed.add(at)
+        return frozenset(fed)
 
 
 class _File:
