@@ -95,6 +95,78 @@ def _strings(value: Any) -> dict[str, str]:
     return {key: item for key, item in value.items() if isinstance(item, str)} if isinstance(value, _Obj) else {}
 
 
+_OPTION_KEYS = ("autoApprove", "alwaysAllow", "trust", "default_tools_approval_mode", "disabled", "enabled", "read_only",
+                "readOnly")
+_MAX_OPTION_ITEMS = 64
+_MAX_OPTION_TOOLS = 200
+_MAX_OPTION_TEXT = 200
+
+
+def _option_scalar(value: Any) -> Any:
+    """A string cut to `_MAX_OPTION_TEXT`; a number, boolean or null as it is; anything nested becomes None."""
+    if isinstance(value, str):
+        return value[:_MAX_OPTION_TEXT]
+    return value if value is None or isinstance(value, (bool, int, float)) else None
+
+
+def _option(entry: _Obj, key: str, line: int) -> dict | None:
+    """`{"value": ..., "line": n}` for a scalar or an array of scalars (cut to `_MAX_OPTION_ITEMS` items); an object
+    is not an option value."""
+    value = entry[key]
+    if isinstance(value, _Obj):
+        return None
+    if isinstance(value, _Arr):
+        cut = len(value) > _MAX_OPTION_ITEMS
+        value = [_option_scalar(item) for item in value[:_MAX_OPTION_ITEMS]]
+        # A cut list is marked, so a rule never reads the kept items as the whole list (a fail-closed signal).
+        return {"value": value, "line": line, "cut": True} if cut else {"value": value, "line": line}
+    return {"value": _option_scalar(value), "line": line}
+
+
+def _options(entry: _Obj) -> dict:
+    """The server object's approval and access keys (spec 5.2, 1.8.0): see `McpServerEntry.options`. A key whose value
+    is an object is skipped, and so is a `tools` entry that is not an object with an `approval_mode`."""
+    options: dict[str, dict] = {}
+    for key in _OPTION_KEYS:
+        if key in entry:
+            option = _option(entry, key, entry.lines[key])
+            if option is not None:
+                options[key] = option
+    tools = entry.get("tools")
+    if isinstance(tools, _Obj):
+        # Every entry is read (cheap and linear); at most `_MAX_OPTION_TOOLS` are kept, the ones that approve calls
+        # first, so padding a server with ordinary tools cannot push an approving one out. Names are cut for the key, and
+        # when two cut names meet, the approving value is kept, so a later entry cannot hide an earlier one.
+        approving: list[tuple[str, dict]] = []
+        others: list[tuple[str, dict]] = []
+        dropped_approving = 0
+        for tool, body in tools.items():
+            if isinstance(body, _Obj) and "approval_mode" in body:
+                option = _option(body, "approval_mode", body.lines["approval_mode"])
+                if option is None:
+                    continue
+                if _approving(option["value"]):
+                    if len(approving) < _MAX_OPTION_TOOLS:
+                        approving.append((tool, option))
+                    else:
+                        dropped_approving += 1
+                elif len(others) < _MAX_OPTION_TOOLS:
+                    others.append((tool, option))
+        if dropped_approving:
+            # More approving tools than are kept: recorded, so a rule can fire on the count alone (fail closed).
+            options["tools.*.approval_mode"] = {"value": "approve", "line": entry.lines["tools"], "dropped": dropped_approving}
+        for tool, option in (approving + others)[:_MAX_OPTION_TOOLS]:
+            key = f"tools.{tool[:_MAX_OPTION_TEXT]}.approval_mode"
+            kept = options.get(key)
+            if kept is None or (_approving(option["value"]) and not _approving(kept["value"])):
+                options[key] = option
+    return options
+
+
+def _approving(value: Any) -> bool:
+    return isinstance(value, str) and value.lower() == "approve"
+
+
 def _server(name: str, line: int, entry: _Obj) -> McpServerEntry:
     command = entry.get("command") if isinstance(entry.get("command"), str) and entry.get("command") else None
     url = entry.get("url") if isinstance(entry.get("url"), str) else None
@@ -113,7 +185,7 @@ def _server(name: str, line: int, entry: _Obj) -> McpServerEntry:
     args = tuple(item for item in raw_args if isinstance(item, str)) if isinstance(raw_args, _Arr) else ()
     return McpServerEntry(name=name, line=line, transport=transport, url=url, command=command, args=args,
                           env=_strings(entry.get("env")), headers=_strings(entry.get("headers")),
-                          raw_sha256=_sha256(_canonical(entry)))
+                          raw_sha256=_sha256(_canonical(entry)), options=_options(entry))
 
 
 def _servers(parts: _Parts, maps: list[Any]) -> None:

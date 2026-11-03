@@ -21,8 +21,8 @@ BASELINE = RuleSet.baseline()
 REG_IDS = ("SW-REG-001", "SW-REG-002", "SW-REG-003")
 
 
-def test_baseline_has_60_rules_three_in_area_registry_severity_high():
-    assert len(BASELINE) == 60
+def test_baseline_has_69_rules_three_in_area_registry_severity_high():
+    assert len(BASELINE) == 65
     rules = BASELINE.by_area("registry")
     assert tuple(rule.id for rule in rules) == REG_IDS
     assert {rule.severity_default for rule in rules} == {"high"}
@@ -74,7 +74,7 @@ def test_make_rule_still_refuses_sw_org():
 
 
 def test_versions_are_1_4_0_and_2026_10_5():
-    assert (__version__, RULES_VERSION) == ("1.7.1", "2026.10.6")
+    assert (__version__, RULES_VERSION) == ("1.8.0", "2026.11.1")
     pyproject = Path(__file__).resolve().parents[1] / "pyproject.toml"
     assert tomllib.loads(pyproject.read_text(encoding="utf-8"))["project"]["version"] == __version__
 

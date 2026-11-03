@@ -17,7 +17,7 @@ from spellwarden_cli import commands, escape, paths, safe_yaml
 from spellwarden_cli.report import Notice, ReportFinding
 
 BASELINE_PATH = ".spellwarden/baseline.yml"
-MALICIOUS_RULES = frozenset({"SW-SKL-004", "SW-SKL-008", "SW-CFG-006", "SW-CFG-007"})
+MALICIOUS_RULES = frozenset({"SW-SKL-004", "SW-SKL-008", "SW-SKL-032", "SW-CFG-006", "SW-CFG-007"})
 MAX_SPAN_DAYS = 365
 MALICIOUS_SPAN_DAYS = 30
 REG_SPAN_DAYS = 90  # O3 spec 6.6: a third cap, for the registry gate's rules (SW-REG-001 to SW-REG-003)

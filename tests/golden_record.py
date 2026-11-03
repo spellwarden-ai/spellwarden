@@ -28,18 +28,22 @@ def _row(fixture: str, finding: Finding) -> dict:
     }
 
 
-def entries() -> list[dict]:
+def entries(exclude_rules: frozenset[str] = frozenset()) -> list[dict]:
     """Every finding of every skill fixture (both sides, generated ones included) and every probe fixture
-    (rule fixtures and the product spec samples), in a total order."""
+    (rule fixtures and the product spec samples), in a total order. `exclude_rules` names rules added after the record:
+    the fixture directories and probe files named after one are skipped, nothing else is (a new rule firing on an old
+    fixture stays visible)."""
     rules = RuleSet.baseline()
     rows: list[dict] = []
-    for directory in sorted(p for p in SKILL_FIXTURES.iterdir() if p.is_dir()):
+    for directory in sorted(p for p in SKILL_FIXTURES.iterdir() if p.is_dir() and p.name not in exclude_rules):
         for side in ("positive", "negative"):
             files, expected = load_skill_fixture(directory.name, side)
             result = scan_skill_package(files, rules, root=expected.get("root", ""))
             rows.extend(_row(f"skills/{directory.name}/{side}", finding) for finding in result.findings)
     for path in sorted(PROBE_FIXTURES.rglob("*.json")):
         name = path.relative_to(PROBE_FIXTURES).with_suffix("").as_posix()
+        if any(part == rule or part.startswith(rule + "-") for part in name.split("/") for rule in exclude_rules):
+            continue
         probe, _ = load_probe_fixture(name)
         rows.extend(_row(f"probes/{name}", finding) for finding in evaluate_probe(probe, rules).findings)
     return sorted(rows, key=lambda r: (r["fixture"], r["rule_id"], r["path"], r["line"] or 0, r["fingerprint"]))

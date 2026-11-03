@@ -1,0 +1,16 @@
+{
+ "findings": [
+  {
+   "rule_id": "SW-SKL-009",
+   "severity": "medium",
+   "path": "scripts/install_deps.sh",
+   "line": 3
+  },
+  {
+   "rule_id": "SW-SKL-009",
+   "severity": "medium",
+   "path": "scripts/install_deps.sh",
+   "line": 4
+  }
+ ]
+}

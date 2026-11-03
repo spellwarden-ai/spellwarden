@@ -1,0 +1,16 @@
+{
+ "findings": [
+  {
+   "rule_id": "SW-CFG-003",
+   "severity": "medium",
+   "path": ".mcp.json",
+   "line": 11
+  },
+  {
+   "rule_id": "SW-CFG-003",
+   "severity": "medium",
+   "path": ".mcp.json",
+   "line": 18
+  }
+ ]
+}

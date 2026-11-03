@@ -1,0 +1,16 @@
+{
+ "findings": [
+  {
+   "rule_id": "SW-SKL-036",
+   "severity": "medium",
+   "path": "SKILL.md",
+   "line": 6
+  },
+  {
+   "rule_id": "SW-SKL-036",
+   "severity": "medium",
+   "path": "commands/notes.md",
+   "line": 5
+  }
+ ]
+}

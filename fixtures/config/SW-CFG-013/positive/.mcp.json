@@ -1,0 +1,27 @@
+{
+  "mcpServers": {
+    "shop-db-hosted": {
+      "type": "http",
+      "url": "https://mcp.supabase.com/mcp?project_ref=exampleprojectref"
+    },
+    "shop-db-local": {
+      "command": "npx",
+      "args": ["-y", "@supabase/mcp-server-supabase@latest", "--project-ref=exampleprojectref"],
+      "env": {
+        "SUPABASE_ACCESS_TOKEN": "${SUPABASE_ACCESS_TOKEN}"
+      }
+    },
+    "staging-cluster": {
+      "command": "pnpm",
+      "args": ["dlx", "kubernetes-mcp-server@latest"]
+    },
+    "reports-db": {
+      "command": "reports-db-mcp",
+      "args": ["--dsn", "postgres://reports@db.example.com/reports"],
+      "env": {
+        "ACCESS_MODE": "unrestricted",
+        "ALLOW_DELETE_OPERATION": "true"
+      }
+    }
+  }
+}

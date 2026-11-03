@@ -1,3 +1,3 @@
 """The two versions every result carries (spec 5.11)."""
-__version__ = "1.7.1"
-RULES_VERSION = "2026.10.6"
+__version__ = "1.8.0"
+RULES_VERSION = "2026.11.1"

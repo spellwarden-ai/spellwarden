@@ -214,6 +214,17 @@ class McpServerEntry(_Model):
     env: dict
     headers: dict
     raw_sha256: str
+    # 1.8.0: the server object's approval and access keys, read in-process by rules and never serialised. Flat,
+    # `{key: {"value": <JSON scalar or short list>, "line": n}}` with the keys `autoApprove`, `alwaysAllow`, `trust`,
+    # `default_tools_approval_mode`, `disabled`, `enabled`, `read_only`, `readOnly` and `tools.<tool>.approval_mode`.
+    # `to_dict` leaves it out for every server, so an existing input's output stays byte-identical (a `disabled` flag
+    # alone would otherwise change it); it is not part of `raw_sha256`.
+    options: dict = field(default_factory=dict)
+
+    def to_dict(self) -> dict:
+        data = _Model.to_dict(self)
+        data.pop("options", None)
+        return data
 
 
 @dataclass(frozen=True, slots=True)

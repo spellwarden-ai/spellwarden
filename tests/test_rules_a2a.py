@@ -11,7 +11,7 @@ from conftest import credential
 
 from spellwarden_scan.a2a import owner_identity, parse_agent_card
 from spellwarden_scan.model import CardOrigin, Finding, SignatureOutcome
-from spellwarden_scan.rules import A2A_ONLY_TAGS, ALLOWED_NIST, ALLOWED_OWASP, ORG_ALLOWED_NIST, ORG_ALLOWED_OWASP, RuleSet
+from spellwarden_scan.rules import ALLOWED_NIST, ALLOWED_OWASP, BASELINE_ONLY_TAGS, ORG_ALLOWED_NIST, ORG_ALLOWED_OWASP, RuleSet
 from spellwarden_scan.rules import a2a as rules
 from spellwarden_scan.rules.a2a import CardSubject, signature_status_of
 from spellwarden_scan.scan import run_rules
@@ -66,11 +66,11 @@ def test_the_baseline_holds_the_nineteen_a2a_rules_with_the_spec_tags():
         "SW-A2A-019": ("high", ("ASI07",), ("SI-10",)),
     }
     assert not [rule for rule in RULES.by_area("a2a") if rule.targets or rule.malicious_indicator]
-    assert len(RULES) == 60 and [rule.id for rule in RULES][:19] == list(table)  # `SW-A2A` sorts before `SW-CFG`
+    assert len(RULES) == 65 and [rule.id for rule in RULES][:19] == list(table)  # `SW-A2A` sorts before `SW-CFG`
 
 
 def test_the_four_new_tags_are_baseline_only_and_organisation_rules_keep_the_1_2_lists():
-    assert A2A_ONLY_TAGS == {"ASI03", "ASI07", "SC-8", "SI-7"} and A2A_ONLY_TAGS <= set(ALLOWED_OWASP) | set(ALLOWED_NIST)
+    assert {"ASI03", "ASI07", "SC-8", "SI-7"} <= BASELINE_ONLY_TAGS and BASELINE_ONLY_TAGS <= set(ALLOWED_OWASP) | set(ALLOWED_NIST)
     assert ORG_ALLOWED_OWASP == ("ASI01", "ASI04", "ASI10", "MCP01", "MCP10")
     assert ORG_ALLOWED_NIST == ("AC-3", "AC-6", "AU-2", "IA-5", "SC-7", "SI-10", "SR-3")
 

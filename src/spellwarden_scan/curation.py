@@ -6,7 +6,7 @@ from collections.abc import Iterable
 from spellwarden_scan.model import CurationInputs, Finding
 
 CURATED_THRESHOLD = 8.0
-MALICIOUS_RULES = frozenset({"SW-SKL-004", "SW-SKL-008"})
+MALICIOUS_RULES = frozenset({"SW-SKL-004", "SW-SKL-008", "SW-SKL-032"})
 _WEIGHTS = {"critical": 6.0, "high": 3.0, "medium": 1.0, "low": 0.25}
 
 

@@ -1,0 +1,25 @@
+{
+  "mcpServers": {
+    "notes": {
+      "command": "notes-server",
+      "args": ["--stdio"],
+      "autoApprove": ["search", "write_note"]
+    },
+    "tickets": {
+      "type": "http",
+      "url": "https://tickets.example.com/mcp",
+      "trust": true
+    },
+    "wiki": {
+      "type": "http",
+      "url": "https://wiki.example.org/mcp",
+      "default_tools_approval_mode": "approve"
+    },
+    "calendar": {
+      "command": "calendar-server",
+      "tools": {
+        "create_event": {"approval_mode": "approve"}
+      }
+    }
+  }
+}
