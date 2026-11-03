@@ -6,7 +6,8 @@ a block list. An entry fires when it is, case-insensitively, a shell tool (`Bash
 scope, with a wildcard scope (`Bash(*)`, `Bash(:*)`), or with a scope that is a general interpreter or launcher alone
 (`Bash(python3:*)`, `Bash(node)`, `Bash(npx:*)`, ...). A shell scoped to one task-specific command
 (`Bash(gh pr view:*)`) is quiet, and so is everything that is not the leading frontmatter's own `allowed-tools` key:
-the body, a fenced example in an authoring guide, a subagent's `tools:` capability list, a nested key.
+the body, a fenced example in an authoring guide, a subagent's `tools:` capability list, a nested key. The severity is flat (medium): a grant that also pre-approves a fetch tool, or a user-invoked command, is not
+raised or lowered.
 
 The finding is at the offending entry's line: the list item's line, or the `allowed-tools:` line for a one-line value.
 Whether the key is there and what it holds come from the parsed frontmatter; the text is read only to place a finding.
@@ -37,10 +38,9 @@ _PER_FILE = 5
 _PER_PACKAGE = 10
 
 _SHELL_TOOLS = frozenset({"bash", "shell", "powershell"})
-_WILDCARDS = frozenset({"*", ":*"})
 _INTERPRETERS = frozenset({
     "python", "python3", "node", "deno", "bun", "ruby", "perl", "bash", "sh", "zsh", "pwsh", "powershell", "npx", "uvx",
-    "pip", "pip3", "source", "eval",
+    "pip", "pip3", "source", "eval", "dash", "ksh", "fish", "tcsh", "csh", "cmd", "php", "lua", "osascript",
 })
 # Launchers run whatever follows them: alone, or followed by an interpreter, they are as general as the interpreter.
 _LAUNCHERS = frozenset({"env", "xargs", "exec", "command", "sudo", "nohup", "time"})
@@ -92,7 +92,7 @@ def _unscoped(entry: str) -> bool:
     if not closed:
         return False
     scope = scope.strip().lower()
-    if scope in _WILDCARDS:
+    if scope and not scope.strip("*: "):  # any scope made only of `*` and `:` (`*`, `:*`, `**`) is a wildcard
         return True
     for suffix in (":*", " *"):
         if scope.endswith(suffix):

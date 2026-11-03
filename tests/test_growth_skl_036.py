@@ -221,6 +221,11 @@ def test_a_bare_entry_is_not_placed_inside_an_earlier_scoped_one():
     assert at(run(front)) == [("SKILL.md", 6)]
 
 
+@pytest.mark.parametrize("entry", ["Bash(**)", "Bash(*:*)", "Bash(dash:*)", "Bash(fish)", "Bash(cmd:*)", "Bash(php:*)"])
+def test_more_wildcards_and_shells_fire(entry):
+    assert at(run(f"allowed-tools: Read, {entry}")) == [("SKILL.md", 4)]
+
+
 def test_a_reference_document_with_frontmatter_is_not_read():
     reference = "---\nname: brand kit\nallowed-tools: Bash, Read\n---\n# Guide\n"
     assert run("allowed-tools: Read", **{"references/kit/README.md": reference}) == []
