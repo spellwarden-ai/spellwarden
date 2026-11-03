@@ -111,6 +111,18 @@ def test_automatic_approval_of_a_tool_that_may_act_fires(tool):
     assert len(run({"ops": {"command": "ops", "autoApprove": ["get_status", tool]}})) == 1
 
 
+def test_a_cut_list_or_dropped_approving_tools_fire_whatever_the_names():
+    padded = [f"get_item_{n}" for n in range(70)] + ["wipe_disk"]
+    assert len(run({"ops": {"command": "ops", "autoApprove": padded}})) == 1
+    tools = {f"get_item_{n}": {"approval_mode": "approve"} for n in range(220)}
+    assert run({"ops": {"command": "ops", "tools": tools}})
+
+
+@pytest.mark.parametrize("tool", ["get_and_wipe", "list_then_delete_all", "read_secret", "get_" + "x" * 250, "gét_status"])
+def test_names_that_may_act_or_cannot_be_judged_fire(tool):
+    assert len(run({"ops": {"command": "ops", "tools": {tool: {"approval_mode": "approve"}}}})) == 1
+
+
 def test_an_approving_tool_after_many_ordinary_ones_is_kept():
     tools = {f"t{n}": {"approval_mode": "prompt"} for n in range(500)}
     tools["shell_exec"] = {"approval_mode": "approve"}

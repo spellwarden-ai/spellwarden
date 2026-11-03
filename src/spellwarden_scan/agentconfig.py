@@ -116,10 +116,11 @@ def _option(entry: _Obj, key: str, line: int) -> dict | None:
     if isinstance(value, _Obj):
         return None
     if isinstance(value, _Arr):
+        cut = len(value) > _MAX_OPTION_ITEMS
         value = [_option_scalar(item) for item in value[:_MAX_OPTION_ITEMS]]
-    else:
-        value = _option_scalar(value)
-    return {"value": value, "line": line}
+        # A cut list is marked, so a rule never reads the kept items as the whole list (a fail-closed signal).
+        return {"value": value, "line": line, "cut": True} if cut else {"value": value, "line": line}
+    return {"value": _option_scalar(value), "line": line}
 
 
 def _options(entry: _Obj) -> dict:
@@ -138,6 +139,7 @@ def _options(entry: _Obj) -> dict:
         # when two cut names meet, the approving value is kept, so a later entry cannot hide an earlier one.
         approving: list[tuple[str, dict]] = []
         others: list[tuple[str, dict]] = []
+        dropped_approving = 0
         for tool, body in tools.items():
             if isinstance(body, _Obj) and "approval_mode" in body:
                 option = _option(body, "approval_mode", body.lines["approval_mode"])
@@ -146,8 +148,13 @@ def _options(entry: _Obj) -> dict:
                 if _approving(option["value"]):
                     if len(approving) < _MAX_OPTION_TOOLS:
                         approving.append((tool, option))
+                    else:
+                        dropped_approving += 1
                 elif len(others) < _MAX_OPTION_TOOLS:
                     others.append((tool, option))
+        if dropped_approving:
+            # More approving tools than are kept: recorded, so a rule can fire on the count alone (fail closed).
+            options["tools.*.approval_mode"] = {"value": "approve", "line": entry.lines["tools"], "dropped": dropped_approving}
         for tool, option in (approving + others)[:_MAX_OPTION_TOOLS]:
             key = f"tools.{tool[:_MAX_OPTION_TEXT]}.approval_mode"
             kept = options.get(key)

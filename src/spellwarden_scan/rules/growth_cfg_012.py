@@ -34,20 +34,29 @@ _PER_SERVER = 20
 _ARRAY_KEYS = ("autoApprove", "alwaysAllow")
 _READ_VERBS = frozenset({"get", "list", "read", "search", "find", "view", "show", "describe", "lookup", "status", "info",
                          "inspect", "resize", "screenshot", "count", "ping", "version", "help"})
-_ACTING = frozenset({"write", "create", "update", "delete", "remove", "rm", "exec", "execute", "run", "send", "post", "put",
-                     "set", "install", "kill", "deploy", "push", "commit", "move", "mv", "rename", "drop", "insert",
-                     "upload", "shell", "eval", "edit", "patch", "apply", "merge", "click", "type", "navigate", "submit",
-                     "pay", "transfer", "sign", "approve", "fetch", "browse", "open", "call", "invoke", "start", "stop"})
+_ACTING = frozenset({
+    "write", "create", "update", "delete", "remove", "rm", "exec", "execute", "run", "send", "post", "put", "set", "install",
+    "kill", "deploy", "push", "commit", "move", "mv", "rename", "drop", "insert", "upload", "shell", "eval", "edit", "patch",
+    "apply", "merge", "click", "type", "navigate", "submit", "pay", "transfer", "sign", "approve", "fetch", "browse",
+    "open", "call", "invoke", "start", "stop", "wipe", "erase", "destroy", "purge", "reset", "terminate", "grant",
+    "revoke", "modify", "change", "replace", "save", "store", "add", "append", "attach", "assign", "enable", "disable",
+    "publish", "schedule", "trigger", "launch", "spawn", "restart", "reboot", "shutdown", "format", "truncate", "clear",
+    "cancel", "close", "accept", "reject", "login", "logout", "auth", "token", "key", "secret", "password", "credential",
+    "email", "mail", "message", "tweet", "order", "buy", "sell", "trade", "swap", "withdraw", "deposit", "mint", "burn",
+    "command", "cmd", "script", "terminal", "sql", "query", "mutate", "mutation", "sync", "import", "export", "download",
+})
 _WORDS = re.compile(r"[A-Z]?[a-z]+|[A-Z]+(?![a-z])|[0-9]+")
 
 
 def _read_only(tool: object) -> bool:
     """A tool whose name has a read verb and no verb that writes, runs, sends or fetches (`search_docs`, `getStatus`,
     `browser_resize`); a wildcard, a non-string and anything else may act."""
-    if not isinstance(tool, str) or "*" in tool:
-        return False
-    words = {word.lower() for word in _WORDS.findall(tool[:200])}
-    return bool(words & _READ_VERBS) and not words & _ACTING
+    if not isinstance(tool, str) or "*" in tool or not tool.isascii() or len(tool) >= 200:
+        return False  # fail closed: a wildcard, an over-long or non-ASCII name may act
+    words = [word.lower() for word in _WORDS.findall(tool)]
+    # The name must start with a read verb (`get_status`, `browser_resize` names its object first: one leading noun is
+    # allowed) and hold no word that writes, runs, sends, fetches or touches secrets.
+    return bool(words) and (words[0] in _READ_VERBS or (len(words) > 1 and words[1] in _READ_VERBS)) and not set(words) & _ACTING
 
 
 def _approves(value: object) -> bool:
@@ -59,7 +68,7 @@ def _triggers(options: dict) -> Iterator[tuple[str, str, int]]:
     for key in _ARRAY_KEYS:
         option = options.get(key)
         if option and isinstance(option["value"], list) and option["value"]:
-            if all(_read_only(tool) for tool in option["value"]):
+            if not option.get("cut") and all(_read_only(tool) for tool in option["value"]):
                 continue
             yield key, f"{len(option['value'])} tool(s) listed", option["line"]
     option = options.get("trust")
@@ -70,7 +79,7 @@ def _triggers(options: dict) -> Iterator[tuple[str, str, int]]:
         yield "default_tools_approval_mode", "approve", option["line"]
     for key, option in options.items():
         if key.startswith("tools.") and key.endswith(".approval_mode") and _approves(option["value"]):
-            if _read_only(key[len("tools."):-len(".approval_mode")]):
+            if not option.get("dropped") and _read_only(key[len("tools."):-len(".approval_mode")]):
                 continue
             yield key, "approve", option["line"]
 
