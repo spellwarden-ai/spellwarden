@@ -376,10 +376,12 @@ def test_output_is_bounded():
 def test_long_lines_are_read_in_linear_time(unit):
     line = (unit * (300_000 // len(unit) + 1))[:300_000]
     assert len(line) == 300_000
-    started = time.perf_counter()
-    run(fenced(line))
-    run(**{"scripts/long.sh": line + "\n", "scripts/long.py": line + "\n", "scripts/long.js": line + "\n"})
-    assert time.perf_counter() - started < 1.0
+    # Each 300,000-character line is timed on its own (a slow CI runner reads four of them in more than a second).
+    for files in ({"SKILL.md": clean_md() + fenced(line)}, {"scripts/long.sh": line + "\n"},
+                  {"scripts/long.py": line + "\n"}, {"scripts/long.js": line + "\n"}):
+        started = time.perf_counter()
+        list(detect(Package.build(make_package(files))))
+        assert time.perf_counter() - started < 1.0, sorted(files)
 
 
 def test_many_pipe_stages_in_one_command_are_read_in_linear_time():
@@ -715,13 +717,13 @@ def test_a_lone_echo_still_does_not_count_towards_the_window():
 
 def test_many_echo_pipelines_are_read_in_linear_time():
     lines = [DOWNLOAD] + ["echo y | cat"] * 30_000 + ["echo y | sh tool.sh"]
-    started = time.perf_counter()
-    run(**{"scripts/a.sh": "\n".join(lines) + "\n"})
-    run(**{"scripts/b.sh": ("echo y | " * 30_000 + "sh tool.sh") + "\n"})
     line = (("echo y | sh tool.sh; " + DOWNLOAD + "; ") * 20_000)[:300_000]
     assert len(line) == 300_000
-    run(fenced(line))
-    assert time.perf_counter() - started < 1.0
+    for files in ({"scripts/a.sh": "\n".join(lines) + "\n"}, {"scripts/b.sh": ("echo y | " * 30_000 + "sh tool.sh") + "\n"},
+                  {"SKILL.md": clean_md() + fenced(line)}):
+        started = time.perf_counter()
+        list(detect(Package.build(make_package(files))))
+        assert time.perf_counter() - started < 1.0, sorted(files)
 
 
 @pytest.mark.parametrize("unit", [

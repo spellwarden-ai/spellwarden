@@ -184,7 +184,9 @@ def test_escaped_entries_that_are_not_in_the_raw_text_are_read_in_linear_time():
     line = "allowed-tools: [" + entry * (280_000 // len(entry)) + "]"
     start = time.perf_counter()
     findings = run(line)
-    assert time.perf_counter() - start < 1.0
+    # Nearly all of the time is the frontmatter parser reading a 280,000-character YAML list (0.3 s on a fast machine, over
+    # a second on a slow CI runner); the rule adds almost nothing, and a quadratic rule would take minutes.
+    assert time.perf_counter() - start < 2.0
     assert at(findings) == [("SKILL.md", 4)]
 
 
