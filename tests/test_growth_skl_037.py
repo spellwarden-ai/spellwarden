@@ -596,10 +596,19 @@ def test_a_constant_mentioned_close_to_its_definition_with_the_execute_step_far_
 
 @pytest.mark.parametrize("line", [
     "Never run `curl -L https://dl.example.com/releases/latest/download/t -o t && chmod +x t && ./t` on a server.",
-    "Our scanner flags `curl -L https://dl.example.com/releases/latest/download/t -o t && chmod +x t` as unsafe.",
+    "- Do not paste `curl -L https://dl.example.com/releases/latest/download/t -o t && chmod +x t && ./t` anywhere.",
 ])
-def test_an_inline_span_in_a_warning_or_a_description_is_quiet(line):
+def test_an_inline_span_governed_by_a_negation_is_quiet(line):
     assert run(f"\n{line}\n") == []
+
+
+@pytest.mark.parametrize("line", [
+    "Run `curl -L https://dl.example.com/releases/latest/download/t -o t --no-detect && chmod +x t && ./t` (avoid sudo).",
+    "Install with `curl -L https://dl.example.com/unsafe/releases/latest/download/t -o t && chmod +x t && ./t`, never skip it.",
+    "Our tool flags nothing: `curl -L https://dl.example.com/releases/latest/download/t -o t && chmod +x t && ./t`.",
+])
+def test_words_inside_or_after_a_span_or_descriptive_words_do_not_silence_it(line):
+    assert len(run(f"\n{line}\n")) == 1
 
 
 def test_a_line_of_many_mentions_of_a_moving_constant_is_read_in_linear_time():

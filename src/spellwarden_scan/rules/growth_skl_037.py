@@ -976,10 +976,15 @@ def _fenced_lines(blocks: list[CodeBlock]) -> set[int]:
     return lines
 
 
-# Words that make a Markdown line a warning or a description rather than an instruction to run its spans (review r1:F4),
-# as the sibling rules stay quiet on them.
-_SPAN_QUIET = re.compile(r"\b(never|do not|don't|must not|should not|avoid|detects?|detection|flags?|warns?|warning|"
-                         r"attackers?|malicious|anti-pattern|insecure|unsafe)\b")
+# A negation in the prose before a line's first span makes the line a warning, not an instruction to run its spans
+# (review r1:F4). Only a negation that governs the span counts: words inside a span, after it, or merely descriptive
+# ("flags", "unsafe") cost an author nothing to add, so they never silence a line.
+_SPAN_NEGATION = re.compile(r"\b(never|do not|don't|must not|should not)\b")
+
+
+def _warned(line: str) -> bool:
+    lead = line[:line.find("`")] if "`" in line else line
+    return _SPAN_NEGATION.search(lead[:4096].lower()) is not None
 
 
 def _span_hits(package: Package, logical_commands) -> Iterator[tuple[str, int, str]]:
@@ -993,7 +998,7 @@ def _span_hits(package: Package, logical_commands) -> Iterator[tuple[str, int, s
         kept: list[CodeBlock] = []
         every: list[_Command] = []
         for number, line in enumerate(file.lines, start=1):
-            if number in fenced or "`" not in line or _SPAN_QUIET.search(line[:4096].lower()):
+            if number in fenced or "`" not in line or _warned(line):
                 continue
             for span in _inline_spans(line):
                 unit = CodeBlock(file.path, "sh", span, number)
