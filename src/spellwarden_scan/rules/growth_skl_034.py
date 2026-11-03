@@ -30,6 +30,7 @@ one variable repeat, and the object scan is capped, so a long line is read in li
 from __future__ import annotations
 
 import re
+from bisect import bisect_left
 from collections.abc import Iterable, Iterator
 
 from spellwarden_scan.evidence import excerpt, fingerprint
@@ -256,6 +257,8 @@ class _Unit:
         self.cred_vars = cred_vars
         self.url_vars = url_vars
         self._cred: dict[int, bool] = {}
+        self._assignments: dict[str, list[int]] | None = None
+        self._assigned_credential: dict[int, bool] = {}
         self.documented_fallback: set[int] = set()  # loopback fallback lines whose key the package documents as remote
         self.loopback_names = self._loopback_names()
 
@@ -354,11 +357,22 @@ class _Unit:
 
     def _assignment_credential(self, name: str, before: int) -> bool:
         """The nearest assignment of `name` within 30 lines above `before` has a credential in its statement."""
-        for i in range(before - 1, max(-1, before - _ARGUMENT_BACK - 1), -1):
-            match = _ASSIGNED.match(self.low[i])
-            if match is not None and match.group(1) == name:
-                return any(self.credential(j) for j in self._span(i, _ARGUMENT_SPAN))
-        return False
+        if self._assignments is None:  # once per unit: the lines that assign each name
+            self._assignments = {}
+            for i, low in enumerate(self.low):
+                match = _ASSIGNED.match(low)
+                if match is not None:
+                    self._assignments.setdefault(match.group(1), []).append(i)
+        lines = self._assignments.get(name)
+        if not lines:
+            return False
+        position = bisect_left(lines, before) - 1
+        if position < 0 or lines[position] < before - _ARGUMENT_BACK:
+            return False
+        i = lines[position]
+        if i not in self._assigned_credential:
+            self._assigned_credential[i] = any(self.credential(j) for j in self._span(i, _ARGUMENT_SPAN))
+        return self._assigned_credential[i]
 
     def credential_via_object(self, index: int) -> bool:
         """A credential is used with the object the switch configures, further away than the near window."""

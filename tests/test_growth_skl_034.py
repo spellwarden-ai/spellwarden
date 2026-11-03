@@ -564,6 +564,20 @@ def test_a_script_with_thousands_of_short_functions_is_read_in_linear_time():
     assert time.perf_counter() - started < 1
 
 
+def test_many_switches_before_a_call_with_thousands_of_arguments_are_read_in_linear_time():
+    arguments = ", ".join(f"a{n}" for n in range(3_000))
+    script = "ctx.check_hostname = False\n" * 40 + f"go(ctx, {arguments})\n"
+    assert len(script) > 20_000
+    started = time.perf_counter()
+    assert run(**{"scripts/a.py": script}) == []
+    assert time.perf_counter() - started < 1
+    wide = "ctx.check_hostname = False\n" * 40 + "go(ctx, " + ", ".join(f"b{n}" for n in range(30_000)) + ")\n"
+    assert len(wide) > 200_000
+    started = time.perf_counter()
+    assert run(**{"scripts/b.py": wide}) == []
+    assert time.perf_counter() - started < 1
+
+
 def test_a_long_documented_readme_line_is_read_in_linear_time():
     readme = "# Acme\n\nhttps://api.example.com " + "acmegrid.url " * 25_000 + "a" * 300_000 + "\n"
     started = time.perf_counter()
