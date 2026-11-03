@@ -254,6 +254,178 @@ def test_files_that_are_not_scripts_or_markdown_are_not_read():
     assert run(INTENT, **{"notes.txt": "chrome --remote-debugging-port=9222\n", "data.json": '{"a": "chrome://inspect/#remote-debugging"}'}) == []
 
 
+# --- revision: any browser scheme, chrome-devtools-mcp auto-connect, Chinese wording, one-hop copies -----------
+
+@pytest.mark.parametrize("scheme", ["brave", "edge"])
+def test_toggle_in_another_browser_scheme_fires_at_the_toggle_line(scheme):
+    body = (
+        "\nConnect to the user's running Chrome.\n\n"
+        f"Tell the user to enable remote debugging at {scheme}://inspect/#remote-debugging first.\n"
+    )
+    assert lines_of(run(body)) == [line_number(clean_md() + body, f"{scheme}://inspect")]
+
+
+def test_templated_scheme_toggle_in_a_script_string_fires():
+    script = "const browser = pick();\nconsole.log(`Open ${browser}://inspect/#remote-debugging and tick the box`);\n"
+    findings = run(INTENT, **{"scripts/hint.mjs": script})
+    assert [(f.location.path, f.location.line) for f in findings] == [("scripts/hint.mjs", 2)]
+
+
+def test_slashless_toggle_in_a_script_comment_fires():
+    script = "const port = 9222;\n// Ask the person to open chrome://inspect#remote-debugging first.\n"
+    findings = run(INTENT, **{"scripts/hint.mjs": script})
+    assert [(f.location.path, f.location.line) for f in findings] == [("scripts/hint.mjs", 2)]
+
+
+CHINESE = "\n本技能通过 CDP 直接连接用户的日常浏览器，复用已有的页面。\n"
+
+
+def test_chinese_everyday_browser_attach_statement_fires_at_that_line():
+    findings = run(CHINESE)
+    assert [(f.location.path, f.location.line) for f in findings] == [("SKILL.md", line_number(clean_md() + CHINESE, "CDP"))]
+
+
+def test_chinese_skill_md_gives_the_intent_for_a_sibling_script():
+    script = "// Allow remote debugging in the browser, then run the next step.\nconst port = 9222;\n"
+    findings = run(CHINESE, **{"scripts/hint.mjs": script})
+    assert ("scripts/hint.mjs", 1) in [(f.location.path, f.location.line) for f in findings]
+
+
+@pytest.mark.parametrize("flag", ["--auto-connect", "--autoConnect"])
+def test_chrome_devtools_mcp_auto_connect_fires_at_the_flag_line(flag):
+    reference = (
+        "# MCP setup\n\nThe MCP must attach to existing Chrome.\n\n```sh\n"
+        f"npx chrome-devtools-mcp@latest {flag}\n```\n"
+    )
+    findings = run("", **{"references/mcp.md": reference})
+    assert [(f.location.path, f.location.line) for f in findings] == [("references/mcp.md", 6)]
+
+
+def test_js_copy_of_a_root_returned_by_a_function_far_above_fires_at_the_copy_line():
+    filler = "".join(f"// unrelated note {n}\n" for n in range(25))
+    script = (
+        "import { join } from 'node:path';\nimport { cpSync } from 'node:fs';\n\n"
+        "function getDefault() {\n  return join(home, '.config', 'google-chrome');\n}\n\n"
+        f"{filler}\n"
+        "function clone(src, dst) {\n  cpSync(src, dst, { recursive: true });\n}\n\n"
+        "const d = getDefault();\nclone(d, OWN_DIR);\n"
+        "launch(['--remote-debugging-port=9222']);\n"
+    )
+    findings = run("", **{"scripts/clone.mjs": script})
+    assert [(f.location.path, f.location.line) for f in findings] == [("scripts/clone.mjs", line_number(script, "cpSync(src"))]
+
+
+def test_js_copy_of_a_root_function_call_passed_straight_in_fires():
+    filler = "".join(f"// unrelated note {n}\n" for n in range(25))
+    script = (
+        "function getDefault() {\n  return join(home, '.config', 'google-chrome');\n}\n\n"
+        f"{filler}\n"
+        "const clone = (src, dst) => {\n  cpSync(src, dst, { recursive: true });\n};\n\n"
+        "clone(getDefault(), OWN_DIR);\nlaunch(['--remote-debugging-port=9222']);\n"
+    )
+    assert lines_of(run("", **{"scripts/clone.mjs": script})) == [line_number(script, "cpSync(src")]
+
+
+def test_python_copy_of_a_root_returned_by_a_function_far_above_fires_at_the_copy_line():
+    filler = "".join(f"    # unrelated note {n}\n" for n in range(16))
+    script = (
+        "import os\nimport shutil\n\n\n"
+        'def default_profile():\n    return os.path.join(os.environ["LOCALAPPDATA"], "Google", "Chrome", "User Data")\n\n\n'
+        f"def clone(src, dst):\n{filler}    shutil.copytree(src, dst)\n\n\n"
+        "clone(default_profile(), own_dir)\n"
+        "ctx = p.chromium.launch_persistent_context(own_dir)\n"
+    )
+    findings = run("", **{"scripts/clone.py": script})
+    assert [(f.location.path, f.location.line) for f in findings] == [("scripts/clone.py", line_number(script, "copytree"))]
+
+
+def test_copy_hop_through_a_function_that_is_fed_a_template_does_not_fire():
+    filler = "".join(f"// unrelated note {n}\n" for n in range(25))
+    script = (
+        "function getDefault() {\n  return join(home, '.config', 'google-chrome');\n}\n\n"
+        f"{filler}\n"
+        "function clone(src, dst) {\n  cpSync(src, dst, { recursive: true });\n}\n\n"
+        "clone(TEMPLATE_DIR, OWN_DIR);\nlaunch(['--remote-debugging-port=9222']);\n"
+    )
+    assert run("", **{"scripts/clone.mjs": script}) == []
+
+
+def test_copy_hop_through_a_function_that_only_lists_roots_in_a_detection_pattern_does_not_fire():
+    filler = "".join(f"    # unrelated note {n}\n" for n in range(16))
+    script = (
+        "import re\nimport shutil\n\n\n"
+        'def known_profiles():\n    return re.compile(r"\\.config/google-chrome")\n\n\n'
+        f"def clone(src, dst):\n{filler}    shutil.copytree(src, dst)\n\n\n"
+        "clone(known_profiles(), own_dir)\n"
+        "ctx = p.chromium.launch_persistent_context(own_dir)\n"
+    )
+    assert run("", **{"scripts/clone.py": script}) == []
+
+
+@pytest.mark.parametrize("body", [
+    "\nUse your existing Chrome.\n\n## Detection and security\n\nBefore anything else, check brave://inspect/#remote-debugging.\n",
+    "\nUse your existing Chrome.\n\nAttackers ask a victim to open brave://inspect/#remote-debugging.\n",
+])
+def test_toggle_in_another_scheme_under_detection_or_attacker_wording_does_not_fire(body):
+    assert run(body) == []
+
+
+@pytest.mark.parametrize("scheme", ["brave", "edge"])
+def test_toggle_in_another_scheme_without_identity_intent_does_not_fire(scheme):
+    assert run(f"\nOpen {scheme}://inspect/#remote-debugging and pick a tab to debug.\n") == []
+
+
+def test_chinese_login_state_kept_in_the_tools_own_user_data_dir_does_not_fire():
+    body = "\n登录态保存在工具自己的 userDataDir 中，不会碰你的浏览器。\n"
+    script = "chrome --remote-debugging-port=9222 --user-data-dir=$HOME/.tab-helper/profile\n"
+    assert run(body, **{"scripts/open.sh": script}) == []
+
+
+def test_chinese_negated_cdp_statement_about_the_everyday_browser_does_not_fire():
+    assert run("\n不要通过 CDP 连接用户的日常浏览器。\n") == []
+
+
+def test_english_line_saying_not_via_cdp_does_not_fire():
+    assert run("\nThe skill uses the user's real Chrome profile files, not via CDP.\n") == []
+
+
+def test_auto_connect_flag_of_other_tools_does_not_fire():
+    config = "export default {\n  autoConnect: true,\n};\n"
+    assert run(INTENT, **{"scripts/wallet.mjs": config}) == []
+    assert run(INTENT, **{"scripts/wallet.sh": "wallet-cli --autoConnect\n"}) == []
+
+
+def test_chrome_devtools_mcp_auto_connect_without_identity_intent_does_not_fire():
+    assert run("", **{"references/mcp.md": "```sh\nnpx chrome-devtools-mcp@latest --auto-connect\n```\n"}) == []
+
+
+def test_chrome_devtools_mcp_auto_connect_next_to_a_dedicated_user_data_dir_does_not_fire():
+    line = "npx chrome-devtools-mcp@latest --auto-connect --user-data-dir=$HOME/.tab-helper/profile\n"
+    assert run(INTENT, **{"scripts/mcp.sh": line}) == []
+
+
+def test_powershell_robocopy_between_dedicated_profiles_does_not_fire():
+    script = (
+        '$backup = "$env:TEMP\\profile-backup"\n'
+        'robocopy $backup "$env:USERPROFILE\\.tab-helper\\profile" /E\n'
+        '& chrome --remote-debugging-port=9222 --user-data-dir="$env:USERPROFILE\\.tab-helper\\profile" --profile-directory=Default\n'
+    )
+    assert run(INTENT, **{"scripts/restore.ps1": script}) == []
+
+
+def test_many_function_definitions_are_traced_in_linear_time():
+    functions = "".join(f"function f{n}(a, b) {{\n  cpSync(a, b, {{ recursive: true }});\n  return f{n}(a, b);\n}}\n" for n in range(10_000))
+    script = (
+        f"{functions}function getDefault() {{\n  return join(home, '.config', 'google-chrome');\n}}\n"
+        "launch(['--remote-debugging-port=9222']);\n"
+    )
+    package = Package.build(make_package({"SKILL.md": clean_md(), "scripts/many.mjs": script}))
+    assert len(package.text_files) == 2  # the script is under the size cap, so it is really read
+    started = time.perf_counter()
+    list(detect(package))
+    assert time.perf_counter() - started < 1.0
+
+
 # --- fixtures -----------------------------------------------------------------------------------
 
 def _fixture(side: str) -> Package:
@@ -271,7 +443,7 @@ def test_positive_fixture_fires_and_negative_fixture_does_not():
 @pytest.mark.parametrize("unit", [
     "--remote-debugging-port=", "--remote-debugging-port=9222 --profile-directory=Default ",
     ".config/google-chrome ", "google-chrome-", "your existing ", "cp -r ", "chrome://inspect/#remote-debugging ",
-    '", "', "Google/Chrome/User Data/",
+    '", "', "Google/Chrome/User Data/", "://inspect/#remote-debugging ", "chrome-devtools-mcp --auto-connect ",
 ])
 def test_long_line_is_read_in_linear_time(unit):
     line = (unit * (300_000 // len(unit) + 1))[:300_000]
