@@ -89,8 +89,9 @@ def _has_paste_link(line: str) -> bool:
     return any(_paste_host(token) for token in _url_tokens(line))
 
 
-def _literal_after(low: str, start: int) -> str:
-    """The short literal at `start` (after spaces and quote marks), or "" when there is none."""
+def _literal_span(low: str, start: int) -> tuple[str, int]:
+    """`(literal, stop)`: the short literal at `start` (after spaces and quote marks), or "", and where its raw text
+    ends."""
     end = len(low)
     while start < end and low[start] in " \t":
         start += 1
@@ -102,12 +103,42 @@ def _literal_after(low: str, start: int) -> str:
         stop += 1
     literal = low[start:stop].rstrip("*`\"'),.;")
     if not literal or len(literal) > _LITERAL_MAX or "://" in literal or literal in _NOT_A_PASSWORD:
-        return ""
-    return literal
+        return "", stop
+    return literal, stop
+
+
+def _literal_after(low: str, start: int) -> str:
+    """The short literal at `start` (after spaces and quote marks), or "" when there is none."""
+    return _literal_span(low, start)[0]
+
+
+# An extraction password written without the word "pass": `(extract using: <word>)`. The literal must close the
+# parenthesis, clause or line, and must not be an archive tool's name (`Extract with: 7-Zip` names a tool).
+_EXTRACT_KEYS = ("extract using", "extract with", "extract it using", "extract it with", "unzip using", "unzip with",
+                 "unpack using", "unpack with")
+_ARCHIVE_TOOLS = frozenset({"7-zip", "7zip", "7z", "winrar", "rar", "unrar", "unzip", "zip", "tar", "bsdtar", "gzip",
+                            "gunzip", "peazip", "bandizip", "winzip", "keka", "ark"})
+
+
+def _bare_extract_password(low: str) -> bool:
+    content_end = len(low.rstrip(" \t*_"))
+    for key in _EXTRACT_KEYS:
+        index = low.find(key)
+        while index != -1:
+            before = low[index - 1] if index else " "
+            sign = index + len(key)
+            while sign < len(low) and low[sign] in " \t":
+                sign += 1
+            if not (before.isalnum()) and sign < len(low) and low[sign] in ":=":
+                literal, stop = _literal_span(low, sign + 1)
+                if literal and literal not in _ARCHIVE_TOOLS and (stop >= content_end or low[stop - 1] in "),;."):
+                    return True
+            index = low.find(key, index + len(key))
+    return False
 
 
 def _has_password(line: str) -> bool:
-    """`pass:`/`password:` or `extract using pass` right before a short literal. `--pass`, `--password-file`, `bypass`
+    """`pass:`/`password:`, `extract using pass` or `extract using:` right before a short literal. `--pass`, `--password-file`, `bypass`
     and `passed` are other words; a bare `PASS`/`FAIL` verdict has no colon and no literal after it."""
     low = line.lower()
     index = low.find("pass")
@@ -128,7 +159,7 @@ def _has_password(line: str) -> bool:
                 if lead.endswith(_EXTRACT_LEAD_INS) and after in " \t" and _literal_after(low, end):
                     return True
         index = low.find("pass", index + 4)
-    return False
+    return _bare_extract_password(low)
 
 
 class _Features:
