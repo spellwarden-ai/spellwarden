@@ -370,6 +370,8 @@ def test_output_is_bounded():
     "urlretrieve(",
     "sha256sum -c ; ",
     "| tar -xz -C ",
+    "curl -L https://x.example.com/releases/latest/download/t.tgz | tar -xz ; mv t /usr/local/bin/ ; ",
+    "then ; fi ; echo ; ",
 ])
 def test_long_lines_are_read_in_linear_time(unit):
     line = (unit * (300_000 // len(unit) + 1))[:300_000]
@@ -590,6 +592,22 @@ def test_a_constant_mentioned_close_to_its_definition_with_the_execute_step_far_
     lines = script.splitlines()
     expected = next(n for n, text in enumerate(lines, 1) if "url = f" in text)
     assert lines_of(run(**{"scripts/fetch.py": script})) == [("scripts/fetch.py", expected)]
+
+
+@pytest.mark.parametrize("line", [
+    "Never run `curl -L https://dl.example.com/releases/latest/download/t -o t && chmod +x t && ./t` on a server.",
+    "Our scanner flags `curl -L https://dl.example.com/releases/latest/download/t -o t && chmod +x t` as unsafe.",
+])
+def test_an_inline_span_in_a_warning_or_a_description_is_quiet(line):
+    assert run(f"\n{line}\n") == []
+
+
+def test_a_line_of_many_mentions_of_a_moving_constant_is_read_in_linear_time():
+    script = ('BASE = "https://github.com/example-org/tool/releases/latest/download"\n'
+              + "x = (" + "BASE, " * 50_000 + ")\n")
+    started = time.perf_counter()
+    run(**{"scripts/a.py": script})
+    assert time.perf_counter() - started < 1.0
 
 
 def test_javascript_const_with_a_type_annotation_and_a_python_annotation_are_collected():

@@ -976,6 +976,12 @@ def _fenced_lines(blocks: list[CodeBlock]) -> set[int]:
     return lines
 
 
+# Words that make a Markdown line a warning or a description rather than an instruction to run its spans (review r1:F4),
+# as the sibling rules stay quiet on them.
+_SPAN_QUIET = re.compile(r"\b(never|do not|don't|must not|should not|avoid|detects?|detection|flags?|warns?|warning|"
+                         r"attackers?|malicious|anti-pattern|insecure|unsafe)\b")
+
+
 def _span_hits(package: Package, logical_commands) -> Iterator[tuple[str, int, str]]:
     """Inline spans of the Markdown files that run a download command on a URL, each read as a shell command of its
     own. A checksum or signature check in any span of the file silences the file's spans."""
@@ -987,7 +993,7 @@ def _span_hits(package: Package, logical_commands) -> Iterator[tuple[str, int, s
         kept: list[CodeBlock] = []
         every: list[_Command] = []
         for number, line in enumerate(file.lines, start=1):
-            if number in fenced or "`" not in line:
+            if number in fenced or "`" not in line or _SPAN_QUIET.search(line[:4096].lower()):
                 continue
             for span in _inline_spans(line):
                 unit = CodeBlock(file.path, "sh", span, number)
