@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.8.1 (2026-11-03)
+
+Faster discovery of skill packages. Each skill directory used to scan every path of the repository (and, for a skill
+with skills nested in it, test every path against every nested one), so discovery grew with skills times files: a
+repository with 4,000 skills took about 12 seconds, and very large public skill collections timed out. Each package now
+reads only its own part of the sorted file list, and the nested-skill test walks a path's parent directories; 4,000
+skills take about half a second. What is discovered, packaged, hashed and locked is unchanged, and so are scan results,
+exports and rules (those of 1.8.0, rules `2026.11.1`).
+
 ## 1.8.0 (2026-11-02)
 
 Five new rules. The rules version is `2026.11.1` and the scanner now has 65 rules. Every rule that existed before detects
