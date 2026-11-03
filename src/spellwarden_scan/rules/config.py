@@ -19,7 +19,6 @@ from spellwarden_scan.rules import Rule, make_rule
 from spellwarden_scan.rules import patterns as P
 from spellwarden_scan.rules.growth_cfg_012 import detect as _cfg_012
 from spellwarden_scan.rules.growth_cfg_013 import detect as _cfg_013
-from spellwarden_scan.rules.growth_cfg_014 import detect as _cfg_014
 from spellwarden_scan.rules.patterns import name_tokens, secret_named
 from spellwarden_scan.rules.skill import (
     _host_of, _legacy_ipv4, decodes_and_runs, logical_commands, pipes_remote_to_shell,
@@ -39,27 +38,18 @@ TITLES = {
     "SW-CFG-010": "Literal value under a secret name in an MCP server configuration",
     "SW-CFG-012": "MCP server configured to approve every tool call automatically",
     "SW-CFG-013": "Database or cluster MCP server with write access although a read-only mode exists",
-    "SW-CFG-014": "Insecure or credential-bearing MCP server in a configuration copy",
 }
 _SEVERITY = {"SW-CFG-001": "high", "SW-CFG-002": "critical", "SW-CFG-003": "medium", "SW-CFG-004": "medium",
              "SW-CFG-005": "high", "SW-CFG-006": "critical", "SW-CFG-007": "critical", "SW-CFG-008": "high",
-             "SW-CFG-009": "medium", "SW-CFG-010": "high", "SW-CFG-012": "high", "SW-CFG-013": "high",
-             "SW-CFG-014": "high"}
+             "SW-CFG-009": "medium", "SW-CFG-010": "high", "SW-CFG-012": "high", "SW-CFG-013": "high"}
 _MALICIOUS = frozenset({"SW-CFG-006", "SW-CFG-007"})
 
 
 class AgentConfig:
-    """What config rules see: the judged documents (no error, or `truncated`) and their entries, in path order. Copies of
-    MCP client configurations (kind `mcp_copy`) are held apart: `documents` and every accessor but `copy_servers` leave
-    them out, so only SW-CFG-014 can see one."""
+    """What config rules see: the judged documents (no error, or `truncated`) and their entries, in path order."""
 
     def __init__(self, documents: Iterable[ConfigDocument]) -> None:
-        ordered = sorted(documents, key=lambda d: d.path)
-        self.documents: tuple[ConfigDocument, ...] = tuple(d for d in ordered if d.kind != "mcp_copy")
-        self.copies: tuple[ConfigDocument, ...] = tuple(d for d in ordered if d.kind == "mcp_copy")
-
-    def copy_servers(self) -> Iterator[tuple[ConfigDocument, McpServerEntry]]:
-        return ((doc, entry) for doc in self.copies for entry in doc.servers)
+        self.documents: tuple[ConfigDocument, ...] = tuple(sorted(documents, key=lambda d: d.path))
 
     def servers(self) -> Iterator[tuple[ConfigDocument, McpServerEntry]]:
         return ((doc, entry) for doc in self.documents for entry in doc.servers)
@@ -949,5 +939,4 @@ RULES: tuple[Rule, ...] = (
     make_rule("SW-CFG-010", TITLES["SW-CFG-010"], "high", "config", owasp=("MCP01",), nist=("IA-5",), detect=_cfg_010),
     make_rule("SW-CFG-012", TITLES["SW-CFG-012"], "high", "config", owasp=("ASI02",), nist=("AC-6", "CM-7"), detect=_cfg_012),
     make_rule("SW-CFG-013", TITLES["SW-CFG-013"], "high", "config", owasp=("MCP02", "ASI03"), nist=("AC-3", "AC-6"), detect=_cfg_013),
-    make_rule("SW-CFG-014", TITLES["SW-CFG-014"], "high", "config", owasp=("MCP01", "ASI04"), nist=("IA-5", "CM-7"), detect=_cfg_014),
 )

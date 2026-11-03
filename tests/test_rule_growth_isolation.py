@@ -1,4 +1,4 @@
-"""Invariant 4 of rule growth: a batch only adds. The seven rules of 1.8.0 fire on no existing skill fixture, probe
+"""Invariant 4 of rule growth: a batch only adds. The five rules of 1.8.0 fire on no existing skill fixture, probe
 fixture, sample server, config fixture or the 1.0.0 golden repository, so everything recorded before them reads the same."""
 from __future__ import annotations
 
@@ -33,10 +33,10 @@ RULES_OF_1_7_1 = frozenset({
 NEW_IDS = frozenset(rule.id for rule in BASELINE) - RULES_OF_1_7_1
 
 
-def test_the_batch_is_exactly_the_seven_new_ids():
+def test_the_batch_is_exactly_the_five_new_ids():
     assert len(RULES_OF_1_7_1) == 60
     assert RULES_OF_1_7_1 <= {rule.id for rule in BASELINE}
-    assert NEW_IDS == {"SW-SKL-032", "SW-SKL-035", "SW-SKL-036", "SW-SKL-037"} | {f"SW-CFG-{n:03d}" for n in range(12, 15)}
+    assert NEW_IDS == {"SW-SKL-032", "SW-SKL-036", "SW-SKL-037", "SW-CFG-012", "SW-CFG-013"}
 
 
 def test_no_existing_skill_or_probe_fixture_holds_a_finding_of_a_new_rule():

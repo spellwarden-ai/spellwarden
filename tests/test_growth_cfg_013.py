@@ -14,7 +14,7 @@ from spellwarden_scan.agentconfig import parse_document, parse_mcp_config
 from spellwarden_scan.rules import growth_cfg_013
 from spellwarden_scan.rules.growth_cfg_013 import MALICIOUS, NIST, OWASP, RULE_ID, SEVERITY, TITLE, detect
 
-NEW_IDS = frozenset({"SW-SKL-032", "SW-SKL-035", "SW-SKL-036", "SW-SKL-037"} | {f"SW-CFG-{n:03d}" for n in range(12, 15)})
+NEW_IDS = frozenset({"SW-SKL-032", "SW-SKL-036", "SW-SKL-037", "SW-CFG-012", "SW-CFG-013"})
 
 
 def config(*documents):

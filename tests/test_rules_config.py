@@ -30,18 +30,16 @@ def hooks_doc(*commands, path="p/hooks/hooks.json", event="PreToolUse", matcher=
     return parse_hooks(path, json.dumps({"hooks": {event: [group]}}, indent=2).encode())
 
 
-def test_rule_table_has_the_thirteen_config_rules_with_their_mappings():
+def test_rule_table_has_the_twelve_config_rules_with_their_mappings():
     every = RULES.by_area("config")
-    assert [r.id for r in every] == [f"SW-CFG-{n:03d}" for n in (*range(1, 11), 12, 13, 14)]  # SW-CFG-011 is reserved
-    assert len(RULES) == 67
+    assert [r.id for r in every] == [f"SW-CFG-{n:03d}" for n in (*range(1, 11), 12, 13)]  # SW-CFG-011 and 014 are reserved
+    assert len(RULES) == 65
     rules = [r for r in every if r.id <= "SW-CFG-010"]
     assert {r.id: (r.title, r.severity_default, r.owasp_agentic + r.owasp_mcp, r.nist, r.malicious_indicator)
             for r in every if r.id >= "SW-CFG-012"} == {
         "SW-CFG-012": ("MCP server configured to approve every tool call automatically", "high", ("ASI02",), ("AC-6", "CM-7"), False),
         "SW-CFG-013": ("Database or cluster MCP server with write access although a read-only mode exists", "high",
                        ("ASI03", "MCP02"), ("AC-3", "AC-6"), False),
-        "SW-CFG-014": ("Insecure or credential-bearing MCP server in a configuration copy", "high", ("ASI04", "MCP01"),
-                       ("IA-5", "CM-7"), False),
     }
     table = {r.id: (r.severity_default, r.owasp_agentic + r.owasp_mcp, r.nist, r.malicious_indicator) for r in rules}
     assert table == {

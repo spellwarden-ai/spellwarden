@@ -31,22 +31,22 @@ CHANGELOG = Path(__file__).resolve().parents[1] / "CHANGELOG.md"
 
 def test_the_readme_names_the_reserved_numbers_and_the_malicious_indicators():
     text = README.read_text(encoding="utf-8").replace("\r\n", "\n")
-    assert "SW-SKL-033, SW-SKL-034 and SW-CFG-011 are reserved" in text
+    assert "SW-SKL-033 to 035, SW-CFG-011 and SW-CFG-014 are reserved" in text
     malicious = sorted(rule.id for rule in RuleSet.baseline() if rule.malicious_indicator)
     assert malicious == ["SW-CFG-006", "SW-CFG-007", "SW-SKL-004", "SW-SKL-008", "SW-SKL-032"]
     assert "Five rules are malicious indicators" in text
     assert "(SW-SKL-004, SW-SKL-008, SW-SKL-032, SW-CFG-006, SW-CFG-007)" in text
 
 
-def test_the_changelog_has_the_1_8_0_entry_with_the_seven_titles_and_the_older_scanner_note():
+def test_the_changelog_has_the_1_8_0_entry_with_the_five_titles_and_the_older_scanner_note():
     text = CHANGELOG.read_text(encoding="utf-8").replace("\r\n", "\n")
     assert text.index("## 1.8.0") < text.index("## 1.7.1")
     entry = text[text.index("## 1.8.0"):text.index("## 1.7.1")]
-    ids = {"SW-SKL-032", "SW-SKL-035", "SW-SKL-036", "SW-SKL-037", "SW-CFG-012", "SW-CFG-013", "SW-CFG-014"}
+    ids = {"SW-SKL-032", "SW-SKL-036", "SW-SKL-037", "SW-CFG-012", "SW-CFG-013"}
     new = [rule for rule in RuleSet.baseline() if rule.id in ids]
-    assert len(new) == 7
+    assert len(new) == 5
     for rule in new:
         assert f"`{rule.id}`" in entry and rule.title in entry, rule.id
-    for needle in ("`2026.11.1`", "67 rules", "unmatched"):
+    for needle in ("`2026.11.1`", "65 rules", "unmatched"):
         assert needle in entry, needle
     assert "SW-CFG-011" in entry

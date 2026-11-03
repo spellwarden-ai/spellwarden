@@ -10,7 +10,7 @@ from conftest import GENERATED, SKILL_FIXTURES, _read_dir, make_package
 from spellwarden_scan.package import Package
 from spellwarden_scan.rules.growth_skl_036 import MALICIOUS, NIST, OWASP, RULE_ID, SEVERITY, TITLE, detect
 
-NEW_IDS = frozenset({"SW-SKL-032", "SW-SKL-035", "SW-SKL-036", "SW-SKL-037"})
+NEW_IDS = frozenset({"SW-SKL-032", "SW-SKL-036", "SW-SKL-037"})
 
 
 def skill(front: str, body: str = "\n# demo-skill\n\nRead the task, then act.\n") -> str:

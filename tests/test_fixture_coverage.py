@@ -77,8 +77,7 @@ def test_config_rule_has_both_fixtures_and_they_match(rule_id):
         assert (CONFIG_FIXTURES / rule_id / side / "expected.json").is_file(), f"{rule_id} lacks a {side} fixture"
         files, expected = load_config_fixture(rule_id, side)
         documents = config_documents(files)
-        # a copy of a client configuration (`mcp_copy`, SW-CFG-014) may be a template that does not parse: it is never judged
-        assert documents and all(doc.error is None or doc.kind == "mcp_copy" for doc in documents), f"{rule_id} {side}: {[d.error for d in documents]}"
+        assert documents and all(doc.error is None for doc in documents), f"{rule_id} {side}: {[d.error for d in documents]}"
         result = scan_agent_config(documents, RULES)
         assert _normalised(result) == _expected(expected), f"{rule_id} {side}"
         own = {entry for entry in _expected(expected) if entry[0] == rule_id}

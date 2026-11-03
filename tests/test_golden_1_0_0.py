@@ -134,15 +134,15 @@ REGISTRY_IDS = ("SW-REG-001", "SW-REG-002", "SW-REG-003")
 # O4 spec invariant 4: the A2A descriptors sort before SW-CFG, so every existing `ruleIndex` moves by their number (eighteen
 # in 1.3.0, nineteen since 1.4.0 added SW-A2A-019).
 A2A_IDS = tuple(f"SW-A2A-{number:03d}" for number in range(1, 20))
-# The 1.8.0 batch: SW-CFG-012 to 014, SW-SKL-032 and SW-SKL-035 to 037. Three sort after the existing SW-CFG ids, four after SW-SKL-031,
+# The 1.8.0 batch: SW-CFG-012, SW-CFG-013, SW-SKL-032, SW-SKL-036 and SW-SKL-037. Two sort after the existing SW-CFG ids, three after SW-SKL-031,
 # so every `ruleIndex` from SW-SKL-032 on moves too; the normalisation drops them like the others.
-GROWTH_IDS = (*(f"SW-CFG-{number:03d}" for number in range(12, 15)), "SW-SKL-032", "SW-SKL-035", "SW-SKL-036", "SW-SKL-037")
+GROWTH_IDS = ("SW-CFG-012", "SW-CFG-013", "SW-SKL-032", "SW-SKL-036", "SW-SKL-037")
 ADDED_IDS = (*REGISTRY_IDS, *A2A_IDS, *GROWTH_IDS)
 
 
 def _normalised_sarif(text: str, *, produced: bool) -> dict:
     """The SARIF document with the descriptors of the rules added since 1.0.0 (the three registry rules, the nineteen
-    A2A rules and the seven rules of 1.8.0) removed and every `ruleIndex` remapped through the reduced table; the version is put back to the recorded one."""
+    A2A rules and the five rules of 1.8.0) removed and every `ruleIndex` remapped through the reduced table; the version is put back to the recorded one."""
     document = json.loads(text)
     driver = document["runs"][0]["tool"]["driver"]
     if produced:
@@ -151,7 +151,7 @@ def _normalised_sarif(text: str, *, produced: bool) -> dict:
         table = driver["rules"]
         assert [r["id"] for r in table] == sorted(r["id"] for r in table)
         kept = [r for r in table if r["id"] not in ADDED_IDS]
-        assert len(table) - len(kept) == 29
+        assert len(table) - len(kept) == 27
         new_index = {old: kept.index(rule) for old, rule in enumerate(table) if rule in kept}
         for result in document["runs"][0]["results"]:
             assert result["ruleIndex"] in new_index, result

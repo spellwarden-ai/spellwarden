@@ -142,9 +142,6 @@ def config_kind(path: str) -> str | None:
         return "settings"
     if name == ".mcp.json" or path.endswith((".vscode/mcp.json", ".cursor/mcp.json")):
         return "mcp"
-    parent = path.rsplit("/", 2)[-2] if path.count("/") else ""
-    if name.startswith(".mcp.json.") or (name.startswith("mcp.json.") and parent in (".vscode", ".cursor")):
-        return "mcp_copy"  # a copy of a client configuration (`.mcp.json.bak`): only SW-CFG-014 reads it
     return None
 
 

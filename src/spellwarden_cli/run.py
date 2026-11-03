@@ -188,8 +188,8 @@ def engine_findings(found: Discovery, rules: RuleSet, notices: list[Notice], err
         if result.truncated:
             notices.append(Notice("findings_truncated", skill.path, f"{result.truncated} more findings were not kept"))
     judged = [document for document in found.documents if document.error in (None, "truncated")]
-    if judged or found.config_copies:  # copies reach SW-CFG-014 only: `scan_agent_config` keeps them apart
-        result = scan_agent_config([*judged, *found.config_copies], rules)
+    if judged:
+        result = scan_agent_config(judged, rules)
         findings.extend(ReportFinding(finding, finding.location.path) for finding in result.findings)
         if result.truncated:
             notices.append(Notice("findings_truncated", "", f"{result.truncated} more configuration findings were not kept"))

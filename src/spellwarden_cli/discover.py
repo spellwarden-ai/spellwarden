@@ -14,7 +14,6 @@ from typing import NamedTuple
 
 from spellwarden_scan import parse_agent_card
 from spellwarden_scan.a2a import AgentCardDocument
-from spellwarden_scan._json import MAX_DOCUMENT_BYTES
 from spellwarden_scan.agentconfig import ConfigDocument, parse_document, reference_kind
 from spellwarden_scan.archive import DEFAULT_LIMITS
 # The skill-file rule and the folding of names live in the engine (O3 plan P52): the gate's package identity and this
@@ -132,9 +131,6 @@ class Discovery:
     fileset: FileSet | None = field(default=None, compare=False, repr=False)
     # O4 spec 6.3: the files checked as agent cards, sorted by path. Not items and not in the lock (P6).
     agent_cards: tuple[CardFile, ...] = ()
-    # SW-CFG-014: copies of MCP client configurations (`.mcp.json.bak`) that parsed, sorted by path. Kept out of `documents`
-    # on purpose: no item, lock entry, count or other rule is derived from them (invariant 4).
-    config_copies: tuple[ConfigDocument, ...] = ()
 
 
 def _named(path: str, suffix: str) -> bool:
@@ -151,39 +147,6 @@ def _global_kind(path: str) -> str | None:
     if _named(path, ".claude-plugin/marketplace.json"):
         return "marketplace"
     return None
-
-
-def _is_config_copy(path: str) -> bool:
-    """Whether a file is named like an MCP client configuration plus a suffix: `.mcp.json.<suffix>` anywhere, or
-    `mcp.json.<suffix>` directly inside a `.vscode` or `.cursor` directory; after NFC and case folding, like the global
-    names."""
-    folded = _fold(path)
-    directory, name = posixpath.split(folded)
-    if name.startswith(".mcp.json.") and len(name) > len(".mcp.json."):
-        return True
-    return (name.startswith("mcp.json.") and len(name) > len("mcp.json.")
-            and posixpath.basename(directory) in (".vscode", ".cursor"))
-
-
-def _config_copies(builder: _Builder) -> list[ConfigDocument]:
-    """The copies that parse as an MCP client configuration with a top-level `mcpServers` object, in path order. A file the
-    agent loads (already a document, e.g. referenced by a plugin manifest) is never a copy. A copy that
-    cannot be read, is over the size limit or does not parse is skipped without a notice or an error: it is not a
-    configuration the agent loads, only a file named like one."""
-    copies: list[ConfigDocument] = []
-    for path in sorted(p for p in builder.entries if p in builder.paths and p not in builder.documents and _is_config_copy(p)):
-        if builder.entries[path].size > MAX_DOCUMENT_BYTES:
-            continue
-        content = builder.contents.get(path)
-        if content is None:
-            try:
-                content = builder.fileset.read(path)
-            except (UnsafePath, paths.TooLarge, OSError):
-                continue
-        document = parse_document("mcp_copy", path, content)
-        if document.error in (None, "truncated"):
-            copies.append(document)
-    return copies
 
 
 def _card_form(path: str) -> str | None:
@@ -690,8 +653,7 @@ def discover(fileset: FileSet, *, listed_cards: Sequence[str] = (), agents_confi
     if not items and not any(is_card(card) for card in cards) and not agents_configured:
         builder.notices.append(Notice("no_agent_content", "", "No agent content found"))
     return Discovery(tuple(items), tuple(skills), tuple(builder.documents[p] for p in sorted(builder.documents)),
-                     tuple(dirs), tuple(builder.notices), tuple(builder.errors), fileset, tuple(cards),
-                     tuple(_config_copies(builder)))
+                     tuple(dirs), tuple(builder.notices), tuple(builder.errors), fileset, tuple(cards))
 
 
 def _agent_cards(builder: _Builder, listed: Sequence[str]) -> list[CardFile]:

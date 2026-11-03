@@ -66,7 +66,7 @@ def test_the_baseline_holds_the_nineteen_a2a_rules_with_the_spec_tags():
         "SW-A2A-019": ("high", ("ASI07",), ("SI-10",)),
     }
     assert not [rule for rule in RULES.by_area("a2a") if rule.targets or rule.malicious_indicator]
-    assert len(RULES) == 67 and [rule.id for rule in RULES][:19] == list(table)  # `SW-A2A` sorts before `SW-CFG`
+    assert len(RULES) == 65 and [rule.id for rule in RULES][:19] == list(table)  # `SW-A2A` sorts before `SW-CFG`
 
 
 def test_the_four_new_tags_are_baseline_only_and_organisation_rules_keep_the_1_2_lists():
