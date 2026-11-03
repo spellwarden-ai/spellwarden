@@ -83,7 +83,7 @@ def test_stdio_package_without_read_only_fires(command, args):
 
 @pytest.mark.parametrize("command,args,env", [
     ("npx", ["-y", "mcp-server-kubernetes"], {}),
-    ("npx", ["-y", "@flux159/mcp-server-kubernetes@latest"], {}),
+    ("npx", ["-y", "@example-scope/mcp-server-kubernetes@latest"], {}),
     ("pnpm", ["dlx", "kubernetes-mcp-server@latest"], {}),
     ("kubernetes-mcp-server", [], {}),
     ("/usr/local/bin/kubernetes-mcp-server", ["--port", "8080"], {}),
@@ -231,6 +231,14 @@ def test_a_configuration_under_a_test_or_fixture_directory_is_quiet(path):
 
 def test_a_directory_that_only_contains_the_word_test_still_fires():
     assert len(run({"k8s": {"command": "kubernetes-mcp-server"}}, path="contest-app/.mcp.json")) == 1
+
+
+def test_inline_servers_of_a_plugin_manifest_are_read():
+    from spellwarden_scan.agentconfig import parse_plugin_manifest
+
+    manifest = json.dumps({"name": "acme", "mcpServers": {"k8s": {"command": "kubernetes-mcp-server"}}}, indent=2).encode()
+    document = parse_plugin_manifest("plugins/acme/.claude-plugin/plugin.json", manifest)
+    assert len(list(detect(config(document)))) == 1
 
 
 def test_many_host_occurrences_in_one_url_are_read_in_linear_time():

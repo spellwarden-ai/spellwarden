@@ -123,6 +123,14 @@ def test_names_that_may_act_or_cannot_be_judged_fire(tool):
     assert len(run({"ops": {"command": "ops", "tools": {tool: {"approval_mode": "approve"}}}})) == 1
 
 
+def test_inline_servers_of_a_plugin_manifest_are_read():
+    from spellwarden_scan.agentconfig import parse_plugin_manifest
+
+    manifest = json.dumps({"name": "acme", "mcpServers": {"ops": {"command": "ops", "trust": True}}}, indent=2).encode()
+    document = parse_plugin_manifest("plugins/acme/.claude-plugin/plugin.json", manifest)
+    assert len(list(detect(config(document)))) == 1
+
+
 def test_an_approving_tool_after_many_ordinary_ones_is_kept():
     tools = {f"t{n}": {"approval_mode": "prompt"} for n in range(500)}
     tools["shell_exec"] = {"approval_mode": "approve"}

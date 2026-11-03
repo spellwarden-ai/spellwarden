@@ -214,7 +214,7 @@ def detect(config) -> Iterator[Finding]:
     from spellwarden_scan.rules.config import config_matched
 
     for doc, entry in config.servers():
-        if doc.kind != "mcp" or _disabled(entry) or _under_tests(doc.path):
+        if doc.kind not in ("mcp", "plugin") or _disabled(entry) or _under_tests(doc.path):
             continue
         missing = _missing(entry)
         if missing is None:

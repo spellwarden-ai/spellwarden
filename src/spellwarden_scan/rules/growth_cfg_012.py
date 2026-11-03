@@ -89,7 +89,7 @@ def detect(config) -> Iterator[Finding]:
     from spellwarden_scan.rules.config import config_matched
 
     for doc, entry in config.servers():
-        if doc.kind != "mcp":
+        if doc.kind not in ("mcp", "plugin"):  # a plugin manifest's inline `mcpServers` are the same entries
             continue
         for index, (field, shown, line) in enumerate(_triggers(entry.options)):
             if index >= _PER_SERVER:
