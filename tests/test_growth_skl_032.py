@@ -14,7 +14,7 @@ from spellwarden_scan.package import Package
 from spellwarden_scan.rules import growth_skl_032
 from spellwarden_scan.rules.growth_skl_032 import MALICIOUS, NIST, OWASP, RULE_ID, SEVERITY, TITLE, detect
 
-NEW_IDS = frozenset({f"SW-SKL-{n:03d}" for n in range(32, 38)})
+NEW_IDS = frozenset({"SW-SKL-032", "SW-SKL-035", "SW-SKL-036", "SW-SKL-037"})
 
 
 def run(body: str, **extra: str):

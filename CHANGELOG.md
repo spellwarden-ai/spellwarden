@@ -2,7 +2,7 @@
 
 ## 1.8.0 (2026-11-02)
 
-Nine new rules. The rules version is `2026.11.1` and the scanner now has 69 rules. Every rule that existed before detects
+Seven new rules. The rules version is `2026.11.1` and the scanner now has 67 rules. Every rule that existed before detects
 what it did in 1.7.1, and the new ones fire on none of the fixtures, sample servers and golden reports recorded before
 them; a scan of content that none of the new rules flags gives the findings 1.7.1 gave it.
 
@@ -11,8 +11,6 @@ Skill packages:
 - `SW-SKL-032` "Instructions lure the user into running a password-protected download or a pasted script" (critical,
   ASI04, ASI09, SR-3, SI-3). A malicious-indicator rule: an open finding quarantines the package, and a baseline entry for
   it may last at most 30 days.
-- `SW-SKL-033` "Skill drives the user's own signed-in browser over a remote-debugging port" (high, ASI03, AC-6, IA-5).
-- `SW-SKL-034` "TLS certificate checks switched off where credentials are sent" (high, MCP01, SC-8, IA-5).
 - `SW-SKL-035` "Agent told to spend money on its own with no confirmation or cap" (high, ASI02, ASI09, AC-3, AC-6).
 - `SW-SKL-036` "Frontmatter pre-approves an unscoped shell or interpreter" (medium, ASI02, ASI03, AC-6, CM-7).
 - `SW-SKL-037` "Executable downloaded from a moving reference and run without an integrity check" (medium, ASI04, ASI05,
@@ -27,7 +25,7 @@ Agent configuration:
   reads copies of MCP client configurations (`.mcp.json.bak`, `.vscode/mcp.json.old`), a new kind of document that no other
   rule, item, lock entry or count sees. A copy that does not parse is skipped without a notice.
 
-`SW-CFG-011` is reserved and not used.
+`SW-SKL-033`, `SW-SKL-034` and `SW-CFG-011` are reserved and not used.
 
 - The model of an MCP server entry gains an optional `options` field (the approval and trust settings `SW-CFG-012` reads).
   It is read in process and never written out, so the JSON of a document and the lock file are unchanged.

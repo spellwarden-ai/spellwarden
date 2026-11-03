@@ -14,16 +14,16 @@ def test_rules_lists_the_detection_rules_the_registry_rules_and_the_nineteen_a2a
     code, out, err = run_cli(["rules", "--format", "json"])
     assert (code, err) == (0, "")
     ids = [rule["id"] for rule in json.loads(out)]
-    assert len(ids) == 69 and len(set(ids)) == 69
+    assert len(ids) == 67 and len(set(ids)) == 67
     assert all(re.fullmatch(r"SW-(SKL|MCP|CFG|REG|A2A)-[0-9]{3}", rule_id) for rule_id in ids), ids
     assert ids[-19:] == A2A_IDS and not any(i.startswith("SW-A2A") for i in ids[:-19])
-    assert ids[47:50] == ["SW-REG-001", "SW-REG-002", "SW-REG-003"] and not any(i.startswith("SW-REG") for i in ids[:47])
+    assert ids[45:48] == ["SW-REG-001", "SW-REG-002", "SW-REG-003"] and not any(i.startswith("SW-REG") for i in ids[:45])
 
 
 def test_the_text_listing_gains_nineteen_lines_and_no_heading(run_cli):
     code, out, err = run_cli(["rules"])
     lines = out.splitlines()
-    assert (code, err, len(lines)) == (0, "", 69)
+    assert (code, err, len(lines)) == (0, "", 67)
     assert [line.split()[0] for line in lines[-19:]] == A2A_IDS
-    assert [line.split()[0] for line in lines[47:50]] == ["SW-REG-001", "SW-REG-002", "SW-REG-003"]
+    assert [line.split()[0] for line in lines[45:48]] == ["SW-REG-001", "SW-REG-002", "SW-REG-003"]
     assert all(line.startswith("SW-") for line in lines)

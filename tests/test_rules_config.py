@@ -33,7 +33,7 @@ def hooks_doc(*commands, path="p/hooks/hooks.json", event="PreToolUse", matcher=
 def test_rule_table_has_the_thirteen_config_rules_with_their_mappings():
     every = RULES.by_area("config")
     assert [r.id for r in every] == [f"SW-CFG-{n:03d}" for n in (*range(1, 11), 12, 13, 14)]  # SW-CFG-011 is reserved
-    assert len(RULES) == 69
+    assert len(RULES) == 67
     rules = [r for r in every if r.id <= "SW-CFG-010"]
     assert {r.id: (r.title, r.severity_default, r.owasp_agentic + r.owasp_mcp, r.nist, r.malicious_indicator)
             for r in every if r.id >= "SW-CFG-012"} == {
