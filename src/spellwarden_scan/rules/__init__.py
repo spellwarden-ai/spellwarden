@@ -18,6 +18,8 @@ ALLOWED_NIST = ("AC-3", "AC-6", "AU-2", "CM-7", "IA-5", "SC-7", "SC-8", "SI-10",
 # one would be refused by every older scanner (`bad_mapping`), and the pack schema is frozen. The org-rule lists below are
 # therefore the 1.2.x lists.
 BASELINE_ONLY_TAGS = frozenset({"ASI02", "ASI03", "ASI05", "ASI07", "ASI09", "MCP02", "SC-8", "SI-3", "SI-7", "CM-7"})
+# The name of 1.3.0 to 1.7.1, kept for code that imports it; it is the same set and will be removed in 2.0.0.
+A2A_ONLY_TAGS = BASELINE_ONLY_TAGS
 ORG_ALLOWED_OWASP = tuple(tag for tag in ALLOWED_OWASP if tag not in BASELINE_ONLY_TAGS)
 ORG_ALLOWED_NIST = tuple(tag for tag in ALLOWED_NIST if tag not in BASELINE_ONLY_TAGS)
 AREAS = ("skill", "mcp", "config", "registry", "a2a")
