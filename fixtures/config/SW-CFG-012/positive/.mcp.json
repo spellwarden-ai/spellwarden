@@ -3,7 +3,7 @@
     "notes": {
       "command": "notes-server",
       "args": ["--stdio"],
-      "autoApprove": ["search", "read_note"]
+      "autoApprove": ["search", "write_note"]
     },
     "tickets": {
       "type": "http",

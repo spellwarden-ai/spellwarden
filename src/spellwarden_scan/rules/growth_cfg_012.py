@@ -9,10 +9,15 @@ when
 * `autoApprove` or `alwaysAllow` is a non-empty array, or
 * `trust` is `true`.
 
-An empty array, a `prompt` value, a string where an array is expected and a key outside a server object are quiet.
+An empty array, a `prompt` value, a string where an array is expected and a key outside a server object are quiet. A
+per-tool `approve`, and an `autoApprove`/`alwaysAllow` list, are quiet when every tool they name is read-only by its
+name: a read verb (`get`, `list`, `read`, `search`, `view`, `resize`, ...) and no verb that writes, runs or sends. A
+wildcard and every server-wide setting fire as they are (gate 9.2: automatic approval of a viewport resize or a
+documentation search is not the class).
 Each server yields at most `_PER_SERVER` findings. The module is registered by the rule set, not here."""
 from __future__ import annotations
 
+import re
 from collections.abc import Iterator
 
 from spellwarden_scan.evidence import bounded_evidence, fingerprint
@@ -27,6 +32,22 @@ MALICIOUS = False
 
 _PER_SERVER = 20
 _ARRAY_KEYS = ("autoApprove", "alwaysAllow")
+_READ_VERBS = frozenset({"get", "list", "read", "search", "find", "view", "show", "describe", "lookup", "status", "info",
+                         "inspect", "resize", "screenshot", "count", "ping", "version", "help"})
+_ACTING = frozenset({"write", "create", "update", "delete", "remove", "rm", "exec", "execute", "run", "send", "post", "put",
+                     "set", "install", "kill", "deploy", "push", "commit", "move", "mv", "rename", "drop", "insert",
+                     "upload", "shell", "eval", "edit", "patch", "apply", "merge", "click", "type", "navigate", "submit",
+                     "pay", "transfer", "sign", "approve", "fetch", "browse", "open", "call", "invoke", "start", "stop"})
+_WORDS = re.compile(r"[A-Z]?[a-z]+|[A-Z]+(?![a-z])|[0-9]+")
+
+
+def _read_only(tool: object) -> bool:
+    """A tool whose name has a read verb and no verb that writes, runs, sends or fetches (`search_docs`, `getStatus`,
+    `browser_resize`); a wildcard, a non-string and anything else may act."""
+    if not isinstance(tool, str) or "*" in tool:
+        return False
+    words = {word.lower() for word in _WORDS.findall(tool[:200])}
+    return bool(words & _READ_VERBS) and not words & _ACTING
 
 
 def _approves(value: object) -> bool:
@@ -38,6 +59,8 @@ def _triggers(options: dict) -> Iterator[tuple[str, str, int]]:
     for key in _ARRAY_KEYS:
         option = options.get(key)
         if option and isinstance(option["value"], list) and option["value"]:
+            if all(_read_only(tool) for tool in option["value"]):
+                continue
             yield key, f"{len(option['value'])} tool(s) listed", option["line"]
     option = options.get("trust")
     if option and option["value"] is True:
@@ -47,6 +70,8 @@ def _triggers(options: dict) -> Iterator[tuple[str, str, int]]:
         yield "default_tools_approval_mode", "approve", option["line"]
     for key, option in options.items():
         if key.startswith("tools.") and key.endswith(".approval_mode") and _approves(option["value"]):
+            if _read_only(key[len("tools."):-len(".approval_mode")]):
+                continue
             yield key, "approve", option["line"]
 
 

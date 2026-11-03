@@ -99,6 +99,18 @@ def test_options_are_bounded():
     assert len(options) <= 300
 
 
+@pytest.mark.parametrize("tool", ["browser_resize", "search_vendor_docs", "getStatus", "list-items"])
+def test_automatic_approval_of_a_read_only_tool_is_quiet(tool):
+    assert run({"docs": {"command": "docs", "tools": {tool: {"approval_mode": "approve"}}}}) == []
+    assert run({"docs": {"command": "docs", "autoApprove": [tool]}}) == []
+
+
+@pytest.mark.parametrize("tool", ["fetch_page", "write_file", "run_query", "search_and_replace_edit", "*", "do_thing"])
+def test_automatic_approval_of_a_tool_that_may_act_fires(tool):
+    assert len(run({"ops": {"command": "ops", "tools": {tool: {"approval_mode": "approve"}}}})) == 1
+    assert len(run({"ops": {"command": "ops", "autoApprove": ["get_status", tool]}})) == 1
+
+
 def test_an_approving_tool_after_many_ordinary_ones_is_kept():
     tools = {f"t{n}": {"approval_mode": "prompt"} for n in range(500)}
     tools["shell_exec"] = {"approval_mode": "approve"}
@@ -115,7 +127,7 @@ def test_a_later_tool_with_the_same_cut_name_cannot_hide_an_approving_one():
 # --- the rule ------------------------------------------------------------------------------------------------------
 
 def test_non_empty_auto_approve_fires_at_the_key_line():
-    findings = run({"notes": {"command": "notes", "autoApprove": ["search"]}})
+    findings = run({"notes": {"command": "notes", "autoApprove": ["send_message"]}})
     assert len(findings) == 1
     finding = findings[0]
     assert (finding.rule_id, finding.severity, finding.title) == (RULE_ID, "high", TITLE)
@@ -126,7 +138,7 @@ def test_non_empty_auto_approve_fires_at_the_key_line():
 
 
 def test_non_empty_always_allow_fires():
-    findings = run({"notes": {"command": "notes", "alwaysAllow": ["search", "read"]}})
+    findings = run({"notes": {"command": "notes", "alwaysAllow": ["search", "delete_note"]}})
     assert [f.location.line for f in findings] == [5]
     assert "alwaysAllow" in findings[0].evidence
 
