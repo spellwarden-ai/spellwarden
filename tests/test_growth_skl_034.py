@@ -288,6 +288,236 @@ def test_empty_package_yields_nothing():
     assert list(detect(Package.build({}))) == []
 
 
+# --- credentials through the bound object, credential variables, connection strings, documented fallback -----
+
+def block_line(number: int) -> int:
+    """The package line of line `number` (1-based) of a block added by `fenced()` to `clean_md()`."""
+    return len(clean_md().splitlines()) + 2 + number
+
+
+def test_pg_pool_connection_string_from_database_url_fires_at_the_switch_line():
+    code = (
+        "const { Pool } = require('pg');\n"
+        "const pool = new Pool({\n"
+        "  connectionString: process.env.DATABASE_URL,\n"
+        "  ssl: { rejectUnauthorized: false },\n"
+        "});\n"
+    )
+    assert at(run(fenced("js", code))) == [("SKILL.md", block_line(4))]
+
+
+def test_pg_pool_with_a_localhost_connection_string_or_a_verified_connection_is_quiet():
+    local = (
+        "const pool = new Pool({\n"
+        "  connectionString: process.env.DATABASE_URL || 'postgres://app:EXAMPLEPW@localhost:5432/appdb',\n"
+        "  ssl: { rejectUnauthorized: false },\n"
+        "});\n"
+    )
+    assert run(fenced("js", local)) == []
+    verified = (
+        "const pool = new Pool({\n"
+        "  connectionString: process.env.DATABASE_URL,\n"
+        "  ssl: { rejectUnauthorized: true },\n"
+        "});\n"
+    )
+    assert run(fenced("js", verified)) == []
+
+
+_URLLIB_FILLER = "".join(f"    step_{n} = {n}\n" for n in range(7))
+_URLLIB_AUTHED = (
+    "import ssl\n"
+    "import urllib.request\n\n\n"
+    "def fetch(url, secret):\n"
+    '    request = urllib.request.Request(url, headers={"Authorization": "Bearer " + secret})\n'
+    + _URLLIB_FILLER +
+    "    context = ssl.create_default_context()\n"
+    "    context.check_hostname = False\n"
+    "    context.verify_mode = ssl.CERT_NONE\n"
+    "    return urllib.request.urlopen(request, context=context)\n"
+)
+_URLLIB_PLAIN = (
+    "\n\ndef ping(url):\n"
+    '    request = urllib.request.Request(url, headers={"User-Agent": "demo/1.0"})\n'
+    + _URLLIB_FILLER +
+    "    context = ssl.create_default_context()\n"
+    "    context.check_hostname = False\n"
+    "    context.verify_mode = ssl.CERT_NONE\n"
+    "    return urllib.request.urlopen(request, context=context)\n"
+)
+
+
+def test_insecure_context_passed_to_urlopen_with_a_bearer_request_fires_on_both_switch_lines():
+    lines = _URLLIB_AUTHED.splitlines()
+    first = next(n for n, line in enumerate(lines, 1) if "check_hostname" in line)
+    assert first - 6 > 6  # the Bearer header is out of the five-line window
+    assert at(run(**{"scripts/fetch.py": _URLLIB_AUTHED})) == [("scripts/fetch.py", first), ("scripts/fetch.py", first + 1)]
+
+
+def test_insecure_context_with_a_user_agent_only_request_is_quiet_next_to_an_authed_one():
+    findings = run(**{"scripts/fetch.py": _URLLIB_AUTHED + _URLLIB_PLAIN})
+    assert len(findings) == 2
+    assert max(line for _, line in at(findings)) <= len(_URLLIB_AUTHED.splitlines())
+
+
+def test_forward_scan_stops_at_the_rebinding_of_the_context_name():
+    script = (
+        "ctx = ssl.create_default_context()\n"
+        "ctx.check_hostname = False\n"
+        'plain = urllib.request.Request(url, headers={"User-Agent": "demo/1.0"})\n'
+        "urllib.request.urlopen(plain, context=ctx)\n"
+        + "step = 1\n" * 6 +
+        "ctx = ssl.create_default_context()\n"
+        'authed = urllib.request.Request(url, headers={"Authorization": "Bearer EXAMPLEEXAMPLE"})\n'
+        "urllib.request.urlopen(authed, context=ctx)\n"
+    )
+    assert run(**{"scripts/fetch.py": script}) == []
+
+
+def test_scan_stops_at_a_less_indented_function_line_and_after_forty_lines():
+    script = (
+        "def one(ctx):\n"
+        "    ctx.check_hostname = False\n"
+        + "    step = 1\n" * 6 +
+        "\n\ndef two(ctx):\n"
+        '    request = urllib.request.Request(url, headers={"Authorization": "Bearer EXAMPLEEXAMPLE"})\n'
+        "    return urllib.request.urlopen(request, context=ctx)\n"
+    )
+    assert run(**{"scripts/a.py": script}) == []
+    far = (
+        "ctx = ssl.create_default_context()\n"
+        "ctx.check_hostname = False\n"
+        + "step = 1\n" * 45 +
+        'request = urllib.request.Request(url, headers={"Authorization": "Bearer EXAMPLEEXAMPLE"})\n'
+        "urllib.request.urlopen(request, context=ctx)\n"
+    )
+    assert run(**{"scripts/a.py": far}) == []
+
+
+def test_http_verb_call_does_not_bind_its_result():
+    script = (
+        "response = requests.get(url, verify=False)\n"
+        + "step = 1\n" * 7 +
+        'token = response.json()["token"]\n'
+    )
+    assert run(**{"scripts/a.py": script}) == []
+
+
+def test_client_binding_in_a_with_statement_and_a_multi_line_constructor_fire():
+    script = (
+        "async with httpx.AsyncClient(verify=False) as client:\n"
+        + "    step = 1\n" * 7 +
+        '    await client.get(url, headers={"Authorization": f"Bearer {secret}"})\n'
+    )
+    assert at(run(**{"scripts/a.py": script})) == [("scripts/a.py", 1)]
+    script = (
+        "client = httpx.Client(\n"
+        "    verify=False,\n"
+        "    timeout=5,\n"
+        ")\n"
+        + "step = 1\n" * 7 +
+        'client.get(url, headers={"X-API-Key": secret})\n'
+    )
+    assert at(run(**{"scripts/a.py": script})) == [("scripts/a.py", 2)]
+
+
+def test_insecure_websocket_that_later_sends_an_api_key_fires_at_the_constructor_line():
+    script = (
+        "const WebSocket = require('ws');\n"
+        "const ws = new WebSocket('wss://stream.example.com/v1', { rejectUnauthorized: false });\n"
+        "ws.on('error', console.error);\n"
+        + "const step = 1;\n" * 6 +
+        "ws.on('message', (data) => {\n"
+        "  const msg = JSON.parse(data);\n"
+        "  if (msg.type === 'hello') {\n"
+        "    ws.send(JSON.stringify({ method: 'login', params: { api_key: process.env.EXAMPLE_API_KEY } }));\n"
+        "  }\n"
+        "});\n"
+    )
+    assert at(run(**{"scripts/stream.js": script})) == [("scripts/stream.js", 2)]
+
+
+def test_insecure_websocket_with_only_plain_sends_or_a_rebound_socket_is_quiet():
+    plain = (
+        "const ws = new WebSocket('wss://stream.example.com/v1', { rejectUnauthorized: false });\n"
+        + "const step = 1;\n" * 6 +
+        "ws.on('open', () => {\n"
+        "  ws.send(JSON.stringify({ method: 'subscribe', channel: 'ticker' }));\n"
+        "});\n"
+    )
+    assert run(**{"scripts/stream.js": plain}) == []
+    rebound = (
+        "let ws = new WebSocket('wss://stream.example.com/v1', { rejectUnauthorized: false });\n"
+        + "const step = 1;\n" * 6 +
+        "ws = new WebSocket('wss://other.example.com/v1');\n"
+        "ws.send(JSON.stringify({ method: 'login', params: { api_key: process.env.EXAMPLE_API_KEY } }));\n"
+    )
+    assert run(**{"scripts/stream.js": rebound}) == []
+
+
+def test_credential_variable_from_an_earlier_block_reaches_the_curl_line():
+    body = (fenced("bash", 'AUTH="Authorization: Bearer EXAMPLEEXAMPLE"\n')
+            + "\nThen call the service.\n"
+            + fenced("bash", 'curl -sk -H "$AUTH" https://api.example.com/v1/items\n'))
+    findings = run(body)
+    assert at(findings) == [("SKILL.md", len((clean_md() + body).splitlines()) - 1)]
+    braces = body.replace('"$AUTH"', '"${AUTH}"')
+    assert len(run(braces)) == 1
+
+
+def test_credential_variable_assigned_more_than_five_lines_above_in_a_script_reaches_the_curl_line():
+    script = (
+        "#!/bin/sh\n"
+        'AUTH="Authorization: Bearer EXAMPLEEXAMPLE"\n'
+        + "echo step\n" * 7 +
+        'curl -sk -H "$AUTH" https://api.example.com/v1/items\n'
+    )
+    assert at(run(**{"scripts/run.sh": script})) == [("scripts/run.sh", 10)]
+
+
+@pytest.mark.parametrize("name", ["TOKEN_URL", "AUTH_URL"])
+def test_variable_that_holds_only_a_url_is_not_a_credential_variable(name):
+    script = (
+        "#!/bin/sh\n"
+        f'{name}="https://login.example.com/oauth"\n'
+        + "echo step\n" * 7 +
+        f'curl -k "${name}"\n'
+    )
+    assert run(**{"scripts/run.sh": script}) == []
+
+
+def test_credential_variable_from_another_markdown_file_does_not_carry_over():
+    other = fenced("bash", 'AUTH="Authorization: Bearer EXAMPLEEXAMPLE"\n')
+    use = fenced("bash", 'curl -sk -H "$AUTH" https://api.example.com/v1/items\n')
+    assert run(use, **{"references/auth.md": "# Auth\n" + other}) == []
+
+
+_FALLBACK_SCRIPT = (
+    "import os\n"
+    "import requests\n\n"
+    'BASE = os.environ.get("ACMEGRID_URL", "https://localhost:9443")\n\n\n'
+    "def call(key):\n"
+    '    return requests.get(BASE + "/v1/ping", headers={"X-API-Key": key},\n'
+    "                        verify=False)\n"
+)
+
+
+def test_loopback_fallback_is_remote_when_the_readme_documents_a_remote_value_for_the_key():
+    readme = "# Acme Grid\n\nSet `acmegrid.url` to `https://api.acmegrid.example.com` for the hosted service.\n"
+    assert at(run(**{"scripts/a.py": _FALLBACK_SCRIPT, "README.md": readme})) == [("scripts/a.py", 9)]
+    readme = "# Acme Grid\n\n```\nACMEGRID_URL=https://api.acmegrid.example.com\n```\n"
+    assert len(run(**{"scripts/a.py": _FALLBACK_SCRIPT, "README.md": readme})) == 1
+
+
+def test_loopback_fallback_stays_loopback_without_a_documented_remote_value():
+    assert run(**{"scripts/a.py": _FALLBACK_SCRIPT}) == []
+    local = "# Acme Grid\n\nSet `acmegrid.url` to `https://localhost:9443` while developing.\n"
+    assert run(**{"scripts/a.py": _FALLBACK_SCRIPT, "README.md": local}) == []
+    download = "# Acme Grid\n\nDownload https://downloads.example.com/acmegrid-1.0.tar.gz and unpack it.\n"
+    assert run(**{"scripts/a.py": _FALLBACK_SCRIPT, "README.md": download}) == []
+    other_key = "# Acme Grid\n\nSet `other.url` to `https://api.other.example.com`.\n"
+    assert run(**{"scripts/a.py": _FALLBACK_SCRIPT, "README.md": other_key}) == []
+
+
 # --- linear time and bounds -------------------------------------------------------------------
 
 def test_long_repeated_switch_line_is_read_in_linear_time():
@@ -306,6 +536,39 @@ def test_long_quiet_lines_are_read_in_linear_time():
         started = time.perf_counter()
         run(**{"scripts/long.sh": line})
         assert time.perf_counter() - started < 1
+
+
+def test_long_object_and_credential_variable_lines_are_read_in_linear_time():
+    chunk = "rejectUnauthorized: false, ws.send("
+    long_line = chunk * (300_000 // len(chunk) + 1)
+    assert len(long_line) > 300_000
+    shapes = {
+        "scripts/a.js": long_line + "\n",
+        "scripts/b.js": "const ws = new WebSocket(u, { " + long_line + "\n" + "const step = 1;\n" * 6 + long_line + "\n",
+        "scripts/c.js": "const ws = new WebSocket(u, { rejectUnauthorized: false });\n" + "const step = 1;\n" * 6 + "ws.send(" + long_line + "\n",
+        "scripts/d.sh": "AUTH=" + "authorization " * 25_000 + "\ncurl -k " + "$AUTH " * 50_000 + "\n",
+    }
+    for path, text in shapes.items():
+        started = time.perf_counter()
+        run(**{path: text})
+        assert time.perf_counter() - started < 1, path
+
+
+def test_a_script_with_thousands_of_short_functions_is_read_in_linear_time():
+    script = "".join(
+        f"def f{n}():\n    ctx = ssl.create_default_context()\n    ctx.check_hostname = False\n    return go(ctx)\n\n\n"
+        for n in range(4_000)
+    )
+    started = time.perf_counter()
+    assert run(**{"scripts/many.py": script}) == []
+    assert time.perf_counter() - started < 1
+
+
+def test_a_long_documented_readme_line_is_read_in_linear_time():
+    readme = "# Acme\n\nhttps://api.example.com " + "acmegrid.url " * 25_000 + "a" * 300_000 + "\n"
+    started = time.perf_counter()
+    run(**{"scripts/a.py": _FALLBACK_SCRIPT, "README.md": readme})
+    assert time.perf_counter() - started < 1
 
 
 # --- invariant 4: no finding on any existing skill fixture ------------------------------------
