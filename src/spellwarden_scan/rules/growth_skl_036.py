@@ -120,8 +120,14 @@ def _general(words: list[str]) -> bool:
     if not words:
         return False
     program = _program(words[0])
-    if program == "command" and any(word in ("-v", "-V") for word in words[1:]):
-        return False  # `command -v x` only looks a program up
+    if program == "command":
+        options = []
+        for word in words[1:]:
+            if not word.startswith("-"):
+                break
+            options.append(word)
+        if "-v" in options or "-V" in options:
+            return False  # `command -v x` only looks a program up; `command -p bash -v` still runs bash
     if program in _LAUNCHERS:
         rest = [word for word in words[1:] if not word.startswith("-")]
         return not rest or _general(rest)

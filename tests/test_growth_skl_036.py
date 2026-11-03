@@ -229,6 +229,7 @@ def test_a_reference_document_with_frontmatter_is_not_read():
 
 def test_command_v_is_a_lookup_not_a_launcher():
     assert run("allowed-tools: Read, Bash(command -v:*)") == []
+    assert at(run("allowed-tools: Read, Bash(command -p bash -v:*)")) == [("SKILL.md", 4)]
     assert at(run("allowed-tools: Read, Bash(command:*)")) == [("SKILL.md", 4)]
 
 
