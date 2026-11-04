@@ -202,6 +202,48 @@ def test_empty_repository_has_the_no_agent_content_notice(make_repo, tmp_path):
     assert [(n.code, n.message) for n in found.notices] == [("no_agent_content", "No agent content found")]
 
 
+
+def test_nested_skill_roots_and_package_members_read_from_slices_match_the_full_scan(tmp_path):
+    """Discovery reads each package's own slice of the sorted paths (2026-11-03): same nested roots as
+    `identity.nested_skill_roots` over every path, and the same members as the old any-nested-root test, for names
+    that share a prefix (`a`, `a-b`, `a.b`, `a0`, `ab`, a non-ASCII one), a root skill and a case variant."""
+    from spellwarden_scan.identity import nested_skill_roots
+
+    tree = {"SKILL.md": "---\nname: root\ndescription: r\n---\n"}
+    for name in ("a", "a-b", "a.b", "a0", "ab", "aé", "a/b", "a/b/c", "a/bc"):
+        tree[f"skills/{name}/SKILL.md"] = f"---\nname: x\ndescription: {name}\n---\n"
+        tree[f"skills/{name}/notes.md"] = "n\n"
+    tree["skills/z/skill.md"] = "---\nname: z\ndescription: variant\n---\n"
+    tree["skills/a/b/deep/file.txt"] = "d\n"
+    tree["src/main.py"] = "x = 1\n"
+    write_tree(tmp_path / "w", tree)
+    builder = discover_module._Builder(list_files(str(tmp_path / "w"), Settings(), git=""))
+    directories = sorted({os.path.dirname(p) or "." for p in builder.paths if discover_module._is_skill_file(p)})
+    assert "skills/z" in directories and "." in directories
+    for directory in directories:
+        nested = discover_module._nested_roots(builder, directory)
+        assert nested == nested_skill_roots(builder.paths, "" if directory == "." else directory)
+        inside = discover_module._inside(directory, nested)
+        old = [p for p in sorted(builder.paths)
+               if discover_module._under(p, directory) and not any(discover_module._under(p, inner) for inner in nested)]
+        assert [p for p in discover_module._under_range(builder, directory) if p in builder.paths and inside(p)] == old
+
+
+def test_a_repository_with_thousands_of_skills_is_discovered_in_linear_time(tmp_path):
+    """Rule growth follow-up (2026-11-03): each skill used to scan every path of the repository, so 4,000 skills took
+    about 12 s here and huge public repositories timed out; each package now reads only its own slice."""
+    tree = {"SKILL.md": "---\nname: root\ndescription: r\n---\n"}
+    for index in range(4000):
+        tree[f"skills/s{index:05d}/SKILL.md"] = f"---\nname: s{index}\ndescription: d\n---\n"
+        tree[f"skills/s{index:05d}/ref.md"] = "r\n"
+    tree.update({f"src/pkg{index // 100}/mod{index}.py": "x = 1\n" for index in range(1500)})
+    write_tree(tmp_path / "w", tree)
+    fileset = list_files(str(tmp_path / "w"), Settings(), git="")
+    started = time.monotonic()
+    found = discover(fileset)
+    assert len(found.skills) == 4001
+    assert time.monotonic() - started < 10
+
 def test_discovery_reads_only_candidate_files(tmp_path, monkeypatch):
     """Review Focus 1: a large tree without agent content is listed by metadata and read only where needed."""
     tree = {f"src/pkg{index // 100}/mod{index}.py": "x = 1\n" for index in range(5000)}

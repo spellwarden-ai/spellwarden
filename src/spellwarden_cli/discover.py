@@ -4,6 +4,7 @@ rules and through a plugin is parsed once and listed once (one owner per
 file). Only skill packages and configuration documents are read (plan P12)."""
 from __future__ import annotations
 
+import bisect
 import ntpath
 import os
 import posixpath
@@ -24,7 +25,6 @@ from spellwarden_scan.identity import fold_skill_name as _fold
 from spellwarden_scan.identity import is_loaded_variant as _is_loaded_variant
 from spellwarden_scan.identity import is_skill_file as _is_skill_file
 from spellwarden_scan.identity import is_skill_name_variant as _is_skill_name_variant
-from spellwarden_scan.identity import nested_skill_roots
 from spellwarden_scan.relpath import UnsafePath, contain
 
 from spellwarden_cli import paths
@@ -226,6 +226,9 @@ class _Builder:
         self.paths = set(fileset.paths())  # grows by the symbolic links followed (`follow`)
         self.entries = {entry.path: entry for entry in fileset.entries}
         self.links = {link.path: link for link in fileset.links}
+        # Every path a package can hold, sorted: `paths` only grows by links it follows, so this never goes stale. A
+        # directory's files are one slice of it (`_under_range`), which keeps discovery linear in the repository's size.
+        self.universe = tuple(sorted({*self.paths, *self.links}))
         # colliding names were dropped from the file set (6.4), so one folded name is one path; used only to name the
         # listed spelling when a target or reference matches one only after folding (`twin`, r4:R4-2)
         self.folded = {_fold(p): p for p in (*self.paths, *self.links)}
@@ -724,8 +727,42 @@ def _owns(plugin: str, skill: str) -> bool:
     return _under(skill, plugin)
 
 
-def _inside(directory: str, nested: list[str]) -> Callable[[str], bool]:
-    return lambda path: _under(path, directory) and not any(_under(path, inner) for inner in nested)
+def _under_range(builder: _Builder, directory: str) -> Sequence[str]:
+    """The paths and links of the file set under the scan-root directory `directory` (`"."` is all of them), sorted:
+    the names starting with `directory/` are one contiguous slice of the sorted universe, ending before `directory0`
+    (`0` follows `/`). Reading a package's slice rather than every path keeps a repository with thousands of skills
+    from taking minutes (rule growth follow-up, 2026-11-03)."""
+    keys = builder.universe
+    if directory == ".":
+        return keys
+    return keys[bisect.bisect_left(keys, directory + "/"):bisect.bisect_left(keys, directory + "0")]
+
+
+def _nested_roots(builder: _Builder, directory: str) -> tuple[str, ...]:
+    """The skill directories strictly under `directory`, sorted, as `identity.nested_skill_roots(builder.paths, ...)`
+    finds them, from the directory's own slice."""
+    root = "" if directory == "." else directory
+    found = {p.rpartition("/")[0] for p in _under_range(builder, directory) if p in builder.paths and _is_skill_file(p)}
+    return tuple(sorted(d for d in found if d != root))
+
+
+def _inside(directory: str, nested: Sequence[str]) -> Callable[[str], bool]:
+    """Whether a path is in the package at `directory` and in none of the skills nested in it. A path is under a nested
+    root exactly when one of its parent directories is that root, so the test walks the parents (its depth) rather
+    than every nested root."""
+    inner = frozenset(nested)
+
+    def inside(path: str) -> bool:
+        if not _under(path, directory):
+            return False
+        head = path
+        while (cut := head.rfind("/")) > 0:
+            head = head[:cut]
+            if head in inner:
+                return False
+        return True
+
+    return inside
 
 
 def _package(builder: _Builder, directory: str, inside: Callable[[str], bool],
@@ -735,8 +772,9 @@ def _package(builder: _Builder, directory: str, inside: Callable[[str], bool],
     path, r2:F6), and the target text of each member link they refuse. None, with the item error recorded, when the
     package is over the limits, judged before any member or link target is read: the count with every link, the
     bytes with the listed size of each target followed."""
-    regular = sorted(p for p in builder.paths if inside(p))
-    pending = sorted(p for p in builder.links if inside(p) and p not in builder.paths)
+    candidates = _under_range(builder, directory)
+    regular = [p for p in candidates if p in builder.paths and inside(p)]
+    pending = [p for p in candidates if p in builder.links and p not in builder.paths and inside(p)]
     count = len(regular) + len(pending)
     size = sum(builder.entries[p].size for p in regular)
     if _too_large(builder, directory, count, size, what):
@@ -754,7 +792,7 @@ def _package(builder: _Builder, directory: str, inside: Callable[[str], bool],
             builder.own[link] = target
     skipped = {link: r.text for link, r in resolved.items() if r.target is None and r.text is not None}
     builder.skipped.update(skipped)
-    members = sorted(p for p in builder.paths if inside(p))
+    members = [p for p in candidates if p in builder.paths and inside(p)]
     return members, skipped  # type: ignore[return-value]
 
 
@@ -783,7 +821,7 @@ def _skills(builder: _Builder, plugin_of_dir: dict[str, str]) -> list[SkillPacka
     directories = sorted({posixpath.dirname(p) or "." for p in builder.paths if _is_skill_file(p)})
     packages: list[SkillPackage] = []
     for directory in directories:
-        nested = nested_skill_roots(builder.paths, "" if directory == "." else directory)
+        nested = _nested_roots(builder, directory)
         before = len(builder.errors)
         package = _package(builder, directory, _inside(directory, list(nested)), "skill package")
         if package is None:
