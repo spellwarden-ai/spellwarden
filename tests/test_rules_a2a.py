@@ -60,7 +60,7 @@ def test_the_baseline_holds_the_nineteen_a2a_rules_with_the_spec_tags():
         "SW-A2A-007": ("medium", ("ASI03",), ("AC-3",)), "SW-A2A-008": ("medium", ("ASI03",), ("IA-5",)),
         "SW-A2A-009": ("low", ("ASI03",), ("AC-6",)), "SW-A2A-010": ("high", ("ASI07",), ("SI-7",)),
         "SW-A2A-011": ("high", ("ASI07",), ("SI-7",)), "SW-A2A-012": ("low", ("ASI07",), ("SI-7",)),
-        "SW-A2A-013": ("medium", ("ASI07",), ("SI-7",)), "SW-A2A-014": ("high", ("ASI01", "MCP06"), ("SI-10",)),
+        "SW-A2A-013": ("medium", ("ASI07",), ("SI-7",)), "SW-A2A-014": ("high", ("ASI01",), ("SI-10",)),
         "SW-A2A-015": ("critical", ("ASI03",), ("IA-5",)), "SW-A2A-016": ("medium", ("ASI07",), ("SC-8",)),
         "SW-A2A-017": ("medium", ("ASI07",), ("SI-7",)), "SW-A2A-018": ("high", ("ASI07",), ("SI-10",)),
         "SW-A2A-019": ("high", ("ASI07",), ("SI-10",)),

@@ -705,13 +705,13 @@ TITLES = {
 }
 
 RULES: tuple[Rule, ...] = (
-    make_rule("SW-SKL-001", TITLES["SW-SKL-001"], "high", "skill", owasp=("ASI01", "MCP06"), nist=("SI-10",), detect=_skl_001, targets=("claude-code-hooks",)),
-    make_rule("SW-SKL-002", TITLES["SW-SKL-002"], "high", "skill", owasp=("ASI01", "MCP06"), nist=("SI-10",), detect=_skl_002),
+    make_rule("SW-SKL-001", TITLES["SW-SKL-001"], "high", "skill", owasp=("ASI01",), nist=("SI-10",), detect=_skl_001, targets=("claude-code-hooks",)),
+    make_rule("SW-SKL-002", TITLES["SW-SKL-002"], "high", "skill", owasp=("ASI01",), nist=("SI-10",), detect=_skl_002),
     make_rule("SW-SKL-003", TITLES["SW-SKL-003"], "high", "skill", owasp=("ASI10",), nist=("AC-6",), detect=_skl_003),
     make_rule("SW-SKL-004", TITLES["SW-SKL-004"], "critical", "skill", owasp=("ASI04",), nist=("SR-3",), detect=_skl_004, malicious=True, targets=("claude-code-hooks",)),
     make_rule("SW-SKL-005", TITLES["SW-SKL-005"], "high", "skill", owasp=("ASI10",), nist=("AC-6",), detect=_skl_005, targets=("claude-code-hooks",)),
     make_rule("SW-SKL-006", TITLES["SW-SKL-006"], "medium", "skill", owasp=("ASI10",), nist=("AC-6",), detect=_skl_006, targets=("claude-code-hooks",)),
-    make_rule("SW-SKL-007", TITLES["SW-SKL-007"], "high", "skill", owasp=("ASI04",), nist=("SR-3",), detect=_skl_007, targets=("claude-code-hooks", "kong")),
+    make_rule("SW-SKL-007", TITLES["SW-SKL-007"], "high", "skill", owasp=("ASI04", "MCP04"), nist=("SR-3",), detect=_skl_007, targets=("claude-code-hooks", "kong")),
     make_rule("SW-SKL-008", TITLES["SW-SKL-008"], "critical", "skill", owasp=("ASI10",), nist=("SC-7",), detect=_skl_008, malicious=True, targets=("claude-code-hooks", "kong")),
     make_rule("SW-SKL-009", TITLES["SW-SKL-009"], "medium", "skill", owasp=("ASI04", "MCP04"), nist=("SR-3",), detect=_skl_009),
     make_rule("SW-SKL-010", TITLES["SW-SKL-010"], "medium", "skill", owasp=("ASI04",), nist=("SR-3",), detect=_skl_010),

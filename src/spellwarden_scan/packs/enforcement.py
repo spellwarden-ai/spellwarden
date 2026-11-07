@@ -77,8 +77,8 @@ ENFORCEMENT_RULES: tuple[EnforcementRule, ...] = (
           "the deadline) with no open critical or high finding", "medium",
           owasp=("ASI04",), nist=("SR-3",), targets=("registry",), enforced_by=("registry",)),
     _rule("SW-OB-008", "Emit an audit record for every tool call", "low",
-          owasp=(), nist=("AU-2",), targets=("claude-code-hooks", "kong", "zuplo", "agentcore-policy", "cloudflare-egress"),
-          enforced_by=()),
+          owasp=("MCP08",), nist=("AU-2",),
+          targets=("claude-code-hooks", "kong", "zuplo", "agentcore-policy", "cloudflare-egress"), enforced_by=()),
 )
 ENFORCEMENT_IDS: tuple[str, ...] = tuple(rule.id for rule in ENFORCEMENT_RULES)
 

@@ -14,8 +14,8 @@ def test_the_organisation_nist_list_is_the_one_of_1_2_x():
 
 
 def test_the_baseline_only_tags_are_exactly_the_tags_added_since_1_2_x():
-    assert BASELINE_ONLY_TAGS == {"ASI02", "ASI03", "ASI05", "ASI07", "ASI09", "MCP02", "MCP03", "MCP04", "MCP06", "MCP07", "MCP09",
-                                  "SC-8", "SI-3", "SI-7", "CM-7"}
+    assert BASELINE_ONLY_TAGS == {"ASI02", "ASI03", "ASI05", "ASI07", "ASI09", "MCP02", "MCP03", "MCP04", "MCP06", "MCP07", "MCP08",
+                                  "MCP09", "SC-8", "SI-3", "SI-7", "CM-7"}
     assert BASELINE_ONLY_TAGS <= set(ALLOWED_OWASP) | set(ALLOWED_NIST)
 
 

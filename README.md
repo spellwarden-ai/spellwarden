@@ -71,13 +71,13 @@ Ids are `SW-SKL-NNN` (skill packages), `SW-MCP-NNN` (probed MCP servers), `SW-CF
 <!-- rules:start -->
 | Id | Title | Severity | OWASP | NIST |
 |---|---|---|---|---|
-| SW-SKL-001 | Prompt-injection phrases in skill instructions | high | ASI01, MCP06 | SI-10 |
-| SW-SKL-002 | Hidden text: zero-width or bidirectional control characters | high | ASI01, MCP06 | SI-10 |
+| SW-SKL-001 | Prompt-injection phrases in skill instructions | high | ASI01 | SI-10 |
+| SW-SKL-002 | Hidden text: zero-width or bidirectional control characters | high | ASI01 | SI-10 |
 | SW-SKL-003 | Instructions to skip approvals or disable hooks | high | ASI10 | AC-6 |
 | SW-SKL-004 | Encoded payload decoded and executed (malicious indicator) | critical | ASI04 | SR-3 |
 | SW-SKL-005 | Writes to agent configuration | high | ASI10 | AC-6 |
 | SW-SKL-006 | Destructive command without a confirmation step | medium | ASI10 | AC-6 |
-| SW-SKL-007 | Remote script piped to a shell | high | ASI04 | SR-3 |
+| SW-SKL-007 | Remote script piped to a shell | high | ASI04, MCP04 | SR-3 |
 | SW-SKL-008 | Sends local file contents to an external host (malicious indicator) | critical | ASI10 | SC-7 |
 | SW-SKL-009 | Unpinned dependency install | medium | ASI04, MCP04 | SR-3 |
 | SW-SKL-010 | Bundled binary or executable file | medium | ASI04 | SR-3 |
@@ -99,11 +99,11 @@ Ids are `SW-SKL-NNN` (skill packages), `SW-MCP-NNN` (probed MCP servers), `SW-CF
 | SW-MCP-006 | Protocol sessions (Mcp-Session-Id) in use | medium | ASI04 | SR-3 |
 | SW-MCP-007 | Requires the initialize handshake; no server/discover | medium | ASI04 | SR-3 |
 | SW-MCP-008 | Uses deprecated Roots, Sampling or Logging | medium | ASI04 | SR-3 |
-| SW-MCP-009 | Endpoint not served over HTTPS | high | MCP01 | SC-7 |
+| SW-MCP-009 | Endpoint not served over HTTPS | high |  | SC-7 |
 | SW-MCP-010 | No protected resource metadata, or issuer not validated | medium | MCP07 | IA-5 |
 | SW-MCP-011 | Tool description contains instruction-like text | high | ASI01, MCP03 | SI-10 |
-| SW-CFG-001 | Remote MCP server over plain HTTP | high | MCP01 | SC-7 |
-| SW-CFG-002 | Credential written into an MCP server configuration | critical | MCP01 | IA-5 |
+| SW-CFG-001 | Remote MCP server over plain HTTP | high |  | SC-7 |
+| SW-CFG-002 | Credential written into an MCP server configuration | critical | MCP01, MCP07 | IA-5 |
 | SW-CFG-003 | MCP server launched from an unpinned package | medium | ASI04, MCP04 | SR-3 |
 | SW-CFG-004 | MCP server at a raw IP address or behind a URL shortener | medium | ASI10 | SC-7 |
 | SW-CFG-005 | Hook pipes remote content to a shell | high | ASI04 | SR-3 |
@@ -111,7 +111,7 @@ Ids are `SW-SKL-NNN` (skill packages), `SW-MCP-NNN` (probed MCP servers), `SW-CF
 | SW-CFG-007 | Hook decodes and runs an encoded payload (malicious indicator) | critical | ASI04 | SR-3 |
 | SW-CFG-008 | Settings switch off approval prompts | high | ASI10 | AC-6 |
 | SW-CFG-009 | Marketplace plugin source not pinned to a commit | medium | ASI04, MCP04 | SR-3 |
-| SW-CFG-010 | Literal value under a secret name in an MCP server configuration | high | MCP01 | IA-5 |
+| SW-CFG-010 | Literal value under a secret name in an MCP server configuration | high | MCP01, MCP07 | IA-5 |
 | SW-CFG-012 | MCP server configured to approve every tool call automatically | high | ASI02 | AC-6, CM-7 |
 | SW-CFG-013 | Database or cluster MCP server with write access although a read-only mode exists | high | ASI03, MCP02 | AC-3, AC-6 |
 | SW-REG-001 | Skill package not admitted in the organisation's private registry | high | ASI04 | SR-3 |
@@ -130,7 +130,7 @@ Ids are `SW-SKL-NNN` (skill packages), `SW-MCP-NNN` (probed MCP servers), `SW-CF
 | SW-A2A-011 | Agent card signature is malformed or uses a refused algorithm | high | ASI07 | SI-7 |
 | SW-A2A-012 | Agent card is not signed | low | ASI07 | SI-7 |
 | SW-A2A-013 | Signing key not bound to the card's host | medium | ASI07 | SI-7 |
-| SW-A2A-014 | Agent card text contains injected instructions or hidden characters | high | ASI01, MCP06 | SI-10 |
+| SW-A2A-014 | Agent card text contains injected instructions or hidden characters | high | ASI01 | SI-10 |
 | SW-A2A-015 | Credential in the agent card | critical | ASI03 | IA-5 |
 | SW-A2A-016 | Agent card fetched through a redirect to another host | medium | ASI07 | SC-8 |
 | SW-A2A-017 | Agent card signed with a shared secret that only the agent can check | medium | ASI07 | SI-7 |

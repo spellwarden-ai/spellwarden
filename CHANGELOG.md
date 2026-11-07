@@ -8,31 +8,37 @@ and accepted findings carry over. Only the tags change: in `spellwarden rules`, 
 descriptors' `tags` (which GitHub code scanning shows) and `spellwarden rules --format json`.
 
 Until 1.9.0 a rule could be tagged only MCP01, MCP02 or MCP10, so rules whose subject is another entry carried the nearest
-one allowed. The baseline may now also use MCP03, MCP04, MCP06, MCP07 and MCP09. Each tag below follows the entry's
+one allowed. The baseline may now also use MCP03, MCP04, MCP06, MCP07, MCP08 and MCP09. Each tag below follows the entry's
 description at github.com/OWASP/www-project-mcp-top-10, read on 7 November 2026; `tests/test_owasp_mcp_tags.py` pins the
 whole map.
 
 - MCP03 Tool Poisoning: `SW-MCP-011` "Tool description contains instruction-like text" (was MCP10).
 - MCP04 Software Supply Chain Attacks & Dependency Tampering, added: `SW-CFG-003` (MCP server launched from an unpinned
-  package), `SW-CFG-009` (marketplace plugin source not pinned to a commit), `SW-SKL-009` (unpinned dependency install) and
-  `SW-SKL-037` (executable downloaded from a moving reference).
-- MCP06, instructions embedded in context the agent retrieves: `SW-SKL-001` and `SW-SKL-002` (injected and hidden
-  instructions in a skill) and `SW-A2A-014` (in an agent card), added; `SW-SKL-019` (external content fetched into context
-  without an allowlist), was MCP10. The enforcement rule `SW-GW-004` (prompt-injection deny patterns on prompts and tool
-  results) moves from MCP10 to MCP06 too. OWASP's pages name MCP06 both "Prompt Injection via Contextual Payloads" and
-  "Intent Flow Subversion"; the id is the same.
+  package), `SW-CFG-009` (marketplace plugin source not pinned to a commit), `SW-SKL-007` (remote script piped to a
+  shell), `SW-SKL-009` (unpinned dependency install) and `SW-SKL-037` (executable downloaded from a moving reference).
+- MCP06, instructions embedded in context the agent retrieves: `SW-SKL-019` (external content fetched into context
+  without an allowlist, was MCP10) and the enforcement rule `SW-GW-004` (prompt-injection deny patterns on prompts and
+  tool results, was MCP10). The rules on a skill's own text and on agent cards (`SW-SKL-001`, `SW-SKL-002`, `SW-A2A-014`)
+  read no MCP resource or tool output and keep ASI01 only. OWASP's pages name MCP06 both "Prompt Injection via
+  Contextual Payloads" and "Intent Flow Subversion"; the id is the same.
 - MCP07 Insufficient Authentication & Authorization: `SW-MCP-001` (lists tools without authentication), `SW-MCP-003`
   (OAuth dynamic client registration) and `SW-MCP-010` (no protected resource metadata, or issuer not validated), all
-  were MCP01; `SW-MCP-002` (static key instead of OAuth) keeps MCP01 and adds MCP07, which names static credentials. The
-  enforcement rule `SW-GW-003` (deny MCP upstreams without OAuth) moves from MCP01 to MCP07.
+  were MCP01. `SW-MCP-002` (static key instead of OAuth), `SW-CFG-002` and `SW-CFG-010` (a credential written into an
+  MCP server configuration) keep MCP01 and add MCP07, whose description names "static credentials in configuration
+  files". The enforcement rule `SW-GW-003` (deny MCP upstreams without OAuth) moves from MCP01 to MCP07.
+- MCP08 Lack of Audit and Telemetry: the enforcement rule `SW-OB-008` "Emit an audit record for every tool call" (had no
+  tag).
 - MCP09 Shadow MCP Servers: `SW-REG-002` "MCP server not admitted in the organisation's private registry" (was MCP10).
+- Removed: MCP01 from `SW-MCP-009` (endpoint not served over HTTPS) and `SW-CFG-001` (remote MCP server over plain HTTP).
+  No 2025 entry is about transport, and both rules fire whether or not a credential is sent; they keep NIST SC-7.
 - No rule is tagged MCP10 "Context Injection & Over-Sharing" any more: no rule detects context shared across sessions,
   users or agents.
 
 An organisation rule still maps only to the tags of 1.2.x (`ASI01`, `ASI04`, `ASI10`, `MCP01`, `MCP10`): a pack that used
-a newer tag would be refused by every older scanner, and the pack schema is frozen. The five new tags join
-`BASELINE_ONLY_TAGS`. Packs name enforcement rules by id only, so a pack built by 1.9.0 and one built by 1.9.1 are read the
-same by both.
+a newer tag would be refused by every older scanner, and the pack schema is frozen. The six new tags join
+`BASELINE_ONLY_TAGS`. Packs name enforcement rules by id only, so 1.9.0 reads a pack built by 1.9.1 and the reverse; in
+connected mode 1.9.0 shows the notice `policy_newer_than_scanner` for a pack of rules version 2026.11.3, as for any newer
+rules version, without refusing it or changing the exit code. The baseline pack's sha256 changes with its rules version.
 
 ## 1.9.0 (2026-11-07)
 

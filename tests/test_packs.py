@@ -65,7 +65,7 @@ def test_the_eight_enforcement_rules_of_the_spec_table():
         "SW-EG-005": ("medium", ("ASI10",), ("SC-7",), ("cloudflare-egress",), ()),
         "SW-GW-006": ("high", ("ASI10",), ("AC-6",), ("agentcore-policy", "claude-code-hooks"), ("claude-code-hooks",)),
         "SW-RG-007": ("medium", ("ASI04",), ("SR-3",), ("registry",), ("registry",)),
-        "SW-OB-008": ("low", (), ("AU-2",), ("claude-code-hooks", "kong", "zuplo", "agentcore-policy", "cloudflare-egress"), ()),
+        "SW-OB-008": ("low", ("MCP08",), ("AU-2",), ("claude-code-hooks", "kong", "zuplo", "agentcore-policy", "cloudflare-egress"), ()),
     }
     assert ENFORCEMENT_IDS == ("SW-HK-001", "SW-HK-002", "SW-GW-003", "SW-GW-004", "SW-EG-005", "SW-GW-006",
                                "SW-RG-007", "SW-OB-008")

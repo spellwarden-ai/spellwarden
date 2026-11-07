@@ -140,8 +140,8 @@ GROWTH_IDS = ("SW-CFG-012", "SW-CFG-013", "SW-SKL-032", "SW-SKL-036", "SW-SKL-03
 ADDED_IDS = (*REGISTRY_IDS, *A2A_IDS, *GROWTH_IDS)
 # 1.9.1 retagged these 1.0.0 rules to the OWASP MCP Top 10 entry each detects (tests/test_owasp_mcp_tags.py pins the new
 # tags), so the `MCP` tags of their SARIF descriptors are dropped on both sides; every other tag must still match.
-RETAGGED_1_9_1 = ("SW-SKL-001", "SW-SKL-002", "SW-SKL-009", "SW-SKL-019", "SW-MCP-001", "SW-MCP-002", "SW-MCP-003",
-                  "SW-MCP-010", "SW-MCP-011", "SW-CFG-003", "SW-CFG-009")
+RETAGGED_1_9_1 = ("SW-SKL-007", "SW-SKL-009", "SW-SKL-019", "SW-MCP-001", "SW-MCP-002", "SW-MCP-003", "SW-MCP-009",
+                  "SW-MCP-010", "SW-MCP-011", "SW-CFG-001", "SW-CFG-002", "SW-CFG-003", "SW-CFG-009", "SW-CFG-010")
 
 
 def _normalised_sarif(text: str, *, produced: bool) -> dict:

@@ -282,7 +282,7 @@ RULES: tuple[Rule, ...] = (
     make_rule("SW-MCP-006", TITLES["SW-MCP-006"], "medium", "mcp", owasp=("ASI04",), nist=("SR-3",), detect=_mcp_006),
     make_rule("SW-MCP-007", TITLES["SW-MCP-007"], "medium", "mcp", owasp=("ASI04",), nist=("SR-3",), detect=_mcp_007),
     make_rule("SW-MCP-008", TITLES["SW-MCP-008"], "medium", "mcp", owasp=("ASI04",), nist=("SR-3",), detect=_mcp_008),
-    make_rule("SW-MCP-009", TITLES["SW-MCP-009"], "high", "mcp", owasp=("MCP01",), nist=("SC-7",), detect=_mcp_009, targets=("kong", "registry")),
+    make_rule("SW-MCP-009", TITLES["SW-MCP-009"], "high", "mcp", owasp=(), nist=("SC-7",), detect=_mcp_009, targets=("kong", "registry")),
     make_rule("SW-MCP-010", TITLES["SW-MCP-010"], "medium", "mcp", owasp=("MCP07",), nist=("IA-5",), detect=_mcp_010, targets=("registry",)),
     make_rule("SW-MCP-011", TITLES["SW-MCP-011"], "high", "mcp", owasp=("ASI01", "MCP03"), nist=("SI-10",), detect=_mcp_011, targets=("kong",)),
 )
