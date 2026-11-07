@@ -416,3 +416,13 @@ def test_the_empty_root_and_none_keep_every_entry_and_every_rule():
         with pytest.raises(ArchiveError) as caught:
             unpack_zip(raw_zip(entries + [("a/../b", b"c")]), root=root)
         assert caught.value.code == "unsafe_path"
+
+
+@pytest.mark.parametrize("root", ["", None])
+def test_an_unsafe_directory_in_a_directories_only_archive_is_unsafe_path_not_empty(root):
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("../evil/", b"")
+    with pytest.raises(ArchiveError) as caught:
+        unpack_zip(buffer.getvalue(), root=root)
+    assert caught.value.code == "unsafe_path"

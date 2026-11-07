@@ -143,8 +143,6 @@ def unpack_zip(data: bytes, limits: ArchiveLimits = DEFAULT_LIMITS, *, with_mode
         # `NotImplementedError` (a `RuntimeError`) for an unsupported "version needed to extract" in the central directory.
         raise ArchiveError("bad_zip", str(exc)) from exc
     all_files = [info for info in infos if not info.is_dir()]
-    if not all_files:
-        raise ArchiveError("empty")
     top = _strip_common_top([info.filename for info in all_files])
 
     def stripped(name: str) -> str:
@@ -160,6 +158,8 @@ def unpack_zip(data: bytes, limits: ArchiveLimits = DEFAULT_LIMITS, *, with_mode
     for info in directory_infos:
         if _unsafe(info.filename.rstrip("/"), limits):
             raise ArchiveError("unsafe_path", info.filename)
+    if not entries:  # no file at all: checked after the directory names, as it always was
+        raise ArchiveError("empty")
     directories = [info.filename.rstrip("/") for info in directory_infos]
     if len(entries) > limits.max_files:
         raise ArchiveError("too_many_files", str(len(entries)))
