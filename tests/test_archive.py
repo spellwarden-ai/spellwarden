@@ -236,6 +236,25 @@ def test_a_name_that_lands_under_the_root_on_some_file_system_counts_as_under_it
             unpack_zip(raw_zip([("skill/SKILL.md", b"a"), (other, b"b"), ("README.md", b"r")]), root="skill")
 
 
+@pytest.mark.parametrize("other", ["skill\\x", "/skill/x", "C:skill/x", "C:/skill/x", "C:\\skill\\x", "\\skill/x"])
+def test_a_backslash_absolute_or_drive_name_that_an_extractor_lands_under_the_root_is_refused(other):
+    """Review r0:F1: Windows extractors read `\\` as `/` and drop a leading `/` or a drive, so these are written into
+    `skill/`; they are under the root and refused, not skipped unread."""
+    for top in (False, True):
+        entries = [("skill/SKILL.md", b"a"), (other, b"b"), ("README.md", b"r")]
+        if top:
+            entries = [("repo-main/" + name if not name.startswith(("/", "C:", "\\")) else name, content)
+                       for name, content in entries]
+        with pytest.raises(ArchiveError) as caught:
+            unpack_zip(raw_zip(entries), root="skill")
+        assert caught.value.code == "unsafe_path"
+
+
+def test_a_backslash_name_outside_the_root_is_still_ignored():
+    files = unpack_zip(raw_zip([("skill/SKILL.md", b"a"), ("other\\x", b"b"), ("/other/y", b"c")]), root="skill")
+    assert files == {"skill/SKILL.md": b"a"}
+
+
 def test_under_the_root_case_and_windows_names_are_refused_but_sharp_s_is_not_ss():
     with pytest.raises(ArchiveError):
         unpack_zip(raw_zip([("skill/SKILL.md", b"a"), ("skill/skill.md", b"b"), ("README.md", b"r")]), root="skill")

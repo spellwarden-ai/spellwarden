@@ -79,10 +79,14 @@ def _under(name: str, root: str | None) -> bool:
 def _in_scope(name: str, scope: str) -> bool:
     """Whether an entry's stripped `name` is under the non-empty `scope`, decided conservatively: it is under if the
     name itself, its `normpath` (`other/../skill/x`) or its platform key (`Skill/x`, `skill./x`) equals the scope or
-    starts with `scope/`. A name that might land under the scope on any reading keeps every rule."""
+    starts with `scope/`, and so does the name as a Windows extractor reads it (`\\` as `/`, no leading `/`, no drive:
+    `skill\\x`, `/skill/x`, `C:skill/x`). A name that might land under the scope on any reading keeps every rule."""
     scope_key = _platform_key(scope)
-    normal = posixpath.normpath(name)
-    candidates = ((name, scope), (normal, scope), (_platform_key(name), scope_key), (_platform_key(normal), scope_key))
+    extracted = _DRIVE.sub("", name.replace("\\", "/").lstrip("/")).lstrip("/")
+    candidates = []
+    for variant in (name, posixpath.normpath(name), extracted, posixpath.normpath(extracted)):
+        candidates.append((variant, scope))
+        candidates.append((_platform_key(variant), scope_key))
     return any(candidate == wanted or candidate.startswith(wanted + "/") for candidate, wanted in candidates)
 
 
@@ -126,8 +130,9 @@ def unpack_zip(data: bytes, limits: ArchiveLimits = DEFAULT_LIMITS, *, with_mode
     declared and real sizes, symlinks and special files, unsafe names, collisions). An entry outside it is skipped:
     never opened, never returned, never reported as executable. An entry counts as under the root when its stripped
     name, its `normpath` or its platform key equals the root or starts with `root/`, so `other/../skill/x` and
-    `Skill/run.sh` for `skill` keep every rule. No file under the root is `empty`. `root=""` and `root=None`
-    read the whole archive as before."""
+    `Skill/run.sh` for `skill` keep every rule, and so does a name read the way a Windows extractor does (`skill\\x`,
+    `/skill/x`, `C:skill/x`), which is then refused as `unsafe_path`. No file under the root is `empty`.
+    `root=""` and `root=None` read the whole archive as before."""
     scope = None if root is None else root.strip("/")
     if len(data) > limits.max_compressed:
         raise ArchiveError("too_large", "compressed size over the limit")
