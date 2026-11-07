@@ -216,14 +216,20 @@ def unpack_zip(data: bytes, limits: ArchiveLimits = DEFAULT_LIMITS, *, with_mode
 
 def _check_symlink_paths(infos: list[zipfile.ZipInfo], stripped) -> None:
     """With a non-empty root, a symlink outside it is allowed, but not one that another entry's path passes through
-    (`link` -> `skill` and `link/evil.sh`): an extractor that follows the link it has just written puts that file under
-    the root unscanned. Header metadata only; nothing is opened."""
-    links = {stripped(info.filename.rstrip("/")) for info in infos if not info.is_dir() and _is_special(info)}
-    if not links:
+    (`link` -> `skill` and `link/evil.sh`, also `Link` and `link/evil.sh`) or that another entry shares its name with
+    (`link` written again as a file): an extractor that follows the link it has just written puts that file under the
+    root unscanned. Header metadata only; nothing is opened."""
+    special = [info for info in infos if not info.is_dir() and _is_special(info)]
+    if not special:
         return
+    # Compared on the platform key, so `Link` and `link/evil.sh` meet as a case-insensitive extractor merges them.
+    links = {_platform_key(stripped(info.filename.rstrip("/"))) for info in special}
     for info in infos:
-        parts = stripped(info.filename.rstrip("/")).split("/")
-        for depth in range(1, len(parts) + info.is_dir()):  # a directory entry `link/` is the link's own path
+        parts = _platform_key(stripped(info.filename.rstrip("/"))).split("/")
+        # Every proper prefix; and the entry's own path unless it is the symlink itself: a file written after a link
+        # of the same name is written through it, and a directory entry `link/` is the link's own path.
+        own = 0 if any(info is link for link in special) else 1
+        for depth in range(1, len(parts) + own):
             if "/".join(parts[:depth]) in links:
                 raise ArchiveError("unsafe_path", f"through a symlink {info.filename}")
 

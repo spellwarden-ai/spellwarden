@@ -236,7 +236,11 @@ def test_a_name_that_lands_under_the_root_on_some_file_system_counts_as_under_it
             unpack_zip(raw_zip([("skill/SKILL.md", b"a"), (other, b"b"), ("README.md", b"r")]), root="skill")
 
 
-@pytest.mark.parametrize("other", ["skill\\x", "/skill/x", "C:skill/x", "C:/skill/x", "C:\\skill\\x", "\\skill/x"])
+_WINDOWS_SEP = pytest.mark.skipif(os.sep == "\\", reason="zipfile reads a backslash as `/` on Windows")
+
+
+@pytest.mark.parametrize("other", [pytest.param("skill\\x", marks=_WINDOWS_SEP), "/skill/x", "C:skill/x", "C:/skill/x",
+                                   "C:\\skill\\x", "\\skill/x"])
 def test_a_backslash_absolute_or_drive_name_that_an_extractor_lands_under_the_root_is_refused(other):
     """Review r0:F1: Windows extractors read `\\` as `/` and drop a leading `/` or a drive, so these are written into
     `skill/`; they are under the root and refused, not skipped unread."""
@@ -250,7 +254,8 @@ def test_a_backslash_absolute_or_drive_name_that_an_extractor_lands_under_the_ro
         assert caught.value.code == "unsafe_path"
 
 
-@pytest.mark.parametrize("other", ["other\\x", "/other/y", "C:other/y", "\\\\srv\\share\\other\\x"])
+@pytest.mark.parametrize("other", [pytest.param("other\\x", marks=_WINDOWS_SEP), "/other/y", "C:other/y",
+                                   "\\\\srv\\share\\other\\x"])
 def test_a_backslash_absolute_drive_or_unc_name_anywhere_is_refused_under_a_scoped_root(other):
     """Fail closed (review r1:F1): an extractor may land such a name anywhere, the scanned root included."""
     with pytest.raises(ArchiveError) as caught:
@@ -360,8 +365,10 @@ def test_an_over_long_directory_entry_outside_the_root_is_ignored_and_a_dot_dot_
 
 
 def _with_symlink(link_name: str, target: bytes, extra: list[tuple[str, bytes]]) -> bytes:
+    import warnings
     buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, "w") as zf:
+    with warnings.catch_warnings(), zipfile.ZipFile(buffer, "w") as zf:
+        warnings.simplefilter("ignore")  # `zipfile` warns about a name written twice (the link and a file of that name)
         zf.writestr("skill/SKILL.md", b"a")
         zf.writestr("README.md", b"r")
         link = zipfile.ZipInfo(link_name)
@@ -378,6 +385,16 @@ def test_an_entry_whose_path_passes_through_a_symlink_outside_the_root_is_refuse
     follows the link it has just written."""
     with pytest.raises(ArchiveError) as caught:
         unpack_zip(_with_symlink("link", b"skill", [(through, b"" if through.endswith("/") else b"x")]), root="skill")
+    assert caught.value.code == "unsafe_path"
+
+
+@pytest.mark.parametrize("link, other", [("Link", "link/evil.sh"), ("vendor/LINK", "Vendor/link/evil.sh"),
+                                         ("link", "link"), ("link", "LINK")])
+def test_a_folded_path_through_a_symlink_or_a_second_entry_named_like_it_is_refused(link, other):
+    """A case-insensitive extractor writes `link/evil.sh` through `Link`; a regular file written after a symlink of the
+    same name is written through the link into its target."""
+    with pytest.raises(ArchiveError) as caught:
+        unpack_zip(_with_symlink(link, b"skill/SKILL.md", [(other, b"x")]), root="skill")
     assert caught.value.code == "unsafe_path"
 
 
