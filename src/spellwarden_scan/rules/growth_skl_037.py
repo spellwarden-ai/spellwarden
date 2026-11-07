@@ -45,7 +45,7 @@ from spellwarden_scan.package import SHELL_LANGUAGES, CodeBlock, Package, TextFi
 RULE_ID = "SW-SKL-037"
 TITLE = "Executable downloaded from a moving reference and run without an integrity check"
 SEVERITY = "medium"
-OWASP = ("ASI04", "ASI05")
+OWASP = ("ASI04", "ASI05", "MCP04")
 NIST = ("SR-3", "SI-7")
 MALICIOUS = False
 

@@ -36,7 +36,7 @@ def test_module_constants():
     assert RULE_ID == "SW-SKL-037"
     assert TITLE == "Executable downloaded from a moving reference and run without an integrity check"
     assert SEVERITY == "medium"
-    assert OWASP == ("ASI04", "ASI05")
+    assert OWASP == ("ASI04", "ASI05", "MCP04")
     assert NIST == ("SR-3", "SI-7")
     assert MALICIOUS is False
 

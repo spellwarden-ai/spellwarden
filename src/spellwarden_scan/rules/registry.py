@@ -14,7 +14,7 @@ RULES: tuple[Rule, ...] = (
     make_rule("SW-REG-001", "Skill package not admitted in the organisation's private registry", "high", "registry",
               owasp=("ASI04",), nist=("SR-3",), detect=_no_detector),
     make_rule("SW-REG-002", "MCP server not admitted in the organisation's private registry", "high", "registry",
-              owasp=("MCP10",), nist=("SR-3",), detect=_no_detector),
+              owasp=("MCP09",), nist=("SR-3",), detect=_no_detector),
     make_rule("SW-REG-003", "Agent content the private registry cannot judge", "high", "registry",
               owasp=("ASI04",), nist=("SR-3",), detect=_no_detector),
 )

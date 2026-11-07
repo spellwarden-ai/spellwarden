@@ -65,9 +65,9 @@ ENFORCEMENT_RULES: tuple[EnforcementRule, ...] = (
           owasp=("MCP01",), nist=("IA-5",), targets=("claude-code-hooks", "cloudflare-egress"),
           enforced_by=("claude-code-hooks",)),
     _rule("SW-GW-003", "Deny MCP upstreams without OAuth", "high",
-          owasp=("MCP01",), nist=("AC-3",), targets=("kong", "zuplo", "agentcore-policy"), enforced_by=()),
+          owasp=("MCP07",), nist=("AC-3",), targets=("kong", "zuplo", "agentcore-policy"), enforced_by=()),
     _rule("SW-GW-004", "Prompt-injection deny patterns on prompts and tool results", "medium",
-          owasp=("ASI01", "MCP10"), nist=("SI-10",), targets=("kong", "zuplo"), enforced_by=("kong", "zuplo")),
+          owasp=("ASI01", "MCP06"), nist=("SI-10",), targets=("kong", "zuplo"), enforced_by=("kong", "zuplo")),
     _rule("SW-EG-005", "Sandbox egress only to registry-admitted hosts", "medium",
           owasp=("ASI10",), nist=("SC-7",), targets=("cloudflare-egress",), enforced_by=()),
     _rule("SW-GW-006", "Destructive tool verbs require human approval", "high",
@@ -77,8 +77,8 @@ ENFORCEMENT_RULES: tuple[EnforcementRule, ...] = (
           "the deadline) with no open critical or high finding", "medium",
           owasp=("ASI04",), nist=("SR-3",), targets=("registry",), enforced_by=("registry",)),
     _rule("SW-OB-008", "Emit an audit record for every tool call", "low",
-          owasp=(), nist=("AU-2",), targets=("claude-code-hooks", "kong", "zuplo", "agentcore-policy", "cloudflare-egress"),
-          enforced_by=()),
+          owasp=("MCP08",), nist=("AU-2",),
+          targets=("claude-code-hooks", "kong", "zuplo", "agentcore-policy", "cloudflare-egress"), enforced_by=()),
 )
 ENFORCEMENT_IDS: tuple[str, ...] = tuple(rule.id for rule in ENFORCEMENT_RULES)
 

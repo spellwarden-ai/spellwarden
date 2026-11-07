@@ -77,45 +77,45 @@ Ids are `SW-SKL-NNN` (skill packages), `SW-MCP-NNN` (probed MCP servers), `SW-CF
 | SW-SKL-004 | Encoded payload decoded and executed (malicious indicator) | critical | ASI04 | SR-3 |
 | SW-SKL-005 | Writes to agent configuration | high | ASI10 | AC-6 |
 | SW-SKL-006 | Destructive command without a confirmation step | medium | ASI10 | AC-6 |
-| SW-SKL-007 | Remote script piped to a shell | high | ASI04 | SR-3 |
+| SW-SKL-007 | Remote script piped to a shell | high | ASI04, MCP04 | SR-3 |
 | SW-SKL-008 | Sends local file contents to an external host (malicious indicator) | critical | ASI10 | SC-7 |
-| SW-SKL-009 | Unpinned dependency install | medium | ASI04 | SR-3 |
+| SW-SKL-009 | Unpinned dependency install | medium | ASI04, MCP04 | SR-3 |
 | SW-SKL-010 | Bundled binary or executable file | medium | ASI04 | SR-3 |
 | SW-SKL-011 | Hard-coded credential in the package | critical | MCP01 | IA-5 |
 | SW-SKL-012 | Reads a credential file path without stating purpose | medium | ASI04 | IA-5 |
 | SW-SKL-013 | Network calls to raw IP addresses or URL shorteners | medium | ASI10 | SC-7 |
 | SW-SKL-014 | Obfuscated script code | medium | ASI04 | SR-3 |
 | SW-SKL-015 | Frontmatter missing or invalid (name, description) | low | ASI04 | SR-3 |
-| SW-SKL-019 | Fetches external URL content into context without an allowlist | medium | ASI01, MCP10 | SI-10 |
+| SW-SKL-019 | Fetches external URL content into context without an allowlist | medium | ASI01, MCP06 | SI-10 |
 | SW-SKL-031 | Missing license and version metadata | low | ASI04 | SR-3 |
 | SW-SKL-032 | Instructions lure the user into running a password-protected download or a pasted script (malicious indicator) | critical | ASI04, ASI09 | SR-3, SI-3 |
 | SW-SKL-036 | Frontmatter pre-approves an unscoped shell or interpreter | medium | ASI02, ASI03 | AC-6, CM-7 |
-| SW-SKL-037 | Executable downloaded from a moving reference and run without an integrity check | medium | ASI04, ASI05 | SR-3, SI-7 |
-| SW-MCP-001 | Server lists tools without authentication | high | MCP01 | AC-3 |
-| SW-MCP-002 | Static key authentication instead of OAuth | medium | MCP01 | IA-5 |
-| SW-MCP-003 | OAuth dynamic client registration (deprecated; use Client ID Metadata Documents) | medium | MCP01 | IA-5 |
+| SW-SKL-037 | Executable downloaded from a moving reference and run without an integrity check | medium | ASI04, ASI05, MCP04 | SR-3, SI-7 |
+| SW-MCP-001 | Server lists tools without authentication | high | MCP07 | AC-3 |
+| SW-MCP-002 | Static key authentication instead of OAuth | medium | MCP01, MCP07 | IA-5 |
+| SW-MCP-003 | OAuth dynamic client registration (deprecated; use Client ID Metadata Documents) | medium | MCP07 | IA-5 |
 | SW-MCP-004 | HTTP+SSE transport (deprecated) | medium | ASI04 | SR-3 |
 | SW-MCP-005 | Spec version older than 2026-07-28 | low | ASI04 | SR-3 |
 | SW-MCP-006 | Protocol sessions (Mcp-Session-Id) in use | medium | ASI04 | SR-3 |
 | SW-MCP-007 | Requires the initialize handshake; no server/discover | medium | ASI04 | SR-3 |
 | SW-MCP-008 | Uses deprecated Roots, Sampling or Logging | medium | ASI04 | SR-3 |
-| SW-MCP-009 | Endpoint not served over HTTPS | high | MCP01 | SC-7 |
-| SW-MCP-010 | No protected resource metadata, or issuer not validated | medium | MCP01 | IA-5 |
-| SW-MCP-011 | Tool description contains instruction-like text | high | ASI01, MCP10 | SI-10 |
-| SW-CFG-001 | Remote MCP server over plain HTTP | high | MCP01 | SC-7 |
-| SW-CFG-002 | Credential written into an MCP server configuration | critical | MCP01 | IA-5 |
-| SW-CFG-003 | MCP server launched from an unpinned package | medium | ASI04 | SR-3 |
+| SW-MCP-009 | Endpoint not served over HTTPS | high |  | SC-7 |
+| SW-MCP-010 | No protected resource metadata, or issuer not validated | medium | MCP07 | IA-5 |
+| SW-MCP-011 | Tool description contains instruction-like text | high | ASI01, MCP03 | SI-10 |
+| SW-CFG-001 | Remote MCP server over plain HTTP | high |  | SC-7 |
+| SW-CFG-002 | Credential written into an MCP server configuration | critical | MCP01, MCP07 | IA-5 |
+| SW-CFG-003 | MCP server launched from an unpinned package | medium | ASI04, MCP04 | SR-3 |
 | SW-CFG-004 | MCP server at a raw IP address or behind a URL shortener | medium | ASI10 | SC-7 |
 | SW-CFG-005 | Hook pipes remote content to a shell | high | ASI04 | SR-3 |
 | SW-CFG-006 | Hook sends local file contents to an external host (malicious indicator) | critical | ASI10 | SC-7 |
 | SW-CFG-007 | Hook decodes and runs an encoded payload (malicious indicator) | critical | ASI04 | SR-3 |
 | SW-CFG-008 | Settings switch off approval prompts | high | ASI10 | AC-6 |
-| SW-CFG-009 | Marketplace plugin source not pinned to a commit | medium | ASI04 | SR-3 |
-| SW-CFG-010 | Literal value under a secret name in an MCP server configuration | high | MCP01 | IA-5 |
+| SW-CFG-009 | Marketplace plugin source not pinned to a commit | medium | ASI04, MCP04 | SR-3 |
+| SW-CFG-010 | Literal value under a secret name in an MCP server configuration | high | MCP01, MCP07 | IA-5 |
 | SW-CFG-012 | MCP server configured to approve every tool call automatically | high | ASI02 | AC-6, CM-7 |
 | SW-CFG-013 | Database or cluster MCP server with write access although a read-only mode exists | high | ASI03, MCP02 | AC-3, AC-6 |
 | SW-REG-001 | Skill package not admitted in the organisation's private registry | high | ASI04 | SR-3 |
-| SW-REG-002 | MCP server not admitted in the organisation's private registry | high | MCP10 | SR-3 |
+| SW-REG-002 | MCP server not admitted in the organisation's private registry | high | MCP09 | SR-3 |
 | SW-REG-003 | Agent content the private registry cannot judge | high | ASI04 | SR-3 |
 | SW-A2A-001 | Agent card does not follow A2A 1.0 | medium | ASI07 | SI-10 |
 | SW-A2A-002 | Agent card uses a format older than A2A 1.0 | medium | ASI07 | SI-10 |
@@ -365,7 +365,7 @@ followed by one entry that joins the nine prompt-injection patterns, `(?i:ignore
             "version": "1.0",
             "built_at": "2026-12-01T00:00:00Z",
             "engine": "<engine version>",
-            "rules_version": "2026.11.2",
+            "rules_version": "2026.11.3",
             "guard_sha256": "<sha256 of the guard file>",
             "options_sha256": "<sha256 of the canonical options>"
           },

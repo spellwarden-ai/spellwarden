@@ -26,7 +26,7 @@ def fired(p: ProbeResult) -> dict[str, str]:
 
 def test_rule_table_has_11_rules_with_the_spec_ids():
     assert [r.id for r in RULES.by_area("mcp")] == [f"SW-MCP-{n:03d}" for n in range(1, 12)]
-    assert RULES.get("SW-MCP-011").owasp_mcp == ("MCP10",) and RULES.get("SW-MCP-009").nist == ("SC-7",)
+    assert RULES.get("SW-MCP-011").owasp_mcp == ("MCP03",) and RULES.get("SW-MCP-009").nist == ("SC-7",)
     assert all(not r.malicious_indicator for r in RULES.by_area("mcp"))
 
 
