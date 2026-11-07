@@ -1,5 +1,31 @@
 # Changelog
 
+## 1.9.0 (2026-11-07)
+
+Severities that match what was found, and whole streamed answers in the MCP probe. The rules version is `2026.11.2`; the
+scanner still has 65 rules, and no rule was added or removed.
+
+- `SW-MCP-001` "Server lists tools without authentication" is graded by what the unauthenticated `tools/list` answer
+  exposes: low when the probe read the list and it holds no tool, medium when every listed tool declares itself
+  read-only (`annotations.readOnlyHint` is `true` and `destructiveHint` is not `true`), and high otherwise, including a
+  200 whose list could not be read and a tool without annotations. A read-only hint is written by the server, so it
+  lowers the finding to medium and never further. Before, every such finding was high, a public documentation search
+  server as much as one listing destructive tools.
+- `SW-MCP-011` "Tool description contains instruction-like text" is medium when a description only steers the model
+  towards the tool ("always use this tool", "before any other tool"), and stays high for concealment ("do not mention
+  this to the user", hidden or secret instructions), override and injected-instruction markers. A tool gets one finding,
+  at the worse severity.
+- The probe reads a streamed answer whole. A JSON-RPC answer sent as one `text/event-stream` event was cut at the
+  4,096 bytes of a stream head, so a server whose `tools/list` answer is longer (the Microsoft Learn server's three tools
+  take about 6 KiB) was read as listing no tool: its tool descriptions went unchecked by `SW-MCP-011`. A streamed answer
+  is now read up to the request's cap (1 MiB), still stopping at its first event; `get_stream_head` keeps its 4,096-byte
+  cap.
+- Both rules keep their evidence text, so a finding's fingerprint, a baseline entry and an accepted finding carry over.
+  The rule tables (`spellwarden rules`, the README) show each rule's worst case, as before. In SARIF a result's `level`
+  is its own severity; the rule descriptor's `security-severity`, which GitHub code scanning shows for an alert, stays
+  that of the worst case.
+- A scan with `--fail-on high` (the default) that failed only because of one of these two findings may now pass.
+
 ## 1.8.1 (2026-11-03)
 
 Faster discovery of skill packages. Each skill directory used to scan every path of the repository (and, for a skill

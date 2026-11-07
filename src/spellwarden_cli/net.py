@@ -347,8 +347,12 @@ class Fetcher:
             status = int(raw.status)
             response_headers = {str(name): str(value) for name, value in raw.getheaders()}
             content_type = next((value for name, value in response_headers.items() if name.lower() == "content-type"), None)
-            stream = head_only or is_event_stream(content_type)  # an event stream stays open: only its head is read
-            data = self._read(raw, min(max_bytes, STREAM_HEAD_MAX) if stream else max_bytes, stream, deadline=deadline,
+            # An event stream stays open: only its first event is read. A stream head (`get_stream_head`) is capped at
+            # `STREAM_HEAD_MAX`; a streamed answer to a request (a JSON-RPC answer sent as one SSE event, spec 6.6 step 2)
+            # may be as long as the caller's cap, since a tools/list answer is often longer than 4 KiB (1.9.0: the
+            # Microsoft Learn server's three tools were cut at 4,096 bytes and read as none).
+            stream = head_only or is_event_stream(content_type)
+            data = self._read(raw, min(max_bytes, STREAM_HEAD_MAX) if head_only else max_bytes, stream, deadline=deadline,
                               sock=getattr(connection, "sock", None))
         except FetchError:
             raise
