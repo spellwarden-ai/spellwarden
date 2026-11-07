@@ -195,3 +195,40 @@ def test_after_initialize_every_request_carries_the_negotiated_protocol_version(
     assert sent[3]["headers"]["Mcp-Session-Id"] == "s1"
     assert result.negotiated_version == "2025-06-18" and result.tools_source == "probe"
     assert [tool.name for tool in result.tools] == ["list_regions"] and result.unauthenticated_status == 200
+
+
+class _ListOnly:
+    """A server that answers `server/discover` and `tools/list` without authentication with `result`."""
+
+    def __init__(self, result: dict) -> None:
+        self.result = result
+
+    def post_json(self, url, body, _headers, **_options):
+        from spellwarden_cli.net import Response
+        answer = ({"supportedVersions": ["2026-07-28"], "capabilities": {"tools": {}}} if body["method"] == "server/discover"
+                  else self.result)
+        return Response(200, {"Content-Type": "application/json"}, json.dumps({"jsonrpc": "2.0", "id": body.get("id"), "result": answer}).encode(), url)
+
+    def get(self, *_args, **_kwargs):
+        raise AssertionError("no GET expected")
+
+
+def _listed(result: dict):
+    return probe(_ListOnly(result), ENDPOINT, release="test-release", now_iso="2026-10-18T10:00:00Z")
+
+
+def test_tools_complete_only_for_a_whole_list():
+    """1.9.0: SW-MCP-001 grades below high only on a list read whole: a list, no `nextCursor`, at most MAX_TOOLS entries,
+    none dropped (review r1 of the 1.9.0 change)."""
+    read_only = {"name": "search", "annotations": {"readOnlyHint": True}}
+    assert _listed({"tools": []}).tools_complete is True
+    assert _listed({"tools": [read_only]}).tools_complete is True
+    assert _listed({"tools": [], "nextCursor": ""}).tools_complete is True  # an empty cursor names no page
+    assert _listed({"tools": [], "nextCursor": "p2"}).tools_complete is False
+    assert _listed({"tools": [read_only], "nextCursor": "p2"}).tools_complete is False
+    assert _listed({}).tools_complete is False
+    assert _listed({"tools": {"search": read_only}}).tools_complete is False
+    assert _listed({"tools": [read_only, {"name": ["drop_db"], "annotations": {"destructiveHint": True}}]}).tools_complete is False
+    many = [{"name": f"t{n}", "annotations": {"readOnlyHint": True}} for n in range(probe_module.MAX_TOOLS + 1)]
+    result = _listed({"tools": many})
+    assert len(result.tools) == probe_module.MAX_TOOLS and result.tools_complete is False

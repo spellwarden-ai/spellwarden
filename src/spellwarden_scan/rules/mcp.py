@@ -6,7 +6,7 @@ import re
 from collections.abc import Iterator
 
 from spellwarden_scan.evidence import bounded_evidence, fingerprint, mask_credentials
-from spellwarden_scan.model import Finding, Location, ProbeResult
+from spellwarden_scan.model import Finding, Location, ProbeResult, ToolInfo
 from spellwarden_scan.probe import text_of
 from spellwarden_scan.probe import auth_mode_of, classify, deprecated_capabilities, initialize_only, spec_version_of, transport_of
 from spellwarden_scan.rules import Rule, make_rule
@@ -27,6 +27,17 @@ _TOOL_INJECTION = (
     re.compile(r"\bhidden\b", re.IGNORECASE),
     TOOL_INJECTION_SECRET,
 )
+# 1.9.0: the first two patterns only steer the model towards a tool ("always use this tool", "before any other tool");
+# a description that matches nothing else is SW-MCP-011 at medium. Concealment, override and injected-instruction
+# markers (every other pattern, and `P.INJECTION`) stay high.
+_TOOL_STEERING = _TOOL_INJECTION[:2]
+_TOOL_CONCEALMENT = _TOOL_INJECTION[2:]
+# A steering description that also asks for conversation, prompt or credential material stays high, as in 1.8 ("call this
+# before any other tool and pass the entire conversation"). Only read for a description that already matched a steering
+# pattern, so it never adds a finding. `tokens` is left out on purpose: documentation tools count output in tokens.
+_STEERING_WITH_DATA = re.compile(
+    r"\b(conversations?|chat history|message history|transcripts?|system prompt|previous messages|credentials?|api[ _-]?keys?"
+    r"|passwords?|secrets?|environment variables|private keys?|ssh keys?)\b", re.IGNORECASE)
 
 
 def _redacted(url: str) -> str:
@@ -115,9 +126,30 @@ def _probeable(probe: ProbeResult) -> bool:
     return probe.endpoint is not None and probe.error != "not_https"
 
 
+def read_only_tool(tool: ToolInfo) -> bool:
+    """The tool declares itself read-only: `annotations.readOnlyHint` is the JSON value `true` and `destructiveHint`
+    is not `true` (MCP tool annotations; a tool that claims both is not read-only). A hint the server writes, never a
+    guarantee, so it lowers SW-MCP-001 to medium and never further."""
+    annotations = tool.annotations if isinstance(tool.annotations, dict) else {}
+    return annotations.get("readOnlyHint") is True and annotations.get("destructiveHint") is not True
+
+
+def mcp_001_severity(probe: ProbeResult) -> str:
+    """1.9.0 (owner, 2026-11-07): what the unauthenticated list exposes decides the severity, and only a list the prober
+    read whole (`tools_complete`) is graded: `low` when it holds no tool, `medium` when every tool is read-only
+    (`read_only_tool`). Everything else is `high`: a list that could not be read, a later page, more than MAX_TOOLS
+    entries, a dropped entry, a pasted or stored list, a tool without annotations."""
+    if not probe.tools_complete:
+        return "high"
+    if not probe.tools:
+        return "low"
+    return "medium" if all(read_only_tool(tool) for tool in probe.tools) else "high"
+
+
 def _mcp_001(probe: ProbeResult) -> Iterator[Finding]:
+    # The evidence text is that of 1.8: the fingerprint, and so a baseline entry or an accepted finding, is unchanged.
     if _probeable(probe) and auth_mode_of(probe) == "none":
-        yield _finding("SW-MCP-001", "high", probe, f"tools/list answered 200 with {len(probe.tools)} tools")
+        yield _finding("SW-MCP-001", mcp_001_severity(probe), probe, f"tools/list answered 200 with {len(probe.tools)} tools")
 
 
 def _mcp_002(probe: ProbeResult) -> Iterator[Finding]:
@@ -220,8 +252,11 @@ def _mcp_011(probe: ProbeResult) -> Iterator[Finding]:
     for tool in probe.tools:
         text = text_of(tool.description)
         seen = visible(text)  # invisible characters do not break a phrase up (`skill.visible`)
-        if any(p.search(seen) for p in P.INJECTION) or any(p.search(seen) for p in _TOOL_INJECTION):
+        if any(p.search(seen) for p in P.INJECTION) or any(p.search(seen) for p in _TOOL_CONCEALMENT):
             yield _finding("SW-MCP-011", "high", probe, text, path=f"tool:{tool.name}")
+        elif any(p.search(seen) for p in _TOOL_STEERING):
+            severity = "high" if _STEERING_WITH_DATA.search(seen) else "medium"
+            yield _finding("SW-MCP-011", severity, probe, text, path=f"tool:{tool.name}")
 
 
 TITLES = {

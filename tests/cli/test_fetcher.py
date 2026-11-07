@@ -267,8 +267,8 @@ def test_a_stream_head_never_asks_for_more_than_its_cap():
 
 
 def test_an_event_stream_answer_stops_at_the_first_event_whatever_the_method():
-    """A POST answered with `text/event-stream` (a streamed JSON-RPC answer, spec 6.6 step 2) is read as a head:
-    `read1` for what arrived, stopped at the first blank line, never the 1 MiB body path that would wait."""
+    """A POST answered with `text/event-stream` (a streamed JSON-RPC answer, spec 6.6 step 2) is read like a head:
+    `read1` for what arrived, stopped at the first blank line, never the blocking body read that would wait."""
     first = b'event: message\ndata: {"jsonrpc": "2.0", "id": 1, "result": {}}\n\n'
 
     class OneEventThenOpen(ScriptedResponse):
@@ -284,6 +284,30 @@ def test_an_event_stream_answer_stops_at_the_first_event_whatever_the_method():
                response_class=OneEventThenOpen)
     response = net_.fetcher.post_json("https://mcp.example/mcp", {"jsonrpc": "2.0", "id": 1, "method": "server/discover"}, {})
     assert response.status == 200 and response.body == first
+
+
+def test_a_streamed_answer_longer_than_a_stream_head_is_read_whole_up_to_its_first_event():
+    """1.9.0: a tools/list answer sent as one SSE event may be longer than `STREAM_HEAD_MAX` (the Microsoft Learn server's
+    three tools take about 6 KiB). It is read whole, up to the caller's cap, and still stops at the first event; a
+    stream head (`get_stream_head`) keeps its 4,096-byte cap."""
+    tools = [{"name": f"tool_{n}", "description": "d" * 1200, "annotations": {"readOnlyHint": True}} for n in range(8)]
+    event = b"event: message\ndata: " + json.dumps({"jsonrpc": "2.0", "id": 1, "result": {"tools": tools}}).encode() + b"\n\n"
+    assert len(event) > 2 * net.STREAM_HEAD_MAX
+
+    class LongEventThenOpen(ScriptedResponse):
+        def read(self, amt=None):
+            raise AssertionError("read() on an open stream")
+
+        def read1(self, amt=None):
+            if self._chunks:
+                return self._chunks.pop(0)
+            raise AssertionError("a read past the first event would block on the open stream")
+
+    pieces = [event[i:i + 1500] for i in range(0, len(event), 1500)]
+    net_ = Net(answers={("mcp.example", "/mcp"): (200, {"Content-Type": "text/event-stream"}, pieces)}, response_class=LongEventThenOpen)
+    response = net_.fetcher.post_json("https://mcp.example/mcp", {"jsonrpc": "2.0", "id": 1, "method": "tools/list"}, {})
+    assert response.body == event
+    assert len(json.loads(response.body.split(b"data: ", 1)[1])["result"]["tools"]) == 8
 
 
 def test_an_event_boundary_split_across_reads_or_spelled_crlf_ends_the_head_and_a_smaller_cap_holds():

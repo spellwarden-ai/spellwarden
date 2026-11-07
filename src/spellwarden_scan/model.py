@@ -153,6 +153,9 @@ class ProbeResult(_Model):
     auth_server_metadata: AuthServerMetadata | None = None
     tools: tuple[ToolInfo, ...] = ()
     tools_source: str | None = None
+    # 1.9.0: true only when the prober read the whole unauthenticated list: `tools` was a list, no `nextCursor`, at most
+    # MAX_TOOLS entries and none dropped. SW-MCP-001 grades below high only then; a pasted or stored list stays high.
+    tools_complete: bool = False
     list_result_meta: dict | None = None
     capabilities: dict = field(default_factory=dict)
     probed_at: str | None = None

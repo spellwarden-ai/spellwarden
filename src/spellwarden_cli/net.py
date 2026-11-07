@@ -275,7 +275,7 @@ class Fetcher:
 
     def post_json(self, url: str, body: dict, headers: dict[str, str], *, max_bytes: int = JSON_MAX) -> Response:
         # The content headers of a JSON-RPC POST are this module's, whatever the caller's spelling; a caller adds
-        # `Mcp-*` headers, nothing else wins. An event-stream answer is read as a head.
+        # `Mcp-*` headers, nothing else wins. An event-stream answer is read up to its first event, within `max_bytes`.
         sent = {**without(headers, "Content-Type", "Accept"), "Content-Type": "application/json",
                 "Accept": "application/json, text/event-stream"}
         return self._request("POST", url, json.dumps(body).encode("utf-8"), sent, max_bytes)
@@ -347,8 +347,12 @@ class Fetcher:
             status = int(raw.status)
             response_headers = {str(name): str(value) for name, value in raw.getheaders()}
             content_type = next((value for name, value in response_headers.items() if name.lower() == "content-type"), None)
-            stream = head_only or is_event_stream(content_type)  # an event stream stays open: only its head is read
-            data = self._read(raw, min(max_bytes, STREAM_HEAD_MAX) if stream else max_bytes, stream, deadline=deadline,
+            # An event stream stays open: only its first event is read. A stream head (`get_stream_head`) is capped at
+            # `STREAM_HEAD_MAX`; a streamed answer to a request (a JSON-RPC answer sent as one SSE event, spec 6.6 step 2)
+            # may be as long as the caller's cap, since a tools/list answer is often longer than 4 KiB (1.9.0: the
+            # Microsoft Learn server's three tools were cut at 4,096 bytes and read as none).
+            stream = head_only or is_event_stream(content_type)
+            data = self._read(raw, min(max_bytes, STREAM_HEAD_MAX) if head_only else max_bytes, stream, deadline=deadline,
                               sock=getattr(connection, "sock", None))
         except FetchError:
             raise
