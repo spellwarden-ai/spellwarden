@@ -47,16 +47,28 @@ def run_rules(rules, subject, *, max_findings: int, max_per_rule: int,
     return retained, truncated
 
 
+SCAN_KINDS = ("skill", "instructions")
+# The two rules about the SKILL.md frontmatter: an instruction file (AGENTS.md, CLAUDE.md) has none to judge.
+INSTRUCTION_SKIPPED_RULES = frozenset({"SW-SKL-015", "SW-SKL-031"})
+
+
 def scan_skill_package(files: Mapping[str, bytes], rules: RuleSet, *, root: str = "",
                        executable_paths: Collection[str] = frozenset(), max_findings: int = 500,
                        max_per_rule: int = 100, org_rule_budget: OrgRuleBudget | None = None,
-                       nested_roots: Iterable[str] = ()) -> SkillScanResult:
-    """`org_rule_budget` bounds the time org rules may take (Phase C spec 5.2.2); a non-empty
-    `org_rules_incomplete` on the result is an incomplete policy evaluation, never a clean one. `nested_roots` are the
+                       nested_roots: Iterable[str] = (), kind: str = "skill") -> SkillScanResult:
+    """`kind` is `"skill"` (the default) or `"instructions"`; any other value is a `ValueError`. With `"instructions"`
+    the package is an instruction file such as AGENTS.md, so SW-SKL-015 and SW-SKL-031 (`INSTRUCTION_SKIPPED_RULES`)
+    are not run and every other skill rule is. `org_rule_budget` bounds the time org rules may take (Phase C spec 5.2.2);
+    a non-empty `org_rules_incomplete` on the result is an incomplete policy evaluation, never a clean one. `nested_roots` are the
     skill directories inside `root` (`identity.nested_skill_roots`); the result's `package_sha256` leaves them out."""
+    if kind not in SCAN_KINDS:
+        raise ValueError(f"kind must be one of {', '.join(SCAN_KINDS)}, not {kind!r}")
     package = Package.build(files, root=root, executable_paths=executable_paths)
     meter = BudgetMeter(org_rule_budget)
-    retained, truncated = run_rules(rules.ordered_for_scan("skill"), package, max_findings=max_findings,
+    ordered = rules.ordered_for_scan("skill")
+    if kind == "instructions":
+        ordered = tuple(rule for rule in ordered if rule.id not in INSTRUCTION_SKIPPED_RULES)
+    retained, truncated = run_rules(ordered, package, max_findings=max_findings,
                                     max_per_rule=max_per_rule, meter=meter)
     identified = package_files(files, root, nested_roots)
     return SkillScanResult(

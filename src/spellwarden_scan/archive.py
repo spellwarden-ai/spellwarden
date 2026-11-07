@@ -76,6 +76,33 @@ def _under(name: str, root: str | None) -> bool:
     return key == scope or key.startswith(scope + "/")
 
 
+def _in_scope(name: str, scope: str) -> bool:
+    """Whether an entry's stripped `name` is under the non-empty `scope`, decided conservatively: it is under if the
+    name itself, its `normpath` (`other/../skill/x`) or its platform key (`Skill/x`, `skill./x`) equals the scope or
+    starts with `scope/`, and so does the name as a Windows extractor reads it (`\\` as `/`, no leading `/`, no drive:
+    `skill\\x`, `/skill/x`, `C:skill/x`). A name that might land under the scope on any reading keeps every rule."""
+    scope_key = _platform_key(scope)
+    extracted = _DRIVE.sub("", name.replace("\\", "/").lstrip("/")).lstrip("/")
+    candidates = []
+    for variant in (name, posixpath.normpath(name), extracted, posixpath.normpath(extracted)):
+        candidates.append((variant, scope))
+        candidates.append((_platform_key(variant), scope_key))
+    return any(candidate == wanted or candidate.startswith(wanted + "/") for candidate, wanted in candidates)
+
+
+def _suspicious(raw: str) -> bool:
+    """A raw entry name that some extractor reads differently from the scan: a backslash, a NUL, a leading `/` or `//`
+    (UNC), a drive, or a `.`, `..` or empty segment anywhere. Python's `zipfile` and Info-ZIP drop `..`, `.` and empty
+    segments, Windows tools read `\\` as `/` and strip drives and UNC prefixes, so such a name may land under the scanned
+    root wherever it seems to point (`repo-main/../skill/x` is written as `repo-main/skill/x`). With a non-empty root
+    such an entry is treated as under it, fail closed, and refused by the unsafe-name rule; a forge archive never
+    holds one."""
+    name = raw.rstrip("/")
+    if not name or "\x00" in name or "\\" in name or name.startswith("/") or _DRIVE.match(name):
+        return True
+    return any(part in ("..", ".", "") for part in name.split("/"))
+
+
 def _is_special(info: zipfile.ZipInfo) -> bool:
     mode = info.external_attr >> 16
     return stat.S_ISLNK(mode) or stat.S_ISCHR(mode) or stat.S_ISBLK(mode) or stat.S_ISFIFO(mode) or stat.S_ISSOCK(mode)
@@ -106,11 +133,21 @@ def unpack_zip(data: bytes, limits: ArchiveLimits = DEFAULT_LIMITS, *, with_mode
     """`{path: bytes}` of a zip held in memory; with `with_modes=True`,
     `(files, executable_paths)`. Raises `ArchiveError` (spec 5.6).
 
-    Everywhere in the archive, a repeated name, a `.`, `..` or empty segment and a file that is also a
-    directory are `unsafe_path` (every extractor reads them differently). Under `root` (the directory
-    that will be scanned, relative to the stripped top; `""` is the whole archive, `None` none of it),
-    two names equal after NFC normalisation and lower-casing and a segment Windows renames or refuses
-    are `unsafe_path` as well: outside it they belong to another directory of a repository."""
+    The whole-archive compressed limit is checked first. Everywhere in the archive, a repeated name, a `.`, `..` or
+    empty segment and a file that is also a directory are `unsafe_path` (every extractor reads them differently).
+    Under `root` (the directory that will be scanned, relative to the stripped top; `""` is the whole archive,
+    `None` none of it), two names equal after NFC normalisation and lower-casing and a segment Windows renames or
+    refuses are `unsafe_path` as well: outside it they belong to another directory of a repository.
+
+    With a non-empty `root`, every limit and rule above applies to the entries under it only (`max_files`, the
+    declared and real sizes, symlinks and special files, unsafe names, collisions). An entry outside it is skipped:
+    never opened, never returned, never reported as executable. An entry counts as under the root when its stripped
+    name, its `normpath` or its platform key equals the root or starts with `root/`, so `other/../skill/x` and
+    `Skill/run.sh` for `skill` keep every rule, and so does a name read the way a Windows extractor does (`skill\\x`,
+    `/skill/x`, `C:skill/x`). Fail closed, any raw name with a backslash, a leading `/`, a drive or a `.`, `..` or
+    empty segment counts as under the root (`_suspicious`) and is refused as `unsafe_path`, and so is an entry whose
+    path passes through a symlink anywhere in the archive. No file under the root is `empty`.
+    `root=""` and `root=None` read the whole archive as before."""
     scope = None if root is None else root.strip("/")
     if len(data) > limits.max_compressed:
         raise ArchiveError("too_large", "compressed size over the limit")
@@ -120,13 +157,29 @@ def unpack_zip(data: bytes, limits: ArchiveLimits = DEFAULT_LIMITS, *, with_mode
     except (zipfile.BadZipFile, ValueError, EOFError, RuntimeError, OSError) as exc:
         # `NotImplementedError` (a `RuntimeError`) for an unsupported "version needed to extract" in the central directory.
         raise ArchiveError("bad_zip", str(exc)) from exc
-    for info in infos:
-        if info.is_dir() and _unsafe(info.filename.rstrip("/"), limits):
+    all_files = [info for info in infos if not info.is_dir()]
+    top = _strip_common_top([info.filename for info in all_files])
+
+    def stripped(name: str) -> str:
+        return name[len(top) + 1:] if top and name.startswith(top + "/") else name
+
+    directory_infos = [info for info in infos if info.is_dir()]
+    entries = all_files
+    if scope:  # a non-empty root: only what is under it is read, counted and checked
+        def under(raw: str) -> bool:
+            return _suspicious(raw) or _in_scope(stripped(raw.rstrip("/")), scope)
+
+        _check_symlink_paths(infos, stripped)
+        directory_infos = [info for info in directory_infos if under(info.filename)]
+        entries = [info for info in all_files if under(info.filename)]
+        if not entries:
+            raise ArchiveError("empty", f"nothing under {scope}")
+    for info in directory_infos:
+        if _unsafe(info.filename.rstrip("/"), limits):
             raise ArchiveError("unsafe_path", info.filename)
-    directories = [info.filename.rstrip("/") for info in infos if info.is_dir()]
-    entries = [info for info in infos if not info.is_dir()]
-    if not entries:
+    if not entries:  # no file at all: checked after the directory names, as it always was
         raise ArchiveError("empty")
+    directories = [info.filename.rstrip("/") for info in directory_infos]
     if len(entries) > limits.max_files:
         raise ArchiveError("too_many_files", str(len(entries)))
     for info in entries:
@@ -135,13 +188,12 @@ def unpack_zip(data: bytes, limits: ArchiveLimits = DEFAULT_LIMITS, *, with_mode
         if _is_special(info):
             raise ArchiveError("symlink", info.filename)
     _check_declared(entries, limits)
-    top = _strip_common_top([info.filename for info in entries])
     files: dict[str, bytes] = {}
     executable: set[str] = set()
     folded: set[str] = set()
     total = 0
     for info in entries:
-        name = info.filename[len(top) + 1:] if top and info.filename.startswith(top + "/") else info.filename
+        name = stripped(info.filename)
         if _unsafe(name, limits) or posixpath.normpath(name) != name or name in files:
             raise ArchiveError("unsafe_path", info.filename)
         if _under(name, scope):
@@ -156,10 +208,30 @@ def unpack_zip(data: bytes, limits: ArchiveLimits = DEFAULT_LIMITS, *, with_mode
         files[name] = content
         if _is_executable(info):
             executable.add(name)
-    _check_file_directory_clash(files, [d[len(top) + 1:] if top and d.startswith(top + "/") else d for d in directories], scope)
+    _check_file_directory_clash(files, [stripped(d) for d in directories], scope)
     if with_modes:
         return files, frozenset(executable)
     return files
+
+
+def _check_symlink_paths(infos: list[zipfile.ZipInfo], stripped) -> None:
+    """With a non-empty root, a symlink outside it is allowed, but not one that another entry's path passes through
+    (`link` -> `skill` and `link/evil.sh`, also `Link` and `link/evil.sh`) or that another entry shares its name with
+    (`link` written again as a file): an extractor that follows the link it has just written puts that file under the
+    root unscanned. Header metadata only; nothing is opened."""
+    special = [info for info in infos if not info.is_dir() and _is_special(info)]
+    if not special:
+        return
+    # Compared on the platform key, so `Link` and `link/evil.sh` meet as a case-insensitive extractor merges them.
+    links = {_platform_key(stripped(info.filename.rstrip("/"))) for info in special}
+    for info in infos:
+        parts = _platform_key(stripped(info.filename.rstrip("/"))).split("/")
+        # Every proper prefix; and the entry's own path unless it is the symlink itself: a file written after a link
+        # of the same name is written through it, and a directory entry `link/` is the link's own path.
+        own = 0 if any(info is link for link in special) else 1
+        for depth in range(1, len(parts) + own):
+            if "/".join(parts[:depth]) in links:
+                raise ArchiveError("unsafe_path", f"through a symlink {info.filename}")
 
 
 def _check_file_directory_clash(files: dict[str, bytes], directories: list[str], scope: str | None) -> None:
