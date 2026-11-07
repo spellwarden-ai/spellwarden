@@ -267,8 +267,8 @@ def test_a_stream_head_never_asks_for_more_than_its_cap():
 
 
 def test_an_event_stream_answer_stops_at_the_first_event_whatever_the_method():
-    """A POST answered with `text/event-stream` (a streamed JSON-RPC answer, spec 6.6 step 2) is read as a head:
-    `read1` for what arrived, stopped at the first blank line, never the 1 MiB body path that would wait."""
+    """A POST answered with `text/event-stream` (a streamed JSON-RPC answer, spec 6.6 step 2) is read like a head:
+    `read1` for what arrived, stopped at the first blank line, never the blocking body read that would wait."""
     first = b'event: message\ndata: {"jsonrpc": "2.0", "id": 1, "result": {}}\n\n'
 
     class OneEventThenOpen(ScriptedResponse):

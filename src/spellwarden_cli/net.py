@@ -275,7 +275,7 @@ class Fetcher:
 
     def post_json(self, url: str, body: dict, headers: dict[str, str], *, max_bytes: int = JSON_MAX) -> Response:
         # The content headers of a JSON-RPC POST are this module's, whatever the caller's spelling; a caller adds
-        # `Mcp-*` headers, nothing else wins. An event-stream answer is read as a head.
+        # `Mcp-*` headers, nothing else wins. An event-stream answer is read up to its first event, within `max_bytes`.
         sent = {**without(headers, "Content-Type", "Accept"), "Content-Type": "application/json",
                 "Accept": "application/json, text/event-stream"}
         return self._request("POST", url, json.dumps(body).encode("utf-8"), sent, max_bytes)

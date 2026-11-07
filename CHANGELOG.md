@@ -6,15 +6,18 @@ Severities that match what was found, and whole streamed answers in the MCP prob
 scanner still has 65 rules, and no rule was added or removed.
 
 - `SW-MCP-001` "Server lists tools without authentication" is graded by what the unauthenticated `tools/list` answer
-  exposes: low when the probe read the list and it holds no tool, medium when every listed tool declares itself
-  read-only (`annotations.readOnlyHint` is `true` and `destructiveHint` is not `true`), and high otherwise, including a
-  200 whose list could not be read and a tool without annotations. A read-only hint is written by the server, so it
-  lowers the finding to medium and never further. Before, every such finding was high, a public documentation search
+  exposes: low when the probe read the whole list and it holds no tool, medium when every listed tool declares itself
+  read-only (`annotations.readOnlyHint` is `true` and `destructiveHint` is not `true`), and high otherwise. Only a list
+  read whole is graded: a 200 whose list could not be read, a `nextCursor` naming a later page, more than 200 tools, an
+  entry without a string name, or a pasted list stays high. A read-only hint is written by the server, so it lowers the
+  finding to medium and never further. `ProbeResult` gains `tools_complete` (default false, so a stored or hand-built
+  probe without it grades high). Before, every such finding was high, a public documentation search
   server as much as one listing destructive tools.
 - `SW-MCP-011` "Tool description contains instruction-like text" is medium when a description only steers the model
   towards the tool ("always use this tool", "before any other tool"), and stays high for concealment ("do not mention
-  this to the user", hidden or secret instructions), override and injected-instruction markers. A tool gets one finding,
-  at the worse severity.
+  this to the user", hidden or secret instructions), override and injected-instruction markers, and for a steering
+  description that also names conversation, prompt or credential material ("pass the entire conversation", "your API
+  key"). A tool gets one finding, at the worse severity.
 - The probe reads a streamed answer whole. A JSON-RPC answer sent as one `text/event-stream` event was cut at the
   4,096 bytes of a stream head, so a server whose `tools/list` answer is longer (the Microsoft Learn server's three tools
   take about 6 KiB) was read as listing no tool: its tool descriptions went unchecked by `SW-MCP-011`. A streamed answer

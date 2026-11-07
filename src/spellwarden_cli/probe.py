@@ -114,9 +114,15 @@ class _Probe:
             _note_auth(state, listed)
             state["unauthenticated_status"] = listed.status
         if list_result is not None:
-            tools = list_result.get("tools") if isinstance(list_result.get("tools"), list) else []
+            listed_tools = list_result.get("tools")
+            tools = listed_tools if isinstance(listed_tools, list) else []
             state["tools"] = tuple(_tool_of(tool) for tool in tools[:MAX_TOOLS] if isinstance(tool, dict) and isinstance(tool.get("name"), str))
             state["tools_source"] = "probe"
+            cursor = list_result.get("nextCursor")
+            # 1.9.0: the whole list, or SW-MCP-001 stays high (a later page, an entry past the cap or a dropped entry may
+            # be the dangerous one).
+            state["tools_complete"] = (isinstance(listed_tools, list) and len(state["tools"]) == len(listed_tools)
+                                       and not (isinstance(cursor, str) and cursor))
             meta = {key: list_result[key] for key in ("ttlMs", "cacheScope") if key in list_result}
             state["list_result_meta"] = meta or None
         if state.get("unauthenticated_status") in (401, 403):
