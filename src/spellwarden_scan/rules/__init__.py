@@ -11,13 +11,16 @@ from typing import Any
 from spellwarden_scan.model import SEVERITY_RANK, Finding
 
 RULE_ID_RE = re.compile(r"^SW-(SKL|MCP|CFG|REG|A2A|ORG)-[0-9]{3}$")
-ALLOWED_OWASP = ("ASI01", "ASI02", "ASI03", "ASI04", "ASI05", "ASI07", "ASI09", "ASI10", "MCP01", "MCP02", "MCP10")
+ALLOWED_OWASP = ("ASI01", "ASI02", "ASI03", "ASI04", "ASI05", "ASI07", "ASI09", "ASI10", "MCP01", "MCP02", "MCP03", "MCP04",
+                 "MCP06", "MCP07", "MCP09", "MCP10")
 ALLOWED_NIST = ("AC-3", "AC-6", "AU-2", "CM-7", "IA-5", "SC-7", "SC-8", "SI-10", "SI-3", "SI-7", "SR-3")
 # O4 spec 5.4 added `ASI03`, `ASI07`, `SC-8` and `SI-7` for the A2A rules; the rule batch of 1.8.0 added `ASI02`, `ASI05`,
-# `ASI09`, `MCP02`, `CM-7` and `SI-3`. An organisation rule may map to the tags of 1.2.x only: a pack that used a newer
+# `ASI09`, `MCP02`, `CM-7` and `SI-3`; 1.9.1 added `MCP03`, `MCP04`, `MCP06`, `MCP07` and `MCP09`, so that a rule carries the
+# OWASP MCP Top 10 entry it detects instead of the nearest one allowed before (`tests/test_owasp_mcp_tags.py`). An organisation rule may map to the tags of 1.2.x only: a pack that used a newer
 # one would be refused by every older scanner (`bad_mapping`), and the pack schema is frozen. The org-rule lists below are
 # therefore the 1.2.x lists.
-BASELINE_ONLY_TAGS = frozenset({"ASI02", "ASI03", "ASI05", "ASI07", "ASI09", "MCP02", "SC-8", "SI-3", "SI-7", "CM-7"})
+BASELINE_ONLY_TAGS = frozenset({"ASI02", "ASI03", "ASI05", "ASI07", "ASI09", "MCP02", "MCP03", "MCP04", "MCP06", "MCP07", "MCP09",
+                                "SC-8", "SI-3", "SI-7", "CM-7"})
 # The name of 1.3.0 to 1.7.1, kept for code that imports it; it is the same set and will be removed in 2.0.0.
 A2A_ONLY_TAGS = BASELINE_ONLY_TAGS
 ORG_ALLOWED_OWASP = tuple(tag for tag in ALLOWED_OWASP if tag not in BASELINE_ONLY_TAGS)

@@ -60,8 +60,8 @@ def test_the_eight_enforcement_rules_of_the_spec_table():
     assert table == {
         "SW-HK-001": ("high", ("ASI04",), ("SR-3",), ("claude-code-hooks",), ("claude-code-hooks",)),
         "SW-HK-002": ("high", ("MCP01",), ("IA-5",), ("claude-code-hooks", "cloudflare-egress"), ("claude-code-hooks",)),
-        "SW-GW-003": ("high", ("MCP01",), ("AC-3",), ("kong", "zuplo", "agentcore-policy"), ()),
-        "SW-GW-004": ("medium", ("ASI01", "MCP10"), ("SI-10",), ("kong", "zuplo"), ("kong", "zuplo")),
+        "SW-GW-003": ("high", ("MCP07",), ("AC-3",), ("kong", "zuplo", "agentcore-policy"), ()),
+        "SW-GW-004": ("medium", ("ASI01", "MCP06"), ("SI-10",), ("kong", "zuplo"), ("kong", "zuplo")),
         "SW-EG-005": ("medium", ("ASI10",), ("SC-7",), ("cloudflare-egress",), ()),
         "SW-GW-006": ("high", ("ASI10",), ("AC-6",), ("agentcore-policy", "claude-code-hooks"), ("claude-code-hooks",)),
         "SW-RG-007": ("medium", ("ASI04",), ("SR-3",), ("registry",), ("registry",)),

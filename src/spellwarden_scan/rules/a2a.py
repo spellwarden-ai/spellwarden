@@ -603,7 +603,7 @@ RULES: tuple[Rule, ...] = (
     make_rule("SW-A2A-011", TITLES["SW-A2A-011"], "high", "a2a", owasp=("ASI07",), nist=("SI-7",), detect=_a2a_011),
     make_rule("SW-A2A-012", TITLES["SW-A2A-012"], "low", "a2a", owasp=("ASI07",), nist=("SI-7",), detect=_a2a_012),
     make_rule("SW-A2A-013", TITLES["SW-A2A-013"], "medium", "a2a", owasp=("ASI07",), nist=("SI-7",), detect=_a2a_013),
-    make_rule("SW-A2A-014", TITLES["SW-A2A-014"], "high", "a2a", owasp=("ASI01",), nist=("SI-10",), detect=_a2a_014),
+    make_rule("SW-A2A-014", TITLES["SW-A2A-014"], "high", "a2a", owasp=("ASI01", "MCP06"), nist=("SI-10",), detect=_a2a_014),
     make_rule("SW-A2A-015", TITLES["SW-A2A-015"], "critical", "a2a", owasp=("ASI03",), nist=("IA-5",), detect=_a2a_015),
     make_rule("SW-A2A-016", TITLES["SW-A2A-016"], "medium", "a2a", owasp=("ASI07",), nist=("SC-8",), detect=_a2a_016),
     make_rule("SW-A2A-017", TITLES["SW-A2A-017"], "medium", "a2a", owasp=("ASI07",), nist=("SI-7",), detect=_a2a_017),

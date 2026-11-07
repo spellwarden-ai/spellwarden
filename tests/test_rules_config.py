@@ -44,10 +44,10 @@ def test_rule_table_has_the_twelve_config_rules_with_their_mappings():
     table = {r.id: (r.severity_default, r.owasp_agentic + r.owasp_mcp, r.nist, r.malicious_indicator) for r in rules}
     assert table == {
         "SW-CFG-001": ("high", ("MCP01",), ("SC-7",), False), "SW-CFG-002": ("critical", ("MCP01",), ("IA-5",), False),
-        "SW-CFG-003": ("medium", ("ASI04",), ("SR-3",), False), "SW-CFG-004": ("medium", ("ASI10",), ("SC-7",), False),
+        "SW-CFG-003": ("medium", ("ASI04", "MCP04"), ("SR-3",), False), "SW-CFG-004": ("medium", ("ASI10",), ("SC-7",), False),
         "SW-CFG-005": ("high", ("ASI04",), ("SR-3",), False), "SW-CFG-006": ("critical", ("ASI10",), ("SC-7",), True),
         "SW-CFG-007": ("critical", ("ASI04",), ("SR-3",), True), "SW-CFG-008": ("high", ("ASI10",), ("AC-6",), False),
-        "SW-CFG-009": ("medium", ("ASI04",), ("SR-3",), False), "SW-CFG-010": ("high", ("MCP01",), ("IA-5",), False),
+        "SW-CFG-009": ("medium", ("ASI04", "MCP04"), ("SR-3",), False), "SW-CFG-010": ("high", ("MCP01",), ("IA-5",), False),
     }
     assert [r.severity_default for r in RULES.ordered_for_scan("config")][:3] == ["critical"] * 3
     assert all(r.area in ("skill", "mcp") for r in RULES.ordered_for_scan("skill") + RULES.ordered_for_scan("mcp"))

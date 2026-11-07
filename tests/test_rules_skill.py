@@ -28,7 +28,7 @@ def test_rule_table_has_20_rules_with_the_spec_ids_and_mappings():
                    "SW-SKL-037"]
     assert RULES.get("SW-SKL-004").malicious_indicator and RULES.get("SW-SKL-008").malicious_indicator
     assert [r.id for r in RULES.by_area("skill") if r.malicious_indicator] == ["SW-SKL-004", "SW-SKL-008", "SW-SKL-032"]
-    assert RULES.get("SW-SKL-019").owasp_agentic == ("ASI01",) and RULES.get("SW-SKL-019").owasp_mcp == ("MCP10",)
+    assert RULES.get("SW-SKL-019").owasp_agentic == ("ASI01",) and RULES.get("SW-SKL-019").owasp_mcp == ("MCP06",)
     assert RULES.get("SW-SKL-011").nist == ("IA-5",) and RULES.get("SW-SKL-011").severity_default == "critical"
     assert [r.severity_default for r in RULES.ordered_for_scan("skill")][:3] == ["critical"] * 3
 
@@ -41,7 +41,7 @@ def test_the_three_rules_of_1_8_0_have_their_titles_severities_and_mappings():
         "SW-SKL-036": ("Frontmatter pre-approves an unscoped shell or interpreter",
                        "medium", ("ASI02", "ASI03"), ("AC-6", "CM-7"), False),
         "SW-SKL-037": ("Executable downloaded from a moving reference and run without an integrity check",
-                       "medium", ("ASI04", "ASI05"), ("SR-3", "SI-7"), False),
+                       "medium", ("ASI04", "ASI05", "MCP04"), ("SR-3", "SI-7"), False),
     }
 
 

@@ -274,17 +274,17 @@ TITLES = {
 }
 
 RULES: tuple[Rule, ...] = (
-    make_rule("SW-MCP-001", TITLES["SW-MCP-001"], "high", "mcp", owasp=("MCP01",), nist=("AC-3",), detect=_mcp_001, targets=("kong", "registry")),
-    make_rule("SW-MCP-002", TITLES["SW-MCP-002"], "medium", "mcp", owasp=("MCP01",), nist=("IA-5",), detect=_mcp_002, targets=("registry",)),
-    make_rule("SW-MCP-003", TITLES["SW-MCP-003"], "medium", "mcp", owasp=("MCP01",), nist=("IA-5",), detect=_mcp_003, targets=("registry",)),
+    make_rule("SW-MCP-001", TITLES["SW-MCP-001"], "high", "mcp", owasp=("MCP07",), nist=("AC-3",), detect=_mcp_001, targets=("kong", "registry")),
+    make_rule("SW-MCP-002", TITLES["SW-MCP-002"], "medium", "mcp", owasp=("MCP01", "MCP07"), nist=("IA-5",), detect=_mcp_002, targets=("registry",)),
+    make_rule("SW-MCP-003", TITLES["SW-MCP-003"], "medium", "mcp", owasp=("MCP07",), nist=("IA-5",), detect=_mcp_003, targets=("registry",)),
     make_rule("SW-MCP-004", TITLES["SW-MCP-004"], "medium", "mcp", owasp=("ASI04",), nist=("SR-3",), detect=_mcp_004, targets=("registry",)),
     make_rule("SW-MCP-005", TITLES["SW-MCP-005"], "low", "mcp", owasp=("ASI04",), nist=("SR-3",), detect=_mcp_005, targets=("registry",)),
     make_rule("SW-MCP-006", TITLES["SW-MCP-006"], "medium", "mcp", owasp=("ASI04",), nist=("SR-3",), detect=_mcp_006),
     make_rule("SW-MCP-007", TITLES["SW-MCP-007"], "medium", "mcp", owasp=("ASI04",), nist=("SR-3",), detect=_mcp_007),
     make_rule("SW-MCP-008", TITLES["SW-MCP-008"], "medium", "mcp", owasp=("ASI04",), nist=("SR-3",), detect=_mcp_008),
     make_rule("SW-MCP-009", TITLES["SW-MCP-009"], "high", "mcp", owasp=("MCP01",), nist=("SC-7",), detect=_mcp_009, targets=("kong", "registry")),
-    make_rule("SW-MCP-010", TITLES["SW-MCP-010"], "medium", "mcp", owasp=("MCP01",), nist=("IA-5",), detect=_mcp_010, targets=("registry",)),
-    make_rule("SW-MCP-011", TITLES["SW-MCP-011"], "high", "mcp", owasp=("ASI01", "MCP10"), nist=("SI-10",), detect=_mcp_011, targets=("kong",)),
+    make_rule("SW-MCP-010", TITLES["SW-MCP-010"], "medium", "mcp", owasp=("MCP07",), nist=("IA-5",), detect=_mcp_010, targets=("registry",)),
+    make_rule("SW-MCP-011", TITLES["SW-MCP-011"], "high", "mcp", owasp=("ASI01", "MCP03"), nist=("SI-10",), detect=_mcp_011, targets=("kong",)),
 )
 
 __all__ = ["RULES", "TITLES", "classify"]

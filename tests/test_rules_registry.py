@@ -34,7 +34,7 @@ def test_registry_rules_have_the_spec_titles_and_tags():
     table = {rule.id: (rule.title, rule.owasp_agentic + rule.owasp_mcp, rule.nist) for rule in registry.RULES}
     assert table == {
         "SW-REG-001": ("Skill package not admitted in the organisation's private registry", ("ASI04",), ("SR-3",)),
-        "SW-REG-002": ("MCP server not admitted in the organisation's private registry", ("MCP10",), ("SR-3",)),
+        "SW-REG-002": ("MCP server not admitted in the organisation's private registry", ("MCP09",), ("SR-3",)),
         "SW-REG-003": ("Agent content the private registry cannot judge", ("ASI04",), ("SR-3",)),
     }
 
@@ -74,7 +74,7 @@ def test_make_rule_still_refuses_sw_org():
 
 
 def test_versions_are_1_4_0_and_2026_10_5():
-    assert (__version__, RULES_VERSION) == ("1.9.0", "2026.11.2")
+    assert (__version__, RULES_VERSION) == ("1.9.1", "2026.11.3")
     pyproject = Path(__file__).resolve().parents[1] / "pyproject.toml"
     assert tomllib.loads(pyproject.read_text(encoding="utf-8"))["project"]["version"] == __version__
 

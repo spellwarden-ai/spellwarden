@@ -1,5 +1,39 @@
 # Changelog
 
+## 1.9.1 (2026-11-07)
+
+Each rule carries the OWASP MCP Top 10 (2025) entry it detects. The rules version is `2026.11.3`; the scanner still has 65
+rules, and what each rule detects, its severity and its evidence are those of 1.9.0, so findings, fingerprints, baselines
+and accepted findings carry over. Only the tags change: in `spellwarden rules`, the README rule table, the SARIF rule
+descriptors' `tags` (which GitHub code scanning shows) and `spellwarden rules --format json`.
+
+Until 1.9.0 a rule could be tagged only MCP01, MCP02 or MCP10, so rules whose subject is another entry carried the nearest
+one allowed. The baseline may now also use MCP03, MCP04, MCP06, MCP07 and MCP09. Each tag below follows the entry's
+description at github.com/OWASP/www-project-mcp-top-10, read on 7 November 2026; `tests/test_owasp_mcp_tags.py` pins the
+whole map.
+
+- MCP03 Tool Poisoning: `SW-MCP-011` "Tool description contains instruction-like text" (was MCP10).
+- MCP04 Software Supply Chain Attacks & Dependency Tampering, added: `SW-CFG-003` (MCP server launched from an unpinned
+  package), `SW-CFG-009` (marketplace plugin source not pinned to a commit), `SW-SKL-009` (unpinned dependency install) and
+  `SW-SKL-037` (executable downloaded from a moving reference).
+- MCP06, instructions embedded in context the agent retrieves: `SW-SKL-001` and `SW-SKL-002` (injected and hidden
+  instructions in a skill) and `SW-A2A-014` (in an agent card), added; `SW-SKL-019` (external content fetched into context
+  without an allowlist), was MCP10. The enforcement rule `SW-GW-004` (prompt-injection deny patterns on prompts and tool
+  results) moves from MCP10 to MCP06 too. OWASP's pages name MCP06 both "Prompt Injection via Contextual Payloads" and
+  "Intent Flow Subversion"; the id is the same.
+- MCP07 Insufficient Authentication & Authorization: `SW-MCP-001` (lists tools without authentication), `SW-MCP-003`
+  (OAuth dynamic client registration) and `SW-MCP-010` (no protected resource metadata, or issuer not validated), all
+  were MCP01; `SW-MCP-002` (static key instead of OAuth) keeps MCP01 and adds MCP07, which names static credentials. The
+  enforcement rule `SW-GW-003` (deny MCP upstreams without OAuth) moves from MCP01 to MCP07.
+- MCP09 Shadow MCP Servers: `SW-REG-002` "MCP server not admitted in the organisation's private registry" (was MCP10).
+- No rule is tagged MCP10 "Context Injection & Over-Sharing" any more: no rule detects context shared across sessions,
+  users or agents.
+
+An organisation rule still maps only to the tags of 1.2.x (`ASI01`, `ASI04`, `ASI10`, `MCP01`, `MCP10`): a pack that used
+a newer tag would be refused by every older scanner, and the pack schema is frozen. The five new tags join
+`BASELINE_ONLY_TAGS`. Packs name enforcement rules by id only, so a pack built by 1.9.0 and one built by 1.9.1 are read the
+same by both.
+
 ## 1.9.0 (2026-11-07)
 
 Severities that match what was found, and whole streamed answers in the MCP probe. The rules version is `2026.11.2`; the
