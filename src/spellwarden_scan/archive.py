@@ -90,6 +90,19 @@ def _in_scope(name: str, scope: str) -> bool:
     return any(candidate == wanted or candidate.startswith(wanted + "/") for candidate, wanted in candidates)
 
 
+def _suspicious(raw: str) -> bool:
+    """A raw entry name that some extractor reads differently from the scan: a backslash, a NUL, a leading `/` or `//`
+    (UNC), a drive, or a `.`, `..` or empty segment anywhere. Python's `zipfile` and Info-ZIP drop `..`, `.` and empty
+    segments, Windows tools read `\\` as `/` and strip drives and UNC prefixes, so such a name may land under the scanned
+    root wherever it seems to point (`repo-main/../skill/x` is written as `repo-main/skill/x`). With a non-empty root
+    such an entry is treated as under it, fail closed, and refused by the unsafe-name rule; a forge archive never
+    holds one."""
+    name = raw.rstrip("/")
+    if not name or "\x00" in name or "\\" in name or name.startswith("/") or _DRIVE.match(name):
+        return True
+    return any(part in ("..", ".", "") for part in name.split("/"))
+
+
 def _is_special(info: zipfile.ZipInfo) -> bool:
     mode = info.external_attr >> 16
     return stat.S_ISLNK(mode) or stat.S_ISCHR(mode) or stat.S_ISBLK(mode) or stat.S_ISFIFO(mode) or stat.S_ISSOCK(mode)
@@ -131,7 +144,9 @@ def unpack_zip(data: bytes, limits: ArchiveLimits = DEFAULT_LIMITS, *, with_mode
     never opened, never returned, never reported as executable. An entry counts as under the root when its stripped
     name, its `normpath` or its platform key equals the root or starts with `root/`, so `other/../skill/x` and
     `Skill/run.sh` for `skill` keep every rule, and so does a name read the way a Windows extractor does (`skill\\x`,
-    `/skill/x`, `C:skill/x`), which is then refused as `unsafe_path`. No file under the root is `empty`.
+    `/skill/x`, `C:skill/x`). Fail closed, any raw name with a backslash, a leading `/`, a drive or a `.`, `..` or
+    empty segment counts as under the root (`_suspicious`) and is refused as `unsafe_path`, and so is an entry whose
+    path passes through a symlink anywhere in the archive. No file under the root is `empty`.
     `root=""` and `root=None` read the whole archive as before."""
     scope = None if root is None else root.strip("/")
     if len(data) > limits.max_compressed:
@@ -151,8 +166,12 @@ def unpack_zip(data: bytes, limits: ArchiveLimits = DEFAULT_LIMITS, *, with_mode
     directory_infos = [info for info in infos if info.is_dir()]
     entries = all_files
     if scope:  # a non-empty root: only what is under it is read, counted and checked
-        directory_infos = [info for info in directory_infos if _in_scope(stripped(info.filename.rstrip("/")), scope)]
-        entries = [info for info in all_files if _in_scope(stripped(info.filename), scope)]
+        def under(raw: str) -> bool:
+            return _suspicious(raw) or _in_scope(stripped(raw.rstrip("/")), scope)
+
+        _check_symlink_paths(infos, stripped)
+        directory_infos = [info for info in directory_infos if under(info.filename)]
+        entries = [info for info in all_files if under(info.filename)]
         if not entries:
             raise ArchiveError("empty", f"nothing under {scope}")
     for info in directory_infos:
@@ -193,6 +212,20 @@ def unpack_zip(data: bytes, limits: ArchiveLimits = DEFAULT_LIMITS, *, with_mode
     if with_modes:
         return files, frozenset(executable)
     return files
+
+
+def _check_symlink_paths(infos: list[zipfile.ZipInfo], stripped) -> None:
+    """With a non-empty root, a symlink outside it is allowed, but not one that another entry's path passes through
+    (`link` -> `skill` and `link/evil.sh`): an extractor that follows the link it has just written puts that file under
+    the root unscanned. Header metadata only; nothing is opened."""
+    links = {stripped(info.filename.rstrip("/")) for info in infos if not info.is_dir() and _is_special(info)}
+    if not links:
+        return
+    for info in infos:
+        parts = stripped(info.filename.rstrip("/")).split("/")
+        for depth in range(1, len(parts) + info.is_dir()):  # a directory entry `link/` is the link's own path
+            if "/".join(parts[:depth]) in links:
+                raise ArchiveError("unsafe_path", f"through a symlink {info.filename}")
 
 
 def _check_file_directory_clash(files: dict[str, bytes], directories: list[str], scope: str | None) -> None:

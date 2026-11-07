@@ -62,3 +62,14 @@ def test_default_kind_is_skill(files):
     explicit = scan_skill_package(files, rules, kind="skill")
     assert default.findings == explicit.findings
     assert default.truncated == explicit.truncated
+
+
+@pytest.mark.parametrize("files", [BENIGN, MALICIOUS, SKILL_WITHOUT_LICENSE])
+def test_instructions_kind_computes_every_other_result_field_as_the_skill_kind(files):
+    """Review r0:F5: only the findings may differ between the kinds."""
+    skill = scan_skill_package(files, RuleSet.baseline(), kind="skill")
+    instructions = scan_skill_package(files, RuleSet.baseline(), kind="instructions")
+    for field in ("sha256", "package_sha256", "metadata", "rules_version", "scanner_version", "files_scanned",
+                  "org_rules_incomplete"):
+        assert getattr(instructions, field) == getattr(skill, field), field
+

@@ -250,9 +250,28 @@ def test_a_backslash_absolute_or_drive_name_that_an_extractor_lands_under_the_ro
         assert caught.value.code == "unsafe_path"
 
 
-def test_a_backslash_name_outside_the_root_is_still_ignored():
-    files = unpack_zip(raw_zip([("skill/SKILL.md", b"a"), ("other\\x", b"b"), ("/other/y", b"c")]), root="skill")
-    assert files == {"skill/SKILL.md": b"a"}
+@pytest.mark.parametrize("other", ["other\\x", "/other/y", "C:other/y", "\\\\srv\\share\\other\\x"])
+def test_a_backslash_absolute_drive_or_unc_name_anywhere_is_refused_under_a_scoped_root(other):
+    """Fail closed (review r1:F1): an extractor may land such a name anywhere, the scanned root included."""
+    with pytest.raises(ArchiveError) as caught:
+        unpack_zip(raw_zip([("skill/SKILL.md", b"a"), (other, b"b"), ("README.md", b"r")]), root="skill")
+    assert caught.value.code == "unsafe_path"
+
+
+@pytest.mark.parametrize("other", ["../skill/x", "repo-main/../skill/x", "..\\skill\\x", "./../skill/x",
+                                   "\\\\srv\\share\\skill\\x", "repo-main/./skill/x", "repo-main//skill/x"])
+def test_a_name_an_extractor_writes_under_the_root_by_dropping_dot_segments_is_refused(other):
+    """Review r1:F1: `zipfile.extractall` and Info-ZIP drop `..`, `.` and empty segments (`repo-main/../skill/x` is
+    written as `repo-main/skill/x`) and Windows tools strip UNC prefixes; with or without a common top, these are
+    refused, not skipped unread."""
+    for top in (False, True):
+        entries = [("skill/SKILL.md", b"a"), ("README.md", b"r")]
+        if top:
+            entries = [("repo-main/" + name, content) for name, content in entries]
+        entries.append((other, b"payload"))
+        with pytest.raises(ArchiveError) as caught:
+            unpack_zip(raw_zip(entries), root="skill")
+        assert caught.value.code == "unsafe_path"
 
 
 def test_under_the_root_case_and_windows_names_are_refused_but_sharp_s_is_not_ss():
@@ -317,24 +336,60 @@ def test_a_symlink_outside_the_root_is_ignored_and_one_under_it_is_still_refused
     assert caught.value.code == "symlink"
 
 
-@pytest.mark.parametrize("outside_name, under_name", [
-    ("x" * 300, "skill/" + "x" * 300),
-    ("other/../x", "skill/../x"),
-    ("other/./x", "skill/./x"),
-    ("other//x", "skill//x"),
-])
-def test_an_unsafe_name_outside_the_root_is_ignored_and_the_same_under_it_is_refused(outside_name, under_name):
-    assert _scoped([(outside_name, b"x")]) == {"skill/SKILL.md": b"a"}
+def test_an_over_long_name_outside_the_root_is_ignored_and_the_same_under_it_is_refused():
+    assert _scoped([("x" * 300, b"x")]) == {"skill/SKILL.md": b"a"}
     with pytest.raises(ArchiveError) as caught:
-        _scoped([(under_name, b"x")])
+        _scoped([("skill/" + "x" * 300, b"x")])
     assert caught.value.code == "unsafe_path"
 
 
-def test_an_unsafe_directory_entry_outside_the_root_is_ignored_and_one_under_it_is_refused():
-    assert _scoped([("other/../", b"")]) == {"skill/SKILL.md": b"a"}
+@pytest.mark.parametrize("name", ["other/../x", "other/./x", "other//x", "skill/../x", "skill/./x", "skill//x"])
+def test_a_dot_dot_dot_or_empty_segment_is_refused_inside_or_outside_the_root(name):
+    """Fail closed (review r1:F1): extractors drop these segments, so the name may land anywhere."""
     with pytest.raises(ArchiveError) as caught:
-        _scoped([("skill/../", b"")])
+        _scoped([(name, b"x")])
     assert caught.value.code == "unsafe_path"
+
+
+def test_an_over_long_directory_entry_outside_the_root_is_ignored_and_a_dot_dot_one_is_refused():
+    assert _scoped([("d" * 300 + "/", b"")]) == {"skill/SKILL.md": b"a"}
+    for name in ("other/../", "skill/../"):
+        with pytest.raises(ArchiveError) as caught:
+            _scoped([(name, b"")])
+        assert caught.value.code == "unsafe_path"
+
+
+def _with_symlink(link_name: str, target: bytes, extra: list[tuple[str, bytes]]) -> bytes:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as zf:
+        zf.writestr("skill/SKILL.md", b"a")
+        zf.writestr("README.md", b"r")
+        link = zipfile.ZipInfo(link_name)
+        link.external_attr = (stat.S_IFLNK | 0o777) << 16
+        zf.writestr(link, target)
+        for name, content in extra:
+            zf.writestr(name, content)
+    return buffer.getvalue()
+
+
+@pytest.mark.parametrize("through", ["link/evil.sh", "link/", "link/deeper/x"])
+def test_an_entry_whose_path_passes_through_a_symlink_outside_the_root_is_refused(through):
+    """Review r0:F3: `link` -> `skill` plus `link/evil.sh` puts an unscanned file under the root on an extractor that
+    follows the link it has just written."""
+    with pytest.raises(ArchiveError) as caught:
+        unpack_zip(_with_symlink("link", b"skill", [(through, b"" if through.endswith("/") else b"x")]), root="skill")
+    assert caught.value.code == "unsafe_path"
+
+
+def test_a_symlink_outside_the_root_that_no_path_passes_through_is_ignored():
+    data = _with_symlink("vendor/link", b"../skill", [("vendor/other", b"o"), ("vendor/linked", b"p")])
+    assert unpack_zip(data, root="skill") == {"skill/SKILL.md": b"a"}
+
+
+def test_an_outside_duplicate_name_and_an_outside_file_directory_clash_are_ignored():
+    """The clash and repeated-name rules apply under the root only (review r0:F5)."""
+    assert _scoped([("vendor/a", b"x"), ("vendor/a", b"y")]) == {"skill/SKILL.md": b"a"}
+    assert _scoped([("vendor/a", b"x"), ("vendor/a/b", b"y")]) == {"skill/SKILL.md": b"a"}
 
 
 def test_an_entry_outside_the_root_over_the_size_limits_is_ignored(monkeypatch):

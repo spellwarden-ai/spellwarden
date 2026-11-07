@@ -10,8 +10,12 @@ baselines and accepted findings carry over.
   size, symlink and unsafe-name rules only to the entries under that root, and skips every other entry of the archive
   unread: it is not returned and does not count towards `max_files` or the size limits. A repository with thousands of
   files, or with symlinks elsewhere, no longer stops the scan of one skill in it. The entries under the root keep every
-  rule they had, and the limit on the compressed size of the whole archive still applies first. An archive with no file
-  under the root is `ArchiveError("empty")`. With `root=""` or no `root` nothing changes.
+  rule they had, and the limit on the compressed size of the whole archive still applies first. Two rules still cover
+  the whole archive, because an extractor could otherwise write an unscanned file under the root: a name with a
+  backslash, a leading `/`, a drive or UNC prefix, or a `.`, `..` or empty segment anywhere is `unsafe_path` (extractors
+  drop those segments: `repo-main/../skill/x` is written as `repo-main/skill/x`), and so is an entry whose path passes
+  through a symlink (`link` and `link/evil.sh`). An archive with no file under the root is `ArchiveError("empty")`. With
+  `root=""` or no `root` nothing changes.
 - `scan_skill_package(files, rules, kind="instructions")` scans instruction files that have no `SKILL.md` (`AGENTS.md`,
   agent prompts, agent memory) with every rule except the two that check the structure of a `SKILL.md`, `SW-SKL-015`
   (frontmatter missing or invalid) and `SW-SKL-031` (missing license and version metadata). The default, `kind="skill"`, runs every rule as
