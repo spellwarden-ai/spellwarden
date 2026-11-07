@@ -76,6 +76,16 @@ def _under(name: str, root: str | None) -> bool:
     return key == scope or key.startswith(scope + "/")
 
 
+def _in_scope(name: str, scope: str) -> bool:
+    """Whether an entry's stripped `name` is under the non-empty `scope`, decided conservatively: it is under if the
+    name itself, its `normpath` (`other/../skill/x`) or its platform key (`Skill/x`, `skill./x`) equals the scope or
+    starts with `scope/`. A name that might land under the scope on any reading keeps every rule."""
+    scope_key = _platform_key(scope)
+    normal = posixpath.normpath(name)
+    candidates = ((name, scope), (normal, scope), (_platform_key(name), scope_key), (_platform_key(normal), scope_key))
+    return any(candidate == wanted or candidate.startswith(wanted + "/") for candidate, wanted in candidates)
+
+
 def _is_special(info: zipfile.ZipInfo) -> bool:
     mode = info.external_attr >> 16
     return stat.S_ISLNK(mode) or stat.S_ISCHR(mode) or stat.S_ISBLK(mode) or stat.S_ISFIFO(mode) or stat.S_ISSOCK(mode)
@@ -106,11 +116,18 @@ def unpack_zip(data: bytes, limits: ArchiveLimits = DEFAULT_LIMITS, *, with_mode
     """`{path: bytes}` of a zip held in memory; with `with_modes=True`,
     `(files, executable_paths)`. Raises `ArchiveError` (spec 5.6).
 
-    Everywhere in the archive, a repeated name, a `.`, `..` or empty segment and a file that is also a
-    directory are `unsafe_path` (every extractor reads them differently). Under `root` (the directory
-    that will be scanned, relative to the stripped top; `""` is the whole archive, `None` none of it),
-    two names equal after NFC normalisation and lower-casing and a segment Windows renames or refuses
-    are `unsafe_path` as well: outside it they belong to another directory of a repository."""
+    The whole-archive compressed limit is checked first. Everywhere in the archive, a repeated name, a `.`, `..` or
+    empty segment and a file that is also a directory are `unsafe_path` (every extractor reads them differently).
+    Under `root` (the directory that will be scanned, relative to the stripped top; `""` is the whole archive,
+    `None` none of it), two names equal after NFC normalisation and lower-casing and a segment Windows renames or
+    refuses are `unsafe_path` as well: outside it they belong to another directory of a repository.
+
+    With a non-empty `root`, every limit and rule above applies to the entries under it only (`max_files`, the
+    declared and real sizes, symlinks and special files, unsafe names, collisions). An entry outside it is skipped:
+    never opened, never returned, never reported as executable. An entry counts as under the root when its stripped
+    name, its `normpath` or its platform key equals the root or starts with `root/`, so `other/../skill/x` and
+    `Skill/run.sh` for `skill` keep every rule. No file under the root is `empty`. `root=""` and `root=None`
+    read the whole archive as before."""
     scope = None if root is None else root.strip("/")
     if len(data) > limits.max_compressed:
         raise ArchiveError("too_large", "compressed size over the limit")
@@ -120,13 +137,25 @@ def unpack_zip(data: bytes, limits: ArchiveLimits = DEFAULT_LIMITS, *, with_mode
     except (zipfile.BadZipFile, ValueError, EOFError, RuntimeError, OSError) as exc:
         # `NotImplementedError` (a `RuntimeError`) for an unsupported "version needed to extract" in the central directory.
         raise ArchiveError("bad_zip", str(exc)) from exc
-    for info in infos:
-        if info.is_dir() and _unsafe(info.filename.rstrip("/"), limits):
-            raise ArchiveError("unsafe_path", info.filename)
-    directories = [info.filename.rstrip("/") for info in infos if info.is_dir()]
-    entries = [info for info in infos if not info.is_dir()]
-    if not entries:
+    all_files = [info for info in infos if not info.is_dir()]
+    if not all_files:
         raise ArchiveError("empty")
+    top = _strip_common_top([info.filename for info in all_files])
+
+    def stripped(name: str) -> str:
+        return name[len(top) + 1:] if top and name.startswith(top + "/") else name
+
+    directory_infos = [info for info in infos if info.is_dir()]
+    entries = all_files
+    if scope:  # a non-empty root: only what is under it is read, counted and checked
+        directory_infos = [info for info in directory_infos if _in_scope(stripped(info.filename.rstrip("/")), scope)]
+        entries = [info for info in all_files if _in_scope(stripped(info.filename), scope)]
+        if not entries:
+            raise ArchiveError("empty", f"nothing under {scope}")
+    for info in directory_infos:
+        if _unsafe(info.filename.rstrip("/"), limits):
+            raise ArchiveError("unsafe_path", info.filename)
+    directories = [info.filename.rstrip("/") for info in directory_infos]
     if len(entries) > limits.max_files:
         raise ArchiveError("too_many_files", str(len(entries)))
     for info in entries:
@@ -135,13 +164,12 @@ def unpack_zip(data: bytes, limits: ArchiveLimits = DEFAULT_LIMITS, *, with_mode
         if _is_special(info):
             raise ArchiveError("symlink", info.filename)
     _check_declared(entries, limits)
-    top = _strip_common_top([info.filename for info in entries])
     files: dict[str, bytes] = {}
     executable: set[str] = set()
     folded: set[str] = set()
     total = 0
     for info in entries:
-        name = info.filename[len(top) + 1:] if top and info.filename.startswith(top + "/") else info.filename
+        name = stripped(info.filename)
         if _unsafe(name, limits) or posixpath.normpath(name) != name or name in files:
             raise ArchiveError("unsafe_path", info.filename)
         if _under(name, scope):
@@ -156,7 +184,7 @@ def unpack_zip(data: bytes, limits: ArchiveLimits = DEFAULT_LIMITS, *, with_mode
         files[name] = content
         if _is_executable(info):
             executable.add(name)
-    _check_file_directory_clash(files, [d[len(top) + 1:] if top and d.startswith(top + "/") else d for d in directories], scope)
+    _check_file_directory_clash(files, [stripped(d) for d in directories], scope)
     if with_modes:
         return files, frozenset(executable)
     return files

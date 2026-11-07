@@ -221,7 +221,7 @@ def test_platform_collisions_outside_the_scanned_root_are_kept(entries):
     """Build review: a repository may hold a name Windows refuses, or two names that differ only in case, in a
     directory the scan does not read; only names under `root` must survive every extractor."""
     files = unpack_zip(raw_zip(entries), root="skill")
-    assert set(files) == {name for name, _ in entries}
+    assert set(files) == {"skill/SKILL.md"}  # not refused, and not returned either: outside the root nothing is read
     with pytest.raises(ArchiveError) as caught:
         unpack_zip(raw_zip(entries))  # the default root is the whole archive
     assert caught.value.code == "unsafe_path"
@@ -261,3 +261,139 @@ def test_a_hand_made_zip_with_finder_leftovers_strips_like_a_forge_archive():
         zf.writestr("__MACOSX/skill/._SKILL.md", b"fork")
     files = unpack_zip(macosx.getvalue())
     assert {"SKILL.md", "lib/x.py"} <= set(files) and "skill/SKILL.md" not in files
+
+
+# Path-scoped limits: with a non-empty `root`, entries outside it are skipped before any rule or limit applies.
+
+def _scoped(outside: list[tuple[str, bytes]], under: list[tuple[str, bytes]] | None = None, **kwargs):
+    under = under if under is not None else [("skill/SKILL.md", b"a")]
+    # `README.md` keeps the archive from having one top directory, which `unpack_zip` would strip.
+    return unpack_zip(raw_zip([("README.md", b"r")] + outside + under), root="skill", **kwargs)
+
+
+def test_thousands_of_files_outside_the_root_do_not_count_and_are_not_returned():
+    outside = [(f"vendor/f{i}.txt", b"x") for i in range(2500)]
+    under = [("skill/SKILL.md", b"a"), ("skill/lib/x.py", b"b"), ("skill/lib/y.py", b"c")]
+    files = unpack_zip(raw_zip(outside + under), root="skill")
+    assert files == {"skill/SKILL.md": b"a", "skill/lib/x.py": b"b", "skill/lib/y.py": b"c"}
+    with pytest.raises(ArchiveError) as caught:
+        unpack_zip(raw_zip(outside + under))  # the whole-archive default still counts every file
+    assert caught.value.code == "too_many_files"
+
+
+def test_a_symlink_outside_the_root_is_ignored_and_one_under_it_is_still_refused():
+    def archive(link_name: str) -> bytes:
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as zf:
+            zf.writestr("skill/SKILL.md", b"a")
+            zf.writestr("README.md", b"r")
+            link = zipfile.ZipInfo(link_name)
+            link.external_attr = (stat.S_IFLNK | 0o777) << 16
+            zf.writestr(link, b"target")
+        return buffer.getvalue()
+
+    assert unpack_zip(archive("elsewhere/link"), root="skill") == {"skill/SKILL.md": b"a"}
+    with pytest.raises(ArchiveError) as caught:
+        unpack_zip(archive("skill/link"), root="skill")
+    assert caught.value.code == "symlink"
+
+
+@pytest.mark.parametrize("outside_name, under_name", [
+    ("x" * 300, "skill/" + "x" * 300),
+    ("other/../x", "skill/../x"),
+    ("other/./x", "skill/./x"),
+    ("other//x", "skill//x"),
+])
+def test_an_unsafe_name_outside_the_root_is_ignored_and_the_same_under_it_is_refused(outside_name, under_name):
+    assert _scoped([(outside_name, b"x")]) == {"skill/SKILL.md": b"a"}
+    with pytest.raises(ArchiveError) as caught:
+        _scoped([(under_name, b"x")])
+    assert caught.value.code == "unsafe_path"
+
+
+def test_an_unsafe_directory_entry_outside_the_root_is_ignored_and_one_under_it_is_refused():
+    assert _scoped([("other/../", b"")]) == {"skill/SKILL.md": b"a"}
+    with pytest.raises(ArchiveError) as caught:
+        _scoped([("skill/../", b"")])
+    assert caught.value.code == "unsafe_path"
+
+
+def test_an_entry_outside_the_root_over_the_size_limits_is_ignored(monkeypatch):
+    limits = ArchiveLimits(max_file=100, max_uncompressed=250)
+    outside = [("vendor/big.bin", b"z" * 5000), ("vendor/more.bin", b"z" * 90), ("vendor/more2.bin", b"z" * 90)]
+    data = raw_zip([("README.md", b"r")] + outside + [("skill/SKILL.md", b"a")])  # built first: writing uses `open` too
+    opened: list[str] = []
+    original = zipfile.ZipFile.open
+
+    def recording(self, name, *args, **kwargs):
+        opened.append(getattr(name, "filename", name))
+        return original(self, name, *args, **kwargs)
+
+    monkeypatch.setattr(zipfile.ZipFile, "open", recording)
+    assert unpack_zip(data, limits, root="skill") == {"skill/SKILL.md": b"a"}
+    assert opened == ["skill/SKILL.md"], "an entry outside the root is never opened"
+    with pytest.raises(ArchiveError) as caught:
+        unpack_zip(data, limits)  # the whole archive keeps the rule
+    assert caught.value.code == "too_large"
+
+
+def test_the_size_limits_still_apply_under_the_root():
+    limits = ArchiveLimits(max_file=100, max_uncompressed=250)
+    with pytest.raises(ArchiveError) as caught:
+        _scoped([], [("skill/SKILL.md", b"a"), ("skill/big.bin", b"z" * 101)], limits=limits)
+    assert caught.value.code == "too_large"
+    with pytest.raises(ArchiveError) as caught:
+        _scoped([("vendor/ok.bin", b"z" * 90)], [("skill/a.bin", b"z" * 90), ("skill/b.bin", b"z" * 90), ("skill/c.bin", b"z" * 90)], limits=limits)
+    assert caught.value.code == "too_large"
+
+
+def test_more_than_max_files_under_the_root_is_still_too_many_files():
+    under = [(f"skill/f{i}", b"x") for i in range(5)]
+    with pytest.raises(ArchiveError) as caught:
+        _scoped([("vendor/a", b"x")], under, limits=ArchiveLimits(max_files=4))
+    assert caught.value.code == "too_many_files"
+    assert len(_scoped([("vendor/a", b"x"), ("vendor/b", b"x")], under[:4], limits=ArchiveLimits(max_files=4))) == 4
+
+
+@pytest.mark.parametrize("name", ["other/../skill/x", "Skill/run.sh", "skill./run.sh", "SKILL /x", "skill/../skill/x"])
+def test_a_name_that_lands_under_the_root_by_normpath_or_platform_key_still_gets_every_rule(name):
+    with pytest.raises(ArchiveError) as caught:
+        _scoped([("vendor/a", b"x")], [("skill/SKILL.md", b"a"), (name, b"b")])
+    assert caught.value.code == "unsafe_path"
+
+
+def test_no_file_under_the_root_is_empty():
+    with pytest.raises(ArchiveError) as caught:
+        unpack_zip(raw_zip([("vendor/a", b"x"), ("skillful/b", b"y")]), root="skill")
+    assert caught.value.code == "empty"
+    assert "skill" in caught.value.detail
+
+
+def test_the_common_top_is_stripped_before_the_root_is_applied():
+    data = build({"skill/SKILL.md": b"a", "skill/x.py": b"b", "vendor/v.txt": b"v"}, top="repo-main")
+    assert unpack_zip(data, root="skill") == {"skill/SKILL.md": b"a", "skill/x.py": b"b"}
+    assert unpack_zip(data, root="/skill/") == {"skill/SKILL.md": b"a", "skill/x.py": b"b"}
+
+
+def test_the_whole_archive_compressed_limit_is_checked_first_even_if_everything_is_outside():
+    data = build({"vendor/blob": bytes(range(256)) * 64})
+    with pytest.raises(ArchiveError) as caught:
+        unpack_zip(data, ArchiveLimits(max_compressed=1000), root="skill")
+    assert caught.value.code == "too_large"
+
+
+def test_executable_paths_outside_the_root_are_not_reported():
+    data = build({"skill/SKILL.md": b"a", "skill/run.sh": b"b", "vendor/tool": b"c"},
+                 attrs={"skill/run.sh": 0o100755 << 16, "vendor/tool": 0o100755 << 16})
+    files, executable = unpack_zip(data, with_modes=True, root="skill")
+    assert set(files) == {"skill/SKILL.md", "skill/run.sh"} and executable == frozenset({"skill/run.sh"})
+
+
+def test_the_empty_root_and_none_keep_every_entry_and_every_rule():
+    entries = [("skill/SKILL.md", b"a"), ("vendor/x", b"b")]
+    assert set(unpack_zip(raw_zip(entries), root="")) == {"skill/SKILL.md", "vendor/x"}
+    assert set(unpack_zip(raw_zip(entries), root=None)) == {"skill/SKILL.md", "vendor/x"}
+    for root in ("", None):
+        with pytest.raises(ArchiveError) as caught:
+            unpack_zip(raw_zip(entries + [("a/../b", b"c")]), root=root)
+        assert caught.value.code == "unsafe_path"
