@@ -99,7 +99,7 @@ def _skl_001(package: Package) -> Iterator[Finding]:
 # character that takes none (`_stray_selectors`: emoji and symbols take one, U+FE0F after an emoji is ordinary).
 # The soft hyphen is not flagged (ordinary in text copied from a word processor); `_visible` drops it before matching.
 _HIDDEN = re.compile("[\u034f\u115f\u180b-\u180f\u200b-\u200f\u2028\u2029\u2060-\u2064\u202a-\u202e\u2066-\u2069\u3164\ufeff\uffa0"
-                     "\ufff9-\ufffb\U000e0000-\U000e007f\U000e0100-\U000e01ef]|[\ufe00-\ufe0f]{2,}")
+                     "\ufff9-\ufffb]|[\U000e0000-\U000e007f]|[\U000e0100-\U000e01ef]|[\ufe00-\ufe0f]{2,}")
 _SELECTOR = re.compile("[\ufe00-\ufe0f]")
 _KEYCAP_BASES = frozenset("0123456789#*")
 _KEYCAP = "\u20e3"
@@ -173,7 +173,7 @@ def _stray_selectors(line: str) -> list[str]:
 # Every format character and the soft hyphen, removed before the injection phrases are matched (SW-SKL-001,
 # SW-MCP-011): `ig\u00adnore previous instructions` reads as the phrase to an agent.
 _INVISIBLE = re.compile("[\u00ad\u034f\u115f\u180b-\u180f\u200b-\u200f\u2060-\u2064\u202a-\u202e\u2066-\u2069\u3164\ufeff\uffa0\ufe00-\ufe0f"
-                        "\ufff9-\ufffb\U000e0000-\U000e007f\U000e0100-\U000e01ef]")
+                        "\ufff9-\ufffb]|[\U000e0000-\U000e007f]|[\U000e0100-\U000e01ef]")
 
 
 def visible(text: str) -> str:

@@ -615,6 +615,38 @@ def test_the_default_resolver_and_opener_exist_and_the_real_opener_pins_the_addr
     assert callable(net.default_resolver)
 
 
+@pytest.mark.filterwarnings("ignore:ssl.TLSVersion.TLSv1:DeprecationWarning")  # the local settings the test plays
+@pytest.mark.parametrize(("local", "wanted"), [("MINIMUM_SUPPORTED", "TLSv1_2"), ("TLSv1", "TLSv1_2"),
+                                               ("TLSv1_1", "TLSv1_2"), ("TLSv1_2", "TLSv1_2"), ("TLSv1_3", "TLSv1_3")])
+def test_every_tls_connection_the_cli_opens_needs_tls_1_2_and_verifies_the_server(monkeypatch, local, wanted):
+    """1.11.1: `create_default_context` alone takes its minimum version from the Python build and the local OpenSSL
+    configuration, which on some distribution Pythons still allows TLS 1.0 and 1.1. The probe's pinned connection, the
+    API's proxy tunnel, PR and MR comments and the usage ping raise it to TLS 1.2; a stricter local minimum is kept."""
+    import ssl
+    import urllib.request
+
+    from spellwarden_cli import api, forge, ping
+
+    real = ssl.create_default_context
+
+    def local_default(*args, **kwargs):
+        context = real(*args, **kwargs)
+        context.minimum_version = getattr(ssl.TLSVersion, local)
+        return context
+
+    monkeypatch.setattr(ssl, "create_default_context", local_default)
+    opened: list = []
+    monkeypatch.setattr(urllib.request, "urlopen", lambda request, timeout, context: opened.append(context))
+    net.tls_urlopen(urllib.request.Request("https://api.github.com/"), timeout=1)
+    direct = net.pinned_connection("files.example", PUBLIC_IP, 443, 10.0)
+    tunnel = api.tunnel_connection("dash.spellwarden.ai", 443, api.ProxyConfig("proxy.corp", 3128, None), 10.0)
+    for context in (net.tls_context(), direct._ssl_context, direct._context, tunnel._context, *opened):
+        assert context.minimum_version == getattr(ssl.TLSVersion, wanted)
+        assert context.verify_mode == ssl.CERT_REQUIRED and context.check_hostname
+    assert direct._context is direct._ssl_context  # one context per connection, the one `connect` wraps the socket with
+    assert len(opened) == 1 and forge._urlopen is net.tls_urlopen and ping.tls_urlopen is net.tls_urlopen
+
+
 def test_the_default_resolver_puts_ipv4_before_ipv6_whatever_the_string_order(monkeypatch):
     """1.2.1: the connection is pinned to the first address and never falls back; a hosted runner without an IPv6
     route must get an IPv4 address first, which a plain string sort of `2600:...` against `3.x.x.x` did not give."""

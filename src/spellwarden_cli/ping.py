@@ -26,12 +26,12 @@ from spellwarden_scan.version import RULES_VERSION, __version__
 
 from spellwarden_cli.api import loopback_url  # the one acceptance rule of the test hooks (O3 spec 6.2)
 from spellwarden_cli.ci import CiContext, org_hash
-from spellwarden_cli.net import USER_AGENT
+from spellwarden_cli.net import USER_AGENT, tls_urlopen
 from spellwarden_cli.settings import env_bool
 
 DEFAULT_URL = "https://dash.spellwarden.ai/api/public/ping"
 TIMEOUT_SECONDS = 2
-_urlopen = urllib.request.urlopen  # tests replace it (tests/conftest.py keeps every test off the network)
+_urlopen = tls_urlopen  # tests replace it (tests/conftest.py keeps every test off the network)
 
 
 def ping_body(ctx: CiContext, *, version: str, rules_version: str, a2a: bool = False) -> dict:

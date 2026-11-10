@@ -14,7 +14,7 @@ import urllib.request
 from collections.abc import Callable, Mapping
 from urllib.parse import quote, urlsplit
 
-from spellwarden_cli.net import USER_AGENT
+from spellwarden_cli.net import USER_AGENT, tls_urlopen
 from spellwarden_cli.output.markdown import MARKER  # one marker: the report's first line is what this module finds
 from spellwarden_cli.report import Notice
 
@@ -22,7 +22,7 @@ MAX_PAGES = 10
 PER_PAGE = 100
 TIMEOUT_SECONDS = 10
 GITHUB_ACTIONS_BOT = "github-actions[bot]"
-_urlopen = urllib.request.urlopen  # tests replace it (tests/cli/test_forge.py)
+_urlopen = tls_urlopen  # tests replace it (tests/cli/test_forge.py)
 
 
 class _NoToken(Exception):

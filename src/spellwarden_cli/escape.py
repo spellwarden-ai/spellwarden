@@ -8,8 +8,8 @@ import unicodedata
 
 # The characters SW-SKL-002 treats as hidden (bidirectional controls, zero-width and invisible characters, the tag
 # block and the variation selectors), plus every other format character: shown as \u{NNNN}, never passed through.
-_INVISIBLE = re.compile("[͏ᅟ᠋-᠏​-‏  ‪-‮⁠-⁤⁦-⁩"
-                        "ㅤ︀-️﻿ﾠ￹-￻\U000e0000-\U000e007f\U000e0100-\U000e01ef]")
+_INVISIBLE = re.compile("[\u034f\u115f\u180b-\u180f\u200b-\u200f\u2028\u2029\u202a-\u202e\u2060-\u2064\u2066-\u2069"
+                        "\u3164\ufe00-\ufe0f\ufeff\uffa0\ufff9-\ufffb]|[\U000e0000-\U000e007f]|[\U000e0100-\U000e01ef]")
 _MARKDOWN_BACKSLASH = frozenset("\\`*_[]|#")
 _MARKDOWN_ENTITY = {"<": "&lt;", ">": "&gt;", "&": "&amp;"}
 _BACKTICKS = re.compile(r"`+")

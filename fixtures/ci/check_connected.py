@@ -45,7 +45,8 @@ def check(recording: list[dict], report: dict, credential: str) -> list[str]:
     for request in recording:
         if request.get("unscripted"):
             problems.append(f"{request['method']} {request['path']} was not scripted")
-    secrets: dict[str, str] = {}
+    # The run's credential values by label: each must stay where it belongs. Only the labels are ever printed.
+    watched: dict[str, str] = {}
     if credential == "oidc" and recording:
         token_request = recording[0]
         query = parse_qs(urlsplit(token_request["path"]).query)
@@ -54,9 +55,9 @@ def check(recording: list[dict], report: dict, credential: str) -> list[str]:
         provider = (token_request["response"]["body"] or {}).get("value")
         request_token = _bearer(token_request)
         if provider:
-            secrets["provider token"] = provider
+            watched["provider token"] = provider
         if request_token:
-            secrets["token request token"] = request_token
+            watched["token request token"] = request_token
         exchange = next((r for r in recording if urlsplit(r["path"]).path == "/api/public/ci/token"), None)
         if exchange is not None:
             if (exchange["body"] or {}).get("token") != provider:
@@ -65,12 +66,12 @@ def check(recording: list[dict], report: dict, credential: str) -> list[str]:
                 problems.append("the exchange carried an Authorization header")
             session = (exchange["response"]["body"] or {}).get("token")
             if session:
-                secrets["CI token"] = session
+                watched["CI token"] = session
     elif credential == "key" and recording:
         key = _bearer(recording[0])
         if key:
-            secrets["CI key"] = key
-    for name, value in secrets.items():
+            watched["CI key"] = key
+    for name, value in watched.items():
         for request in recording:
             path = urlsplit(request["path"]).path
             body = json.dumps(request["body"])

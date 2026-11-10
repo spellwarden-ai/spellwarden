@@ -38,7 +38,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from urllib.parse import quote, unquote, urlencode, urlsplit
 
-from spellwarden_cli.net import USER_AGENT, FetchError, check_host, default_resolver, pinned_connection
+from spellwarden_cli.net import USER_AGENT, FetchError, check_host, default_resolver, pinned_connection, tls_context
 from spellwarden_cli.secret import Secret
 
 DEFAULT_API_URL = "https://dash.spellwarden.ai/api"
@@ -166,7 +166,7 @@ class _TunnelConnection(http.client.HTTPSConnection):
     """A connection to the proxy that `CONNECT`s to the target and then speaks TLS to the target's name."""
 
     def __init__(self, host: str, port: int, proxy: ProxyConfig, timeout: float, context=None) -> None:
-        super().__init__(proxy.host, proxy.port, timeout=timeout, context=context or ssl.create_default_context())
+        super().__init__(proxy.host, proxy.port, timeout=timeout, context=context or tls_context())
         headers = {}
         if proxy.auth is not None:
             headers["Proxy-Authorization"] = "Basic " + base64.b64encode(proxy.auth.value.encode("utf-8")).decode("ascii")
