@@ -123,13 +123,14 @@ def _make_handler(gateway: FakeGateway):
             url = urlparse(self.path)
             gateway.calls.append(("POST", url.path))
             raw = self.body()
-            if url.path in ROUTES:
+            route = next((known for known in ROUTES if known == url.path), None)  # the fake's own string, not the request's
+            if route is not None:
                 token = (self.headers.get("Authorization") or "").removeprefix("Bearer ")
-                if gateway.tokens.get(token) != gateway.resource(url.path):
-                    metadata = gateway.base + "/.well-known/oauth-protected-resource" + url.path
+                if gateway.tokens.get(token) != gateway.resource(route):
+                    metadata = gateway.base + "/.well-known/oauth-protected-resource" + route
                     return self.send(401, b'{"error":"unauthorized"}', {"WWW-Authenticate": f'Bearer resource_metadata="{metadata}"'})
                 message = json.loads(raw or b"{}")
-                return self.json({"jsonrpc": "2.0", "id": message.get("id"), "result": {"route": url.path}})
+                return self.json({"jsonrpc": "2.0", "id": message.get("id"), "result": {"route": route}})
             if url.path == "/oauth/register":
                 data = json.loads(raw or b"{}")
                 client_id = "client-" + secrets.token_hex(4)

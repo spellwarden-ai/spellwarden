@@ -41,6 +41,7 @@ import socket
 import ssl
 import threading
 import time
+import urllib.request
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from urllib.parse import urljoin, urlsplit
@@ -191,13 +192,31 @@ def check_host(host: str, resolver: Callable[[str], list[str]], *, allow_private
     return addresses[0]
 
 
+def tls_context() -> ssl.SSLContext:
+    """The TLS settings of every connection the CLI opens itself (the probe, the API, PR and MR comments, the usage
+    ping): certificates and host names verified, and TLS 1.2 at least. `create_default_context` alone takes its minimum
+    from the Python build and the local OpenSSL configuration, which on some systems still allows TLS 1.0 and 1.1; a
+    stricter local minimum (TLS 1.3 only) is kept."""
+    context = ssl.create_default_context()
+    local = context.minimum_version
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
+    if local > ssl.TLSVersion.TLSv1_2:  # MINIMUM_SUPPORTED is -2, so only TLS 1.3 compares higher
+        context.minimum_version = local
+    return context
+
+
+def tls_urlopen(request: urllib.request.Request, *, timeout: float):
+    """`urllib.request.urlopen` with `tls_context()`: the default opener of the PR and MR comments and the usage ping."""
+    return urllib.request.urlopen(request, timeout=timeout, context=tls_context())
+
+
 class _PinnedConnection(http.client.HTTPSConnection):
     """An HTTPS connection to `pinned_ip` that keeps `host` for SNI and `Host`."""
 
     def __init__(self, host: str, pinned_ip: str, port: int, timeout: float) -> None:
-        super().__init__(host, port, timeout=timeout, context=ssl.create_default_context())
+        self._ssl_context = tls_context()
+        super().__init__(host, port, timeout=timeout, context=self._ssl_context)
         self.pinned_ip = pinned_ip
-        self._ssl_context = ssl.create_default_context()
 
     def connect(self) -> None:
         sock = socket.create_connection((self.pinned_ip, self.port), self.timeout)

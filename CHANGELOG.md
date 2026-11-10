@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.11.1 (2026-11-10)
+
+The seven open GitHub code scanning (CodeQL) alerts of this repository are closed. One is a hardening; the other six
+change no behaviour. Scan results, exports, fingerprints and rules are those of 1.11.0 (rules `2026.11.4`).
+- TLS 1.2 is the minimum version of every TLS connection the CLI opens itself: the probe's connection to a server, the
+  API (directly or through a proxy), PR and MR comments, and the usage ping. Before, the minimum came from the Python
+  build and the local OpenSSL configuration. The published image and the Pythons that uv installs already required TLS
+  1.2, but some distribution Pythons (Debian, Ubuntu, Fedora) can be configured to allow TLS 1.0 and 1.1; there, a server
+  or a self-hosted GitLab that only speaks TLS 1.0 or 1.1 now fails with a connection error. A stricter local minimum (TLS
+  1.3 only) is kept. Certificates and host names are verified, as before.
+- The hidden-character patterns (SW-SKL-001, SW-SKL-002, SW-MCP-011 and the A2A rules that share them), the output
+  escaping and the baseline's YAML quoting are rewritten so that CodeQL reads their supplementary-plane ranges (the tag
+  block and the variation selectors supplement) correctly. Each pattern was checked against the old one on every code point: they match the same
+  characters. The output escaping no longer holds raw invisible characters in its source.
+- The CI fixture `check_connected.py` and the fake Zuplo gateway of the tests are renamed and pinned so the analysis no
+  longer reads them as logging a secret or echoing a request into a header (neither did).
+
 ## 1.11.0 (2026-11-10)
 
 SW-MCP-011 (tool description contains instruction-like text) is precise enough to read on a real population. Spellwarden's

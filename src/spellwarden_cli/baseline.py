@@ -36,7 +36,9 @@ _TOP_KEYS = frozenset({"version", "accepted"})
 _ENTRY_KEYS = frozenset({"fingerprint", "rule", "path", "reason", "added", "expires"})
 _TEXT_KEYS = ("fingerprint", "rule", "path", "reason")
 # Characters YAML may not hold raw, or reads as a line break inside a double-quoted scalar: escaped as \u or \U.
-_YAML_UNSAFE = re.compile("[^\t\n\r\x20-\x7e\xa0-\ud7ff\ue000-\ufffd\U00010000-\U0010ffff]|[\x85\u2028\u2029\ufeff]")
+# Listed as the characters outside YAML's printable set (C0 controls but tab and line breaks, DEL, the C1 controls, the
+# surrogates, U+FFFE and U+FFFF) plus the line breaks and the byte order mark.
+_YAML_UNSAFE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f\ud800-\udfff\ufffe\uffff\u2028\u2029\ufeff]")
 
 
 class BaselineError(ValueError):
