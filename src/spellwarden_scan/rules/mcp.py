@@ -30,21 +30,22 @@ TOOL_INJECTION_SECRET = re.compile(r"secret instruction", re.IGNORECASE)
 # secret file path or a word for conversation or credential material it is high (`_STEERING_WITH_DATA`). Descriptions are read
 # with their whitespace collapsed, so a hard-wrapped docstring does not break a phrase.
 _IMPORTANT_OVERRIDE = P.Then(r"IMPORTANT:", r"\b(ignore\b|override|disregard)")  # linear: the `.*` regex is quadratic on repeated `IMPORTANT:`
-# Within: the directive must sit between "IMPORTANT:" and the next period, and the line is read once (linear).
+# Within: the directive must sit between "IMPORTANT:" and the end of the sentence, and the line is read once (linear). Whitespace is
+# collapsed first, so a sentence ends at ". " (or the end of the text); a dot inside "~/.ssh", "mcp.json" or "v1.2" does not end it.
 _IMPORTANT_DIRECTIVE = P.Within(
     r"IMPORTANT:",
-    r"\b(you|the (assistant|model|agent|ai|llm)|claude|this tool|the \w+ tool)\b[^.]{0,40}?\bmust\b"
+    r"\b(you|the (assistant|model|agent|ai|llm)|claude|this tool|the \w+ tool)\b(?:[^.]|\.(?=\S)){0,40}?\bmust\b"
     r"|\bmust (always |first |also )?(call|run|read|include|pass|send|forward|attach|invoke)\b"
     r"|\bmust be (called|used|run|invoked) (first|before)\b",
-    ".")
+    ". ")
 _TOOL_STEERING = (
     re.compile(r"always (call|use|run) this tool", re.IGNORECASE),
     re.compile(r"before (any|every|all) other tools?", re.IGNORECASE),
     _IMPORTANT_DIRECTIVE,
 )
 _TOOL_CONCEALMENT = (
-    # A bounded gap ([^.\n]{0,60}, one sentence) keeps it linear and inside the sentence that names the user or the tool.
-    re.compile(r"\b(do not|don't|never) (mention|reveal|show|tell|disclose)\b[^.\n]{0,60}?\b(the user|users|the human|this tool"
+    # A bounded gap (60 characters of one sentence: no ". ") keeps it linear and inside the sentence that names the user or the tool.
+    re.compile(r"\b(do not|don't|never) (mention|reveal|show|tell|disclose)\b(?:[^.]|\.(?=\S)){0,60}?\b(the user|users|the human|this tool"
                r"|(these|your|the) instructions|this instruction)\b|\b(do not|don't|never) (mention|reveal) (the|this|that|it|them|any|your|these)\b"
                r"|\b(do not|don't|never) tell (it|this|that|them)\b",
                re.IGNORECASE),

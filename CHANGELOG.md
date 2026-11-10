@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.11.0 (RELEASE_DATE)
+## 1.11.0 (2026-11-10)
 
 SW-MCP-011 (tool description contains instruction-like text) is precise enough to read on a real population. Spellwarden's
 census of the official MCP Registry ("MCP server security, November 2026") read the descriptions it flagged on 964 hosts: the
@@ -11,14 +11,17 @@ is newly flagged. The rules version is `2026.11.4`; no other rule changed.
 
 What the rule reads:
 - Descriptions are read with their whitespace collapsed, so a hard-wrapped docstring ("Do not\n tell the user") no longer breaks
-  a phrase.
+  a phrase. "The same sentence" below means up to the next ". " or the end of the text, so a dot inside "~/.ssh", "mcp.json" or
+  "v1.2" does not end it (an abbreviation such as "e.g. " does).
 - `hidden` matches only as hidden (system) instructions, prompts, commands or directives, "keep this (it, them, these) hidden",
   "keep this instruction (these instructions) hidden or secret", or "hide (this) from the user", "hidden from your user", "hidden
   from the human".
 - "do not", "don't" or "never" with "mention", "reveal", "show", "tell" or "disclose" matches only as whole words (so "never shown
   again" no longer does), followed in the same sentence, within 60 characters, by "the user", "users", "the human", "this tool"
-  or "the (these, your) instructions"; "mention" or "reveal" followed by an object ("do not mention the report", "never reveal
-  it"); or "tell" followed by "it", "this", "that" or "them". "disclose" is new.
+  or "the (these, your) instructions"; "mention" or "reveal" followed directly by "the", "this", "that", "it", "them", "any",
+  "your" or "these" ("do not mention the report", "never reveal it"); or "tell" followed by "it", "this", "that" or "them".
+  "disclose" is new. The object form also matches a few descriptive sentences ("pages that don't mention any competitor"): 3 of
+  the 36,634 census descriptions.
 - "IMPORTANT:" followed by "ignore" (as a word), "override" (also "overrides") or "disregard" stays high. "IMPORTANT:" followed in
   the same sentence by a "must" aimed at the model or a tool ("you must", "the assistant must", "this tool must be called first",
   "must read", "must pass") is steering (medium), like "always use this tool"; "IMPORTANT: ... must" in any other form no longer
