@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.11.0 (RELEASE_DATE)
+
+SW-MCP-011 (tool description contains instruction-like text) is precise enough to read on a real population. Spellwarden's
+census of the official MCP Registry ("MCP server security, November 2026") read the descriptions it flagged on 964 hosts: the
+bare word "hidden" was the only match on 543 of them (hidden files, hidden form fields, hidden game content), "never show"
+matched "the key is never shown again", and "IMPORTANT: ... must" fired on parameter notes. On the same descriptions the rule now
+flags 173 hosts instead of 964. The rules version is `2026.11.4`; no other rule changed.
+
+- `hidden` matches only as "hidden instructions", "hidden prompts", "hidden commands" or "hidden directives", "keep this
+  (it, them, these) hidden or secret", or "hide (this) from the user" and "hidden from the user".
+- "do not", "don't" or "never" with "mention", "reveal", "show", "tell" or "disclose" matches only as whole words (so "never
+  shown again" no longer does), followed in the same sentence, within 60 characters, by "the user", "users", "the human", "this
+  tool", "this instruction" or "these instructions", or directly by "it", "this", "that" or "them" (except after "show").
+- "IMPORTANT:" followed by "ignore", "override" or "disregard" stays high; "IMPORTANT:" followed by "you must" is steering
+  (medium), like "always use this tool"; "IMPORTANT: ... must" alone no longer matches.
+- The instruction tags (`<system>`, `<instructions>`, `<important>`), "secret instruction", the two steering phrases and the
+  shared prompt-injection patterns are unchanged, and so are SW-A2A-014 and the Kong and Zuplo exports, which never read the
+  tool-specific patterns.
+- A finding that still fires keeps its evidence and fingerprint, so baselines and accepted findings carry over; findings that no
+  longer fire disappear from new scans.
+
 ## 1.10.0 (2026-11-07)
 
 A skill inside a large repository can now be scanned from the repository's archive, and instruction files that have no
