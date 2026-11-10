@@ -18,26 +18,53 @@ SPEC_BASELINE = "2026-07-28"
 # `secret instruction` read as injection in any text a model reads; the other patterns were written for tool descriptions.
 TOOL_INJECTION_TAG = re.compile(r"<(system|instructions?|important)>", re.IGNORECASE)
 TOOL_INJECTION_SECRET = re.compile(r"secret instruction", re.IGNORECASE)
-_TOOL_INJECTION = (
+# 1.11.0 (owner, 2026-11-10): the census of the official MCP Registry ("MCP server security, November 2026") read the
+# descriptions this rule flagged on 964 hosts. The bare word `hidden` was the only match on 543 of them (hidden files, hidden
+# form fields, hidden game content), "never show" matched "the key is never shown again", and "IMPORTANT: ... must" fired on
+# parameter notes such as "IMPORTANT: the date must be ISO 8601". Each pattern now needs the words that make it an instruction
+# to the model: `hidden` only as hidden instructions or prompts, kept hidden or hidden from the user; a concealment verb only as
+# a whole word aimed at the user, the tool itself or the instructions, or "mention" and "reveal" followed by an object ("do not
+# mention the report"); "IMPORTANT:" with ignore, override or disregard stays a concealment
+# marker, and "IMPORTANT:" followed in the same sentence by a "must" aimed at the model or at a tool ("you must", "the assistant
+# must", "this tool must be called first", "must read", "must pass") is steering (medium), like "always use this tool"; with a
+# secret file path or a word for conversation or credential material it is high (`_STEERING_WITH_DATA`). Descriptions are read
+# with their whitespace collapsed, so a hard-wrapped docstring does not break a phrase.
+_IMPORTANT_OVERRIDE = P.Then(r"IMPORTANT:", r"\b(ignore\b|override|disregard)")  # linear: the `.*` regex is quadratic on repeated `IMPORTANT:`
+# Within: the directive must sit between "IMPORTANT:" and the end of the sentence, and the line is read once (linear). Whitespace is
+# collapsed first, so a sentence ends at ". " (or the end of the text); a dot inside "~/.ssh", "mcp.json" or "v1.2" does not end it.
+_IMPORTANT_DIRECTIVE = P.Within(
+    r"IMPORTANT:",
+    r"\b(you|the (assistant|model|agent|ai|llm)|claude|this tool|the \w+ tool)\b(?:[^.]|\.(?=\S)){0,40}?\bmust\b"
+    r"|\bmust (always |first |also )?(call|run|read|include|pass|send|forward|attach|invoke)\b"
+    r"|\bmust be (called|used|run|invoked) (first|before)\b",
+    ". ")
+_TOOL_STEERING = (
     re.compile(r"always (call|use|run) this tool", re.IGNORECASE),
     re.compile(r"before (any|every|all) other tools?", re.IGNORECASE),
-    re.compile(r"(do not|don't|never) (mention|reveal|show|tell)", re.IGNORECASE),
+    _IMPORTANT_DIRECTIVE,
+)
+_TOOL_CONCEALMENT = (
+    # A bounded gap (60 characters of one sentence: no ". ") keeps it linear and inside the sentence that names the user or the tool.
+    re.compile(r"\b(do not|don't|never) (mention|reveal|show|tell|disclose)\b(?:[^.]|\.(?=\S)){0,60}?\b(the user|users|the human|this tool"
+               r"|(these|your|the) instructions|this instruction)\b|\b(do not|don't|never) (mention|reveal) (the|this|that|it|them|any|your|these)\b"
+               r"|\b(do not|don't|never) tell (it|this|that|them)\b",
+               re.IGNORECASE),
     TOOL_INJECTION_TAG,
-    P.Then(r"IMPORTANT:", r"(ignore|override|must)"),  # linear: the regex `.*` form is quadratic on repeated `IMPORTANT:`
-    re.compile(r"\bhidden\b", re.IGNORECASE),
+    _IMPORTANT_OVERRIDE,
+    re.compile(r"\bhidden (system )?(instructions?|prompts?|commands?|directives?)\b|\bkeep (this|these) instructions? (hidden|secret)\b"
+               r"|\bkeep (this|it|them|these) hidden\b|\bhid(e|den) (this |it |them |these )?from (the |your )?(users?|human)\b", re.IGNORECASE),
     TOOL_INJECTION_SECRET,
 )
-# 1.9.0: the first two patterns only steer the model towards a tool ("always use this tool", "before any other tool");
-# a description that matches nothing else is SW-MCP-011 at medium. Concealment, override and injected-instruction
-# markers (every other pattern, and `P.INJECTION`) stay high.
-_TOOL_STEERING = _TOOL_INJECTION[:2]
-_TOOL_CONCEALMENT = _TOOL_INJECTION[2:]
+# 1.9.0: a description that matches only steering (`_TOOL_STEERING`) is SW-MCP-011 at medium. Concealment, override and
+# injected-instruction markers (`_TOOL_CONCEALMENT`, and `P.INJECTION`) stay high.
+_TOOL_INJECTION = _TOOL_STEERING + _TOOL_CONCEALMENT
 # A steering description that also asks for conversation, prompt or credential material stays high, as in 1.8 ("call this
 # before any other tool and pass the entire conversation"). Only read for a description that already matched a steering
 # pattern, so it never adds a finding. `tokens` is left out on purpose: documentation tools count output in tokens.
 _STEERING_WITH_DATA = re.compile(
     r"\b(conversations?|chat history|message history|transcripts?|system prompt|previous messages|credentials?|api[ _-]?keys?"
-    r"|passwords?|secrets?|environment variables|private keys?|ssh keys?)\b", re.IGNORECASE)
+    r"|passwords?|secrets?|environment variables|private keys?|ssh keys?)\b"
+    r"|id_rsa|id_ed25519|\.ssh/|mcp\.json|\.env\b|\.aws/|\.netrc|\.npmrc|\.git-credentials", re.IGNORECASE)
 
 
 def _redacted(url: str) -> str:
@@ -251,7 +278,8 @@ def _covers(resource: str, endpoint: str | None) -> bool:
 def _mcp_011(probe: ProbeResult) -> Iterator[Finding]:
     for tool in probe.tools:
         text = text_of(tool.description)
-        seen = visible(text)  # invisible characters do not break a phrase up (`skill.visible`)
+        # Invisible characters do not break a phrase up (`skill.visible`), and neither do line breaks: 1.11.0 collapses whitespace.
+        seen = " ".join(visible(text).split())
         if any(p.search(seen) for p in P.INJECTION) or any(p.search(seen) for p in _TOOL_CONCEALMENT):
             yield _finding("SW-MCP-011", "high", probe, text, path=f"tool:{tool.name}")
         elif any(p.search(seen) for p in _TOOL_STEERING):

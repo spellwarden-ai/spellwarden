@@ -1,5 +1,45 @@
 # Changelog
 
+## 1.11.0 (2026-11-10)
+
+SW-MCP-011 (tool description contains instruction-like text) is precise enough to read on a real population. Spellwarden's
+census of the official MCP Registry ("MCP server security, November 2026") read the descriptions it flagged on 964 hosts: the
+bare word "hidden" was the only match on 543 of them (hidden files, hidden form fields, hidden game content), "never show"
+matched "the key is never shown again", and "IMPORTANT: ... must" fired on parameter notes. On the same 36,634 descriptions the
+rule now flags 170 hosts instead of 964 (208 descriptions instead of 1,443), 13 descriptions move from high to medium and none
+is newly flagged. The rules version is `2026.11.4`; no other rule changed.
+
+What the rule reads:
+- Descriptions are read with their whitespace collapsed, so a hard-wrapped docstring ("Do not\n tell the user") no longer breaks
+  a phrase. "The same sentence" below means up to the next ". " or the end of the text, so a dot inside "~/.ssh", "mcp.json" or
+  "v1.2" does not end it (an abbreviation such as "e.g. " does).
+- `hidden` matches only as hidden (system) instructions, prompts, commands or directives, "keep this (it, them, these) hidden",
+  "keep this instruction (these instructions) hidden or secret", or "hide (this) from the user", "hidden from your user", "hidden
+  from the human".
+- "do not", "don't" or "never" with "mention", "reveal", "show", "tell" or "disclose" matches only as whole words (so "never shown
+  again" no longer does), followed in the same sentence, within 60 characters, by "the user", "users", "the human", "this tool"
+  or "the (these, your) instructions"; "mention" or "reveal" followed directly by "the", "this", "that", "it", "them", "any",
+  "your" or "these" ("do not mention the report", "never reveal it"); or "tell" followed by "it", "this", "that" or "them".
+  "disclose" is new. The object form also matches a few descriptive sentences ("pages that don't mention any competitor"): 3 of
+  the 36,634 census descriptions.
+- "IMPORTANT:" followed by "ignore" (as a word), "override" (also "overrides") or "disregard" stays high. "IMPORTANT:" followed in
+  the same sentence by a "must" aimed at the model or a tool ("you must", "the assistant must", "this tool must be called first",
+  "must read", "must pass") is steering (medium), like "always use this tool"; "IMPORTANT: ... must" in any other form no longer
+  matches.
+- A steering description is high when it also names conversation, prompt or credential material, as before, and now also a
+  secret file path (`id_rsa`, `id_ed25519`, `.ssh/`, `mcp.json`, `.env`, `.aws/`, `.netrc`, `.npmrc`, `.git-credentials`).
+- The instruction tags (`<system>`, `<instructions>`, `<important>`), "secret instruction", the two steering phrases and the shared
+  prompt-injection patterns are unchanged, and so are SW-A2A-014 and the Kong and Zuplo exports, which never read the
+  tool-specific patterns.
+
+What it means for your findings:
+- A finding that still fires keeps its evidence and fingerprint, so baselines and accepted findings carry over; findings that no
+  longer fire disappear from new scans.
+- A description that moves from high to medium ("IMPORTANT: you must ..." without data words) no longer fails a gate at the
+  default `--fail-on high`.
+- Phrasings that only the bare patterns caught are no longer flagged, for example "Do not tell anyone" or "never tell the
+  operator"; widening them brought back benign matches on the census corpus.
+
 ## 1.10.0 (2026-11-07)
 
 A skill inside a large repository can now be scanned from the repository's archive, and instruction files that have no

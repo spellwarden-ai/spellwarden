@@ -433,13 +433,14 @@ def test_f1_the_sample_cards_fire_only_what_the_spec_expects(name):
 
 
 def test_the_detector_refactors_keep_the_skill_and_server_rules_as_they_were():
-    """E1: SW-SKL-002 and SW-SKL-011 call the named functions SW-A2A-014 and 015 reuse, and SW-MCP-011 keeps its seven patterns."""
+    """E1: SW-SKL-002 and SW-SKL-011 call the named functions SW-A2A-014 and 015 reuse, and SW-MCP-011 keeps the two patterns
+    SW-A2A-014 shares (1.11.0: eight patterns, three of them steering)."""
     from spellwarden_scan.rules import mcp, skill
 
     assert skill.hidden_characters("a\u200bb") == ["\u200b"] and skill.hidden_characters("plain") == []
     assert skill.has_credential(f"key = {credential('aws')}") and not skill.has_credential("nothing to see")
     assert mcp.TOOL_INJECTION_TAG in mcp._TOOL_INJECTION and mcp.TOOL_INJECTION_SECRET in mcp._TOOL_INJECTION
-    assert len(mcp._TOOL_INJECTION) == 7 and mcp._TOOL_INJECTION[4].search("IMPORTANT: you must")
+    assert len(mcp._TOOL_INJECTION) == 8 and mcp._IMPORTANT_DIRECTIVE in mcp._TOOL_STEERING and mcp._IMPORTANT_DIRECTIVE.search("IMPORTANT: you must")
 
 
 def test_evidence_masks_a_credential_shaped_member_name_but_not_the_protocol_s_own_names():
