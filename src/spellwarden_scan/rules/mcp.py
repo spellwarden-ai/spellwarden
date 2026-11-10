@@ -23,10 +23,20 @@ TOOL_INJECTION_SECRET = re.compile(r"secret instruction", re.IGNORECASE)
 # form fields, hidden game content), "never show" matched "the key is never shown again", and "IMPORTANT: ... must" fired on
 # parameter notes such as "IMPORTANT: the date must be ISO 8601". Each pattern now needs the words that make it an instruction
 # to the model: `hidden` only as hidden instructions or prompts, kept hidden or hidden from the user; a concealment verb only as
-# a whole word aimed at the user or at the tool itself (or at "it" or "this"); "IMPORTANT:" with ignore, override or disregard stays a concealment
-# marker, and "IMPORTANT: ... you must" is steering (medium), like "always use this tool".
-_IMPORTANT_OVERRIDE = P.Then(r"IMPORTANT:", r"\b(ignore|override|disregard)\b")  # linear: the `.*` regex is quadratic on repeated `IMPORTANT:`
-_IMPORTANT_DIRECTIVE = P.Then(r"IMPORTANT:", r"\byou must\b")
+# a whole word aimed at the user, the tool itself or the instructions, or "mention" and "reveal" followed by an object ("do not
+# mention the report"); "IMPORTANT:" with ignore, override or disregard stays a concealment
+# marker, and "IMPORTANT:" followed in the same sentence by a "must" aimed at the model or at a tool ("you must", "the assistant
+# must", "this tool must be called first", "must read", "must pass") is steering (medium), like "always use this tool"; with a
+# secret file path or a word for conversation or credential material it is high (`_STEERING_WITH_DATA`). Descriptions are read
+# with their whitespace collapsed, so a hard-wrapped docstring does not break a phrase.
+_IMPORTANT_OVERRIDE = P.Then(r"IMPORTANT:", r"\b(ignore\b|override|disregard)")  # linear: the `.*` regex is quadratic on repeated `IMPORTANT:`
+# Within: the directive must sit between "IMPORTANT:" and the next period, and the line is read once (linear).
+_IMPORTANT_DIRECTIVE = P.Within(
+    r"IMPORTANT:",
+    r"\b(you|the (assistant|model|agent|ai|llm)|claude|this tool|the \w+ tool)\b[^.]{0,40}?\bmust\b"
+    r"|\bmust (always |first |also )?(call|run|read|include|pass|send|forward|attach|invoke)\b"
+    r"|\bmust be (called|used|run|invoked) (first|before)\b",
+    ".")
 _TOOL_STEERING = (
     re.compile(r"always (call|use|run) this tool", re.IGNORECASE),
     re.compile(r"before (any|every|all) other tools?", re.IGNORECASE),
@@ -35,12 +45,13 @@ _TOOL_STEERING = (
 _TOOL_CONCEALMENT = (
     # A bounded gap ([^.\n]{0,60}, one sentence) keeps it linear and inside the sentence that names the user or the tool.
     re.compile(r"\b(do not|don't|never) (mention|reveal|show|tell|disclose)\b[^.\n]{0,60}?\b(the user|users|the human|this tool"
-               r"|these instructions|this instruction)\b|\b(do not|don't|never) (mention|reveal|tell|disclose) (it|this|that|them)\b",
+               r"|(these|your|the) instructions|this instruction)\b|\b(do not|don't|never) (mention|reveal) (the|this|that|it|them|any|your|these)\b"
+               r"|\b(do not|don't|never) tell (it|this|that|them)\b",
                re.IGNORECASE),
     TOOL_INJECTION_TAG,
     _IMPORTANT_OVERRIDE,
-    re.compile(r"\bhidden (instructions?|prompts?|commands?|directives?)\b|\bkeep (this|it|them|these|these instructions) (hidden|secret)\b"
-               r"|\bhid(e|den) (this |it |them |these )?from (the )?users?\b", re.IGNORECASE),
+    re.compile(r"\bhidden (system )?(instructions?|prompts?|commands?|directives?)\b|\bkeep (this|these) instructions? (hidden|secret)\b"
+               r"|\bkeep (this|it|them|these) hidden\b|\bhid(e|den) (this |it |them |these )?from (the |your )?(users?|human)\b", re.IGNORECASE),
     TOOL_INJECTION_SECRET,
 )
 # 1.9.0: a description that matches only steering (`_TOOL_STEERING`) is SW-MCP-011 at medium. Concealment, override and
@@ -51,7 +62,8 @@ _TOOL_INJECTION = _TOOL_STEERING + _TOOL_CONCEALMENT
 # pattern, so it never adds a finding. `tokens` is left out on purpose: documentation tools count output in tokens.
 _STEERING_WITH_DATA = re.compile(
     r"\b(conversations?|chat history|message history|transcripts?|system prompt|previous messages|credentials?|api[ _-]?keys?"
-    r"|passwords?|secrets?|environment variables|private keys?|ssh keys?)\b", re.IGNORECASE)
+    r"|passwords?|secrets?|environment variables|private keys?|ssh keys?)\b"
+    r"|id_rsa|id_ed25519|\.ssh/|mcp\.json|\.env\b|\.aws/|\.netrc|\.npmrc|\.git-credentials", re.IGNORECASE)
 
 
 def _redacted(url: str) -> str:
@@ -265,7 +277,8 @@ def _covers(resource: str, endpoint: str | None) -> bool:
 def _mcp_011(probe: ProbeResult) -> Iterator[Finding]:
     for tool in probe.tools:
         text = text_of(tool.description)
-        seen = visible(text)  # invisible characters do not break a phrase up (`skill.visible`)
+        # Invisible characters do not break a phrase up (`skill.visible`), and neither do line breaks: 1.11.0 collapses whitespace.
+        seen = " ".join(visible(text).split())
         if any(p.search(seen) for p in P.INJECTION) or any(p.search(seen) for p in _TOOL_CONCEALMENT):
             yield _finding("SW-MCP-011", "high", probe, text, path=f"tool:{tool.name}")
         elif any(p.search(seen) for p in _TOOL_STEERING):

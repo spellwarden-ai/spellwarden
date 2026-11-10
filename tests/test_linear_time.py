@@ -21,7 +21,7 @@ CASES = [
     (skill._SEND, "fetch("), (skill._SEND, "rsync "), (skill._DESTRUCTIVE, "az "), (skill._DESTRUCTIVE, "git push "),
     (skill._WRITE_VERB, "open("), (skill._WRITE_VERB, "jq "), (skill._SKIP, '"permissions":{'), (skill._COMPILE_EXEC, "compile("),
     (skill._CHR_JOIN, "chr("), (skill._GO, "go install "), (mcp._IMPORTANT_OVERRIDE, "IMPORTANT:"),
-    (mcp._IMPORTANT_DIRECTIVE, "IMPORTANT:"), (mcp._TOOL_CONCEALMENT[0], "never show "), (mcp._TOOL_CONCEALMENT[0], "do not mention "),
+    (mcp._IMPORTANT_DIRECTIVE, "IMPORTANT:"), (mcp._IMPORTANT_DIRECTIVE, "IMPORTANT: you "), (mcp._IMPORTANT_DIRECTIVE, "IMPORTANT: the assistant "), (mcp._TOOL_CONCEALMENT[0], "never show "), (mcp._TOOL_CONCEALMENT[0], "do not mention "),
     (mcp._TOOL_CONCEALMENT[3], "hidden "), (mcp._TOOL_CONCEALMENT[3], "keep this "), (P.CREDENTIAL_PATTERNS[10], "eyJ"),
 ]
 
