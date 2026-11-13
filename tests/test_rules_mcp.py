@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+import os
 import time
 
 import pytest
@@ -16,6 +17,10 @@ RESOURCE = {"resource": ENDPOINT, "authorization_servers": ["https://auth.exampl
 ASM = AuthServerMetadata(issuer="https://auth.example", metadata_url="https://auth.example/.well-known/oauth-authorization-server",
                          client_id_metadata_document_supported=True)
 
+
+# The recall patterns' one-second budget for a 100,000-character line (recall spec 7.2), multiplied by
+# SPELLWARDEN_SPEED_FACTOR when it is set, as tests/otel/test_speed.py does (CI sets 3: shared runners are slower).
+RECALL_BUDGET_S = 1.0 * float(os.environ.get("SPELLWARDEN_SPEED_FACTOR", "1"))
 
 def probe(**over) -> ProbeResult:
     base = {"endpoint": ENDPOINT, "reachable": True, "post_status": 200, "post_content_type": "application/json",
@@ -1581,7 +1586,7 @@ def test_011_patch_round_4_the_data_check_reads_a_100k_line_in_under_a_second():
         seen = " ".join((unit * (100_000 // len(unit) + 1))[:100_000].split())
         started = time.perf_counter()
         mcp._asks_for_data(seen)
-        assert time.perf_counter() - started < 1.0, unit
+        assert time.perf_counter() - started < RECALL_BUDGET_S, unit
 
 
 # Patch round (review finding 8): an opener followed by one long run of spaces. `\s*,?\s*` after such an opener was quadratic
@@ -1599,9 +1604,9 @@ def test_011_each_recall_pattern_reads_a_repeated_100k_line_in_under_a_second(na
         line = (opener + "a" * 100_000)[:100_000] if opener.endswith("a") else (opener * (100_000 // len(opener) + 1))[:100_000]
         started = time.perf_counter()
         matcher.search(line)
-        assert time.perf_counter() - started < 1.0, (name, opener)
+        assert time.perf_counter() - started < RECALL_BUDGET_S, (name, opener)
     for opener in _SPACE_RUN_OPENERS:
         line = opener + " " * (100_000 - len(opener) - 1) + "x"
         started = time.perf_counter()
         matcher.search(line)
-        assert time.perf_counter() - started < 1.0, (name, "space run after " + opener)
+        assert time.perf_counter() - started < RECALL_BUDGET_S, (name, "space run after " + opener)
