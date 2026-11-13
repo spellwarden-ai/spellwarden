@@ -74,7 +74,7 @@ def test_make_rule_still_refuses_sw_org():
 
 
 def test_versions_are_1_4_0_and_2026_10_5():
-    assert (__version__, RULES_VERSION) == ("1.11.1", "2026.11.4")
+    assert (__version__, RULES_VERSION) == ("1.12.0", "2026.11.5")
     pyproject = Path(__file__).resolve().parents[1] / "pyproject.toml"
     assert tomllib.loads(pyproject.read_text(encoding="utf-8"))["project"]["version"] == __version__
 
