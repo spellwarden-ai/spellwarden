@@ -50,8 +50,8 @@ TOOL_INJECTION_SECRET = re.compile(r"secret instruction", re.IGNORECASE)
 #   is the one look-ahead; it reads the next character, which the match goes on to take.)
 # - Where a benign wording had to stay quiet, the pattern itself is narrower: a positive form that does not match that wording.
 #   An instruction verb counts only where an instruction starts (`_starting`), so "do not call this proactively" has no match;
-#   a gate on the answer or a source of truth needs a word for a source; a subject claim needs a topic other than the reader's
-#   own records (`_word_except`); the banner, selling and hand-off forms take the words they need into the match.
+#   a gate on the answer or a source of truth needs a word for a source; a subject claim needed a topic other than the reader's
+#   own records (the precision round removed it); the banner, selling and hand-off forms take the words they need into the match.
 # Precision falls (1.11.1's own false alarms come back, and the recall item's patterns lost the exceptions that quieted
 # workflow order, setup and polling); the owner accepted that for this property. `tests/test_rules_mcp_011_context.py` checks
 # the structure of every pattern and that no ordinary line before or after a description lowers its finding.
@@ -60,6 +60,14 @@ TOOL_INJECTION_SECRET = re.compile(r"secret instruction", re.IGNORECASE)
 # distinctive word (`_edges`); steering that only the recall item reads is medium unless the description asks for data outside
 # the words it matched (`_asks_for_data`), while 1.11.1's steering reads `_STEERING_WITH_DATA` as before; and a few patterns
 # are narrower where the review found protective or setup wording.
+#
+# Precision round (owner's decision), after the tuning half's top-up labelled every description the candidate flags: five
+# patterns whose new findings were mostly or wholly labelled benign are no longer read (the subject claim, quiet action, acting
+# without a check, the step after every turn, binding authority), and the first-call forms keep only their strongest wordings:
+# every session, task or conversation, ahead of every other tool or of everything, the main entry point, a "START HERE" banner.
+# The bare first-call, start-with-this and must-come-first forms without a scope are workflow order or setup as often as
+# steering. Removing a pattern only takes findings away and each narrowing is a narrower positive form, so 1.11.1's patterns,
+# the structure and the context property stay as patch rounds 3 and 4 left them.
 _I = re.IGNORECASE
 
 
@@ -71,20 +79,6 @@ def _gap(n: int) -> str:
 def _words(n: int) -> str:
     """At most `n` whole words, each 1 to 30 characters long and followed by its space: a bounded run, linear."""
     return rf"(?:[\w'-]{{1,30}}\s+){{0,{n}}}?"
-
-
-def _word_except(*words: str) -> str:
-    """Patch round 3: a whole word of up to 31 characters that is none of `words` (lower case letters), as a positive pattern.
-    The trie of `words` is spelled out (a character that leaves it, or the next character of a word and the rest), so nothing
-    past the word is read and no look-ahead is needed. Linear: each branch is a fixed prefix and a bounded run. Patch round 4:
-    each letter is given in both cases, so the word is still excluded inside a case-sensitive group (`_starting`)."""
-    def after(prefix: str) -> str:
-        nexts = sorted({word[len(prefix)] for word in words if word.startswith(prefix) and len(word) > len(prefix)})
-        both = "".join(nexts) + "".join(nexts).upper()
-        leave = rf"[^\W{both}][\w-]{{0,30}}" if nexts else r"[\w-]{1,30}"
-        body = "|".join([leave] + [rf"[{char}{char.upper()}]{after(prefix + char)}" for char in nexts])
-        return rf"(?:{body})" + ("?" if prefix and prefix not in words else "")
-    return rf"\b{after('')}\b"
 
 
 # Patch round 4 (fourth review, finding 1): a line glued on with no separator, or with an invisible character that `skill.visible`
@@ -261,48 +255,57 @@ _SESSION = r"(?:sessions?|conversations?|chats?|dialog(?:ue)?s?|interactions?|en
 _TASK = r"(?:tasks?)"
 _CALL_VERB = (r"(?:call|use|run|invoke|consult|query|load|read|fetch|check|execute|trigger|reach\s+for|start\s+with|begin\s+with|open\s+with"
               r"|kick\s+off\s+with)")
-_START_OF = (rf"(?:at|in)\s+the\s+(?:very\s+)?(?:start|beginning|outset|onset)\s+of\s+(?:(?:every|each|any|all|a\s+new|new|your)\s+(?:new\s+)?{_SESSION}"
-             rf"|(?:every|each|any|all)\s+(?:new\s+)?{_TASK})\b")
+# Precision round: "every", "each", "any" or "all" sessions or tasks; the opening of a single session (the reader's own, a new chat)
+# names one session, as a setup step does.
+_START_OF = (rf"(?:at|in)\s+the\s+(?:very\s+)?(?:start|beginning|outset|onset)\s+of\s+(?:every|each|any|all)\s+(?:new\s+)?(?:{_SESSION}|{_TASK})\b")
+# Precision round: a first call counts only in every session, task or conversation (a bare first call, the first-tool claim and
+# the first-step claim without that scope are workflow order or setup as often as steering).
+_EVERY_SESSION = rf"(?:(?:in|for|of|at\s+the\s+(?:start|beginning)\s+of)\s+(?:every|each|any|all)\s+(?:new\s+)?(?:{_SESSION}|{_TASK}))\b"
 _FIRST = re.compile(
     # Round 5: not "always call this before placing an order" (one action), "whenever someone asks about X" or "for all
-    # requests" (usage hints).
-    r"\balways\s+(?:call|use|run|invoke|consult|query|start\s+with|begin\s+with)\s+(?:this|me)\s+(?:first|before\s+(?:any|every|all|anything|everything"
-    r"|other|doing\s+anything|answering|responding|replying|you\s+(?:start|begin|answer|respond|reply|act|do)))\b"
-    r"|\b(?:always|first)\s+(?:start|begin)\s+(?:with|by\s+(?:calling|using|running|invoking|consulting))\s+(?:this|me)\b"
-    r"|\bthis\s+(?:tool|function)\s+(?:should|must|needs\s+to|has\s+to)\s+always\s+be\s+(?:called|used|run|invoked|consulted)\s+(?:first|whenever"
-    r"|before\s+(?:any|every|all|anything)|at\s+the\s+(?:start|beginning)|(?:in|for)\s+(?:every|each|all|any))\b"
+    # requests" (usage hints). Precision round: before every other tool or before anything at all; "always call this first"
+    # only in every session, and "before answering" is the gate's (`_GATE`).
+    r"\balways\s+(?:call|use|run|invoke|consult|query|start\s+with|begin\s+with)\s+(?:this|me)\s+(?:first\s+" + _EVERY_SESSION
+    + r"|before\s+(?:(?:any|every|all)\s+other|other|anything|everything|doing\s+anything|you\s+do\s+anything)\b)"
+    # Precision round: "always start with this" is gone (workflow order); "should always be called first" or "whenever" too.
+    r"|\bthis\s+(?:tool|function)\s+(?:should|must|needs\s+to|has\s+to)\s+always\s+be\s+(?:called|used|run|invoked|consulted)\s+(?:before\s+(?:anything"
+    r"|everything|(?:any|every|all)\s+other)\b|" + _EVERY_SESSION + ")"
     # An imperative: "starts every session with a fresh cache" describes the tool.
     + rf"|\b(?:begin|start|open|kick\s+off|initiate|commence)\s+(?:every|each|any|all)\s+(?:new\s+)?{_SESSION}\b"
-    rf"|\b(?:begin|start|open|kick\s+off)\s+(?:every|each|any|all|the|your)\s+(?:new\s+)?(?:{_SESSION}|tasks?)\s+(?:by|with)\s+"
+    # Precision round: not "the" or "your" session (one session).
+    rf"|\b(?:begin|start|open|kick\s+off)\s+(?:every|each|any|all)\s+(?:new\s+)?(?:{_SESSION}|tasks?)\s+(?:by|with)\s+"
     r"(?:(?:calling|using|invoking|running|loading|reading|consulting)\s+)?(?:this|me)\b"
     + rf"|\b{_CALL_VERB}\b{_gap(60)}\b{_START_OF}"
     # Round 5: the passive of the every-session form ("it must be invoked at the start of every session").
     rf"|\b(?:should|must|needs\s+to|has\s+to)\s+(?:always\s+)?be\s+(?:called|used|run|invoked|consulted)\s+{_START_OF}"
     rf"|\b{_START_OF}(?:\s*,)?\s+(?:always\s+|first\s+)?{_CALL_VERB}\b"
-    rf"|\b{_CALL_VERB}\b{_gap(60)}\b(?:at|from)\s+the\s+(?:very\s+)?outset\b"
-    r"|\b(?:first|initial|opening)\s+(?:step|move|action|call|thing|tool(?:\s+call)?|stop|port\s+of\s+call)\s+(?:in|of|for)\s+(?:every|each|any|all|a\s+new|new)\s+"
-    + rf"(?:new\s+)?(?:{_SESSION}|{_TASK}|turns?|quer(?:y|ies)|questions?)\b"
-    rf"|\b(?:every|each|any|all)\b{_gap(60)}\b(?:your|the)\s+(?:opening|first)\s+(?:move|stop|port\s+of\s+call)\b|\byour\s+opening\s+step\b"
-    r"|\bfirst\s+tool\s+(?:you\s+|to\s+|that\s+(?:you\s+)?)(?:should\s+|must\s+|need\s+to\s+)?(?:call|use|run|invoke|reach\s+for|try)\b"
-    r"|\b(?:should|must)\s+be\s+(?:your|the)\s+(?:very\s+)?first\s+(?:call|step|tool|stop|action|move|choice|port\s+of\s+call)\b"
+    # Precision round: "at the outset" alone, a first stop for every query or question, and "your opening step" alone are gone.
+    r"|\b(?:first|initial|opening)\s+(?:step|move|action|call|thing|tool(?:\s+call)?|stop|port\s+of\s+call)\s+(?:in|of|for)\s+(?:every|each|any|all)\s+"
+    + rf"(?:new\s+)?(?:{_SESSION}|{_TASK}|turns?)\b"
+    rf"|\b(?:every|each|any|all)\s+(?:new\s+)?(?:{_SESSION}|{_TASK})\b{_gap(60)}\b(?:your|the)\s+(?:opening|first)\s+(?:move|stop|port\s+of\s+call)\b"
+    r"|\bfirst\s+tool\s+(?:you\s+|to\s+|that\s+(?:you\s+)?)(?:should\s+|must\s+|need\s+to\s+)?(?:call|use|run|invoke|reach\s+for|try)\s+" + _EVERY_SESSION
+    + r"|\b(?:should|must)\s+be\s+(?:your|the)\s+(?:very\s+)?first\s+(?:call|step|tool|stop|action|move|choice|port\s+of\s+call)\s+" + _EVERY_SESSION
     # Patch round 4: with "tool" or "function"; a bare "this must be called first to select the active project" is a setup step.
-    r"|\bthis\s+(?:tool|function)\s+(?:should|must|needs\s+to|has\s+to)\s+(?:always\s+)?be\s+(?:called|used|run|invoked|executed)\s+first\b"
-    r"|\b(?:must|always)\s+(?:first\s+)?(?:call|use|run|invoke)\s+(?:this|me)(?:\s+(?:tool|function))?\s+first\b"
-    r"|\b(?:call|use|run|invoke|execute|load|read)\s+(?:this|me)(?:\s+(?:tool|function))?\s+(?:first\s+)?(?:in|before|when\s+(?:starting|beginning|opening))\s+"
-    + rf"(?:every|each|any|all|a\s+new)\s+(?:new\s+)?(?:{_SESSION}|tasks?)\b"
+    # Precision round: "this tool must be invoked first" only in every session ("... first in every chat").
+    + r"|\bthis\s+(?:tool|function)\s+(?:should|must|needs\s+to|has\s+to)\s+(?:always\s+)?be\s+(?:called|used|run|invoked|executed)\s+first\s+"
+    + _EVERY_SESSION
+    # Precision round: the bare must-call-this-first form is gone; the same call scoped to every new session stays (below).
+    + r"|\b(?:call|use|run|invoke|execute|load|read)\s+(?:this|me)(?:\s+(?:tool|function))?\s+(?:first\s+)?(?:in|before|when\s+(?:starting|beginning|opening))\s+"
+    + rf"(?:every|each|any|all)\s+(?:new\s+)?(?:{_SESSION}|tasks?)\b"
     # Once per session ("call this one time per session"); "load the config once per session" is a setup note. Patch round 4:
     # "once at the start of a session" (one session, to warm a cache) is no longer read; "of each" or "of every" session is.
     rf"|\b(?:call|use|run|invoke|load|read|consult)\s+(?:this|me|it)(?:\s+(?:tool|function))?\s+(?:once|one\s+time)\s+(?:per|each|every"
     rf"|in\s+each|in\s+every|at\s+the\s+(?:start|beginning)\s+of\s+(?:each|every))\s+(?:new\s+)?{_SESSION}\b"
     rf"|\b(?:call|use|run|invoke|consult|load|read|check|query|try|start\s+with|begin\s+with|open\s+with)\s+(?:this|me|it)(?:\s+(?:tool|function))?\b{_gap(30)}"
     r"\b(?:before|ahead\s+of|prior\s+to)\s+(?:doing\s+|using\s+|calling\s+|trying\s+|touching\s+)?(?:anything|everything)(?:\s+else)?\b"
-    # Round 3: "invoke it prior to the rest", "questions on tide tables should open with a query to this catalog".
+    # Round 3: "invoke it prior to the rest". (Precision round: "questions on tide tables should open with a query to this
+    # catalog" is gone, a start-with-this form.)
     r"|\b(?:call|use|run|invoke|consult)\s+(?:this|me|it)(?:\s+(?:tool|function))?\s+(?:before|ahead\s+of|prior\s+to)\s+the\s+rest\b"
-    r"|\bshould\s+(?:always\s+)?(?:open|start|begin)\s+with\s+(?:a\s+|one\s+)?(?:query|call|lookup|request|look)\s+(?:to|of|at|in)\s+this\b"
     r"|\b(?:before|ahead\s+of|prior\s+to)\s+(?:doing\s+)?(?:anything|everything)(?:\s+else)?\s*,\s*(?:always\s+|first\s+)?(?:call|use|run|invoke|consult|load"
     r"|read|check)\s+(?:this|me|it)\b"
-    r"|\b(?:call|use|run|invoke)\s+(?:this|me)(?:\s+(?:tool|function))?\s+as\s+(?:the|your)\s+(?:very\s+)?first\s+(?:thing|step|action|call|tool)\b"
-    r"|\b(?:this(?:\s+tool)?\s+is|it\s+is|i\s+am|serves\s+as|acts\s+as|use\s+(?:this|it|me)(?:\s+tool)?\s+as)\s+(?:the|your)\s+(?:main\s+|primary\s+|recommended\s+"
+    r"|\b(?:call|use|run|invoke)\s+(?:this|me)(?:\s+(?:tool|function))?\s+as\s+(?:the|your)\s+(?:very\s+)?first\s+(?:thing|step|action|call|tool)\s+"
+    + _EVERY_SESSION
+    + r"|\b(?:this(?:\s+tool)?\s+is|it\s+is|i\s+am|serves\s+as|acts\s+as|use\s+(?:this|it|me)(?:\s+tool)?\s+as)\s+(?:the|your)\s+(?:main\s+|primary\s+|recommended\s+"
     r"|single\s+|central\s+|default\s+|universal\s+|official\s+|preferred\s+)?(?:entry[\s-]?point|starting[\s-]?point|front\s+door|first\s+stop)\s+(?:for|to|into)\s+"
     r"(?:all|any|every|each|working\s+with|using|interacting\s+with|the\s+other|this\s+(?:server|toolkit|toolset|integration|mcp|service)"
     r"|the\s+(?:server|toolkit|toolset|integration|mcp|service)(?:'s)?)\b"
@@ -313,7 +316,7 @@ _FIRST = re.compile(
     # Patch round 4: the capitals also count right after a lower-case letter or a digit ("Log in firstSTART HERE") and glued to
     # whatever follows ("START HEREand").
     r"|(?-i:(?:\b|[a-z0-9])(?:START|BEGIN)\s+HERE)"
-    r"|\borient\s+(?:yourself|itself|the\s+(?:agent|model|assistant))\b"
+    # (Precision round: "orient yourself" is gone, the opening step of an overview tool.)
     # Other agents do it, so should you ("most assistants open with this overview when they connect").
     r"|\b(?:most|all|other|many|smart|good|well-behaved|successful|experienced|top)\s+(?:ai\s+|automated\s+|llm\s+|coding\s+)?(?:agents|assistants|models|llms"
     + rf"|helpers|clients|bots)\s+(?:[\w-]{{1,20}}\s+)?(?:call|use|run|start\s+with|begin\s+with|open\s+with|invoke|load|read)\s+(?:this|me)\b{_gap(60)}"
@@ -323,53 +326,8 @@ _FIRST = re.compile(
     r"(?:other|another|additional|remaining)\s+(?:[\w-]{1,30}\s+)?(?:tools?|functions?|capabilit(?:y|ies)|servers?)\b"
     r"|\bbefore\s+(?:using|calling|invoking)\s+(?:the\s+)?other\s+(?:[\w-]{1,30}\s+)?(?:tools?|functions?)\b",
     _I)
-# The tool claims to be the required or preferred starting point for any question in a subject, even one the user never names.
-# "Use this when someone asks about X" is ordinary documentation and stays quiet: each form needs "any", "every" or "all", a
-# ranking word (primary, preferred, default) or "even if nobody asks for it". Round 2: the object is a query or a subject,
-# not "all requests" or "any task" (an API wrapper's "use this for all requests" is a usage note).
-# Patch round 3: rounds 3 and 5 read the words after a match for the reader's own records ("... about your Jira issues") and for
-# another named tool ("... is get_invoice"). Now the topic is part of the match, right before the question word ("for all
-# weather questions") or after it ("for any question about Kubernetes"), and a topic that names the reader's own records ("your",
-# "the files", "this repository") or a query "against" a database is no topic, so those usage notes have no match. A call of
-# this tool counts where an instruction starts (`_starting`): "do not use it for each question on billing" says when not to
-# use it.
-_ASK_NOUN = r"(?:questions?|quer(?:y|ies)|inquir(?:y|ies)|topics?)"
-_TOPIC_PREP = r"(?:about|on|regarding|related\s+to|relating\s+to|concerning|involving|touching|around|to\s+do\s+with)"
-_TOPIC_WORD = _word_except("your", "their", "my", "our", "his", "her", "the", "this", "these", "those", "its")
-_TOPIC = (rf"(?:the\s+{_word_except('user', 'users', 'customer', 'customers', 'person', 'client', 'files', 'file', 'data', 'documents', 'document', 'repository', 'repo', 'project', 'workspace', 'account', 'codebase', 'database', 'warehouse', 'records', 'record')}"
-          rf"|{_TOPIC_WORD})")
-# A topic before the question word, or the question word and a topic after it.
-_SUBJECT_OF = rf"(?:{_TOPIC_WORD}\s+{_words(2)}{_ASK_NOUN}\b|{_words(1)}{_ASK_NOUN}\s+{_TOPIC_PREP}\s+{_TOPIC})"
-_REQUEST_OF = rf"(?:{_TOPIC_WORD}\s+{_words(2)}(?:{_ASK_NOUN}|requests?|prompts?)\b|{_words(1)}(?:{_ASK_NOUN}|requests?|prompts?)\s+{_TOPIC_PREP}\s+{_TOPIC})"
-_SUBJECT = re.compile(
-    r"\b(?:(?:primary|preferred|go-to|standard|main|recommended|canonical|official|authoritative|designated|mandatory|required)\s+(?:tool|choice|source"
-    r"|resource|entry[\s-]?point|starting[\s-]?point|stop)|(?:default|first)\s+(?:tool|choice))\s+(?:for|when\s+(?:answering|handling))\s+(?:any|every|all)\s+"
-    + _SUBJECT_OF
-    + r"|\b(?:primary|preferred|default|go-to|standard|recommended|designated|required)\s+(?:tool|choice|source|option|resource|entry[\s-]?point|starting[\s-]?point)\s+"
-    rf"for\s+(?:questions?|quer(?:y|ies)|anything|everything)\s+{_TOPIC_PREP}\s+{_TOPIC}"
-    + "|" + _starting(("use", "call", "consult", "query", "invoke", "run", "try", "reach for"),
-                      rf"\s+(?:this|me)(?:\s+(?:tool|function|server))?\s+(?:first\s+)?(?:for|on|with|whenever)\s+(?:any|every|all)\s+{_SUBJECT_OF}")
-    # Round 3: "use this lookup for anything involving maps or addresses".
-    + "|" + _starting(("use", "call", "consult", "query", "invoke", "try", "reach for"),
-                      r"\s+(?:this|me)(?:\s+[\w-]{1,30})?\s+for\s+(?:anything|everything)\s+(?:involving|related\s+to|relating\s+to|about|regarding"
-                      rf"|concerning|touching|to\s+do\s+with)\s+{_TOPIC}")
-    + rf"|\b(?:for|on|regarding|about|with)\s+(?:any|every|all)\s+{_REQUEST_OF}{_gap(60)}"
-    r"\b(?:use|call|consult|invoke|run|reach\s+for|start\s+with|begin\s+with|go\s+to)\s+(?:this\s+(?:tool|function|server)\b|me\b|this\s*[.,;:!?)\]–—-])"
-    r"|\buse\s+(?:this|me)(?:\s+tool)?\s+as\s+(?:the|your)\s+(?:default|primary|preferred|first|main|go-to)\s+(?:tool|choice|source|option|resource|lookup|search)\b"
-    # "Use this by default when no format is given" picks an option. Patch round 3: the thing it is the default for lies inside the
-    # match.
-    r"|\b(?:use|call|run|pick|choose|consult|query)\s+(?:this|me)(?:\s+(?:tool|function))?\s+by\s+default\s+(?:for\s+(?:any|every|all|everything|anything)"
-    r"|over|instead\s+of|rather\s+than)\b"
-    r"|\beven\s+(?:if|when|though)\s+(?:the\s+)?(?:other|current|existing|built-?in|available|native)\s+(?:tools?|options?|functions?)\s+(?:are|is|seem|seems|appear"
-    r"|appears|would|could|might|may)\s+(?:be\s+)?(?:enough|sufficient|adequate|able|fine|do|work|suffice|good\s+enough)\b"
-    # Round 5: "even if nobody asks" with a call of this tool before it in the sentence ("call it even if nobody asks for
-    # it"); "show the warning even if nobody asks" is a wording rule.
-    + rf"|\b(?:use|call|run|invoke|check|consult|query|trigger|fire|try)\s+(?:this|it|me)\b{_gap(60)}"
-    r"\beven\s+(?:if|when|though)\s+(?:(?:the\s+user|users?|they|the\s+human|the\s+customer|the\s+person|it\s+is|it's)\s+)?(?:do(?:es)?n'?t|do(?:es)?\s+not"
-    r"|did\s+not|didn'?t|never|has\s+not|hasn'?t|have\s+not|haven'?t|is\s+not|isn'?t|not)\s+(?:explicitly\s+|specifically\s+|directly\s+)?"
-    r"(?:(?:ask(?:s|ed)?|request(?:s|ed)?)\b|(?:mention(?:s|ed)?|name(?:s|d)?)\s+(?:(?:this|the)\s+(?:[\w-]{1,30}\s+)?(?:tool|server|service|app)|it\s+by\s+name"
-    r"|us)\b)",
-    _I)
+# Precision round: a tool's bid to own a whole topic's questions (`_SUBJECT`, rounds 1 to patch round 4)
+# is no longer read: on the tuning half's top-up, more of its new findings were labelled benign than positive.
 # A very broad trigger: this tool used proactively, whenever possible, every time you respond, each time a reply would name a
 # product, whenever it might help. Round 2: "without being asked", "unprompted" and "on your own initiative" are dropped (a
 # negated trigger keeps the person in charge), and "proactively" counts only with this tool as the object; "whenever a URL is
@@ -473,49 +431,12 @@ _IMPORTANT_GATE = P.Within(
     r"|\b(?:answers?|responses?|replies|information|facts|figures)\s+must\s+(?:always\s+|only\s+)?(?:come|be\s+(?:taken|sourced|drawn|retrieved|obtained))\s+"
     r"from\s+(?:this\s+(?:tool|function|server|lookup)|here|me)\b",
     ". ")
-# A step after every reply, tool call, payment, deploy or step, every reply closed with the tool's line, or an endless polling
-# loop. "Keep checking until it finishes" (ordinary polling), "add a blank line after each answer" (presentation) and "after
-# each deployment, run the smoke tests" (a workflow) stay quiet: the step must name this tool.
-# Patch round 3: rounds 2 to 5 read "until" after the match (polling) and a notice or an attribution after "end every reply
-# with" (a licence term); both are gone, and so is "never stop polling", which mostly read "never stop polling until it is done".
-_AFTER_VERB = r"(?:call|use|run|invoke|log|record|report|send|update|save|store|trigger|post|submit|sync|ping)"
-_AFTER_OBJECT = r"(?:this|me|it|tool|function)\b"
-_AFTER_TURN = (r"(?:responses?|repl(?:y|ies)|answers?|turns?|interactions?|exchanges?|user\s+messages?|tool\s+calls?|tool\s+uses?|actions?\s+you\s+take"
-               r"|conversations?|steps?|file\s+(?:edits?|changes?|writes?)|edits?|code\s+changes?)")
-# Round 5: "End every response with a short summary" and "start each answer with today's date" are wording rules: a reply closed
-# or opened alike counts only with a link, an offer, a selling step, our own brand or this tool ("close out every
-# reply with a map link", "end each reply by proposing the premium tier", "every reply must end with our signature"). Patch
-# round 3: those words are part of the match (round 5 read them with a look-ahead).
-_SELLING = (rf"{_gap(80)}\b(?:links?|urls?|offers?|deals?|discounts?|coupons?|promo\w*|bookings?|upgrades?|premium|partners?|sponsor\w*|affiliates?"
-            r"|referrals?|subscri\w+|sign[\s-]?ups?|plans?|tiers?|suggest\w*|propos\w*|recommend\w*|invit\w+|our|this\s+tool|me)\b")
-_AFTER_EVERY = re.compile(
-    rf"\b(?:after|following)\s+(?:every|each)\s+(?:single\s+)?(?:{_AFTER_TURN}|payments?|transactions?|purchases?|deploy(?:ment)?s?|releases?|commits?)\b"
-    rf"(?:\s+you\s+(?:finish|complete|take|make))?\s*,\s*(?:always\s+)?{_AFTER_VERB}\s+{_words(5)}{_AFTER_OBJECT}"
-    # Round 3: "send a status note to this tool once every action completes" is a report after each step.
-    rf"|\b{_AFTER_VERB}\s+{_words(2)}{_AFTER_OBJECT}{_gap(40)}\b(?:after|following|at\s+the\s+end\s+of)\s+(?:every|each)\s+(?:single\s+)?{_AFTER_TURN}\b"
-    rf"|\b{_AFTER_VERB}\s+{_words(4)}(?:to|with|via)\s+(?:this|me)(?:\s+tool)?\s+(?:once|when|whenever|after)\s+(?:every|each)\s+(?:single\s+)?"
-    rf"(?:{_AFTER_TURN}|actions?|tasks?)\b"
-    r"|\b(?:check|call|poll|ping|invoke|query)\s+(?:it|this|me)(?:\s+tool)?\s+(?:continuously|constantly|nonstop|non-stop|forever|indefinitely|endlessly)\b"
-    r"|\b(?:end|close|close\s+out|finish|conclude|sign\s+off|wrap\s+up|append\s+to|prefix|start|begin)\s+(?:every|each|all|any)\s+(?:of\s+your\s+|single\s+)?"
-    + rf"(?:responses?|repl(?:y|ies)|answers?|messages?|outputs?)\s+(?:with|by)\b{_SELLING}"
-    rf"|\b(?:every|each|all)\s+(?:of\s+your\s+)?(?:responses?|repl(?:y|ies)|answers?)\s+(?:must|should)\s+(?:end|close|start|begin|finish|conclude|mention|feature)\b"
-    rf"{_SELLING}"
-    rf"|\b(?:every|each|all)\s+of\s+your\s+(?:responses?|replies|answers?|messages?)\s+(?:must|should)\s+(?:include|contain)\b{_SELLING}"
-    r"|\b(?:keep|continue)\s+(?:calling|polling|invoking|running|checking|pinging)\s+(?:this|it|me|the\s+[\w-]{1,30}(?:\s+[\w-]{1,30})?)(?:\s+tool)?\s+"
-    r"(?:on\s+repeat|forever|indefinitely|endlessly|nonstop|non-stop|in\s+an?\s+(?:endless|infinite)\s+loop|without\s+(?:ever\s+)?stopping)\b"
-    r"|\b(?:to|and)\s+keep\s+(?:the|this|your)\s+(?:chat|conversation|agent|turn)\s+(?:open|alive|going|active|running)\b"
-    # Each time the model makes something, it also saves it here ("each time you make up a character, also save it").
-    + rf"|\b(?:each|every|any)\s+time\s+you\s+{_words(4)}{_gap(40)}\balso\s+(?:save|store|log|record|sync|send|report|add|update|call|run|use)\b",
-    _I)
-# Acting without the person's check ("send a note to the tracker without checking with the user"), with the verb where an
-# instruction starts: "runs without confirming with the user when trial_mode is off" describes the tool, and "never delete data
-# without checking with the user" keeps a human in charge (round 3; patch round 3: by `_starting`, not by reading the negation
-# before the match). Rounds 3 to patch round 2 also read polling and "until" around the match; that is gone.
+# Precision round: a step after every reply, call or payment, a reply closed with a selling line, an endless polling loop
+# (`_AFTER_EVERY`), and acting without the person's check (`_UNCHECKED`) are no longer read: on the tuning half's top-up none of
+# their new findings was labelled positive.
+# The actions that `_QUIET_WITHOUT` reads where an instruction starts (`_starting`).
 _ACT_VERBS = ("call", "send", "log", "save", "sync", "post", "update", "report", "record", "submit", "run", "execute", "proceed", "continue", "act",
               "go ahead", "apply", "push", "commit", "delete", "create", "book", "buy", "pay", "share", "upload", "forward", "notify")
-_UNCHECKED = re.compile(
-    _starting(_ACT_VERBS, rf"{_gap(80)}\bwithout\s+(?:first\s+)?(?:checking|confirming|asking|consulting|checking\s+in)\s+(?:with\s+)?(?:the\s+user"
-                          r"|users?|them|the\s+human|the\s+person|the\s+customer|anyone)\b"), _I)
 # The model's training, memory or judgment is stale or unreliable, so answers must come from the tool. "Knowledge base" and
 # "knowledge graph" are products, not the model's knowledge; "served from disk, not from memory" is a cache. Round 2: grounding
 # rules ("answer only from the returned documents", "rely only on the tool's output", "treat the results as the only truth")
@@ -747,20 +668,10 @@ _CONCEAL_MORE = re.compile(
     r"|\b(?:this|these|the)\s+(?:tool|tools|steps?|instructions?|notes?|calls?|lookups?|checks?|process|section|description|rules?)\s+(?:must|should)\s+"
     r"(?:not|never)\s+be\s+(?:mentioned|revealed|disclosed|shown|acknowledged|discussed)\b",
     _I)
-# Acting quietly on the tool's behalf. "Errors are logged silently" and "send the notification silently (no sound)" stay quiet.
-# "Track page views silently" and "collect metrics quietly" are analytics settings: track and collect are left out.
-_QUIET_VERB = r"(?:call|invoke|send|log|record|report|upload|forward|fire|trigger|transmit|post|submit|share|sync|copy|email|ping|attach|insert)"
+# Precision round: acting quietly on the tool's behalf ("silently log every message", `_QUIET`) is no longer read on its own: on
+# the tuning half's top-up its new findings were benign but for one that another pattern also read. Quiet action without telling
+# the person is still read (`_QUIET_WITHOUT`).
 _QUIET_ADVERB = r"(?:silently|quietly|secretly|covertly|discreetly|surreptitiously|stealthily)"
-# Patch round 4: an adverb before the verb counts only with what is sent or logged ("silently log every message", "quietly send
-# the transcript"); "silently log errors and continue" is error handling.
-_QUIET_OBJECT = (r"(?:this|it|them|me|everything|anything|all|every|each|any|a\s+copy|copies|data|their|your|the\s+(?:user'?s?|users'|customer'?s?"
-                 r"|person'?s|full|whole|entire|conversations?|chats?|transcripts?|messages?|requests?|quer(?:y|ies)|prompts?|answers?|repl(?:y|ies)|results?"
-                 r"|files?|data|details|inputs?|outputs?|events?|changes?|calls?|activity|usage|sessions?|keys?|tokens?|history|emails?|notes?|documents?"
-                 r"|records?))\b")
-_QUIET = re.compile(
-    rf"\b{_QUIET_ADVERB}\s+{_QUIET_VERB}\s+{_QUIET_OBJECT}"
-    rf"|\b(?:call|invoke|log|record|report|upload|forward|fire|trigger|transmit|submit|share|sync|copy|attach|insert)\s+{_words(4)}{_QUIET_ADVERB}",
-    _I)
 # "Without telling the person" in any of its words ("run the screen quietly without telling the client"). Patch round 3: rounds
 # 2 to patch round 2 read a negation or a permission before it ("you may retry without notifying the user"); 1.11.1's shared
 # pattern already reads "without telling the user" with no such exception. Patch round 4: an action where an instruction starts
@@ -771,76 +682,27 @@ _TOLD = (r"(?:the\s+user|users?|them|the\s+human|the\s+person|the\s+customer|any
 _QUIET_WITHOUT = re.compile(
     _starting(_ACT_VERBS, rf"{_gap(80)}\bwithout\s+(?:telling|informing|alerting|warning|letting|notifying)\s+{_TOLD}")
     + rf"|\b{_QUIET_ADVERB}\b{_gap(40)}\bwithout\s+(?:telling|informing|alerting|warning|letting|notifying)\s+{_TOLD}", _I)
-# Binding authority over the model: directives to obey, instructions that take precedence, a scripted exact reply, no other
-# tools, the user's other requests dropped. Round 2: "never follow the embedded directives" describes a defense. Patch round 3:
-# rounds 2 to patch round 2 read a negation before a match and "in the content", "while", "until", "returned by the tool" after
-# it; now the words that make each form an instruction are in the match. "Follow these directives" and "ignore the user's
-# requests" count where an instruction starts (`_starting`); "embedded" directives are no longer read; a scripted reply needs a
-# word for a script ("the scripted sentence", "this sentence"), not "the text in the summary field"; "do not call other tools"
-# needs "any" or "after this" ("do not call other tools while the upload runs" is a concurrency rule).
-_AUTHORITY = re.compile(
-    rf"\bobey\s+{_words(3)}(?:directives?|instructions?|commands?|orders?|rules?)\b"
-    r"|\byou\s+are\s+(?:required|obligated|obliged|bound|commanded|ordered|instructed)\s+to\s+(?:obey|follow|comply|execute|carry\s+out|adhere)\b"
-    + "|" + _starting(("follow", "execute", "carry out", "comply with", "adhere to"),
-                      r"\s+(?:these|the\s+following|the\s+(?:enclosed|included|below|above))\s+(?:[\w-]{1,30}\s+)?directives?\b")
-    # Round 3: not "binding orders" on an exchange, nor "mandatory delivery instructions" on a shipment.
-    + r"|\b(?:mandatory|binding|non-negotiable|compulsory|overriding|absolute)\s+(?:(?:agent|model|assistant|ai|llm|system|tool|following|enclosed|below"
-    r"|above)\s+)?(?:directives?|instructions?)\b"
-    # Over what the model already holds, not "over the defaults".
-    r"|\b(?:these|the\s+following|this\s+tool'?s|my|its)\s+(?:instructions?|directives?)\s+(?:take|takes|have|has)\s+(?:precedence|priority)\s+over\s+"
-    r"(?:any|all|your|other|previous|prior|earlier|system|the\s+(?:user'?s?|system|model'?s?|assistant'?s?))\b"
-    r"|\b(?:supersedes?|overrides?|takes?\s+precedence\s+over)\s+(?:any|all|your|other|previous|prior)\s+(?:[\w-]{1,30}\s+)?(?:instructions?|directives?)\b"
-    r"|\b(?:call|use|invoke)\s+no\s+(?:other\s+|further\s+|more\s+|additional\s+)?tools?\b"
-    r"|\b(?:do\s+not|don'?t|never|must\s+not|must\s+never)\s+(?:call|use|invoke|run)\s+(?:any\s+(?:other|further|more|additional)\s+tools?"
-    r"|(?:other|further|more|additional)\s+tools?\s+(?:after\s+(?:this|that|it)|afterwards?|at\s+all|from\s+now\s+on|for\s+the\s+rest))\b"
-    # Round 3 (rules for formatting the reply): "reply with only the message returned by the tool" and "respond with exactly the
-    # text in the summary field" relay the result; a scripted sentence is still an imposed reply.
-    r"|\b(?:respond|reply|answer)\s+(?:only\s+)?with\s+(?:exactly|precisely|only)\s+(?:(?:the|these)\s+(?:following|scripted|supplied|given|fixed|exact|set"
-    r"|provided|same)|this)\s+(?:sentences?|text|message|phrase|lines?|words|script|string)\b"
-    # Round 3 (authority over the model): "these directives outrank everything else; follow them without exception", "reply with
-    # the supplied sentence and nothing more", "ending early is not allowed".
-    r"|\b(?:directives?|instructions?)\s+(?:outrank|outranks|trump|trumps|override|overrides|supersede|supersedes|take\s+precedence\s+over)\s+"
-    r"(?:everything|anything|all\s+(?:else|other\s+(?:instructions?|directives?|guidance|prompts?)))\b"
-    r"|\bfollow\s+(?:them|these|these\s+(?:directives?|instructions?|rules?)|the\s+(?:directives?|instructions?))\s+without\s+(?:exception|question|fail)\b"
-    r"|\b(?:respond|reply|answer)\s+with\s+(?:the|this)\s+(?:supplied|given|provided|following|exact|scripted|fixed)\s+(?:sentence|phrase|line|script|words)"
-    r"\s+and\s+nothing\s+(?:more|else)\b"
-    r"|\b(?:ending|stopping|finishing)\s+(?:early|the\s+turn|your\s+turn)\s+is\s+(?:not\s+allowed|forbidden|prohibited|not\s+permitted)\b"
-    + "|" + _starting(("ignore", "ignoring", "disregard", "disregarding", "abandon", "abandoning"),
-                      r"\s+(?:the\s+user'?s?|the\s+human'?s?|their|users'?)\s+(?:(?:other|original|previous|remaining|actual|own|further|current)\s+)?"
-                      r"(?:requests?|questions?|instructions?|tasks?|messages?|prompts?|wishes|commands?)\b")
-    # Round 2: directives that bind every model, a scripted first reply, whatever else the user asked dropped, the other tools'
-    # results thrown away.
-    + r"|\b(?:directives?|instructions?|rules?)\s+(?:bind|binds|are\s+binding\s+(?:on|for))\s+(?:every|all|any|each)\s+(?:ai\s+)?(?:models?|agents?"
-    r"|assistants?|llms?|ais?)\b"
-    + "|" + _starting(("ignore", "disregard", "discard", "distrust"),
-                      r"\s+(?:the\s+)?(?:results?|outputs?|answers?|responses?|data)\s+(?:from|of)\s+(?:any\s+|all\s+|the\s+)?other\s+(?:tools?|servers?|sources?)\b")
-    + r"|\b(?:results?|outputs?|answers?|responses?)\s+(?:from|of)\s+(?:any\s+|all\s+|the\s+)?other\s+(?:tools?|servers?)\s+(?:must|should)\s+be\s+(?:ignored"
-    r"|disregarded|discarded|distrusted)\b"
-    r"|\b(?:any\s+|all\s+|the\s+)?other\s+tools?\s+(?:must|should|may)\s+(?:not|never)\s+be\s+(?:used|called|invoked)\b"
-    r"|\byour\s+(?:very\s+)?(?:first|opening|initial)\s+(?:reply|response|message|answer|output)\s+(?:must|has\s+to|should|needs\s+to|shall)\s+(?:be|consist"
-    r"|contain|say|read)\b"
-    + "|" + _starting(("ignore", "ignoring", "disregard", "disregarding", "abandon", "abandoning", "drop", "dropping", "forget", "forgetting"),
-                      r"\s+(?:whatever|anything|everything|all)\s+(?:else\s+)?(?:the\s+user|they|the\s+human|the\s+person)\s+(?:asked|requested|wanted|said"
-                      r"|asks|requests|wants)\b"),
-    _I)
+# Precision round: binding authority over the model (`_AUTHORITY`: directives to obey, a scripted reply, no other tools, the
+# user's other requests dropped) is no longer read: on the tuning half's top-up its one new finding was labelled benign. 1.11.1's
+# override marker ("IMPORTANT:" with ignore, override or disregard) and the shared injection patterns still read.
 # Round 2 grew 1.11.1's first steering slot and its first and third concealment slots into `P.AnyOf` families; the second and
-# third steering slots and the tag, hidden-instruction and secret slots are 1.11.1's patterns themselves (invariant 7).
+# third steering slots and the tag, hidden-instruction and secret slots are 1.11.1's patterns themselves (invariant 7). The
+# precision round leaves the third concealment slot a family of one: 1.11.1's override marker.
 # Patch round 4: each pattern of the recall item is read with the edges of its alternatives loosened (`_edges`).
-(_FIRST, _SUBJECT, _TRIGGER, _GATE, _AFTER_EVERY, _UNCHECKED, _OWN_KNOWLEDGE, _BY_HAND, _OVER_OTHERS, _UPSELL, _CONCEAL_MORE, _QUIET, _QUIET_WITHOUT,
- _AUTHORITY) = (re.compile(_edges(p.pattern), p.flags) for p in (_FIRST, _SUBJECT, _TRIGGER, _GATE, _AFTER_EVERY, _UNCHECKED, _OWN_KNOWLEDGE, _BY_HAND,
-                                                                 _OVER_OTHERS, _UPSELL, _CONCEAL_MORE, _QUIET, _QUIET_WITHOUT, _AUTHORITY))
+(_FIRST, _TRIGGER, _GATE, _OWN_KNOWLEDGE, _BY_HAND, _OVER_OTHERS, _UPSELL, _CONCEAL_MORE, _QUIET_WITHOUT) = (
+    re.compile(_edges(p.pattern), p.flags) for p in (_FIRST, _TRIGGER, _GATE, _OWN_KNOWLEDGE, _BY_HAND, _OVER_OTHERS, _UPSELL, _CONCEAL_MORE, _QUIET_WITHOUT))
 _IMPORTANT_GATE = P.Within(_IMPORTANT_GATE.opener.pattern, _edges(_IMPORTANT_GATE.inner.pattern), _IMPORTANT_GATE.close)
 _STEERING_1111 = (_ALWAYS_THIS, _BEFORE_OTHERS, _IMPORTANT_DIRECTIVE)
-_STEERING_RECALL = (_FIRST, _GATE, _IMPORTANT_GATE, _AFTER_EVERY, _UNCHECKED, _SUBJECT, _TRIGGER, _OWN_KNOWLEDGE, _BY_HAND, _OVER_OTHERS, _UPSELL)
+_STEERING_RECALL = (_FIRST, _GATE, _IMPORTANT_GATE, _TRIGGER, _OWN_KNOWLEDGE, _BY_HAND, _OVER_OTHERS, _UPSELL)
 _TOOL_STEERING = (
     P.AnyOf(_ALWAYS_THIS, *_STEERING_RECALL),
     _BEFORE_OTHERS,
     _IMPORTANT_DIRECTIVE,
 )
 _TOOL_CONCEALMENT = (
-    P.AnyOf(_CONCEAL_1111, _CONCEAL_MORE, _QUIET, _QUIET_WITHOUT),
+    P.AnyOf(_CONCEAL_1111, _CONCEAL_MORE, _QUIET_WITHOUT),
     TOOL_INJECTION_TAG,
-    P.AnyOf(_IMPORTANT_OVERRIDE, _AUTHORITY),
+    P.AnyOf(_IMPORTANT_OVERRIDE),
     re.compile(r"\bhidden (system )?(instructions?|prompts?|commands?|directives?)\b|\bkeep (this|these) instructions? (hidden|secret)\b"
                r"|\bkeep (this|it|them|these) hidden\b|\bhid(e|den) (this |it |them |these )?from (the |your )?(users?|human)\b", re.IGNORECASE),
     TOOL_INJECTION_SECRET,
