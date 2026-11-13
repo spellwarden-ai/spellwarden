@@ -242,7 +242,7 @@ _CONCEAL_1111 = re.compile(
     re.IGNORECASE)
 
 # --- Steering (medium) of the recall item ------------------------------------------------------------------------------------
-# The tool must come first in every session, conversation or task, or is the entry point ahead of everything else. Round 2:
+# The tool must come first in every session, conversation or task, or ahead of everything else. Round 2:
 # "before anything else" counts only with this tool as the object ("give the helpline before anything else" is a safety note),
 # "at the start of every session" only next to a call verb ("lists the first messages of each conversation" is a
 # description), and "the opening step" only as "your opening step". Patch round 3: the exceptions that read the words after a
@@ -262,13 +262,11 @@ _START_OF = (rf"(?:at|in)\s+the\s+(?:very\s+)?(?:start|beginning|outset|onset)\s
 # the first-step claim without that scope are workflow order or setup as often as steering).
 _EVERY_SESSION = rf"(?:(?:in|for|of|at\s+the\s+(?:start|beginning)\s+of)\s+(?:every|each|any|all)\s+(?:new\s+)?(?:{_SESSION}|{_TASK}))\b"
 _FIRST = re.compile(
-    # Round 5: not "always call this before placing an order" (one action), "whenever someone asks about X" or "for all
-    # requests" (usage hints). Precision round: before every other tool or before anything at all; "always call this first"
-    # only in every session, and "before answering" is the gate's (`_GATE`).
-    r"\balways\s+(?:call|use|run|invoke|consult|query|start\s+with|begin\s+with)\s+(?:this|me)\s+(?:first\s+" + _EVERY_SESSION
-    + r"|before\s+(?:(?:any|every|all)\s+other|other|anything|everything|doing\s+anything|you\s+do\s+anything)\b)"
+    # Precision round 2 (owner's decision, after counts on the tuning half's labelled descriptions): the weak alternatives by
+    # those counts are removed. The always-first form scoped to each session and "always use me before anything else" are no
+    # longer read.
     # Precision round: "always start with this" is gone (workflow order); "should always be called first" or "whenever" too.
-    r"|\bthis\s+(?:tool|function)\s+(?:should|must|needs\s+to|has\s+to)\s+always\s+be\s+(?:called|used|run|invoked|consulted)\s+(?:before\s+(?:anything"
+    r"\bthis\s+(?:tool|function)\s+(?:should|must|needs\s+to|has\s+to)\s+always\s+be\s+(?:called|used|run|invoked|consulted)\s+(?:before\s+(?:anything"
     r"|everything|(?:any|every|all)\s+other)\b|" + _EVERY_SESSION + ")"
     # An imperative: "starts every session with a fresh cache" describes the tool.
     + rf"|\b(?:begin|start|open|kick\s+off|initiate|commence)\s+(?:every|each|any|all)\s+(?:new\s+)?{_SESSION}\b"
@@ -292,10 +290,7 @@ _FIRST = re.compile(
     # Precision round: the bare must-call-this-first form is gone; the same call scoped to every new session stays (below).
     + r"|\b(?:call|use|run|invoke|execute|load|read)\s+(?:this|me)(?:\s+(?:tool|function))?\s+(?:first\s+)?(?:in|before|when\s+(?:starting|beginning|opening))\s+"
     + rf"(?:every|each|any|all)\s+(?:new\s+)?(?:{_SESSION}|tasks?)\b"
-    # Once per session ("call this one time per session"); "load the config once per session" is a setup note. Patch round 4:
-    # "once at the start of a session" (one session, to warm a cache) is no longer read; "of each" or "of every" session is.
-    rf"|\b(?:call|use|run|invoke|load|read|consult)\s+(?:this|me|it)(?:\s+(?:tool|function))?\s+(?:once|one\s+time)\s+(?:per|each|every"
-    rf"|in\s+each|in\s+every|at\s+the\s+(?:start|beginning)\s+of\s+(?:each|every))\s+(?:new\s+)?{_SESSION}\b"
+    # Precision round 2: once per session ("call this one time per session") is no longer read.
     rf"|\b(?:call|use|run|invoke|consult|load|read|check|query|try|start\s+with|begin\s+with|open\s+with)\s+(?:this|me|it)(?:\s+(?:tool|function))?\b{_gap(30)}"
     r"\b(?:before|ahead\s+of|prior\s+to)\s+(?:doing\s+|using\s+|calling\s+|trying\s+|touching\s+)?(?:anything|everything)(?:\s+else)?\b"
     # Round 3: "invoke it prior to the rest". (Precision round: "questions on tide tables should open with a query to this
@@ -305,26 +300,19 @@ _FIRST = re.compile(
     r"|read|check)\s+(?:this|me|it)\b"
     r"|\b(?:call|use|run|invoke)\s+(?:this|me)(?:\s+(?:tool|function))?\s+as\s+(?:the|your)\s+(?:very\s+)?first\s+(?:thing|step|action|call|tool)\s+"
     + _EVERY_SESSION
-    + r"|\b(?:this(?:\s+tool)?\s+is|it\s+is|i\s+am|serves\s+as|acts\s+as|use\s+(?:this|it|me)(?:\s+tool)?\s+as)\s+(?:the|your)\s+(?:main\s+|primary\s+|recommended\s+"
-    r"|single\s+|central\s+|default\s+|universal\s+|official\s+|preferred\s+)?(?:entry[\s-]?point|starting[\s-]?point|front\s+door|first\s+stop)\s+(?:for|to|into)\s+"
-    r"(?:all|any|every|each|working\s+with|using|interacting\s+with|the\s+other|this\s+(?:server|toolkit|toolset|integration|mcp|service)"
-    r"|the\s+(?:server|toolkit|toolset|integration|mcp|service)(?:'s)?)\b"
-    # A banner ("START HERE", "[BEGIN HERE]", "Start here:") or "start here with this tool"; "start here to browse the catalog" is
-    # navigation. Patch round 3: the punctuation that makes a banner is part of the match, and a banner written in capitals is
-    # one whatever follows it (patch round 2 read the next word, which a line glued on decided).
-    r"|\b(?:start|begin|kick\s+off)\s+here\s*[:!.,;?\])–—-]|\b(?:start|begin|kick\s+off)\s+here\s+(?:with\s+(?:this|me|the\s+[\w-]{1,30}\s+tool)|first|before)\b"
-    # Patch round 4: the capitals also count right after a lower-case letter or a digit ("Log in firstSTART HERE") and glued to
-    # whatever follows ("START HEREand").
-    r"|(?-i:(?:\b|[a-z0-9])(?:START|BEGIN)\s+HERE)"
+    # Precision round 2: the entry-point claim (the tool presenting itself as the front door to everything) and the banner in lower case ("Start
+    # here:", "begin here with this tool") are no longer read. A banner written in capitals ("START HERE", "[BEGIN HERE]") is
+    # one whatever follows it (patch round 3). Patch round 4: the capitals also count right after a lower-case letter or a digit
+    # ("Log in firstSTART HERE") and glued to whatever follows ("START HEREand").
+    + r"|(?-i:(?:\b|[a-z0-9])(?:START|BEGIN)\s+HERE)"
     # (Precision round: "orient yourself" is gone, the opening step of an overview tool.)
     # Other agents do it, so should you ("most assistants open with this overview when they connect").
     r"|\b(?:most|all|other|many|smart|good|well-behaved|successful|experienced|top)\s+(?:ai\s+|automated\s+|llm\s+|coding\s+)?(?:agents|assistants|models|llms"
     + rf"|helpers|clients|bots)\s+(?:[\w-]{{1,20}}\s+)?(?:call|use|run|start\s+with|begin\s+with|open\s+with|invoke|load|read)\s+(?:this|me)\b{_gap(60)}"
-    r"\b(?:first|when\s+they\s+(?:connect|start|begin)|at\s+the\s+(?:start|beginning)|before|and\s+(?:so\s+should|you\s+should))\b"
-    # 1.9.0's "before any other tool" in its longer forms: "before using any of the other tools", "prior to any other function".
-    r"|\b(?:before|prior\s+to|ahead\s+of)\s+(?:(?:using|calling|invoking|running|trying|touching|reaching\s+for)\s+)?(?:any|every|all)\s+(?:of\s+(?:the|your)\s+)?"
-    r"(?:other|another|additional|remaining)\s+(?:[\w-]{1,30}\s+)?(?:tools?|functions?|capabilit(?:y|ies)|servers?)\b"
-    r"|\bbefore\s+(?:using|calling|invoking)\s+(?:the\s+)?other\s+(?:[\w-]{1,30}\s+)?(?:tools?|functions?)\b",
+    r"\b(?:first|when\s+they\s+(?:connect|start|begin)|at\s+the\s+(?:start|beginning)|before|and\s+(?:so\s+should|you\s+should))\b",
+    # Precision round 2: 1.9.0's "before any other tool" in its longer forms ("before using any of the other tools", "prior to
+    # any other function", "before calling the other tools") is no longer read; 1.11.1's own "before any other tool"
+    # (`_BEFORE_OTHERS`) is unchanged.
     _I)
 # Precision round: a tool's bid to own a whole topic's questions (`_SUBJECT`, rounds 1 to patch round 4)
 # is no longer read: on the tuning half's top-up, more of its new findings were labelled benign than positive.
@@ -371,7 +359,8 @@ _GATE_NOUN = (r"(?:payments?|transactions?|transfers?|purchases?|trades?|orders?
               r"|products?|servers?|files?|charts?|graphs?|diagrams?|visuali[sz]ations?|images?|commands?|sql|quer(?:y|ies)|edits?|components?)")
 _GATE_PHRASE = rf"\b(?:before|prior\s+to|ahead\s+of)\s+{_GATE_ING}\s+(?:any|every|all|each)\s+{_words(2)}{_GATE_NOUN}\b"
 _GATE_VERB = r"(?:call|use|run|invoke|consult|query|pass|send|submit|route|screen|check|verify|validate|scan|audit)"
-# "Use this template before posting any content" names a template, not a tool: a bare "this" counts only right before the gate.
+# "Use this template before posting any content" names a template, not a tool: a bare "this" counted only right before the gate
+# (precision round 2 removed that form).
 # Round 5: a bare "service", "api", "endpoint", "lookup" or "check" is not this tool ("before installing any package, check the
 # registry API", "before running any commands, check the service status"); a bare "tool" ("the audit tool") still counts.
 _GATE_OBJECT = r"(?:this\s+(?:tool|function|endpoint|lookup|check)|me|tool)"
@@ -391,8 +380,10 @@ _GATE_SOURCE_BEFORE = rf"(?:(?:call|use|run|invoke|consult|query|check|search)\s
 _ANSWERING = (r"(?:answering|replying|responding|giving\s+(?:an?\s+|any\s+|your\s+)?(?:answer|response|reply)|providing\s+(?:an?\s+|any\s+|your\s+)?"
               r"(?:answer|response)|you\s+(?:answer|reply|respond))\b")
 _GATE = re.compile(
-    rf"\b{_GATE_VERB}\s+{_words(3)}(?:{_GATE_OBJECT}\b{_gap(40)}|this\s+(?:first\s+)?){_GATE_PHRASE}"
-    rf"|{_GATE_PHRASE}{_gap(60)}\b{_GATE_VERB}\s+{_words(5)}{_GATE_OBJECT}\b"
+    # Precision round 2 (owner's decision, as for `_FIRST`): the call before the gate ("call this tool before sending any
+    # payment", "use this before posting any content") is no longer read; the gate before the call ("before sending any payment,
+    # call this tool") still is.
+    rf"{_GATE_PHRASE}{_gap(60)}\b{_GATE_VERB}\s+{_words(5)}{_GATE_OBJECT}\b"
     r"|\b(?:must|should|needs\s+to|has\s+to)\s+(?:always\s+)?be\s+(?:called|used|run|invoked|consulted|executed|queried)\s+(?:first\s+)?(?:before|prior\s+to)\s+"
     + rf"{_GATE_ING}\s+(?:any|every|all|each)\b"
     rf"|\b{_GATE_SOURCE_AFTER}\b{_gap(30)}\b(?:before|prior\s+to|ahead\s+of)\s+{_ANSWERING}"
