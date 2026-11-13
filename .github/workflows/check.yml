@@ -82,7 +82,8 @@ jobs:
           node-version: "24"
       - run: make check-node
 
-  # The Action promises macOS and Windows runners, and the containment rules of spec 6.13 differ per platform
+  # The Action promises Windows runners besides Linux, and the containment rules of spec 6.13 differ per platform
+  # (macOS runners were removed from CI on 2026-11-13, owner: they kept failing or queueing).
   # (spec 7.1). The Makefile's `check` target is spelled out: GNU make is not on every Windows image.
   check-os:
     runs-on: ${{ matrix.os }}
@@ -90,7 +91,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest]
+        os: [windows-latest]
     defaults:
       run:
         shell: bash
@@ -120,7 +121,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest]
     defaults:
       run:
         shell: bash
