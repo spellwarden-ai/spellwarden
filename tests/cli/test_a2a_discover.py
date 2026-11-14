@@ -69,13 +69,15 @@ def test_listed_cards_are_cards_and_a_listed_path_outside_the_file_set_is_file_m
     assert missing == [("file_missing", "nope/card.json")]
 
 
-def test_d2_at_most_200_cards_are_read_and_the_notice_counts_the_rest(make_repo, tmp_path):
-    files = {f"agents/a{number:03d}/.well-known/agent-card.json": CARD for number in range(201)}
+def test_d2_at_most_300_cards_are_read_and_the_error_counts_the_rest(make_repo, tmp_path):
+    """1.13.0: repository content left unread by a limit is an incomplete scan (an error), no longer a notice."""
+    files = {f"agents/a{number:03d}/.well-known/agent-card.json": CARD for number in range(301)}
     result = found(make_repo(tmp_path / "repo", files))
-    assert len(result.agent_cards) == MAX_CARDS == 200
-    assert result.agent_cards[-1].path == "agents/a199/.well-known/agent-card.json"  # path order: the rest are not read
-    limit = [n for n in result.notices if n.code == "a2a_cards_limit"]
+    assert len(result.agent_cards) == MAX_CARDS == 300
+    assert result.agent_cards[-1].path == "agents/a299/.well-known/agent-card.json"  # path order: the rest are not read
+    limit = [n for n in result.errors if n.code == "a2a_cards_limit"]
     assert len(limit) == 1 and limit[0].message.startswith("1 more agent cards were not read")
+    assert "exclude" in limit[0].message and not [n for n in result.notices if n.code == "a2a_cards_limit"]
 
 
 @pytest.mark.skipif(not hasattr(os, "symlink"), reason="symbolic links")

@@ -1,14 +1,17 @@
 """The 11 MCP rules of spec 5.4. Each `detect(probe)` yields `Finding`s whose
-location is the endpoint (or the repository), or `tool:<name>` for SW-MCP-011."""
+location is the endpoint (or the repository), or, for SW-MCP-011, the place of the text: `tool:<name>`, `prompt:<name>`,
+`resource:<uri>`, `resource_template:<uriTemplate>` or `server_instructions`."""
 from __future__ import annotations
 
 import bisect
 import re
 from collections.abc import Iterator
 
-from spellwarden_scan.evidence import bounded_evidence, fingerprint, mask_credentials
+from spellwarden_scan.evidence import bounded_evidence, fingerprint
+from spellwarden_scan.evidence import excerpt_around
+from spellwarden_scan.evidence import redacted_url as _redacted
 from spellwarden_scan.model import Finding, Location, ProbeResult, ToolInfo
-from spellwarden_scan.probe import text_of
+from spellwarden_scan.probe import probe_texts, text_of
 from spellwarden_scan.probe import auth_mode_of, classify, deprecated_capabilities, initialize_only, spec_version_of, transport_of
 from spellwarden_scan.rules import Rule, make_rule
 from spellwarden_scan.rules import patterns as P
@@ -768,36 +771,22 @@ def _asks_for_data(seen: str) -> bool:
     return bool(unheld)
 
 
-def _redacted(url: str) -> str:
-    """`url` without userinfo, query or fragment: a finding's location and evidence never carry
-    `https://user:pass@host/` or `?api_key=...` from a registered endpoint or repository URL."""
-    if "://" not in url:
-        return url
-    scheme, rest = url.split("://", 1)
-    # An `@` ends the userinfo only when no `/`, `?` or `#` comes before it. Otherwise the `@` sits in the path or
-    # query, or in a raw password that holds a delimiter: no reading is safe to show, so nothing is kept.
-    if "@" in rest:
-        userinfo, _, rest = rest.rpartition("@")
-        if any(mark in userinfo for mark in "/?#"):
-            return f"{scheme}://redacted"
-    rest = rest.split("#", 1)[0].split("?", 1)[0]
-    authority, separator, path = rest.partition("/")
-    if not authority:
-        return f"{scheme}://redacted"
-    # A token carried in the path (`/api/mcp/s/<token>/mcp`) is masked like any evidence (spec 5.10), segment by segment
-    # so the host and the other segments stay readable.
-    path = "/".join(mask_credentials(segment) for segment in path.split("/"))
-    return f"{scheme}://{authority}{separator}{path}"
-
-
 def _where(probe: ProbeResult) -> str:
     return _redacted(probe.endpoint or probe.repository or "server")
 
 
-def _finding(rule_id: str, severity: str, probe: ProbeResult, evidence: str, *, path: str | None = None) -> Finding:
-    """The fingerprint is over the original text; the stored evidence is `bounded_evidence` of it."""
+def _first_match(text: str) -> tuple[int, int] | None:
+    """The span of the earliest injection or concealment match in `text`, or None."""
+    found = [m for m in (p.search(text) for p in (*P.INJECTION, *_TOOL_CONCEALMENT)) if m is not None]
+    return min(((m.start(), m.end()) for m in found), default=None)
+
+
+def _finding(rule_id: str, severity: str, probe: ProbeResult, evidence: str, *, path: str | None = None,
+             shown: str | None = None) -> Finding:
+    """The fingerprint is over the original text; the stored evidence is `bounded_evidence` of it, or of `shown` (an excerpt
+    of it) when given."""
     location = path or _where(probe)
-    return Finding(rule_id, severity, TITLES[rule_id], Location(location, None), bounded_evidence(evidence),
+    return Finding(rule_id, severity, TITLES[rule_id], Location(location, None), bounded_evidence(evidence if shown is None else shown),
                    fingerprint(rule_id, location, evidence), False)
 
 
@@ -986,6 +975,16 @@ def _mcp_011(probe: ProbeResult) -> Iterator[Finding]:
         elif any(p.search(seen) for p in _TOOL_STEERING):
             severity = "high" if _asks_for_data(seen) else "medium"
             yield _finding("SW-MCP-011", severity, probe, text, path=f"tool:{tool.name}")
+    # 1.13.0 (Phase 3 batch 1 spec 8.3, decision D15): the prompts, resources, resource templates and instructions a server
+    # advertises are read for injection and concealment only, never for steering: a prompt or the server's instructions exist to
+    # steer a model ("call search before answering questions about the catalogue"), so steering words there are the design. The
+    # precision of the rule on these four places has not been measured.
+    # A finding there shows the first match with its surroundings, not the start of a text that can be 16,000 characters of
+    # instructions (r0:F2); the fingerprint stays over the whole text, as a tool's does, so a phrase added later is new.
+    for path, text in probe_texts(probe):
+        seen = " ".join(visible(text).split())
+        if any(p.search(seen) for p in P.INJECTION) or any(p.search(seen) for p in _TOOL_CONCEALMENT):
+            yield _finding("SW-MCP-011", "high", probe, text, path=path, shown=excerpt_around(seen, _first_match))
 
 
 TITLES = {
@@ -999,21 +998,21 @@ TITLES = {
     "SW-MCP-008": "Uses deprecated Roots, Sampling or Logging",
     "SW-MCP-009": "Endpoint not served over HTTPS",
     "SW-MCP-010": "No protected resource metadata, or issuer not validated",
-    "SW-MCP-011": "Tool description contains instruction-like text",
+    "SW-MCP-011": "MCP server text contains instruction-like text",
 }
 
 RULES: tuple[Rule, ...] = (
-    make_rule("SW-MCP-001", TITLES["SW-MCP-001"], "high", "mcp", owasp=("MCP07",), nist=("AC-3",), detect=_mcp_001, targets=("kong", "registry")),
-    make_rule("SW-MCP-002", TITLES["SW-MCP-002"], "medium", "mcp", owasp=("MCP01", "MCP07"), nist=("IA-5",), detect=_mcp_002, targets=("registry",)),
-    make_rule("SW-MCP-003", TITLES["SW-MCP-003"], "medium", "mcp", owasp=("MCP07",), nist=("IA-5",), detect=_mcp_003, targets=("registry",)),
-    make_rule("SW-MCP-004", TITLES["SW-MCP-004"], "medium", "mcp", owasp=("ASI04",), nist=("SR-3",), detect=_mcp_004, targets=("registry",)),
-    make_rule("SW-MCP-005", TITLES["SW-MCP-005"], "low", "mcp", owasp=("ASI04",), nist=("SR-3",), detect=_mcp_005, targets=("registry",)),
-    make_rule("SW-MCP-006", TITLES["SW-MCP-006"], "medium", "mcp", owasp=("ASI04",), nist=("SR-3",), detect=_mcp_006),
-    make_rule("SW-MCP-007", TITLES["SW-MCP-007"], "medium", "mcp", owasp=("ASI04",), nist=("SR-3",), detect=_mcp_007),
-    make_rule("SW-MCP-008", TITLES["SW-MCP-008"], "medium", "mcp", owasp=("ASI04",), nist=("SR-3",), detect=_mcp_008),
-    make_rule("SW-MCP-009", TITLES["SW-MCP-009"], "high", "mcp", owasp=(), nist=("SC-7",), detect=_mcp_009, targets=("kong", "registry")),
-    make_rule("SW-MCP-010", TITLES["SW-MCP-010"], "medium", "mcp", owasp=("MCP07",), nist=("IA-5",), detect=_mcp_010, targets=("registry",)),
-    make_rule("SW-MCP-011", TITLES["SW-MCP-011"], "high", "mcp", owasp=("ASI01", "MCP03"), nist=("SI-10",), detect=_mcp_011, targets=("kong",)),
+    make_rule("SW-MCP-001", TITLES["SW-MCP-001"], "high", "mcp", owasp=("MCP07",), nist=("AC-3",), atlas=("AML.T0084.001", "AML.T0132"), detect=_mcp_001, targets=("kong", "registry")),
+    make_rule("SW-MCP-002", TITLES["SW-MCP-002"], "medium", "mcp", owasp=("MCP01", "MCP07"), nist=("IA-5",), atlas=(), detect=_mcp_002, targets=("registry",)),
+    make_rule("SW-MCP-003", TITLES["SW-MCP-003"], "medium", "mcp", owasp=("MCP07",), nist=("IA-5",), atlas=(), detect=_mcp_003, targets=("registry",)),
+    make_rule("SW-MCP-004", TITLES["SW-MCP-004"], "medium", "mcp", owasp=("ASI04",), nist=("SR-3",), atlas=(), detect=_mcp_004, targets=("registry",)),
+    make_rule("SW-MCP-005", TITLES["SW-MCP-005"], "low", "mcp", owasp=("ASI04",), nist=("SR-3",), atlas=(), detect=_mcp_005, targets=("registry",)),
+    make_rule("SW-MCP-006", TITLES["SW-MCP-006"], "medium", "mcp", owasp=("ASI04",), nist=("SR-3",), atlas=(), detect=_mcp_006),
+    make_rule("SW-MCP-007", TITLES["SW-MCP-007"], "medium", "mcp", owasp=("ASI04",), nist=("SR-3",), atlas=(), detect=_mcp_007),
+    make_rule("SW-MCP-008", TITLES["SW-MCP-008"], "medium", "mcp", owasp=("ASI04",), nist=("SR-3",), atlas=(), detect=_mcp_008),
+    make_rule("SW-MCP-009", TITLES["SW-MCP-009"], "high", "mcp", owasp=(), nist=("SC-7",), atlas=(), detect=_mcp_009, targets=("kong", "registry")),
+    make_rule("SW-MCP-010", TITLES["SW-MCP-010"], "medium", "mcp", owasp=("MCP07",), nist=("IA-5",), atlas=(), detect=_mcp_010, targets=("registry",)),
+    make_rule("SW-MCP-011", TITLES["SW-MCP-011"], "high", "mcp", owasp=("ASI01", "MCP03"), nist=("SI-10",), atlas=("AML.T0110.000", "AML.T0051.001"), detect=_mcp_011, targets=("kong",)),
 )
 
 __all__ = ["RULES", "TITLES", "classify"]

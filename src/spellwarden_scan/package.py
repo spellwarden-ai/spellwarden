@@ -122,17 +122,24 @@ class Package:
     """The package view. Build it with `Package.build(files, root=..., executable_paths=...)`."""
 
     def __init__(self, root: str, text_files: tuple[TextFile, ...], binary_files: tuple[BinaryFile, ...],
-                 code_blocks: tuple[CodeBlock, ...], metadata: Metadata, executable_paths: frozenset[str]) -> None:
+                 code_blocks: tuple[CodeBlock, ...], metadata: Metadata, executable_paths: frozenset[str],
+                 markdown_paths: frozenset[str] = frozenset()) -> None:
         self.root = root
         self.text_files = text_files
         self.binary_files = binary_files
         self.code_blocks = code_blocks
         self.metadata = metadata
         self.executable_paths = executable_paths
+        self.markdown_paths = markdown_paths
 
     @classmethod
-    def build(cls, files: Mapping[str, bytes], *, root: str = "", executable_paths: Collection[str] = ()) -> Package:
+    def build(cls, files: Mapping[str, bytes], *, root: str = "", executable_paths: Collection[str] = (),
+              markdown_paths: Collection[str] = frozenset()) -> Package:
+        """`markdown_paths` (1.13.0, Phase 3 batch 1 spec 10.3) are paths read as Markdown whatever their suffix: a Cursor `.mdc`
+        rule, `.cursorrules` and `.windsurfrules` hold instructions but do not end in `.md`, so without this no injection or
+        concealment check and no code block would reach them. The default leaves every existing call as it was."""
         root = root.strip("/")
+        markdown = frozenset(markdown_paths)
         prefix = f"{root}/" if root else ""
         texts: list[TextFile] = []
         binaries: list[BinaryFile] = []
@@ -147,14 +154,14 @@ class Package:
                 continue
             lines = split_lines(text)
             texts.append(TextFile(path, text, lines, content[:8]))
-            if path.lower().endswith(".md"):
+            if path.lower().endswith(".md") or path in markdown:
                 blocks.extend(_code_blocks(path, lines))
         # Only the executable entries under `root` belong to this package: a sibling directory's binaries are not its finding.
         kept = frozenset(path for path in executable_paths if not prefix or path.startswith(prefix))
-        return cls(root, tuple(texts), tuple(binaries), tuple(blocks), metadata_of(files, root), kept)
+        return cls(root, tuple(texts), tuple(binaries), tuple(blocks), metadata_of(files, root), kept, markdown)
 
     def instructions(self) -> tuple[TextFile, ...]:
-        return tuple(f for f in self.text_files if f.path.lower().endswith(".md"))
+        return tuple(f for f in self.text_files if f.path.lower().endswith(".md") or f.path in self.markdown_paths)
 
     def scripts(self) -> tuple[TextFile | CodeBlock, ...]:
         """Script files by extension plus the fenced blocks tagged as code (spec 5.3)."""

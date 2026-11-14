@@ -14,6 +14,8 @@
     "fail-on": {"enum": ["critical", "high", "medium", "low", "never"]},
     "probe": {"type": "boolean"},
     "telemetry": {"type": "boolean"},
+    "instructions": {"type": "boolean",
+                     "description": "Find, lock, scan and report instruction files (AGENTS.md, CLAUDE.md, GEMINI.md, Copilot instructions, Cursor rules, Windsurf rules). Default true; needs scanner 1.13.0 or later, older scanners refuse the file. On a pull or merge request it is read from the base revision, like every key."},
     "connected": {
       "type": "object",
       "additionalProperties": false,

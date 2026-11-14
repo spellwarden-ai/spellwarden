@@ -3,25 +3,29 @@ output and schema shares (spec 6.14). Every output module is a pure function
 of a `Report`; `exit_code()` implements the precedence of spec 6.2."""
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING
 
-from spellwarden_scan import SEVERITY_RANK, A2aScanResult, Finding, McpScanResult, RuleSet
+from spellwarden_scan import SEVERITY_RANK, A2aScanResult, Finding, McpScanResult, Rule, RuleSet
 from spellwarden_scan.agentconfig import DOCUMENT_ERRORS
 
 if TYPE_CHECKING:
     from spellwarden_cli.discover import Item
 
-ITEM_KINDS = ("skill", "marketplace", "plugin", "mcp-config", "mcp-server", "settings", "hooks", "plugin-manifest")
+ITEM_KINDS = ("skill", "marketplace", "plugin", "mcp-config", "mcp-server", "settings", "hooks", "plugin-manifest",
+              "instructions")
 ERROR_CODES = (*DOCUMENT_ERRORS, "unsafe_path", "case_collision", "unreadable", "package_too_large", "path_not_directory",
                "settings_invalid", "baseline_invalid", "lock_unreadable", "invalid_input", "crash",
                # O3 spec 6.9: connected mode
                "connected_config", "connected_key_invalid", "connected_no_credential", "connected_auth",
                "connected_subscription", "connected_ci_key_required", "connected_forbidden", "connected_rate_limited",
                "connected_unavailable", "connected_required", "policy_not_found", "policy_invalid", "org_rules_incomplete",
-               "registry_check_failed", "registry_check_too_large")
+               "registry_check_failed", "registry_check_too_large",
+               # Repository content left unread by a limit is an incomplete scan, never a pass (README "Limits"): the
+               # agent-card limit (a notice from 1.3.0 to 1.12.0) and the instruction-file limit, both 300 since 1.13.0
+               "a2a_cards_limit", "instructions_limit")
 # The error codes whose message says what to fix (O3 spec 6.9); the Markdown report prints them whole.
-CONNECTED_ERRORS = ERROR_CODES[ERROR_CODES.index("connected_config"):]
+CONNECTED_ERRORS = ERROR_CODES[ERROR_CODES.index("connected_config"):ERROR_CODES.index("registry_check_too_large") + 1]
 NOTICE_CODES = ("no_agent_content", "git_unavailable", "exec_bits_unknown", "symlink_skipped", "file_too_large",
                 "non_utf8_path", "upload_paths_scan_root", "findings_truncated", "baseline_mismatch", "baseline_expired",
                 "probe_private_untrusted", "probe_fork_disabled", "probe_skipped", "comment_permission", "comment_failed",
@@ -33,14 +37,18 @@ NOTICE_CODES = ("no_agent_content", "git_unavailable", "exec_bits_unknown", "sym
                 "upload_failed", "upload_skipped", "upload_ci_only", "upload_disabled", "registry_gate_off",
                 "mcp_rules_need_probe", "policy_newer_than_scanner",
                 # O4 spec 6.9: A2A agent cards
-                "a2a_not_card", "a2a_cards_limit", "a2a_agents_need_probe", "a2a_fetch_failed", "a2a_signature_unverified",
-                "a2a_keys_unavailable", "a2a_keys_missing", "a2a_key_without_kid", "a2a_private_key_in_jwks")
+                "a2a_not_card", "a2a_agents_need_probe", "a2a_fetch_failed", "a2a_signature_unverified",
+                "a2a_keys_unavailable", "a2a_keys_missing", "a2a_key_without_kid", "a2a_private_key_in_jwks",
+                # Phase 3 batch 1 spec 10.2, 10.3: instruction files
+                "instructions_front_matter",
+                # 1.13.0: a probed server answered a list with more than the probe reads (README "Limits")
+                "probe_list_incomplete")
 # The notices that say a run continued in free mode after connected mode could not start (O3 spec 6.4); the text and
 # Markdown outputs derive their "unavailable" line from them.
 FREE_MODE_NOTICES = ("connected_fallback", "fork_free_mode", "dependabot_free_mode")
 PROBE_SKIP_REASONS = ("unresolved", "limit", "budget", "fork", "refused")
 LOCK_STATUSES = ("ok", "stale", "absent", "not_checked")
-LOCK_ITEM_KINDS = ("document", "mcp-server", "plugin", "plugin-dir", "skill")
+LOCK_ITEM_KINDS = ("document", "mcp-server", "plugin", "plugin-dir", "skill", "instructions")
 
 
 @dataclass(frozen=True)
@@ -88,6 +96,9 @@ class ProbeReport:
     status: str  # "probed" | "skipped"
     skip_reason: str | None
     result: McpScanResult | None
+    # 1.13.0: the lists the server answered with more than the probe reads (`prompts`, `resources`, `resource_templates`),
+    # each the notice `probe_list_incomplete`; not part of the report's probe entry
+    incomplete_lists: tuple[str, ...] = field(default=(), compare=False)
 
     def to_dict(self) -> dict:
         extra = self.result.to_dict() if self.result is not None else {}
@@ -186,12 +197,24 @@ class Report:
             notices=tuple(sorted(self.notices, key=_notice_order)), errors=tuple(sorted(self.errors, key=_notice_order)))
 
 
+TAG_KEYS = ("owasp_agentic", "owasp_mcp", "nist", "atlas", "owasp_ast")
+
+
+def rule_tags(rule: Rule | None) -> dict[str, list[str]]:
+    """The tags of `rule` as the JSON report lists them on each of its findings (Phase 3 batch 1 spec 11.3): one list per
+    framework, empty for a rule that has none (an organisation rule has no ATLAS or AST id) and for a rule the set lacks."""
+    return {key: [] if rule is None else list(getattr(rule, key)) for key in TAG_KEYS}
+
+
 def to_json_dict(report: Report) -> dict:
-    """The JSON format of spec 6.9 (`schemas/report.schema.json`)."""
+    """The JSON format of spec 6.9 (`schemas/report.schema.json`). Since 1.13.0 each finding also carries `tags`, looked up
+    through the report's rule set."""
+    by_id = {rule.id: rule for rule in report.rules}
     document = {
         "schema": 1, "scanner_version": report.scanner_version, "rules_version": report.rules_version,
         "as_of": report.as_of, "items": [item.to_dict() for item in report.items],
-        "findings": [rf.to_dict() for rf in report.findings], "probes": [probe.to_dict() for probe in report.probes],
+        "findings": [{**rf.to_dict(), "tags": rule_tags(by_id.get(rf.finding.rule_id))} for rf in report.findings],
+        "probes": [probe.to_dict() for probe in report.probes],
         "lock": report.lock.to_dict(), "notices": [n.to_dict() for n in report.notices],
         "errors": [e.to_dict() for e in report.errors], "fail_on": report.fail_on, "exit_code": report.exit_code(),
     }

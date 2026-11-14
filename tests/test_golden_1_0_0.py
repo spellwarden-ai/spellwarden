@@ -144,6 +144,25 @@ RETAGGED_1_9_1 = ("SW-SKL-007", "SW-SKL-009", "SW-SKL-019", "SW-MCP-001", "SW-MC
                   "SW-MCP-010", "SW-MCP-011", "SW-CFG-001", "SW-CFG-002", "SW-CFG-003", "SW-CFG-009", "SW-CFG-010")
 
 
+# 1.13.0 retitled SW-MCP-011 ("MCP server text contains instruction-like text": the rule reads more than tool descriptions), so
+# the `name` and `shortDescription` of its SARIF descriptor are put back to the recorded ones on both sides.
+RETITLED_1_13_0 = {"SW-MCP-011": ("ToolDescriptionContainsInstructionLikeText", "Tool description contains instruction-like text")}
+
+
+# 1.13.0 added ATLAS ids (`AML.T...`) and OWASP Agentic Skills Top 10 ids (`AST..`) to each SARIF rule's tags and `tags` to each
+# finding of the JSON report (spec 11.3); the 1.0.0 recordings have neither, and nothing else may differ.
+ADDED_TAG_PREFIXES_1_13_0 = ("AML.", "AST")
+
+
+def _without_finding_tags(name: str, text: str) -> str:
+    if name != "report.json":
+        return text
+    document = json.loads(text)
+    for finding in document["findings"]:
+        assert sorted(finding.pop("tags")) == ["atlas", "nist", "owasp_agentic", "owasp_ast", "owasp_mcp"]
+    return json.dumps(document, indent=2, sort_keys=True, ensure_ascii=True) + "\n"
+
+
 def _normalised_sarif(text: str, *, produced: bool) -> dict:
     """The SARIF document with the descriptors of the rules added since 1.0.0 (the three registry rules, the nineteen
     A2A rules and the five rules of 1.8.0) removed and every `ruleIndex` remapped through the reduced table; the version is put back to the recorded one."""
@@ -164,6 +183,9 @@ def _normalised_sarif(text: str, *, produced: bool) -> dict:
     for rule in driver["rules"]:
         if rule["id"] in RETAGGED_1_9_1:
             rule["properties"]["tags"] = [tag for tag in rule["properties"]["tags"] if not tag.startswith("MCP")]
+        rule["properties"]["tags"] = [tag for tag in rule["properties"]["tags"] if not tag.startswith(ADDED_TAG_PREFIXES_1_13_0)]
+        if rule["id"] in RETITLED_1_13_0:
+            rule["name"], rule["shortDescription"]["text"] = RETITLED_1_13_0[rule["id"]]
     return document
 
 
@@ -171,7 +193,7 @@ def _normalised_sarif(text: str, *, produced: bool) -> dict:
 def test_reports_differ_from_the_recorded_ones_only_in_the_normalised_differences(fresh):
     for _fmt, name in record.OUTPUTS:
         recorded = (GOLDEN / "out" / name).read_bytes().decode("utf-8")
-        produced = (fresh[1] / name).read_bytes().decode("utf-8")
+        produced = _without_finding_tags(name, (fresh[1] / name).read_bytes().decode("utf-8"))
         if name == "report.sarif":
             assert _normalised_sarif(produced, produced=True) == _normalised_sarif(recorded, produced=False)
             continue
@@ -213,9 +235,22 @@ def test_1_0_0_reports_validate_against_the_1_2_0_schemas():
     _validate(json.loads((GOLDEN / "out" / "report.json").read_text(encoding="utf-8")), _current_schema("report"))
 
 
+# 1.13.0 added a lock item kind, `instructions`, as the sixth alternative of `$defs.item.oneOf` in the lock schema (the five of 1.0.0
+# keep their places); what that alternative requires belongs to an item no 1.0.0 lock holds. A kind is an addition, as a notice code
+# is, and the README says what an older scanner does with it.
+LOCK_ITEM_KINDS_1_0_0 = 5
+
+
+def _required_by_1_0_0_alternatives(name: str) -> set[tuple]:
+    return {entry for entry in _required_fields(_current_schema(name))
+            if not (name == "lock" and entry[0][:3] == ("$defs", "item", "oneOf") and entry[0][3] >= LOCK_ITEM_KINDS_1_0_0)}
+
+
 @pytest.mark.parametrize("name", ["settings", "baseline", "lock"])
 def test_1_2_0_input_schemas_require_no_more_than_1_0_0_did(name):
-    assert _required_fields(_current_schema(name)) <= _required_fields(_schema(name))
+    assert _required_by_1_0_0_alternatives(name) <= _required_fields(_schema(name))
+    if name == "lock":
+        assert len(_current_schema("lock")["$defs"]["item"]["oneOf"]) == LOCK_ITEM_KINDS_1_0_0 + 1
 
 
 def test_1_2_0_report_schema_keeps_every_1_0_0_required_field():

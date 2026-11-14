@@ -17,7 +17,7 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from datetime import date
 
-from spellwarden_scan.evidence import bounded_evidence, fingerprint
+from spellwarden_scan.evidence import bounded_evidence, excerpt_around, fingerprint
 from spellwarden_scan.glob import glob_match
 from spellwarden_scan.model import SEVERITY_RANK, Finding, Location
 from spellwarden_scan.package import CodeBlock, Package
@@ -509,19 +509,26 @@ def pattern_search(compiled: CompiledPattern, text: str) -> bool:
     """`Then`-style: part 1 found, part 2 after the end of part 1's match, and so on, inside one window. Windows are
     ranges of `text` (`pos` and `endpos`), so `^` matches only at the start of the unit and `\\b` sees the character
     before a window; `$` is tried only in the window that ends at the end of the unit."""
+    return pattern_span(compiled, text) is not None
+
+
+def pattern_span(compiled: CompiledPattern, text: str) -> tuple[int, int] | None:
+    """`(start of part 1's match, end of the last part's match)` of the first window `pattern_search` finds, or None."""
     length = len(text)
     for start, end in unit_windows(text):
         if compiled.anchored_end and end != length:
             continue
         position = start
+        first: int | None = None
         for part in compiled.parts:
             match = part.search(text, position, end)
             if match is None:
                 break
+            first = match.start() if first is None else first
             position = match.end()
         else:
-            return True
-    return False
+            return (first if first is not None else start), position
+    return None
 
 
 # --- Org rule specs (spec 5.2.1, 5.2.3) and their detection ------------------------------------------------
@@ -791,6 +798,12 @@ class OrgRuleDetector:
         if self.predicate in PATTERN_PREDICATES:
             for tool in probe.tools:
                 yield self._tool_unit(tool)
+            # 1.13.0 (Phase 3 batch 1 spec 8.3, D14): the check reads the other places a server speaks as well
+            if self.predicate == "tool_description_matches":
+                from spellwarden_scan.probe import probe_texts
+
+                for path, text in probe_texts(probe):
+                    yield self._text_unit(path, text)
             return
         yield lambda: self._server_finding(probe)
 
@@ -802,6 +815,16 @@ class OrgRuleDetector:
             if self.pattern is None or not isinstance(text, str) or not pattern_search(self.pattern, text):
                 return None
             return self._finding(f"tool:{tool.name}", text)
+        return run
+
+    def _text_unit(self, path: str, text: str) -> Callable[[], Finding | None]:
+        def run() -> Finding | None:
+            pattern = self.pattern
+            if pattern is None or not pattern_search(pattern, text):
+                return None
+            # shows the match and its surroundings, not the start of up to 16,000 characters of instructions; fingerprinted over
+            # the whole text, as in SW-MCP-011
+            return self._finding(path, text, shown=excerpt_around(text, lambda masked: pattern_span(pattern, masked)))
         return run
 
     def _server_finding(self, probe) -> Finding | None:
@@ -827,12 +850,13 @@ class OrgRuleDetector:
             return self._finding(None, f"endpoint host {host}", probe) if listed else None
         return None if listed else self._finding(None, f"endpoint host {host or 'unknown'}", probe)
 
-    def _finding(self, path: str | None, evidence: str, probe=None) -> Finding:
+    def _finding(self, path: str | None, evidence: str, probe=None, *, shown: str | None = None) -> Finding:
         from spellwarden_scan.rules.mcp import _where
 
         location = path if path is not None else _where(probe)
-        return Finding(self.rule_id, self.severity, self.title, Location(location, None), bounded_evidence(evidence),
-                       fingerprint(self.rule_id, location, evidence), self.malicious)
+        return Finding(self.rule_id, self.severity, self.title, Location(location, None),
+                       bounded_evidence(evidence if shown is None else shown), fingerprint(self.rule_id, location, evidence),
+                       self.malicious)
 
 
 def endpoint_host(endpoint: str | None) -> str | None:

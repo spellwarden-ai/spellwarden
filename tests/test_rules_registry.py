@@ -69,12 +69,12 @@ def test_rule_id_re_accepts_reg_a2a_and_org_and_refuses_xyz():
 
 def test_make_rule_still_refuses_sw_org():
     with pytest.raises(ValueError):
-        make_rule("SW-ORG-001", "x", "high", "registry", owasp=(), nist=(), detect=lambda _: ())
-    make_rule("SW-REG-009", "x", "high", "registry", owasp=(), nist=(), detect=lambda _: ())
+        make_rule("SW-ORG-001", "x", "high", "registry", owasp=(), nist=(), atlas=(), detect=lambda _: ())
+    make_rule("SW-REG-009", "x", "high", "registry", owasp=(), nist=(), atlas=(), detect=lambda _: ())
 
 
 def test_versions_are_1_4_0_and_2026_10_5():
-    assert (__version__, RULES_VERSION) == ("1.12.0", "2026.11.5")
+    assert (__version__, RULES_VERSION) == ("1.13.0", "2026.11.6")
     pyproject = Path(__file__).resolve().parents[1] / "pyproject.toml"
     assert tomllib.loads(pyproject.read_text(encoding="utf-8"))["project"]["version"] == __version__
 

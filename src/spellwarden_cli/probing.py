@@ -13,8 +13,9 @@ whole-phase budget, the workers, and the bounds on what an answer may put in a r
   flight end at their own 10 s deadline, and every task that was refused a connection or not started is `budget`
   with no partial result kept.
 - A probe refused by the SSRF rules (`private_address`, `not_https`) records the refusal code only.
-- Every string an answer puts in a result is cut to 1000 characters, every list to 200 items, every mapping to 200
-  keys and 8 levels before the engine evaluates it; the output modules escape what they print (spec 6.13).
+- Every string an answer puts in a result is cut to 1000 characters (the server's instructions to 16,000 and a resource
+  address to 2,048), every list to 200 items, every mapping to 200 keys and 8 levels before the engine evaluates it; the output
+  modules escape what they print (spec 6.13).
 
 This module imports the fetcher and the prober; it opens no connection itself (`tests/test_network_boundary.py`)."""
 from __future__ import annotations
@@ -134,7 +135,10 @@ def bounded_result(result: ProbeResult) -> ProbeResult:
         resource_metadata=_bounded(result.resource_metadata), auth_server_metadata=metadata,
         tools=tuple(dataclasses.replace(tool, name=tool.name[:MAX_TEXT], description=tool.description[:MAX_TEXT],
                                         annotations=_bounded(tool.annotations)) for tool in result.tools[:MAX_ITEMS]),
-        list_result_meta=_bounded(result.list_result_meta), capabilities=_bounded(result.capabilities) or {})
+        list_result_meta=_bounded(result.list_result_meta), capabilities=_bounded(result.capabilities) or {},
+        instructions=None if result.instructions is None else result.instructions[:prober.MAX_INSTRUCTIONS],
+        prompts=result.prompts[:MAX_ITEMS], resources=result.resources[:MAX_ITEMS],
+        resource_templates=result.resource_templates[:MAX_ITEMS])
 
 
 def event_logger(log: Callable[[str], None]) -> Callable[[str, dict], None]:
@@ -178,7 +182,10 @@ def _probe_one(target: ProbeTarget, rules: RuleSet, budget: _Budget, fetcher_fac
                                **({"org_rule_budget": org_budget()} if org_budget is not None else {}))
     findings = [ReportFinding(dataclasses.replace(finding, location=Location(target.path, target.line)), target.item)
                 for finding in evaluated.findings]
-    return ProbeReport(target.item, "probed", None, evaluated), findings, None
+    # The server decides how much it sends, so a list longer than the probe reads is shown, never a failed scan (README
+    # "Limits"); SW-MCP-011 judged what was read. Tools keep their 1.9.0 rule: a list not read whole keeps SW-MCP-001 high.
+    incomplete = tuple(name for name in result.lists_read if not getattr(result, f"{name}_complete"))
+    return ProbeReport(target.item, "probed", None, evaluated, incomplete), findings, None
 
 
 class ProbeTask(Protocol):
@@ -249,6 +256,10 @@ def run_combined(targets: Sequence[ProbeTarget], rules: RuleSet, *, agent_tasks:
             if report.status == "skipped":
                 reason = f"{report.skip_reason}: {refusals[report.item]}" if report.item in refusals else report.skip_reason
                 notices.append(Notice("probe_skipped", report.item, f"not probed ({reason})"))
+            for name in report.incomplete_lists:
+                notices.append(Notice("probe_list_incomplete", report.item,
+                                      f"the server listed more {name.replace('_', ' ')} than the probe reads (one page of at "
+                                      f"most {prober.MAX_LISTED}); only those were checked"))
     reports.sort(key=lambda report: report.item)
     agent_outcomes = outcomes[len(chosen):len(chosen) + len(agents)] + [task.skipped() for task in agents_over]
     keyset_outcomes = outcomes[len(chosen) + len(agents):] + [task.skipped() for task in keysets_over]

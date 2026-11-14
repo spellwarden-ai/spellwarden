@@ -77,10 +77,19 @@
       "type": "object",
       "required": ["kind", "path", "name", "plugin"],
       "properties": {
-        "kind": {"enum": ["skill", "marketplace", "plugin", "mcp-config", "mcp-server", "settings", "hooks", "plugin-manifest"]},
+        "kind": {"enum": ["skill", "marketplace", "plugin", "mcp-config", "mcp-server", "settings", "hooks", "plugin-manifest", "instructions"]},
         "path": {"type": "string", "minLength": 1},
         "name": {"type": "string"},
-        "plugin": {"type": ["string", "null"]}
+        "plugin": {"type": ["string", "null"]},
+        "format": {"enum": ["agents-md", "claude-md", "gemini-md", "copilot-instructions", "cursor-mdc", "cursorrules", "windsurf-rules"],
+                   "description": "Instruction files only (kind instructions), with front_matter."},
+        "front_matter": {"oneOf": [
+          {"type": "null"},
+          {"type": "object", "required": ["description", "globs", "always_apply", "trigger"],
+           "properties": {"description": {"type": ["string", "null"]},
+                          "globs": {"type": ["array", "null"], "items": {"type": "string"}},
+                          "always_apply": {"type": ["boolean", "null"]}, "trigger": {"type": ["string", "null"]}}}
+        ]}
       }
     },
     "finding": {
@@ -98,6 +107,13 @@
         "malicious_indicator": {"type": "boolean"},
         "item": {"type": "string"},
         "suppressed": {"type": "boolean"},
+        "tags": {"type": "object", "required": ["owasp_agentic", "owasp_mcp", "nist", "atlas", "owasp_ast"],
+                 "description": "The tags of the finding's rule, one list per framework (since 1.13.0). atlas holds MITRE ATLAS technique ids, owasp_ast OWASP Agentic Skills Top 10 ids; a rule with none has an empty list. The upload leaves this out.",
+                 "properties": {"owasp_agentic": {"type": "array", "items": {"type": "string"}},
+                                "owasp_mcp": {"type": "array", "items": {"type": "string"}},
+                                "nist": {"type": "array", "items": {"type": "string"}},
+                                "atlas": {"type": "array", "items": {"type": "string"}},
+                                "owasp_ast": {"type": "array", "items": {"type": "string"}}}},
         "baseline": {"oneOf": [
           {"type": "null"},
           {"type": "object", "required": ["reason", "added", "expires"],
@@ -156,7 +172,7 @@
     "change": {
       "type": "object",
       "required": ["kind", "path"],
-      "properties": {"kind": {"enum": ["document", "mcp-server", "plugin", "plugin-dir", "skill"]}, "path": {"type": "string"}}
+      "properties": {"kind": {"enum": ["document", "mcp-server", "plugin", "plugin-dir", "skill", "instructions"]}, "path": {"type": "string"}}
     },
     "lock": {
       "type": "object",
@@ -184,7 +200,8 @@
                           "connected_config", "connected_key_invalid", "connected_no_credential", "connected_auth",
                           "connected_subscription", "connected_ci_key_required", "connected_forbidden",
                           "connected_rate_limited", "connected_unavailable", "connected_required", "policy_not_found",
-                          "policy_invalid", "org_rules_incomplete", "registry_check_failed", "registry_check_too_large"]},
+                          "policy_invalid", "org_rules_incomplete", "registry_check_failed", "registry_check_too_large",
+                          "a2a_cards_limit", "instructions_limit"]},
         "path": {"type": "string"},
         "message": {"type": "string"}
       }

@@ -8,6 +8,7 @@ from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 from typing import Any
 
+from spellwarden_scan.frameworks import AST_IDS, ATLAS_TECHNIQUES
 from spellwarden_scan.model import SEVERITY_RANK, Finding
 
 RULE_ID_RE = re.compile(r"^SW-(SKL|MCP|CFG|REG|A2A|ORG)-[0-9]{3}$")
@@ -40,6 +41,11 @@ class Rule:
     targets: tuple[str, ...]
     malicious_indicator: bool
     detect: Callable[[Any], Iterable[Finding]]
+    # 1.13.0 (Phase 3 batch 1 spec 9.2, 11.3): MITRE ATLAS technique ids (`frameworks.ATLAS_TECHNIQUES`; empty is the explicit "no
+    # technique", with its reason in `frameworks.NO_ATLAS`) and OWASP Agentic Skills Top 10 ids (AST01 to AST10). An organisation rule
+    # carries neither: the pack schema is frozen.
+    atlas: tuple[str, ...] = ()
+    owasp_ast: tuple[str, ...] = ()
 
     NIST_NOTE = "provisional mapping to SP 800-53 base controls"
 
@@ -48,12 +54,15 @@ class Rule:
             "id": self.id, "title": self.title, "severity_default": self.severity_default, "area": self.area,
             "owasp_agentic": list(self.owasp_agentic), "owasp_mcp": list(self.owasp_mcp), "nist": list(self.nist),
             "targets": list(self.targets), "malicious_indicator": self.malicious_indicator,
+            "atlas": list(self.atlas), "owasp_ast": list(self.owasp_ast),
         }
 
 
 def make_rule(rule_id: str, title: str, severity: str, area: str, *, owasp: Iterable[str], nist: Iterable[str],
-              detect: Callable[[Any], Iterable[Finding]], malicious: bool = False, targets: Iterable[str] = ()) -> Rule:
-    """The one constructor of rules; `owasp` holds both ASI and MCP identifiers and is split."""
+              atlas: Iterable[str], detect: Callable[[Any], Iterable[Finding]], malicious: bool = False,
+              targets: Iterable[str] = (), owasp_ast: Iterable[str] = ()) -> Rule:
+    """The one constructor of rules; `owasp` holds both ASI and MCP identifiers and is split. `atlas` has no default, so every
+    rule states its ATLAS technique ids, or an empty tuple on purpose (1.13.0)."""
     if rule_id.startswith("SW-ORG-"):  # organisation rules are made by `compile_org_rule` only (Phase C spec 5.2.1)
         raise ValueError(f"bad rule id {rule_id!r}: SW-ORG ids belong to organisation rules")
     if RULE_ID_RE.match(rule_id) is None:
@@ -70,11 +79,20 @@ def make_rule(rule_id: str, title: str, severity: str, area: str, *, owasp: Iter
     for identifier in nist_ids:
         if identifier not in ALLOWED_NIST:
             raise ValueError(f"{rule_id}: {identifier} is not an allowed NIST identifier")
+    atlas_ids = tuple(atlas)
+    ast_ids = tuple(owasp_ast)
+    for identifier in atlas_ids:
+        if identifier not in ATLAS_TECHNIQUES:
+            raise ValueError(f"{rule_id}: {identifier} is not a technique of the pinned MITRE ATLAS release")
+    for identifier in ast_ids:
+        if identifier not in AST_IDS:
+            raise ValueError(f"{rule_id}: {identifier} is not an OWASP Agentic Skills Top 10 identifier")
     return Rule(
         id=rule_id, title=title, severity_default=severity, area=area,
         owasp_agentic=tuple(i for i in owasp_ids if i.startswith("ASI")),
         owasp_mcp=tuple(i for i in owasp_ids if i.startswith("MCP")),
         nist=nist_ids, targets=tuple(targets), malicious_indicator=malicious, detect=detect,
+        atlas=atlas_ids, owasp_ast=ast_ids,
     )
 
 

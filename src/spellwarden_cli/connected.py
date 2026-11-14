@@ -842,7 +842,10 @@ def reduce_report(report_dict: dict, limits: dict, envelope: dict | None = None)
     it. `report_dict` is not changed."""
     report = {**report_dict}
     cut: list[str] = []
-    report["findings"] = sorted(report_dict["findings"], key=lambda f: SEVERITY_RANK[f["severity"]])  # stable: report order
+    # `tags` (1.13.0) is derived from `rule_id`, which the server holds as well: leaving it out keeps the body, and so what the
+    # size limit lets through, as it was
+    report["findings"] = sorted(({key: value for key, value in f.items() if key != "tags"} for f in report_dict["findings"]),
+                                key=lambda f: SEVERITY_RANK[f["severity"]])  # stable: report order
     report["items"] = list(report_dict["items"])
     report["probes"] = [{name: probe.get(name) for name in PROBE_FIELDS} for probe in report_dict["probes"]]
     if report_dict.get("agents"):

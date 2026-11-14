@@ -23,12 +23,12 @@ def test_the_config_area_and_its_ids_are_accepted():
     assert AREAS == ("skill", "mcp", "config", "registry", "a2a")
     assert RULE_ID_RE.match("SW-CFG-001") and RULE_ID_RE.match("SW-SKL-001") and RULE_ID_RE.match("SW-MCP-011")
     assert not RULE_ID_RE.match("SW-CFG-01") and not RULE_ID_RE.match("SW-XYZ-001")
-    extra = make_rule("SW-CFG-999", "Test rule", "low", "config", owasp=("ASI04",), nist=("SR-3",), detect=lambda _c: iter(()))
+    extra = make_rule("SW-CFG-999", "Test rule", "low", "config", owasp=("ASI04",), nist=("SR-3",), atlas=(), detect=lambda _c: iter(()))
     rules = RuleSet(RuleSet.baseline().by_area("skill")).with_rules([extra])
     assert rules.ordered_for_scan("config") == (extra,)
     assert all(rule.area != "config" for rule in rules.ordered_for_scan("skill"))
     with pytest.raises(ValueError):
-        make_rule("SW-CFG-998", "Bad area", "low", "hooks", owasp=("ASI04",), nist=("SR-3",), detect=lambda _c: iter(()))
+        make_rule("SW-CFG-998", "Bad area", "low", "hooks", owasp=("ASI04",), nist=("SR-3",), atlas=(), detect=lambda _c: iter(()))
 
 
 def test_logical_commands_is_the_old_normalisation_under_its_new_name():

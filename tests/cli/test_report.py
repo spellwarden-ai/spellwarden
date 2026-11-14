@@ -103,13 +103,16 @@ def test_notice_and_error_codes_are_todays_plus_the_closed_lists_of_spec_6_9():
         "reg_baseline_from_base", "gate_scope_all", "org_rules_skipped", "plugin_marketplace_unknown", "uploaded",
         "upload_failed", "upload_skipped", "upload_ci_only", "upload_disabled", "registry_gate_off",
         "mcp_rules_need_probe", "policy_newer_than_scanner",
-        "a2a_not_card", "a2a_cards_limit", "a2a_agents_need_probe", "a2a_fetch_failed", "a2a_signature_unverified",
-        "a2a_keys_unavailable", "a2a_keys_missing", "a2a_key_without_kid", "a2a_private_key_in_jwks")
+        "a2a_not_card", "a2a_agents_need_probe", "a2a_fetch_failed", "a2a_signature_unverified",
+        "a2a_keys_unavailable", "a2a_keys_missing", "a2a_key_without_kid", "a2a_private_key_in_jwks",
+        "instructions_front_matter", "probe_list_incomplete")
     assert ERROR_CODES == TODAYS_ERROR_CODES + (
         "connected_config", "connected_key_invalid", "connected_no_credential", "connected_auth", "connected_subscription",
         "connected_ci_key_required", "connected_forbidden", "connected_rate_limited", "connected_unavailable",
         "connected_required", "policy_not_found", "policy_invalid", "org_rules_incomplete", "registry_check_failed",
-        "registry_check_too_large")
+        "registry_check_too_large",
+        # 1.13.0: repository content left unread by a limit is an incomplete scan
+        "a2a_cards_limit", "instructions_limit")
     assert len(set(NOTICE_CODES)) == len(NOTICE_CODES) and len(set(ERROR_CODES)) == len(ERROR_CODES)
 
 

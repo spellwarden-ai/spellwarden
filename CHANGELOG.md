@@ -1,5 +1,48 @@
 # Changelog
 
+## 1.13.0 (2026-11-14)
+
+Rules version 2026.11.6. Three changes; the second and third can add findings to a scan that was clean on 1.12.0, so a CI
+gate that failed on nothing before can fail after upgrading.
+
+MCP probe. When a server declares the capability, the probe also lists its prompts, resources and resource templates (one
+page each, at most 200 entries, with a completeness flag, like tools) and keeps the server's own instructions (at most
+16,000 characters). SW-MCP-011 (now "MCP server text contains instruction-like text") and the organisation-rule predicate
+tool_description_matches read these texts too; a finding names its place: prompt:<name>, resource:<uri>,
+resource_template:<uriTemplate> or server_instructions (an address drops any userinfo, query and fragment, and a prompt
+name or address is masked like evidence and cut at 200 characters). The evidence of such a finding is the matched words
+with their surroundings; its fingerprint is over the whole text. In prompts, resources, templates and instructions only the
+injection and concealment patterns apply, not the steering patterns. The probe never calls resources/read, prompts/get or
+tools/call, and refuses to send any method outside an allow-list. Precision on these four places has not been measured;
+SW-MCP-011's published figures are for tool descriptions. A server that declares neither capability and sends no
+instructions gets the same requests and the same result as on 1.12.0.
+
+Framework tags. Every rule now carries MITRE ATLAS technique ids (release 2026.10, data format 6.1.0) or an explicit "no
+technique" entry, and OWASP Agentic Skills Top 10 ids (AST01 to AST10, version 1.0 2026 edition, an OWASP incubator project under public review)
+where one fits. They are in the README's rule table, in `spellwarden rules --format json`, on each SARIF rule and, new, on
+each finding of the JSON report (`tags`). The report's `schema` stays 1. Organisation rules and policy packs are unchanged.
+
+Instruction files. The scanner now finds AGENTS.md, CLAUDE.md and GEMINI.md at any depth, .github/copilot-instructions.md,
+Cursor rules (.cursor/rules/**/*.mdc and .cursorrules) and Windsurf rules (.windsurf/rules and .devin/rules, .windsurfrules)
+whatever their case, and scans each as an instruction file (every skill rule except the two about SKILL.md metadata; a rule
+file inside a skill directory is scanned by that skill, still read as Markdown). The front matter of a rule file
+(description, globs, alwaysApply, trigger) is read and shown with its findings. Each file is an item of kind "instructions",
+pinned in .spellwarden/lock.json (a repository with a lock sees them as added, so `spellwarden lock` has to be run once; a
+lock that holds them is unreadable to 1.12.0 and older, so upgrade every scanner that reads it), reported in every format
+and uploaded in connected mode. Set `instructions: false` in .spellwarden/config.yml to leave them out; the key is unknown
+to older scanners, which refuse a config that has it. At most 300 instruction files are read per scan root, the root files
+and root Cursor and Windsurf rules first; more is the error instructions_limit (exit 2). A repository with no instruction
+files produces the same findings, items, lock and exit code as on 1.12.0 (each finding of the JSON report also carries its
+`tags`).
+
+Limits. One rule now covers every limit (README "Limits"): content the scanner leaves unread never looks like a pass. What
+the repository holds and the scanner leaves unread is an incomplete scan (exit 2), with `exclude` as the reviewed way to
+narrow it; what a remote server sends past a limit is shown and never lowers a judgement; output caps show their count.
+Two existing limits change to follow it and can turn a passing scan into exit 2: more than 300 agent cards (was 200, a
+notice) is the error a2a_cards_limit, and a repository agent card with more entries than the scanner reads is the error
+truncated (was a notice). A probed server whose prompts, resources or templates list is longer than one page of 200 gets the
+notice probe_list_incomplete.
+
 ## 1.12.0 (2026-11-13)
 
 SW-MCP-011 (tool description contains instruction-like text) reads more of the ways a description steers the model or hides

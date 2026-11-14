@@ -18,7 +18,7 @@ from spellwarden_scan.relpath import UnsafePath, contain
 
 CONFIG_PATH = ".spellwarden/config.yml"
 FAIL_ON = ("critical", "high", "medium", "low", "never")
-_KEYS = ("version", "include", "exclude", "fail-on", "probe", "telemetry", "connected", "a2a")
+_KEYS = ("version", "include", "exclude", "fail-on", "probe", "telemetry", "connected", "a2a", "instructions")
 _A2A_KEYS = ("cards", "keys", "agents")
 A2A_MAX_CARDS = 50
 A2A_MAX_AGENTS = 20
@@ -71,6 +71,7 @@ class Settings:
     telemetry: bool = True
     connected: Connected = Connected()
     a2a: A2a = A2a()
+    instructions: bool = True  # 1.13.0 (Phase 3 batch 1 spec 10.5): find, lock, scan and report instruction files
 
 
 def env_bool(value: str | None) -> bool | None:
@@ -121,7 +122,7 @@ def load_settings(root: str, *, config: str | None, flags: Flags, env: Mapping[s
               keys_bytes=_read_keys(root, keys, keys_read) if keys else None)
     return Settings(include=tuple(values.get("include", ())), exclude=tuple(values.get("exclude", ())),
                     fail_on=fail_on, probe=probe, probe_private=probe_private, telemetry=not telemetry_off,
-                    connected=connected, a2a=a2a)
+                    connected=connected, a2a=a2a, instructions=values.get("instructions", True))
 
 
 def _base_connected(root: str, read: Callable[[str, int], bytes], *, strict: bool) -> dict:
@@ -253,7 +254,7 @@ def _validate(document: object, name: str) -> dict:
             raise SettingsError(f"{name}: `{key}` must be a list of non-empty strings")
     if "fail-on" in document and document["fail-on"] not in FAIL_ON:
         raise SettingsError(f"{name}: `fail-on` must be one of {', '.join(FAIL_ON)}")
-    for key in ("probe", "telemetry"):
+    for key in ("probe", "telemetry", "instructions"):
         if key in document and not isinstance(document[key], bool):
             raise SettingsError(f"{name}: `{key}` must be true or false")
     if "connected" in document:

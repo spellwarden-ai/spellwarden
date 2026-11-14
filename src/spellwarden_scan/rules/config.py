@@ -927,16 +927,16 @@ def _cfg_009(config: AgentConfig) -> Iterator[Finding]:
 
 
 RULES: tuple[Rule, ...] = (
-    make_rule("SW-CFG-001", TITLES["SW-CFG-001"], "high", "config", owasp=(), nist=("SC-7",), detect=_cfg_001),
-    make_rule("SW-CFG-002", TITLES["SW-CFG-002"], "critical", "config", owasp=("MCP01", "MCP07"), nist=("IA-5",), detect=_cfg_002),
-    make_rule("SW-CFG-003", TITLES["SW-CFG-003"], "medium", "config", owasp=("ASI04", "MCP04"), nist=("SR-3",), detect=_cfg_003),
-    make_rule("SW-CFG-004", TITLES["SW-CFG-004"], "medium", "config", owasp=("ASI10",), nist=("SC-7",), detect=_cfg_004),
-    make_rule("SW-CFG-005", TITLES["SW-CFG-005"], "high", "config", owasp=("ASI04",), nist=("SR-3",), detect=_cfg_005, targets=("claude-code-hooks",)),
-    make_rule("SW-CFG-006", TITLES["SW-CFG-006"], "critical", "config", owasp=("ASI10",), nist=("SC-7",), detect=_cfg_006, malicious=True, targets=("claude-code-hooks",)),
-    make_rule("SW-CFG-007", TITLES["SW-CFG-007"], "critical", "config", owasp=("ASI04",), nist=("SR-3",), detect=_cfg_007, malicious=True, targets=("claude-code-hooks",)),
-    make_rule("SW-CFG-008", TITLES["SW-CFG-008"], "high", "config", owasp=("ASI10",), nist=("AC-6",), detect=_cfg_008),
-    make_rule("SW-CFG-009", TITLES["SW-CFG-009"], "medium", "config", owasp=("ASI04", "MCP04"), nist=("SR-3",), detect=_cfg_009),
-    make_rule("SW-CFG-010", TITLES["SW-CFG-010"], "high", "config", owasp=("MCP01", "MCP07"), nist=("IA-5",), detect=_cfg_010),
-    make_rule("SW-CFG-012", TITLES["SW-CFG-012"], "high", "config", owasp=("ASI02",), nist=("AC-6", "CM-7"), detect=_cfg_012),
-    make_rule("SW-CFG-013", TITLES["SW-CFG-013"], "high", "config", owasp=("MCP02", "ASI03"), nist=("AC-3", "AC-6"), detect=_cfg_013),
+    make_rule("SW-CFG-001", TITLES["SW-CFG-001"], "high", "config", owasp=(), nist=("SC-7",), atlas=(), detect=_cfg_001),
+    make_rule("SW-CFG-002", TITLES["SW-CFG-002"], "critical", "config", owasp=("MCP01", "MCP07"), nist=("IA-5",), atlas=("AML.T0055", "AML.T0083"), detect=_cfg_002),
+    make_rule("SW-CFG-003", TITLES["SW-CFG-003"], "medium", "config", owasp=("ASI04", "MCP04"), nist=("SR-3",), atlas=("AML.T0010.005",), owasp_ast=("AST02", "AST07"), detect=_cfg_003),
+    make_rule("SW-CFG-004", TITLES["SW-CFG-004"], "medium", "config", owasp=("ASI10",), nist=("SC-7",), atlas=("AML.T0010.005",), detect=_cfg_004),
+    make_rule("SW-CFG-005", TITLES["SW-CFG-005"], "high", "config", owasp=("ASI04",), nist=("SR-3",), atlas=("AML.T0142",), detect=_cfg_005, targets=("claude-code-hooks",)),
+    make_rule("SW-CFG-006", TITLES["SW-CFG-006"], "critical", "config", owasp=("ASI10",), nist=("SC-7",), atlas=("AML.T0142", "AML.T0086"), detect=_cfg_006, malicious=True, targets=("claude-code-hooks",)),
+    make_rule("SW-CFG-007", TITLES["SW-CFG-007"], "critical", "config", owasp=("ASI04",), nist=("SR-3",), atlas=("AML.T0142", "AML.T0011.001"), detect=_cfg_007, malicious=True, targets=("claude-code-hooks",)),
+    make_rule("SW-CFG-008", TITLES["SW-CFG-008"], "high", "config", owasp=("ASI10",), nist=("AC-6",), atlas=("AML.T0081",), detect=_cfg_008),
+    make_rule("SW-CFG-009", TITLES["SW-CFG-009"], "medium", "config", owasp=("ASI04", "MCP04"), nist=("SR-3",), atlas=("AML.T0010.005", "AML.T0109"), owasp_ast=("AST02", "AST07"), detect=_cfg_009),
+    make_rule("SW-CFG-010", TITLES["SW-CFG-010"], "high", "config", owasp=("MCP01", "MCP07"), nist=("IA-5",), atlas=("AML.T0083",), detect=_cfg_010),
+    make_rule("SW-CFG-012", TITLES["SW-CFG-012"], "high", "config", owasp=("ASI02",), nist=("AC-6", "CM-7"), atlas=("AML.T0053",), detect=_cfg_012),
+    make_rule("SW-CFG-013", TITLES["SW-CFG-013"], "high", "config", owasp=("MCP02", "ASI03"), nist=("AC-3", "AC-6"), atlas=("AML.T0053",), detect=_cfg_013),
 )

@@ -123,6 +123,40 @@ class ToolInfo(_Model):
 
 
 @dataclass(frozen=True, slots=True)
+class PromptArgument(_Model):
+    name: str
+    description: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class PromptInfo(_Model):
+    """One entry of a server's `prompts/list` as the prober recorded it (Phase 3 batch 1 spec 8.2): names, titles and
+    descriptions, cut; no prompt text, which `prompts/get` would return and the probe never asks for."""
+    name: str
+    title: str | None = None
+    description: str = ""
+    arguments: tuple[PromptArgument, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class ResourceInfo(_Model):
+    """One entry of `resources/list`: the address and the words about it, never the contents (`resources/read`)."""
+    uri: str
+    name: str = ""
+    title: str | None = None
+    description: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class ResourceTemplateInfo(_Model):
+    """One entry of `resources/templates/list`."""
+    uri_template: str
+    name: str = ""
+    title: str | None = None
+    description: str = ""
+
+
+@dataclass(frozen=True, slots=True)
 class AuthServerMetadata(_Model):
     issuer: str | None = None
     metadata_url: str | None = None
@@ -159,6 +193,35 @@ class ProbeResult(_Model):
     list_result_meta: dict | None = None
     capabilities: dict = field(default_factory=dict)
     probed_at: str | None = None
+    # 1.13.0 (Phase 3 batch 1 spec 8.2, 11.2): what the prober read besides `tools/list`. `instructions` is the server's own text
+    # from `server/discover` or `initialize`; each list is one page, at most 200 entries, and its `*_complete` flag is true only
+    # when the answer was a list with no `nextCursor` and nothing was dropped. `lists_read` names the lists that were answered
+    # with a list (`prompts`, `resources`, `resource_templates`): an empty tuple in a list field alone cannot say "not read".
+    # `to_dict` leaves out every field at its default, so a server that declares neither capability and sends no `instructions`
+    # serialises as on 1.12.0 (the instructions are read whatever the capabilities, spec 8.1).
+    instructions: str | None = None
+    instructions_truncated: bool = False
+    prompts: tuple[PromptInfo, ...] = ()
+    prompts_complete: bool = False
+    resources: tuple[ResourceInfo, ...] = ()
+    resources_complete: bool = False
+    resource_templates: tuple[ResourceTemplateInfo, ...] = ()
+    resource_templates_complete: bool = False
+    lists_read: tuple[str, ...] = ()
+
+    def to_dict(self) -> dict:
+        data = _Model.to_dict(self)
+        for name, empty in _LISTING_DEFAULTS.items():
+            if data[name] == empty:
+                del data[name]
+        return data
+
+
+# The 1.13.0 fields of `ProbeResult` and the value at which `to_dict` leaves each one out (as JSON, so a tuple is `[]`).
+_LISTING_DEFAULTS: dict[str, Any] = {
+    "instructions": None, "instructions_truncated": False, "prompts": [], "prompts_complete": False, "resources": [],
+    "resources_complete": False, "resource_templates": [], "resource_templates_complete": False, "lists_read": [],
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -384,6 +447,10 @@ _NESTED: dict[tuple[str, str], tuple[str, type]] = {
     ("SkillScanResult", "metadata"): ("one", Metadata),
     ("ProbeResult", "auth_server_metadata"): ("one", AuthServerMetadata),
     ("ProbeResult", "tools"): ("many", ToolInfo),
+    ("ProbeResult", "prompts"): ("many", PromptInfo),
+    ("ProbeResult", "resources"): ("many", ResourceInfo),
+    ("ProbeResult", "resource_templates"): ("many", ResourceTemplateInfo),
+    ("PromptInfo", "arguments"): ("many", PromptArgument),
     ("McpScanResult", "findings"): ("many", Finding),
     ("McpScanResult", "checklist"): ("many", ChecklistItem),
     ("CurationInputs", "open_findings"): ("many", Finding),
@@ -403,4 +470,4 @@ _NESTED: dict[tuple[str, str], tuple[str, type]] = {
 }
 _TUPLE_FIELDS = frozenset({"problems", "grant_types_supported", "deprecated_features", "long_running_tools", "args",
                            "references", "documents", "org_rules_incomplete", "protocol_versions",
-                           "unsigned_members"})
+                           "unsigned_members", "lists_read"})

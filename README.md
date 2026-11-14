@@ -42,7 +42,7 @@ for item in result.checklist:
     print(item.order, item.text)
 ```
 
-`ProbeResult` is the record of an unauthenticated probe: the `server/discover` or `initialize` result, the status and content type of the POST and GET, whether a session header was seen, the `tools/list` answer, the RFC 9728 protected resource metadata and the authorization server metadata. The classification follows one rule set:
+`ProbeResult` is the record of an unauthenticated probe: the `server/discover` or `initialize` result, the status and content type of the POST and GET, whether a session header was seen, the `tools/list` answer, the RFC 9728 protected resource metadata and the authorization server metadata. Since 1.13.0 it also records, for a server that declares the capability, the server's prompts, resources and resource templates (names, titles, descriptions, prompt argument names and descriptions and resource addresses, never their contents) and the server's own `instructions` (at most 16,000 characters). Each list is one page of at most 200 entries with a completeness flag (`prompts_complete`, `resources_complete`, `resource_templates_complete`), and `lists_read` names the lists the server answered; a field that holds its default is left out of `to_dict`, so a server that declares neither capability and sends no instructions serialises as before. SW-MCP-011 and the organisation-rule check `tool_description_matches` read these texts as well, and a finding names its place in `location.path`: `prompt:<name>`, `resource:<uri>`, `resource_template:<uriTemplate>` or `server_instructions`. The classification follows one rule set:
 
 - transport: `streamable-http`, `sse`, `stdio` (a repository without an endpoint) or `unknown`;
 - authentication: `none`, `static-key`, `oauth-dcr`, `oauth-cimd`, `xaa` or `unknown`;
@@ -67,81 +67,81 @@ The score is `12 x (0.6 S + 0.2 M + 0.2 E)`: `S = max(0, 1 - (6 critical + 3 hig
 
 ## The rules
 
-Ids are `SW-SKL-NNN` (skill packages), `SW-MCP-NNN` (probed MCP servers), `SW-CFG-NNN` (agent configuration files: MCP client configurations, Claude Code settings and hooks, plugin marketplaces), `SW-REG-NNN` (the registry gate of connected mode) and `SW-A2A-NNN` (A2A agent cards). Mappings use the OWASP Agentic Top 10 (ASI) and OWASP MCP Top 10 (MCP) identifiers and NIST SP 800-53 base controls, labelled as a provisional mapping to SP 800-53 base controls. Five rules are malicious indicators: an open finding from one of them quarantines the package.
+Ids are `SW-SKL-NNN` (skill packages), `SW-MCP-NNN` (probed MCP servers), `SW-CFG-NNN` (agent configuration files: MCP client configurations, Claude Code settings and hooks, plugin marketplaces), `SW-REG-NNN` (the registry gate of connected mode) and `SW-A2A-NNN` (A2A agent cards). Mappings use the OWASP Agentic Top 10 (ASI) and OWASP MCP Top 10 (MCP) identifiers, NIST SP 800-53 base controls (labelled as a provisional mapping to SP 800-53 base controls), MITRE ATLAS technique ids (the ATLAS column; release 2026.10, data format 6.1.0; an empty cell means no technique fits the rule) and OWASP Agentic Skills Top 10 ids (the AST column; version 1.0, 2026 edition, an OWASP incubator project under public review). The mapping, with its sources and the reason for every empty ATLAS cell, is in [docs/frameworks.md](docs/frameworks.md); the JSON report carries each finding's tags and `spellwarden rules --format json` each rule's. Five rules are malicious indicators: an open finding from one of them quarantines the package.
 
 <!-- rules:start -->
-| Id | Title | Severity | OWASP | NIST |
-|---|---|---|---|---|
-| SW-SKL-001 | Prompt-injection phrases in skill instructions | high | ASI01 | SI-10 |
-| SW-SKL-002 | Hidden text: zero-width or bidirectional control characters | high | ASI01 | SI-10 |
-| SW-SKL-003 | Instructions to skip approvals or disable hooks | high | ASI10 | AC-6 |
-| SW-SKL-004 | Encoded payload decoded and executed (malicious indicator) | critical | ASI04 | SR-3 |
-| SW-SKL-005 | Writes to agent configuration | high | ASI10 | AC-6 |
-| SW-SKL-006 | Destructive command without a confirmation step | medium | ASI10 | AC-6 |
-| SW-SKL-007 | Remote script piped to a shell | high | ASI04, MCP04 | SR-3 |
-| SW-SKL-008 | Sends local file contents to an external host (malicious indicator) | critical | ASI10 | SC-7 |
-| SW-SKL-009 | Unpinned dependency install | medium | ASI04, MCP04 | SR-3 |
-| SW-SKL-010 | Bundled binary or executable file | medium | ASI04 | SR-3 |
-| SW-SKL-011 | Hard-coded credential in the package | critical | MCP01 | IA-5 |
-| SW-SKL-012 | Reads a credential file path without stating purpose | medium | ASI04 | IA-5 |
-| SW-SKL-013 | Network calls to raw IP addresses or URL shorteners | medium | ASI10 | SC-7 |
-| SW-SKL-014 | Obfuscated script code | medium | ASI04 | SR-3 |
-| SW-SKL-015 | Frontmatter missing or invalid (name, description) | low | ASI04 | SR-3 |
-| SW-SKL-019 | Fetches external URL content into context without an allowlist | medium | ASI01, MCP06 | SI-10 |
-| SW-SKL-031 | Missing license and version metadata | low | ASI04 | SR-3 |
-| SW-SKL-032 | Instructions lure the user into running a password-protected download or a pasted script (malicious indicator) | critical | ASI04, ASI09 | SR-3, SI-3 |
-| SW-SKL-036 | Frontmatter pre-approves an unscoped shell or interpreter | medium | ASI02, ASI03 | AC-6, CM-7 |
-| SW-SKL-037 | Executable downloaded from a moving reference and run without an integrity check | medium | ASI04, ASI05, MCP04 | SR-3, SI-7 |
-| SW-MCP-001 | Server lists tools without authentication | high | MCP07 | AC-3 |
-| SW-MCP-002 | Static key authentication instead of OAuth | medium | MCP01, MCP07 | IA-5 |
-| SW-MCP-003 | OAuth dynamic client registration (deprecated; use Client ID Metadata Documents) | medium | MCP07 | IA-5 |
-| SW-MCP-004 | HTTP+SSE transport (deprecated) | medium | ASI04 | SR-3 |
-| SW-MCP-005 | Spec version older than 2026-07-28 | low | ASI04 | SR-3 |
-| SW-MCP-006 | Protocol sessions (Mcp-Session-Id) in use | medium | ASI04 | SR-3 |
-| SW-MCP-007 | Requires the initialize handshake; no server/discover | medium | ASI04 | SR-3 |
-| SW-MCP-008 | Uses deprecated Roots, Sampling or Logging | medium | ASI04 | SR-3 |
-| SW-MCP-009 | Endpoint not served over HTTPS | high |  | SC-7 |
-| SW-MCP-010 | No protected resource metadata, or issuer not validated | medium | MCP07 | IA-5 |
-| SW-MCP-011 | Tool description contains instruction-like text | high | ASI01, MCP03 | SI-10 |
-| SW-CFG-001 | Remote MCP server over plain HTTP | high |  | SC-7 |
-| SW-CFG-002 | Credential written into an MCP server configuration | critical | MCP01, MCP07 | IA-5 |
-| SW-CFG-003 | MCP server launched from an unpinned package | medium | ASI04, MCP04 | SR-3 |
-| SW-CFG-004 | MCP server at a raw IP address or behind a URL shortener | medium | ASI10 | SC-7 |
-| SW-CFG-005 | Hook pipes remote content to a shell | high | ASI04 | SR-3 |
-| SW-CFG-006 | Hook sends local file contents to an external host (malicious indicator) | critical | ASI10 | SC-7 |
-| SW-CFG-007 | Hook decodes and runs an encoded payload (malicious indicator) | critical | ASI04 | SR-3 |
-| SW-CFG-008 | Settings switch off approval prompts | high | ASI10 | AC-6 |
-| SW-CFG-009 | Marketplace plugin source not pinned to a commit | medium | ASI04, MCP04 | SR-3 |
-| SW-CFG-010 | Literal value under a secret name in an MCP server configuration | high | MCP01, MCP07 | IA-5 |
-| SW-CFG-012 | MCP server configured to approve every tool call automatically | high | ASI02 | AC-6, CM-7 |
-| SW-CFG-013 | Database or cluster MCP server with write access although a read-only mode exists | high | ASI03, MCP02 | AC-3, AC-6 |
-| SW-REG-001 | Skill package not admitted in the organisation's private registry | high | ASI04 | SR-3 |
-| SW-REG-002 | MCP server not admitted in the organisation's private registry | high | MCP09 | SR-3 |
-| SW-REG-003 | Agent content the private registry cannot judge | high | ASI04 | SR-3 |
-| SW-A2A-001 | Agent card does not follow A2A 1.0 | medium | ASI07 | SI-10 |
-| SW-A2A-002 | Agent card uses a format older than A2A 1.0 | medium | ASI07 | SI-10 |
-| SW-A2A-003 | Agent card at the path used before A2A 0.3 | medium | ASI07 | SI-10 |
-| SW-A2A-004 | Agent endpoint or authentication URL not served over HTTPS | high | ASI07 | SC-8 |
-| SW-A2A-005 | OAuth implicit or password flow declared (deprecated in A2A 1.0) | high | ASI03 | IA-5 |
-| SW-A2A-006 | OAuth authorization code flow without PKCE required | medium | ASI03 | IA-5 |
-| SW-A2A-007 | Agent declares no authentication | medium | ASI03 | AC-3 |
-| SW-A2A-008 | API key sent in the URL query | medium | ASI03 | IA-5 |
-| SW-A2A-009 | Skill inherits every scope of the agent | low | ASI03 | AC-6 |
-| SW-A2A-010 | Agent card signature does not verify | high | ASI07 | SI-7 |
-| SW-A2A-011 | Agent card signature is malformed or uses a refused algorithm | high | ASI07 | SI-7 |
-| SW-A2A-012 | Agent card is not signed | low | ASI07 | SI-7 |
-| SW-A2A-013 | Signing key not bound to the card's host | medium | ASI07 | SI-7 |
-| SW-A2A-014 | Agent card text contains injected instructions or hidden characters | high | ASI01 | SI-10 |
-| SW-A2A-015 | Credential in the agent card | critical | ASI03 | IA-5 |
-| SW-A2A-016 | Agent card fetched through a redirect to another host | medium | ASI07 | SC-8 |
-| SW-A2A-017 | Agent card signed with a shared secret that only the agent can check | medium | ASI07 | SI-7 |
-| SW-A2A-018 | Agent card cannot be read | high | ASI07 | SI-10 |
-| SW-A2A-019 | Agent card member spelled two ways | high | ASI07 | SI-10 |
+| Id | Title | Severity | OWASP | NIST | ATLAS | AST |
+|---|---|---|---|---|---|---|
+| SW-SKL-001 | Prompt-injection phrases in skill instructions | high | ASI01 | SI-10 | AML.T0051.001, AML.T0110.000 | AST05 |
+| SW-SKL-002 | Hidden text: zero-width or bidirectional control characters | high | ASI01 | SI-10 | AML.T0068, AML.T0110.000 | AST05 |
+| SW-SKL-003 | Instructions to skip approvals or disable hooks | high | ASI10 | AC-6 | AML.T0081 | AST03 |
+| SW-SKL-004 | Encoded payload decoded and executed (malicious indicator) | critical | ASI04 | SR-3 | AML.T0011.002 | AST01 |
+| SW-SKL-005 | Writes to agent configuration | high | ASI10 | AC-6 | AML.T0081 | AST03 |
+| SW-SKL-006 | Destructive command without a confirmation step | medium | ASI10 | AC-6 | AML.T0101 |  |
+| SW-SKL-007 | Remote script piped to a shell | high | ASI04, MCP04 | SR-3 | AML.T0010.005 | AST02 |
+| SW-SKL-008 | Sends local file contents to an external host (malicious indicator) | critical | ASI10 | SC-7 | AML.T0086, AML.T0037 | AST01 |
+| SW-SKL-009 | Unpinned dependency install | medium | ASI04, MCP04 | SR-3 | AML.T0010.005 | AST02, AST07 |
+| SW-SKL-010 | Bundled binary or executable file | medium | ASI04 | SR-3 | AML.T0011.001 | AST02 |
+| SW-SKL-011 | Hard-coded credential in the package | critical | MCP01 | IA-5 | AML.T0055 |  |
+| SW-SKL-012 | Reads a credential file path without stating purpose | medium | ASI04 | IA-5 | AML.T0098 |  |
+| SW-SKL-013 | Network calls to raw IP addresses or URL shorteners | medium | ASI10 | SC-7 | AML.T0025 |  |
+| SW-SKL-014 | Obfuscated script code | medium | ASI04 | SR-3 | AML.T0011.001 |  |
+| SW-SKL-015 | Frontmatter missing or invalid (name, description) | low | ASI04 | SR-3 |  | AST04 |
+| SW-SKL-019 | Fetches external URL content into context without an allowlist | medium | ASI01, MCP06 | SI-10 | AML.T0051.001 | AST05 |
+| SW-SKL-031 | Missing license and version metadata | low | ASI04 | SR-3 |  | AST04 |
+| SW-SKL-032 | Instructions lure the user into running a password-protected download or a pasted script (malicious indicator) | critical | ASI04, ASI09 | SR-3, SI-3 | AML.T0011 | AST01 |
+| SW-SKL-036 | Frontmatter pre-approves an unscoped shell or interpreter | medium | ASI02, ASI03 | AC-6, CM-7 | AML.T0053 | AST03 |
+| SW-SKL-037 | Executable downloaded from a moving reference and run without an integrity check | medium | ASI04, ASI05, MCP04 | SR-3, SI-7 | AML.T0010.005, AML.T0109 | AST02, AST07 |
+| SW-MCP-001 | Server lists tools without authentication | high | MCP07 | AC-3 | AML.T0084.001, AML.T0132 |  |
+| SW-MCP-002 | Static key authentication instead of OAuth | medium | MCP01, MCP07 | IA-5 |  |  |
+| SW-MCP-003 | OAuth dynamic client registration (deprecated; use Client ID Metadata Documents) | medium | MCP07 | IA-5 |  |  |
+| SW-MCP-004 | HTTP+SSE transport (deprecated) | medium | ASI04 | SR-3 |  |  |
+| SW-MCP-005 | Spec version older than 2026-07-28 | low | ASI04 | SR-3 |  |  |
+| SW-MCP-006 | Protocol sessions (Mcp-Session-Id) in use | medium | ASI04 | SR-3 |  |  |
+| SW-MCP-007 | Requires the initialize handshake; no server/discover | medium | ASI04 | SR-3 |  |  |
+| SW-MCP-008 | Uses deprecated Roots, Sampling or Logging | medium | ASI04 | SR-3 |  |  |
+| SW-MCP-009 | Endpoint not served over HTTPS | high |  | SC-7 |  |  |
+| SW-MCP-010 | No protected resource metadata, or issuer not validated | medium | MCP07 | IA-5 |  |  |
+| SW-MCP-011 | MCP server text contains instruction-like text | high | ASI01, MCP03 | SI-10 | AML.T0110.000, AML.T0051.001 |  |
+| SW-CFG-001 | Remote MCP server over plain HTTP | high |  | SC-7 |  |  |
+| SW-CFG-002 | Credential written into an MCP server configuration | critical | MCP01, MCP07 | IA-5 | AML.T0055, AML.T0083 |  |
+| SW-CFG-003 | MCP server launched from an unpinned package | medium | ASI04, MCP04 | SR-3 | AML.T0010.005 | AST02, AST07 |
+| SW-CFG-004 | MCP server at a raw IP address or behind a URL shortener | medium | ASI10 | SC-7 | AML.T0010.005 |  |
+| SW-CFG-005 | Hook pipes remote content to a shell | high | ASI04 | SR-3 | AML.T0142 |  |
+| SW-CFG-006 | Hook sends local file contents to an external host (malicious indicator) | critical | ASI10 | SC-7 | AML.T0142, AML.T0086 |  |
+| SW-CFG-007 | Hook decodes and runs an encoded payload (malicious indicator) | critical | ASI04 | SR-3 | AML.T0142, AML.T0011.001 |  |
+| SW-CFG-008 | Settings switch off approval prompts | high | ASI10 | AC-6 | AML.T0081 |  |
+| SW-CFG-009 | Marketplace plugin source not pinned to a commit | medium | ASI04, MCP04 | SR-3 | AML.T0010.005, AML.T0109 | AST02, AST07 |
+| SW-CFG-010 | Literal value under a secret name in an MCP server configuration | high | MCP01, MCP07 | IA-5 | AML.T0083 |  |
+| SW-CFG-012 | MCP server configured to approve every tool call automatically | high | ASI02 | AC-6, CM-7 | AML.T0053 |  |
+| SW-CFG-013 | Database or cluster MCP server with write access although a read-only mode exists | high | ASI03, MCP02 | AC-3, AC-6 | AML.T0053 |  |
+| SW-REG-001 | Skill package not admitted in the organisation's private registry | high | ASI04 | SR-3 | AML.T0010.005 | AST09 |
+| SW-REG-002 | MCP server not admitted in the organisation's private registry | high | MCP09 | SR-3 | AML.T0010.005 | AST09 |
+| SW-REG-003 | Agent content the private registry cannot judge | high | ASI04 | SR-3 | AML.T0010.005 | AST09 |
+| SW-A2A-001 | Agent card does not follow A2A 1.0 | medium | ASI07 | SI-10 |  |  |
+| SW-A2A-002 | Agent card uses a format older than A2A 1.0 | medium | ASI07 | SI-10 |  |  |
+| SW-A2A-003 | Agent card at the path used before A2A 0.3 | medium | ASI07 | SI-10 |  |  |
+| SW-A2A-004 | Agent endpoint or authentication URL not served over HTTPS | high | ASI07 | SC-8 |  |  |
+| SW-A2A-005 | OAuth implicit or password flow declared (deprecated in A2A 1.0) | high | ASI03 | IA-5 |  |  |
+| SW-A2A-006 | OAuth authorization code flow without PKCE required | medium | ASI03 | IA-5 |  |  |
+| SW-A2A-007 | Agent declares no authentication | medium | ASI03 | AC-3 | AML.T0132 |  |
+| SW-A2A-008 | API key sent in the URL query | medium | ASI03 | IA-5 | AML.T0055 |  |
+| SW-A2A-009 | Skill inherits every scope of the agent | low | ASI03 | AC-6 |  |  |
+| SW-A2A-010 | Agent card signature does not verify | high | ASI07 | SI-7 | AML.T0074 |  |
+| SW-A2A-011 | Agent card signature is malformed or uses a refused algorithm | high | ASI07 | SI-7 | AML.T0074 |  |
+| SW-A2A-012 | Agent card is not signed | low | ASI07 | SI-7 | AML.T0074 |  |
+| SW-A2A-013 | Signing key not bound to the card's host | medium | ASI07 | SI-7 | AML.T0074 |  |
+| SW-A2A-014 | Agent card text contains injected instructions or hidden characters | high | ASI01 | SI-10 | AML.T0051.001, AML.T0110.000 |  |
+| SW-A2A-015 | Credential in the agent card | critical | ASI03 | IA-5 | AML.T0055 |  |
+| SW-A2A-016 | Agent card fetched through a redirect to another host | medium | ASI07 | SC-8 | AML.T0074 |  |
+| SW-A2A-017 | Agent card signed with a shared secret that only the agent can check | medium | ASI07 | SI-7 | AML.T0074 |  |
+| SW-A2A-018 | Agent card cannot be read | high | ASI07 | SI-10 |  |  |
+| SW-A2A-019 | Agent card member spelled two ways | high | ASI07 | SI-10 |  |  |
 <!-- rules:end -->
 
 SW-REG-001 to SW-REG-003 are the registry gate of connected mode (Enterprise). They fire only in a connected run.
 
-The severity in the table is each rule's worst case. Since 1.9.0 two MCP rules grade a finding by what the probe saw. SW-MCP-001 is low when the server answered `tools/list` without authentication with no tool, medium when every listed tool declares itself read-only (`readOnlyHint` true and `destructiveHint` not true; a hint the server writes, so never lower than medium), and high otherwise; only a list the probe read whole is graded, so an unreadable answer, a later page (`nextCursor`), more than 200 tools or a pasted list stays high. SW-MCP-011 is medium when a tool description only steers the model towards the tool (such as an order to put it before any other tool, or "IMPORTANT: ... you must") and high for concealment, override or injected instructions, or when the steering text also names conversation, prompt or credential material. Since 1.11.0 SW-MCP-011 reads descriptions with their whitespace collapsed, and the patterns 1.11.0 narrowed, unchanged since, need the words that make them an instruction: "hidden" only as hidden instructions, prompts, commands or directives, "keep this hidden" or hidden from the person using it; the negations (do not, don't, never) with "mention, reveal, show, tell or disclose" only as whole words aimed at the user, the tool itself or the instructions, or "mention" and "reveal" followed by "the", "this", "that", "it", "them", "any", "your" or "these"; "IMPORTANT:" with ignore, override or disregard (high) or with a "must" aimed at the model or a tool in the same sentence (medium, high with conversation or credential words or a secret file path such as `id_rsa` or `mcp.json`). Descriptions such as "includes hidden files", "the key is never shown again" and "IMPORTANT: the date must be ISO 8601" do not match. Since 1.12.0 the rule also reads other wordings beside those patterns. As steering (medium): the tool first in every session, conversation or task or before anything else, or a "START HERE" banner in capitals; a required check before a whole class of actions or before answering ("before sending any payment, call this tool"), also after "IMPORTANT:"; broad triggers ("use this tool proactively", "call this whenever possible"); claims that the model's own knowledge is outdated or must not be used; a ban on working something out by hand; the tool ranked above web search, built-in tools or rivals; paid offers slipped into the answer. As concealment (high): a negated "mention", "reveal", "disclose", "divulge" or "acknowledge", or "tell" or "show" with the user as the object, about the tool's own calls, steps, checks, instructions, partners or sources ("never reveal which partner supplied the item"); keeping the tool's internals out of what the user sees; acting without telling the user. A finding that only these steering forms make is high when the description asks for conversation, prompt or credential material outside the words the form matched. No description is graded lower than in 1.11.1, and an ordinary line added before or after a description never lowers its finding, except when it is glued on with no character between, or only an invisible one, so that two words merge. The evidence text, and so the fingerprint, is unchanged, so baselines and accepted findings carry over. In SARIF a result's `level` is its own severity; the rule's `security-severity`, which code scanning on the forge shows, stays that of the worst case.
+The severity in the table is each rule's worst case. Since 1.9.0 two MCP rules grade a finding by what the probe saw. SW-MCP-001 is low when the server answered `tools/list` without authentication with no tool, medium when every listed tool declares itself read-only (`readOnlyHint` true and `destructiveHint` not true; a hint the server writes, so never lower than medium), and high otherwise; only a list the probe read whole is graded, so an unreadable answer, a later page (`nextCursor`), more than 200 tools or a pasted list stays high. SW-MCP-011 is medium when a tool description only steers the model towards the tool (such as an order to put it before any other tool, or "IMPORTANT: ... you must") and high for concealment, override or injected instructions, or when the steering text also names conversation, prompt or credential material. Since 1.11.0 SW-MCP-011 reads descriptions with their whitespace collapsed, and the patterns 1.11.0 narrowed, unchanged since, need the words that make them an instruction: "hidden" only as hidden instructions, prompts, commands or directives, "keep this hidden" or hidden from the person using it; the negations (do not, don't, never) with "mention, reveal, show, tell or disclose" only as whole words aimed at the user, the tool itself or the instructions, or "mention" and "reveal" followed by "the", "this", "that", "it", "them", "any", "your" or "these"; "IMPORTANT:" with ignore, override or disregard (high) or with a "must" aimed at the model or a tool in the same sentence (medium, high with conversation or credential words or a secret file path such as `id_rsa` or `mcp.json`). Descriptions such as "includes hidden files", "the key is never shown again" and "IMPORTANT: the date must be ISO 8601" do not match. Since 1.12.0 the rule also reads other wordings beside those patterns. As steering (medium): the tool first in every session, conversation or task or before anything else, or a "START HERE" banner in capitals; a required check before a whole class of actions or before answering ("before sending any payment, call this tool"), also after "IMPORTANT:"; broad triggers ("use this tool proactively", "call this whenever possible"); claims that the model's own knowledge is outdated or must not be used; a ban on working something out by hand; the tool ranked above web search, built-in tools or rivals; paid offers slipped into the answer. As concealment (high): a negated "mention", "reveal", "disclose", "divulge" or "acknowledge", or "tell" or "show" with the user as the object, about the tool's own calls, steps, checks, instructions, partners or sources ("never reveal which partner supplied the item"); keeping the tool's internals out of what the user sees; acting without telling the user. A finding that only these steering forms make is high when the description asks for conversation, prompt or credential material outside the words the form matched. No description is graded lower than in 1.11.1, and an ordinary line added before or after a description never lowers its finding, except when it is glued on with no character between, or only an invisible one, so that two words merge. The evidence text, and so the fingerprint, is unchanged, so baselines and accepted findings carry over. In SARIF a result's `level` is its own severity; the rule's `security-severity`, which code scanning on the forge shows, stays that of the worst case. Since 1.13.0 the rule is titled "MCP server text contains instruction-like text" and also reads the prompts, resources, resource templates and instructions a probed server advertises; in those four places only the injection and concealment forms apply, never the steering forms (a prompt or the server's instructions exist to steer a model), and the rule's precision there has not been measured: the figures in the changelog are for tool descriptions.
 
 The numbers SW-SKL-016 to 018, SW-SKL-020 to 030, SW-SKL-033 to 035, SW-CFG-011 and SW-CFG-014 are reserved and unused. `RuleSet.baseline()` returns these rules; `ruleset.with_rules(extra)` adds your own `Rule` objects built with `spellwarden_scan.rules.make_rule`.
 
@@ -366,7 +366,7 @@ followed by one entry that joins the nine prompt-injection patterns, `(?i:ignore
             "version": "1.0",
             "built_at": "2026-12-01T00:00:00Z",
             "engine": "<engine version>",
-            "rules_version": "2026.11.5",
+            "rules_version": "2026.11.6",
             "guard_sha256": "<sha256 of the guard file>",
             "options_sha256": "<sha256 of the canonical options>"
           },
@@ -418,9 +418,18 @@ In that set the scanner finds:
 | MCP client configuration | `.mcp.json`, `.vscode/mcp.json`, `.cursor/mcp.json`; each server in it is an item of its own | `SW-CFG-001` to `004`, `010`, `012`, `013`; `SW-MCP` rules under `--probe` |
 | Claude Code settings | `.claude/settings.json`, `.claude/settings.local.json` (with their hooks) | `SW-CFG-005` to `008` |
 | Plugin marketplace | `.claude-plugin/marketplace.json` and every plugin it lists (a local source `./` is the marketplace's own directory) | `SW-CFG-009`; a local plugin's skills, `.mcp.json`, `hooks/hooks.json` and `.claude-plugin/plugin.json` are scanned like the files above |
+| Instruction file | `AGENTS.md`, `CLAUDE.md` and `GEMINI.md` at any depth; `.github/copilot-instructions.md`, `.cursorrules` and `.windsurfrules` at the scan root; `.mdc` files under `.cursor/rules/` at any depth; `.md` files directly under `.windsurf/rules/` or `.devin/rules/` at any depth | the `SW-SKL` rules except `SW-SKL-015` and `SW-SKL-031`, which judge `SKILL.md` metadata; see "Instruction files" |
 | A2A agent card | `.well-known/agent-card.json` at any depth, `.well-known/agent.json` and any other file named `agent-card.json` (when it is a card), and the files `a2a.cards` lists; remote agents under `--probe` | the `SW-A2A` rules; see "Checking A2A agent cards" |
 
 A plugin hosted elsewhere (a GitHub repository or a URL) is listed and locked by its declared source, never fetched. Configuration files are read as JSON with comments and trailing commas (VS Code's `mcp.json` dialect). A file with a key repeated in one object is refused (`duplicate_key`): agents disagree on which copy wins, so the scanner will not guess. Everything read from the repository is treated as hostile: sizes and nesting are bounded, paths are confined to the scan root, and every string is escaped for the place it is printed.
+
+### Instruction files
+
+Since 1.13.0 the scanner also finds the files that give instructions to a coding agent (the table above) and scans each one as an instruction file: every skill rule except the two about `SKILL.md` metadata, with Markdown rules reading a `.mdc`, `.cursorrules` or `.windsurfrules` file as Markdown. Paths match whatever their case (`claude.md`, `.Cursor/Rules/x.MDC`), as macOS and Windows open them and as configuration file names match, after `include`, `exclude` and the walk rules. A file inside a skill directory belongs to that skill and is scanned there, once, with a `.mdc`, `.cursorrules` or `.windsurfrules` file still read as Markdown; at most 300 instruction files are read per scan root, those an agent reads at the root of the repository first (root `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, the Copilot file and the root Cursor and Windsurf rules), then the rest shallowest first; more is the error `instructions_limit` and an incomplete scan (exit 2; see [Limits](#limits)). A symbolic link at one of these names is followed like one at a configuration file's name; one that cannot be followed is the notice `symlink_skipped`.
+
+Each file is an item of kind `instructions` with a `format` (`agents-md`, `claude-md`, `gemini-md`, `copilot-instructions`, `cursor-mdc`, `cursorrules` or `windsurf-rules`) and a `front_matter`. The front matter of a Cursor rule (`description`, `globs`, `alwaysApply`) and of a Windsurf or Devin rule (`trigger`, `globs`, `description`) is read by a line parser, not YAML, because Cursor writes values YAML refuses (`globs: *.ts`); a block that cannot be read leaves `front_matter` null, still scans the file and gives the notice `instructions_front_matter`. The text and Markdown reports say when the agent applies a file next to its findings (`Applied: always`, `Applied to files matching: ...`, `Applied when the agent judges it relevant: ...` or `Applied when asked for`), and SARIF results of an instruction file carry `properties.instructions` with the format and that scope. Each file is pinned in the lock file (`kind` `instructions`, with its `format` and the hash of its name and bytes) and uploaded in connected mode; the registry gate does not consider instruction files.
+
+Instruction files are on by default. Set `instructions: false` in `.spellwarden/config.yml` to leave them out: they are then not found, locked, scanned or reported, and the report is the one 1.12.0 wrote, apart from the `tags` each finding carries since 1.13.0. Upgrading can change a result: a repository that holds instruction files can gain findings, so a gate that passed can fail, and a repository with a lock file sees its instruction files as `added` (lock `stale`, exit 3) until `spellwarden lock` is run once. A lock file that holds them is unreadable to 1.12.0 and older (`lock_unreadable`), and an older scanner refuses a config with the `instructions` key, so a team that runs two scanner versions against one repository must upgrade both or set `instructions: false`. Not read: `.github/instructions/*.instructions.md`, `AGENT.md`, `AGENTS.local.md`, `CLAUDE.local.md`, `.gemini/` files, `.md` files in `.cursor/rules/`, and the global rule files in a user's home directory.
 
 ### Exit codes
 
@@ -428,10 +437,18 @@ A plugin hosted elsewhere (a GitHub repository or a URL) is listed and locked by
 |---|---|
 | 0 | Passed: no unsuppressed finding at or above `--fail-on` (default `high`; `never` always passes on findings). |
 | 1 | Failed on findings. |
-| 2 | Incomplete or invalid: a usage or settings error, an unreadable file, a configuration document the scanner refused or cut short (over 200 servers, 500 hooks or 200 plugins), a skill over 2000 files or 50 MiB, an invalid baseline entry, or a scanner crash. |
+| 2 | Incomplete or invalid: a usage or settings error, an unreadable file, a configuration document or agent card the scanner refused or cut short (over 200 servers, 500 hooks or 200 plugins), a skill over 2000 files or 50 MiB, over 300 instruction files or 300 agent cards, an invalid baseline entry, or a scanner crash. |
 | 3 | `--locked` and the lock file is absent or out of date. |
 
 When several apply, 2 wins over 1, and 1 over 3: an incomplete scan never looks like a pass. Every requested report is written before the exit.
+
+### Limits
+
+The scanner has limits so that a run ends in bounded time and memory. One rule decides what happens when a limit is reached, and every limit follows it: **content the scanner leaves unread never looks like a pass.**
+
+- **What the repository holds** (files, configuration documents, skills, instruction files, agent cards): the repository decides its size, so a limit reached is an error and the scan is incomplete (exit 2). The way out is a narrower scan with `exclude` in `.spellwarden/config.yml`, a change reviewers see in the diff, never a skip the scanner makes on its own. Where the scanner must choose what to read first, it reads what an agent loads first (for instruction files, the places at the repository root).
+- **What a remote server sends to the probe** (tool, prompt and resource lists, a remote agent card): the server decides its size, and a limit reached there cannot fail your build, or any server could. It is shown in every report (`probe_list_incomplete`, the card's notice), and it never lowers a judgement: a tool list not read whole keeps SW-MCP-001 high.
+- **What the scanner writes** (the findings kept per package, the evidence of a finding): these cut output, not reading. Everything was judged, and the count of what was left out is shown (`findings_truncated`).
 
 ### Settings: `.spellwarden/config.yml`
 
@@ -442,13 +459,14 @@ exclude: ["tests/fixtures/**"]
 fail-on: high
 probe: false
 telemetry: true
+instructions: true           # instruction files; see "Instruction files"
 a2a:                          # agent cards; see "Checking A2A agent cards"
   cards: [deploy/agent/card.json]
   keys: .well-known/jwks.json
   agents: [https://agent.example.com/]
 ```
 
-The file is optional. An unknown key or a `version` other than 1 is an error (exit 2), so a typo never silently weakens a gate. A flag wins over the environment (`SPELLWARDEN_FAIL_ON`, `SPELLWARDEN_PROBE`, `SPELLWARDEN_TELEMETRY`), which wins over the file. Private probing is deliberately not a setting (see "Probing"). The `connected` mapping (`pack`, `upload`, `required`) is described under "Connected mode", the `a2a` mapping (`cards`, `keys`, `agents`) under "Checking A2A agent cards". On a pull or merge request `a2a.keys` and `a2a.agents` are read from the base revision even under `--config`, like `connected.pack` and `connected.required`: a request cannot choose the keys its cards are verified with or the agents that are fetched.
+The file is optional. An unknown key or a `version` other than 1 is an error (exit 2), so a typo never silently weakens a gate. A flag wins over the environment (`SPELLWARDEN_FAIL_ON`, `SPELLWARDEN_PROBE`, `SPELLWARDEN_TELEMETRY`), which wins over the file. Private probing is deliberately not a setting (see "Probing"). The `instructions` key (a boolean, default true) leaves the instruction files out when false; it has no flag and no environment variable, and on a pull or merge request it is read from the base revision with the rest of the file, so a request cannot switch off its own scanning. The `connected` mapping (`pack`, `upload`, `required`) is described under "Connected mode", the `a2a` mapping (`cards`, `keys`, `agents`) under "Checking A2A agent cards". On a pull or merge request `a2a.keys` and `a2a.agents` are read from the base revision even under `--config`, like `connected.pack` and `connected.required`: a request cannot choose the keys its cards are verified with or the agents that are fetched.
 
 **On a pull or merge request, this file and the baseline are read from the base revision**, the commit the request targets, never from the request itself. Otherwise a request could add a malicious `.mcp.json` together with `exclude: [".mcp.json"]`, or accept its own finding in the baseline, and pass its own check. A request that changes either file therefore sees the change apply only once it is merged, and the report says so with the notice `settings_from_base`. The lock file is still read from the request: a request that changes agent content must update it, and reviewers see that change. Under `--locked` the lock is computed with the base's `include` and `exclude`, so a request that changes those patterns and the lock together is reported stale until the settings change is merged first. Local runs, pushes, schedules and manual runs read the working tree as before. A `--config` or `--baseline` file named on the command line is read as given: whoever runs the scanner chose it.
 
@@ -456,7 +474,7 @@ The scanner reads the base revision with git. A shallow clone that lacks it is f
 
 ### The lock file: `.spellwarden/lock.json`
 
-`spellwarden lock` records every discovered configuration file, MCP server, plugin source, local plugin directory and skill with a hash. `spellwarden scan --locked` (and `spellwarden lock --check`) exits 3 when anything was added, removed or changed since, and names each item, so a change to agent content is a visible, reviewed change. The lock holds no scanner version: upgrading the scanner never makes it stale. A skill's hash is computed over paths relative to the skill's directory, so moving a skill changes only its path.
+`spellwarden lock` records every discovered configuration file, MCP server, plugin source, local plugin directory, skill and instruction file with a hash. `spellwarden scan --locked` (and `spellwarden lock --check`) exits 3 when anything was added, removed or changed since, and names each item, so a change to agent content is a visible, reviewed change. The lock holds no scanner version: upgrading the scanner never makes it stale. A skill's hash is computed over paths relative to the skill's directory, so moving a skill changes only its path.
 
 ### The baseline file: `.spellwarden/baseline.yml`
 
@@ -505,7 +523,7 @@ a2a:
     - https://example.com/agents/billing/card.json
 ```
 
-**Which files are cards.** `.well-known/agent-card.json` at any depth and every path in `a2a.cards` are cards whatever they hold: one that cannot be read (not UTF-8, a byte-order mark, not strict JSON, a repeated key, nested deeper than 128 levels, not an object, over 1 MiB; or a symbolic link that leaves the scan root, points at nothing or at a link or a directory, which is reported as `unsafe_path`; or a file the operating system refuses to read, reported as `unreadable`) is the finding `SW-A2A-018` (high), which fails the default check but can be accepted in the baseline, and a file that parses but is not a card shape is `SW-A2A-001`. `.well-known/agent.json` and any other file named `agent-card.json` are cards only when they parse strictly and have the card shape; otherwise they get the notice `a2a_not_card` and nothing else, because other software uses those names. A repository of deliberately broken sample cards excludes them the usual way (`exclude: ["samples/**"]`). At most 200 cards are read per run (the notice `a2a_cards_limit` counts the rest). Cards are read as strict JSON, which is what A2A clients accept: a comment, a trailing comma or a byte-order mark is refused here although `.mcp.json` accepts them.
+**Which files are cards.** `.well-known/agent-card.json` at any depth and every path in `a2a.cards` are cards whatever they hold: one that cannot be read (not UTF-8, a byte-order mark, not strict JSON, a repeated key, nested deeper than 128 levels, not an object, over 1 MiB; or a symbolic link that leaves the scan root, points at nothing or at a link or a directory, which is reported as `unsafe_path`; or a file the operating system refuses to read, reported as `unreadable`) is the finding `SW-A2A-018` (high), which fails the default check but can be accepted in the baseline, and a file that parses but is not a card shape is `SW-A2A-001`. `.well-known/agent.json` and any other file named `agent-card.json` are cards only when they parse strictly and have the card shape; otherwise they get the notice `a2a_not_card` and nothing else, because other software uses those names. A repository of deliberately broken sample cards excludes them the usual way (`exclude: ["samples/**"]`). At most 300 cards are read per run; more is the error `a2a_cards_limit` and an incomplete scan (exit 2; see [Limits](#limits)), and a card with more entries than the scanner reads is the error `truncated`. Cards are read as strict JSON, which is what A2A clients accept: a comment, a trailing comma or a byte-order mark is refused here although `.mcp.json` accepts them.
 
 **Proto field names.** A2A 1.0 JSON spells members in camelCase (`securityRequirements`), but protobuf's JSON reader, which `a2a-sdk` uses, also accepts a member's proto field name (`security_requirements`) and keeps the later of two spellings. The scanner reads a card the same way, so every rule judges what a protobuf client would use: a plain `http://` URL under `supported_interfaces` is `SW-A2A-004` like any other, and the finding names the member by its JSON name (`/supportedInterfaces/0/url`). A member spelled only with its proto field name is `SW-A2A-001` (`proto_field_name`): rename it. A member spelled both ways is `SW-A2A-019` (high), because readers disagree on which one is the card: a reader that knows only the JSON names keeps the camelCase spelling, a protobuf reader keeps the later one, and for an optional member such as `iconUrl` or one of a scheme's kinds such as `oauth2SecurityScheme` a protobuf reader refuses the card. So `security_requirements: []` appended after a card's requirements, which tells a protobuf client that no authentication is needed, is `SW-A2A-019` and `SW-A2A-007`. `SW-A2A-015` reads every value as served, so a credential under a spelling the reader drops is still found. **0.x members in snake_case.** Since 1.5.0 the members A2A 1.0 removed are read in their snake_case spelling too (`preferred_transport`, `additional_interfaces`, `protocol_version`, `supports_authenticated_extended_card`, `capabilities.state_transition_history`, and in a scheme of the 0.x `type` form `bearer_format`, `open_id_connect_url`, `oauth2_metadata_url`, the flow names `authorization_code` and `client_credentials` and a flow's `authorization_url`, `token_url` and `refresh_url`), the way `a2a-sdk` 0.3 reads a card: the snake_case name alone is the member, and of both spellings the camelCase one is kept whatever the order. Other clients disagree (`a2a-sdk` 1.2.3 ignores the snake_case spelling of the four top-level members, the JavaScript SDK reads camelCase only), so a 0.x member spelled only in snake_case is `SW-A2A-001` (`legacy_field_name`) and one spelled both ways is `SW-A2A-019` (`name_kept`). What it holds is judged like the camelCase member: a plain `http://` URL under `additional_interfaces` is `SW-A2A-004`, and `protocol_version` gives the card its format.
 
@@ -525,7 +543,7 @@ a2a:
 
 ### Probing: `--probe`
 
-Off by default. With `--probe`, the scanner also fetches the cards of the remote agents `a2a.agents` lists and the key sets the repository's signed cards name (see "Checking A2A agent cards"), under the same budget as the MCP probes, which come first. It sends the unauthenticated MCP probe of the hosted product to every remote server of an MCP configuration whose URL is `https://`, from your machine or runner, and adds the `SW-MCP` findings and the 2026-07-28 migration checklist to the report. It sends the URL and the protocol's own requests only: never a header, environment value or argument from the configuration, never an `Authorization` header or a cookie. Addresses must be public; at most 50 servers, 4 at a time, 300 requests and 120 seconds for the whole run. A URL holding a `${...}` reference is not probed. `--probe` is switched off on a pull or merge request from a fork or from Dependabot.
+Off by default. With `--probe`, the scanner also fetches the cards of the remote agents `a2a.agents` lists and the key sets the repository's signed cards name (see "Checking A2A agent cards"), under the same budget as the MCP probes, which come first. It sends the unauthenticated MCP probe of the hosted product to every remote server of an MCP configuration whose URL is `https://`, from your machine or runner, and adds the `SW-MCP` findings and the 2026-07-28 migration checklist to the report. Besides `tools/list` it asks a server that declares the capability for its prompts, resources and resource templates (`prompts/list`, `resources/list`, `resources/templates/list`, one page each, only when `tools/list` was not refused for want of a credential); the prober sends no method outside a list of seven and so never `resources/read`, `prompts/get` or `tools/call`. It sends the URL and the protocol's own requests only: never a header, environment value or argument from the configuration, never an `Authorization` header or a cookie. Addresses must be public; at most 50 servers, 4 at a time, 300 requests and 120 seconds for the whole run. A URL holding a `${...}` reference is not probed. `--probe` is switched off on a pull or merge request from a fork or from Dependabot.
 
 `--probe-private` (or `SPELLWARDEN_PROBE_PRIVATE=true`) also allows the private addresses of the configured servers themselves (never a link-local address such as the cloud metadata service, and never an address that a server's answer or redirect points to), but only on a local run or on a push, schedule or manual run of a protected branch or tag in GitHub Actions or GitLab CI; anywhere else it is ignored with the notice `probe_private_untrusted`, because whoever can push a revision controls the endpoints it names. It cannot be set in `.spellwarden/config.yml`.
 
@@ -792,7 +810,7 @@ A package's identity is a hash over its bytes, as a forge archive of its directo
 
 ### Schemas and compatibility
 
-`schemas/` holds JSON Schemas (draft 2020-12) for the settings, the baseline, the lock file and the JSON report, including every closed list of values. Readers of the report must ignore fields they do not know; the settings and the baseline refuse them. From 1.0.0, removing or renaming a field or a value, or changing an exit code, is a major version; adding an optional field, a notice code or a rule is a minor one. Since 1.3.0 the report holds an optional `agents` list (one entry per A2A agent card the run read or fetched, written only when there is one), the rule-id pattern of the report and the baseline schema is `^SW-(SKL|MCP|CFG|REG|A2A|ORG)-[0-9]{3}$`, and the settings schema has the `a2a` mapping. A 1.2.x scanner refuses a settings file with an `a2a` mapping (`settings_invalid`, unknown key) and a baseline with an `SW-A2A` entry, as it would any later key or rule; a team that runs two scanner versions against one repository must upgrade both. In the same way a 1.3.x scanner refuses a baseline with an `SW-A2A-019` entry, the rule 1.4.0 added. Unlike `SW-A2A-019`, the rules 1.8.0 added (`SW-SKL-032`, `SW-SKL-036`, `SW-SKL-037`, `SW-CFG-012`, `SW-CFG-013`, rules version `2026.11.1`) keep an older baseline readable: a scanner older than 1.8.0 reads a baseline that names one of them without error, but the entry matches nothing there, so `baseline list` shows it as unmatched, `baseline prune` removes it, and the older scanner reports none of the new findings. `SW-SKL-032` is a malicious-indicator rule, so an entry for it may last at most 30 days from 1.8.0 on. Since 1.2.0 the report holds an optional `connected` block when a run was connected (the credential kind, the organisation, the run, the policy applied, the registry gate's counts and items, and the upload outcome), and `upload_truncated` and `upload_truncated_fields` after an upload that was cut; a free run adds none of them.
+`schemas/` holds JSON Schemas (draft 2020-12) for the settings, the baseline, the lock file and the JSON report, including every closed list of values. Readers of the report must ignore fields they do not know; the settings and the baseline refuse them. From 1.0.0, removing or renaming a field or a value, or changing an exit code, is a major version; adding an optional field, a notice code or a rule is a minor one. Since 1.3.0 the report holds an optional `agents` list (one entry per A2A agent card the run read or fetched, written only when there is one), the rule-id pattern of the report and the baseline schema is `^SW-(SKL|MCP|CFG|REG|A2A|ORG)-[0-9]{3}$`, and the settings schema has the `a2a` mapping. A 1.2.x scanner refuses a settings file with an `a2a` mapping (`settings_invalid`, unknown key) and a baseline with an `SW-A2A` entry, as it would any later key or rule; a team that runs two scanner versions against one repository must upgrade both. In the same way a 1.3.x scanner refuses a baseline with an `SW-A2A-019` entry, the rule 1.4.0 added. Unlike `SW-A2A-019`, the rules 1.8.0 added (`SW-SKL-032`, `SW-SKL-036`, `SW-SKL-037`, `SW-CFG-012`, `SW-CFG-013`, rules version `2026.11.1`) keep an older baseline readable: a scanner older than 1.8.0 reads a baseline that names one of them without error, but the entry matches nothing there, so `baseline list` shows it as unmatched, `baseline prune` removes it, and the older scanner reports none of the new findings. `SW-SKL-032` is a malicious-indicator rule, so an entry for it may last at most 30 days from 1.8.0 on. Since 1.2.0 the report holds an optional `connected` block when a run was connected (the credential kind, the organisation, the run, the policy applied, the registry gate's counts and items, and the upload outcome), and `upload_truncated` and `upload_truncated_fields` after an upload that was cut; a free run adds none of them. Since 1.13.0 each finding of the report also holds `tags` (the framework ids of its rule: `owasp_agentic`, `owasp_mcp`, `nist`, `atlas`, `owasp_ast`), an item of kind `instructions` holds `format` and `front_matter`, the lock schema has the item kind `instructions`, and the settings schema has the key `instructions`; the report's `schema` stays 1.
 
 ## What Spellwarden keeps from your telemetry
 

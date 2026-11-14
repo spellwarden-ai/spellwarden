@@ -20,7 +20,7 @@ from spellwarden_scan.agentconfig import (
     parse_document, parse_hooks, parse_marketplace, parse_mcp_config, parse_plugin_manifest, parse_settings,
     reference_kind,
 )
-from spellwarden_scan import gate, identity  # noqa: F401 (O3 spec 5.4: `spellwarden_scan.gate`, `spellwarden_scan.identity`)
+from spellwarden_scan import frameworks, gate, identity  # noqa: F401 (`spellwarden_scan.gate`, `.identity`: O3 spec 5.4; `.frameworks`: 1.13.0)
 from spellwarden_scan.archive import ArchiveError, ArchiveLimits, unpack_zip
 from spellwarden_scan.canonical import canonical_sha256
 from spellwarden_scan.evidence import mask_credentials
@@ -31,7 +31,8 @@ from spellwarden_scan.jcs import JcsError, jcs_canonicalize
 from spellwarden_scan.model import (
     SEVERITY_RANK, A2aScanResult, Area, AuthServerMetadata, CardOrigin, ChecklistItem, ConfigDocument, ConfigScanResult,
     CurationInputs, EnabledPlugin, Finding, HookCommand, Location, MarketplaceDecl, MarketplacePlugin, McpScanResult,
-    McpServerEntry, Metadata, PluginSource, ProbeResult, SettingFlag, Severity, SignatureOutcome, SkillScanResult, ToolInfo,
+    McpServerEntry, Metadata, PluginSource, PromptArgument, PromptInfo, ProbeResult, ResourceInfo, ResourceTemplateInfo,
+    SettingFlag, Severity, SignatureOutcome, SkillScanResult, ToolInfo,
 )
 from spellwarden_scan.checklist import migration_checklist
 from spellwarden_scan.curation import curation_score, is_curated, is_quarantined
@@ -66,4 +67,6 @@ __all__ = [
     "parse_agent_card", "evaluate_agent_card", "AgentCardDocument", "CardOrigin", "SignatureOutcome", "SignatureInput",
     "A2aScanResult", "signature_inputs", "a2a_checklist", "jcs_canonicalize", "JcsError", "A2A_CARD_FORMATS",
     "A2A_MIGRATION_STATUSES", "A2A_SIGNATURE_STATUSES",
+    # Phase 3 batch 1 spec 11.2: added in 1.13.0
+    "PromptArgument", "PromptInfo", "ResourceInfo", "ResourceTemplateInfo",
 ]

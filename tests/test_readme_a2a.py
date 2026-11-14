@@ -36,7 +36,7 @@ def test_the_section_says_what_the_spec_requires():
                    '"Expired or revoked keys MUST NOT be used for verification" (8.4.3)', "removing a key from `a2a.keys`",
                    "`exclude: [\"samples/**\"]`", "Findings on a remote agent's card do not fail a pull or merge request",
                    "only one of them says who signed", "whoever controls the host", "unsigned_members", "RFC 8785",
-                   "deprecated in 1.0 and documented as removed", "DER-encoded ECDSA", "`SW-A2A-018`", "At most 200 cards are read per run",
+                   "deprecated in 1.0 and documented as removed", "DER-encoded ECDSA", "`SW-A2A-018`", "At most 300 cards are read per run",
                    "reported as `unsafe_path`", "reported as `unreadable`", "spelled with its proto field name", "a whole entry of `securityRequirements`", "a scheme entry with no scopes",
                    "**Proto field names.**", "keeps the later of two spellings", "(`proto_field_name`)", "a protobuf reader refuses the card",
                    "`SW-A2A-015` reads every value as served", "**0.x members in snake_case.**", "(`legacy_field_name`)",
@@ -44,7 +44,8 @@ def test_the_section_says_what_the_spec_requires():
         assert needle in text, needle
     for code in A2A_NOTICES:
         assert f"`{code}`" in text, code
-    assert len(A2A_NOTICES) == 9
+    assert len(A2A_NOTICES) == 8  # `a2a_cards_limit` is an error since 1.13.0 (README "Limits")
+    assert "`a2a_cards_limit`" in text
     for rule_id in ("SW-A2A-001", "SW-A2A-002", "SW-A2A-003", "SW-A2A-004", "SW-A2A-005", "SW-A2A-010", "SW-A2A-011",
                     "SW-A2A-013", "SW-A2A-016", "SW-A2A-017", "SW-A2A-018", "SW-A2A-019"):
         assert rule_id in text, rule_id

@@ -27,12 +27,12 @@ from spellwarden_scan.identity import is_skill_file as _is_skill_file
 from spellwarden_scan.identity import is_skill_name_variant as _is_skill_name_variant
 from spellwarden_scan.relpath import UnsafePath, contain
 
-from spellwarden_cli import paths
+from spellwarden_cli import instruction_files, paths
 from spellwarden_cli.files import FileEntry, FileSet
 from spellwarden_cli.report import Notice
 
 SKILL_FILE = "SKILL.md"
-MAX_CARDS = 200  # discovered and listed agent cards together (O4 spec 6.3); the rest are not read
+MAX_CARDS = 300  # discovered and listed agent cards together (O4 spec 6.3; 300 since 1.13.0); more is the error `a2a_cards_limit`
 _ITEM_KIND = {"mcp": "mcp-config", "settings": "settings", "marketplace": "marketplace", "hooks": "hooks",
               "plugin": "plugin-manifest"}
 
@@ -43,9 +43,16 @@ class Item:
     path: str
     name: str
     plugin: str | None = None
+    # Instruction files only (kind `instructions`, Phase 3 batch 1 spec 10.3): the `format` of the table of
+    # `instruction_files` and the front matter of a rule file, None when it has none or it could not be read.
+    format: str | None = None
+    front_matter: dict | None = field(default=None, hash=False)
 
     def to_dict(self) -> dict:
-        return {"kind": self.kind, "path": self.path, "name": self.name, "plugin": self.plugin}
+        data = {"kind": self.kind, "path": self.path, "name": self.name, "plugin": self.plugin}
+        if self.kind == "instructions":  # written for these items only, so every other item is byte-identical to 1.12.0's
+            data["format"], data["front_matter"] = self.format, self.front_matter
+        return data
 
 
 @dataclass(frozen=True)
@@ -66,6 +73,9 @@ class SkillPackage:
     nested: tuple[str, ...] = ()
     # the files the followed member links point at, scan-root paths (O3 spec 6.6: a change to one is a change to the skill)
     targets: frozenset[str] = frozenset()
+    # 1.13.0 (Phase 3 batch 1 spec 10.2): the instruction files this skill owns, scan-root paths, which its scan reads as
+    # Markdown whatever their suffix (a `.mdc`, `.cursorrules` or `.windsurfrules` file); empty with `instructions: false`
+    markdown: frozenset[str] = frozenset()
 
     def engine_key(self) -> str:
         """The key the engine reads the skill file under (`frontmatter.skill_md_path`)."""
@@ -93,6 +103,18 @@ class PluginDir:
     files: dict[str, bytes] = field(hash=False)
     links: dict[str, bytes] = field(default_factory=dict, hash=False)  # as SkillPackage.links
     own: frozenset[str] = frozenset()  # as SkillPackage.own
+
+
+@dataclass(frozen=True)
+class InstructionFile:
+    """An instruction file (Phase 3 batch 1 spec 10.2): `path` is the scan-root path, `name` the file name without its directory,
+    `format` one of `instruction_files.FORMATS`, `front_matter` as `instruction_files.front_matter_of` read it, `content` the
+    bytes (a followed link holds its target's, under the link's path)."""
+    path: str
+    name: str
+    format: str
+    front_matter: dict | None
+    content: bytes = field(hash=False)
 
 
 @dataclass(frozen=True)
@@ -131,6 +153,8 @@ class Discovery:
     fileset: FileSet | None = field(default=None, compare=False, repr=False)
     # O4 spec 6.3: the files checked as agent cards, sorted by path. Not items and not in the lock (P6).
     agent_cards: tuple[CardFile, ...] = ()
+    # Phase 3 batch 1 spec 10.2: the instruction files, sorted by path, each also an item of kind `instructions` and a lock item.
+    instruction_files: tuple[InstructionFile, ...] = ()
 
 
 def _named(path: str, suffix: str) -> bool:
@@ -585,9 +609,11 @@ def _follow_references(builder: _Builder, manifest: ConfigDocument, directory: s
                                           f"referenced by {manifest.path} but holds no hooks or MCP servers; not parsed"))
 
 
-def discover(fileset: FileSet, *, listed_cards: Sequence[str] = (), agents_configured: bool = False) -> Discovery:
+def discover(fileset: FileSet, *, listed_cards: Sequence[str] = (), agents_configured: bool = False,
+             instructions: bool = True) -> Discovery:
     """`listed_cards` are the paths of `a2a.cards`; `agents_configured` says `a2a.agents` is not empty (so that a repository
-    whose only agent content is a configured agent is not told there is none)."""
+    whose only agent content is a configured agent is not told there is none). `instructions` is the setting of that name: with
+    it off, no instruction file is looked for (Phase 3 batch 1 spec 10.5)."""
     builder = _Builder(fileset)
     builder.notices.extend(Notice("skill_name_case", path,
                                   _SKILL_NAME_CASE_LOADED if _is_loaded_variant(path) else _SKILL_NAME_CASE)
@@ -639,6 +665,13 @@ def discover(fileset: FileSet, *, listed_cards: Sequence[str] = (), agents_confi
             dirs.append(PluginDir(directory, _read_all(builder, package[0]), package[1],
                                   frozenset(p for p in package[0] if p in builder.own)))
     cards = _agent_cards(builder, listed_cards)
+    # Before the loop below: a link followed here is no `symlink_skipped`.
+    instruction_list = _instruction_files(builder, frozenset(skill.path for skill in skills)) if instructions else []
+    if instructions:
+        # an instruction file inside a skill is scanned by that skill, once (one owner per file), and read as Markdown there
+        # as it would be on its own: otherwise a root SKILL.md would turn the Markdown rules off for every rule file
+        skills = [replace(skill, markdown=frozenset(p for p in skill.files if instruction_files.format_of(p) is not None))
+                  for skill in skills]
     for path in sorted(builder.links):
         if path in builder.skipped:
             refusal = builder.resolved[path].refusal
@@ -652,16 +685,68 @@ def discover(fileset: FileSet, *, listed_cards: Sequence[str] = (), agents_confi
         elif path not in builder.followed:
             builder.notices.append(Notice("symlink_skipped", path, "symbolic link; skipped"))
     items = _items(builder, skills, plugin_items)
+    items = sorted([*items, *(Item("instructions", f.path, f.name, None, f.format, f.front_matter) for f in instruction_list)],
+                   key=lambda item: (item.kind, item.path))
     # a look-alike file that is not a card is no agent content (r0:F3)
     if not items and not any(is_card(card) for card in cards) and not agents_configured:
         builder.notices.append(Notice("no_agent_content", "", "No agent content found"))
     return Discovery(tuple(items), tuple(skills), tuple(builder.documents[p] for p in sorted(builder.documents)),
-                     tuple(dirs), tuple(builder.notices), tuple(builder.errors), fileset, tuple(cards))
+                     tuple(dirs), tuple(builder.notices), tuple(builder.errors), fileset, tuple(cards),
+                     instruction_files=tuple(instruction_list))
+
+
+def _owned_by_a_skill(path: str, skill_directories: frozenset[str]) -> bool:
+    """Whether `path` is inside a skill directory (`"."` is the scan root, so a root skill owns every file): the skill's scan
+    already reads it, so it is not listed again and a finding appears once (spec 10.2, one owner per file). A plugin directory
+    scans none of its files, so it owns none."""
+    if "." in skill_directories:
+        return True
+    head = path
+    while (cut := head.rfind("/")) > 0:
+        head = head[:cut]
+        if head in skill_directories:
+            return True
+    return False
+
+
+def _instruction_files(builder: _Builder, skill_directories: frozenset[str]) -> list[InstructionFile]:
+    """The instruction files of the file set (Phase 3 batch 1 spec 10.2, 10.3), in path order, at most
+    `instruction_files.MAX_FILES`, root places first (the error `instructions_limit` counts the rest, which are not read).
+    A symbolic link at one of these names is followed when it can be, as at the names of a configuration file; one that cannot
+    be followed is the notice
+    `symlink_skipped` it was on 1.12.0, never an error. A rule file whose front matter cannot be read still scans and has the
+    notice `instructions_front_matter`."""
+    # Past the limit, the files an agent reads at the root of the repository come first (`instruction_files.loaded_first`),
+    # then the rest shallowest first: decoys anywhere in the tree cannot push the root `AGENTS.md`, `CLAUDE.md` or a root
+    # Cursor or Windsurf rule out of the scan. What is read is then handled in path order.
+    chosen = sorted((path for path in {*builder.paths, *builder.links}
+                     if instruction_files.format_of(path) is not None and not _owned_by_a_skill(path, skill_directories)),
+                    key=lambda path: (not instruction_files.loaded_first(path), path.count("/"), path))
+    limit = instruction_files.MAX_FILES
+    if len(chosen) > limit:
+        builder.errors.append(Notice("instructions_limit", "", f"{len(chosen) - limit} more instruction files were not read: the "
+                                     f"scanner reads at most {limit} per scan root, so the scan is incomplete; leave directories "
+                                     "out with `exclude` in .spellwarden/config.yml"))
+    found: list[InstructionFile] = []
+    for path in sorted(chosen[:limit]):
+        if not _follow_quietly(builder, path):
+            continue
+        content = builder.read(path)
+        if content is None:
+            continue
+        format = instruction_files.format_of(path)
+        assert format is not None
+        front_matter, readable = instruction_files.front_matter_of(format, content)
+        if not readable:
+            builder.notices.append(Notice("instructions_front_matter", path, "the front matter of this rule file could not be "
+                                          "read, so its scope is not shown; the file is still scanned"))
+        found.append(InstructionFile(path, posixpath.basename(path), format, front_matter, content))
+    return found
 
 
 def _agent_cards(builder: _Builder, listed: Sequence[str]) -> list[CardFile]:
     """The agent card files (O4 spec 6.3): every file whose name makes a card and every path of `a2a.cards`, in path order,
-    at most `MAX_CARDS` (the notice `a2a_cards_limit` counts the rest). A listed path that is not in the file set is the notice
+    at most `MAX_CARDS` (the error `a2a_cards_limit` counts the rest). A listed path that is not in the file set is the notice
     `file_missing`. A path both discovered and listed is one card: `listed` when its name alone would make it only a
     `named` or `legacy_path` card (an unreadable one is then a finding, not a notice), else the form its name gives. A
     `well_known` or `listed` card that cannot be followed or read is a `CardFile` with `read_error` (SW-A2A-018), never an error
@@ -684,8 +769,9 @@ def _agent_cards(builder: _Builder, listed: Sequence[str]) -> list[CardFile]:
             forms[path] = "listed"
     chosen = sorted(forms)
     if len(chosen) > MAX_CARDS:
-        builder.notices.append(Notice("a2a_cards_limit", "", f"{len(chosen) - MAX_CARDS} more agent cards were not read: the "
-                                      f"scanner checks at most {MAX_CARDS} per run"))
+        builder.errors.append(Notice("a2a_cards_limit", "", f"{len(chosen) - MAX_CARDS} more agent cards were not read: the "
+                                     f"scanner checks at most {MAX_CARDS} per run, so the scan is incomplete; leave directories "
+                                     "out with `exclude` in .spellwarden/config.yml"))
     cards = []
     for path in chosen[:MAX_CARDS]:
         mark = len(builder.errors)
@@ -854,4 +940,4 @@ def _items(builder: _Builder, skills: list[SkillPackage], plugin_items: list[Ite
     return sorted(items, key=lambda item: (item.kind, item.path))
 
 
-__all__ = ["Discovery", "Item", "PluginDir", "SkillPackage", "discover"]
+__all__ = ["Discovery", "InstructionFile", "Item", "PluginDir", "SkillPackage", "discover"]

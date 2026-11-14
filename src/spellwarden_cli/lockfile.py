@@ -1,5 +1,5 @@
 """`.spellwarden/lock.json` (spec 6.6): every discovered configuration document, MCP server entry, marketplace
-plugin, local plugin directory and skill, each pinned by hash or declared source. `spellwarden lock` writes it;
+plugin, local plugin directory, skill and instruction file, each pinned by hash or declared source. `spellwarden lock` writes it;
 `--locked` and `lock --check` compare it with what the scan computed."""
 from __future__ import annotations
 
@@ -105,6 +105,9 @@ def compute_lock(found: Discovery) -> dict:
     for skill in found.skills:
         items.append({"kind": "skill", "path": skill.path, "name": skill.name,
                       "sha256": _package_hash(skill.path, skill.files, skill.links, skill.own)})
+    for instruction in found.instruction_files:  # 1.13.0 (Phase 3 batch 1 spec 10.4): each file pinned by its name and bytes
+        items.append({"kind": "instructions", "path": instruction.path, "format": instruction.format,
+                      "sha256": canonical_sha256({instruction.name: instruction.content})})
     items.sort(key=_item_key)
     return {"lock_version": LOCK_VERSION, "items": items}
 
@@ -181,10 +184,11 @@ def add_parser(commands_: argparse._SubParsersAction) -> None:
 def cmd_lock(args: argparse.Namespace) -> int:
     try:
         root = commands.scan_root(args.path)
-        fileset = files.list_files(root, commands.settings_for(root, os.environ))
+        settings = commands.settings_for(root, os.environ)
+        fileset = files.list_files(root, settings)
     except commands.CommandError as exc:
         return commands.fail(str(exc))
-    found = discover.discover(fileset)
+    found = discover.discover(fileset, instructions=settings.instructions)
     for problem in (*fileset.errors, *found.errors):
         print(f"spellwarden: warning: {problem.code} {escape.terminal(problem.path)}: {escape.terminal(problem.message)}",
               file=sys.stderr)

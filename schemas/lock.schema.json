@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/spellwarden-ai/spellwarden/blob/main/schemas/lock.schema.json",
   "title": "Spellwarden lock (.spellwarden/lock.json)",
-  "description": "Every discovered configuration document, MCP server entry, plugin, local plugin directory and skill, by hash. Items sorted by (kind, path); written with two-space indent, sorted keys and a trailing newline. No scanner or rules version.",
+  "description": "Every discovered configuration document, MCP server entry, plugin, local plugin directory, skill and instruction file, by hash. Items sorted by (kind, path); written with two-space indent, sorted keys and a trailing newline. No scanner or rules version.",
   "type": "object",
   "additionalProperties": false,
   "required": ["lock_version", "items"],
@@ -30,6 +30,11 @@
          "properties": {"kind": {"const": "plugin-dir"}, "path": {"type": "string"}, "sha256": {"$ref": "#/$defs/sha256"}}},
         {"type": "object", "additionalProperties": false, "required": ["kind", "path", "name", "sha256"],
          "properties": {"kind": {"const": "skill"}, "path": {"type": "string"}, "name": {"type": "string"},
+                        "sha256": {"$ref": "#/$defs/sha256"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "path", "format", "sha256"],
+         "properties": {"kind": {"const": "instructions"}, "path": {"type": "string"},
+                        "format": {"enum": ["agents-md", "claude-md", "gemini-md", "copilot-instructions", "cursor-mdc", "cursorrules",
+                                            "windsurf-rules"]},
                         "sha256": {"$ref": "#/$defs/sha256"}}}
       ]
     }

@@ -55,15 +55,18 @@ INSTRUCTION_SKIPPED_RULES = frozenset({"SW-SKL-015", "SW-SKL-031"})
 def scan_skill_package(files: Mapping[str, bytes], rules: RuleSet, *, root: str = "",
                        executable_paths: Collection[str] = frozenset(), max_findings: int = 500,
                        max_per_rule: int = 100, org_rule_budget: OrgRuleBudget | None = None,
-                       nested_roots: Iterable[str] = (), kind: str = "skill") -> SkillScanResult:
+                       nested_roots: Iterable[str] = (), kind: str = "skill",
+                       markdown_paths: Collection[str] = frozenset()) -> SkillScanResult:
     """`kind` is `"skill"` (the default) or `"instructions"`; any other value is a `ValueError`. With `"instructions"`
     the package is an instruction file such as AGENTS.md, so SW-SKL-015 and SW-SKL-031 (`INSTRUCTION_SKIPPED_RULES`)
     are not run and every other skill rule is. `org_rule_budget` bounds the time org rules may take (Phase C spec 5.2.2);
     a non-empty `org_rules_incomplete` on the result is an incomplete policy evaluation, never a clean one. `nested_roots` are the
-    skill directories inside `root` (`identity.nested_skill_roots`); the result's `package_sha256` leaves them out."""
+    skill directories inside `root` (`identity.nested_skill_roots`); the result's `package_sha256` leaves them out.
+    `markdown_paths` (1.13.0) are paths read as Markdown whatever their suffix (`Package.build`): the command passes the path of
+    an instruction file such as a Cursor `.mdc` rule. The default changes nothing."""
     if kind not in SCAN_KINDS:
         raise ValueError(f"kind must be one of {', '.join(SCAN_KINDS)}, not {kind!r}")
-    package = Package.build(files, root=root, executable_paths=executable_paths)
+    package = Package.build(files, root=root, executable_paths=executable_paths, markdown_paths=markdown_paths)
     meter = BudgetMeter(org_rule_budget)
     ordered = rules.ordered_for_scan("skill")
     if kind == "instructions":
