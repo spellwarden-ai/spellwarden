@@ -318,6 +318,8 @@ class _Home:
             return
         self.document(config.document, row.client)
         self.listing(config.listing, shown, row.client, marketplaces=f"{shown}#marketplaces.")
+        if config.error is not None:  # entries left unread (review r1:F2): an incomplete scan, never a pass
+            self.errors.append(Notice("unreadable", shown, f"{config.error}; not judged"))
 
     def _claude_marketplaces(self, row, real, shown):
         content = self.read(real, shown)

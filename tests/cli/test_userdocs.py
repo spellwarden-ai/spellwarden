@@ -121,3 +121,36 @@ def test_parse_selected_reads_the_selected_maps_and_refuses_an_unknown_kind():
     assert parse_selected("mcp", "x.json", b"{", lambda _root: ([], None)).error == "not_json"
     with pytest.raises(ValueError):
         parse_selected("other", "x.json", b"{}", lambda _root: ([], None))
+
+
+def test_a_deeply_nested_codex_config_is_that_files_error_not_a_crash():
+    """Review r0:F3: tomllib or the converter raising RecursionError is this one file's error."""
+    config = userdocs.read_codex_config("~/.codex/config.toml", b"x = " + b"[" * 3000 + b"]" * 3000)
+    assert config.document is None and "RecursionError" in (config.error or "")
+
+
+@pytest.mark.parametrize("content", [b"[]", b'{"plugins": ["a"]}', b'{"plugins": "a"}', b'"s"'])
+def test_a_plugins_state_file_of_another_shape_is_an_error(content):
+    """Review r0:F4: valid JSON of the wrong shape is unread content, not an empty listing."""
+    listing = userdocs.read_claude_plugins("~/.claude/plugins/installed_plugins.json", content)
+    assert listing.entries == () and listing.error is not None and listing.error[0] == "not_an_object"
+
+
+@pytest.mark.parametrize("content", [b"[]", b'"s"', b"3"])
+def test_a_marketplaces_state_file_of_another_shape_is_an_error(content):
+    listing = userdocs.read_claude_marketplaces("~/.claude/plugins/known_marketplaces.json", content)
+    assert listing.entries == () and listing.error is not None and listing.error[0] == "not_an_object"
+
+
+def test_a_plugins_state_file_without_plugins_is_an_empty_listing():
+    assert userdocs.read_claude_plugins("~/x", b'{"version": 2}') == userdocs.Listing()
+
+
+def test_a_codex_server_with_the_item_path_of_a_marketplace_keeps_both_apart_and_records_an_error():
+    """Review r1:F2: a server id `marketplaces.<name>` would share the marketplace's item path."""
+    content = (b'[mcp_servers."marketplaces.github"]\ncommand = "npx"\n\n'
+               b'[marketplaces.github]\nsource = "https://github.com/acme/plugins"\n')
+    config = userdocs.read_codex_config("~/.codex/config.toml", content)
+    assert config.document is not None
+    assert [entry.path for entry in config.listing.entries] == []
+    assert config.error is not None and "marketplaces.github" in config.error

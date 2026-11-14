@@ -196,6 +196,9 @@ def read_claude_plugins(path: str, content: bytes) -> Listing:
     except Refused as refused:
         return Listing(error=(refused.code, f"cannot be read as JSON ({refused.code})"))
     plugins = root.get("plugins") if isinstance(root, Obj) else None
+    if not isinstance(root, Obj) or ("plugins" in root and not isinstance(plugins, Obj)):
+        # Valid JSON of another shape is unread content, never an empty listing (review r0:F4, the limits rule)
+        return Listing(error=("not_an_object", "the plugins state file or its \"plugins\" value is not a JSON object; not judged"))
     entries: list[Entry] = []
     keys = list(plugins) if isinstance(plugins, Obj) else []
     for key in keys[:MAX_PLUGINS]:
@@ -214,7 +217,9 @@ def read_claude_marketplaces(path: str, content: bytes) -> Listing:
         root = _load(content)
     except Refused as refused:
         return Listing(error=(refused.code, f"cannot be read as JSON ({refused.code})"))
-    names = list(root) if isinstance(root, Obj) else []
+    if not isinstance(root, Obj):  # review r0:F4: another shape is unread content, never an empty listing
+        return Listing(error=("not_an_object", "the marketplaces state file is not a JSON object; not judged"))
+    names = list(root)
     entries = []
     for name in names[:MAX_PLUGINS]:
         record = root[name]
@@ -228,7 +233,7 @@ def read_claude_marketplaces(path: str, content: bytes) -> Listing:
 class CodexConfig:
     document: ConfigDocument | None
     listing: Listing
-    error: str | None = None  # the reason the file could not be read
+    error: str | None = None  # the reason the file, or some of its entries, could not be read
 
 
 def _notify_events(root: Obj) -> Any:
@@ -253,7 +258,9 @@ def read_codex_config(path: str, content: bytes) -> CodexConfig:
     keeps its own."""
     try:
         root = codex_toml.read(content)
-    except ValueError as exc:
+    except (ValueError, RecursionError) as exc:
+        # RecursionError: a value nested past what the parser can follow is this one file's error, never the whole scan's
+        # crash (review r0:F3)
         return CodexConfig(None, Listing(), f"is not valid UTF-8 TOML ({type(exc).__name__})")
     document = parse_selected("settings", path, content, lambda tree: ([tree.get("mcp_servers")], _notify_events(tree)),
                               root=root)
@@ -271,9 +278,20 @@ def read_codex_config(path: str, content: bytes) -> CodexConfig:
             continue
         name, _, marketplace = key.rpartition("@")
         entries.append(Entry("plugin", f"{path}#plugins.{key}", name or key, {"marketplace": marketplace or None}))
+    # A server whose id is `marketplaces.<name>` or `plugins.<key>` has the item path of that entry: the entry is not read and
+    # the file gets an error, so neither item is merged into the other or dropped without a word (review r1:F2).
+    servers = root.get("mcp_servers")
+    server_paths = {f"{path}#{server}" for server in servers} if isinstance(servers, Obj) else set()
+    taken = [entry for entry in entries if entry.path in server_paths]
+    entries = [entry for entry in entries if entry.path not in server_paths]
     kept = [entry for entry in entries if entry.kind == "marketplace"][:MAX_PLUGINS] + \
         [entry for entry in entries if entry.kind == "plugin"][:MAX_PLUGINS]
-    return CodexConfig(document, Listing(tuple(kept), cut=len(entries) - len(kept)))
+    error = None
+    if taken:
+        names = ", ".join(sorted(entry.path.partition("#")[2] for entry in taken))
+        error = (f"the [marketplaces] or [plugins] entries {names} have the item path of a server of the same id in "
+                 "[mcp_servers], so they were not read; rename the server")
+    return CodexConfig(document, Listing(tuple(kept), cut=len(entries) - len(kept)), error)
 
 
 @dataclass(frozen=True)

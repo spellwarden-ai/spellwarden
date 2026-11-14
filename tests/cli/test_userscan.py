@@ -272,3 +272,18 @@ def test_a_codex_server_a_marketplace_and_a_plugin_of_one_name_are_three_items_w
     assert "source" not in discovered.details[f"{base}#github"]
     assert discovered.details[f"{base}#marketplaces.github"]["source"] == "https://github.com/acme/plugins"
     assert discovered.details[f"{base}#plugins.x@github"]["marketplace_item"] == f"{base}#marketplaces.github"
+
+
+def test_a_codex_marketplace_shadowed_by_a_server_id_is_an_error_not_a_merge(tmp_path):
+    """Review r1:F2: the server stays itself, without the marketplace's source, and the scan is incomplete."""
+    home = make_home(tmp_path, "linux")
+    (home / ".codex").mkdir(exist_ok=True)
+    (home / ".codex" / "config.toml").write_text(
+        '[mcp_servers."marketplaces.github"]\ncommand = "npx"\n\n[marketplaces.github]\nsource = "https://github.com/acme/plugins"\n',
+        encoding="utf-8")
+    discovered = userscan.discover_home(str(home), "linux", {})
+    items = [item for item in discovered.found.items if item.path == "~/.codex/config.toml#marketplaces.github"]
+    assert [item.kind for item in items] == ["mcp-server"]
+    assert "source" not in discovered.details.get("~/.codex/config.toml#marketplaces.github", {})
+    errors = [error for error in discovered.found.errors if error.path == "~/.codex/config.toml"]
+    assert [error.code for error in errors] == ["unreadable"]
