@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import re
 
+from spellwarden_cli import instruction_files
 from spellwarden_cli.escape import log_lines, terminal
 from spellwarden_cli.output import agents as agent_view
 from spellwarden_cli.report import FREE_MODE_NOTICES, Report
@@ -79,6 +80,7 @@ def render(report: Report) -> str:
     by_item: dict[str, list] = {}
     for rf in report.findings:
         by_item.setdefault(rf.item, []).append(rf)
+    scopes = instruction_files.scopes(report.items)  # Phase 3 batch 1 spec 10.4: when each instruction file is applied
     for item in sorted(by_item):
         lines.append(terminal(item))
         for rf in by_item[item]:
@@ -86,6 +88,8 @@ def render(report: Report) -> str:
             line = "-" if f.location.line is None else str(f.location.line)
             accepted = f" (accepted: {terminal(rf.baseline['reason'])})" if rf.suppressed and rf.baseline else ""
             lines.append(f"  {f.severity} {f.rule_id} {terminal(f.location.path)}:{line} {terminal(f.title)}{accepted}")
+            if item in scopes:
+                lines.append(f"    {terminal(scopes[item])}")
         lines.append("")
     if report.lock.status in ("stale", "absent"):
         lines.append(f"lock: {report.lock.status}")
@@ -114,6 +118,8 @@ def render(report: Report) -> str:
         lines.append(f"notice {notice.code} {terminal(notice.path)}: {terminal(notice.message)}")
     for error in report.errors:
         lines.append(f"error {error.code} {terminal(error.path)}: {terminal(error.message)}")
+    if scopes:
+        lines.append(f"instruction files: {len(scopes)} scanned")
     lines.append(_summary(report))
     if report.connected is not None:
         lines.extend(connected_lines(report))

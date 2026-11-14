@@ -9,7 +9,7 @@ from collections.abc import Sequence
 
 from spellwarden_scan.gate import GATE_REASONS
 
-from spellwarden_cli import escape
+from spellwarden_cli import escape, instruction_files
 from spellwarden_cli.output import agents as agent_view
 from spellwarden_cli.output.text import connected_lines
 from spellwarden_cli.report import CONNECTED_ERRORS, Report, ReportFinding
@@ -84,6 +84,20 @@ def _findings(open_findings: Sequence[ReportFinding]) -> list[str]:
     if len(open_findings) > MAX_ROWS:
         lines += ["", f"{len(open_findings) - MAX_ROWS} more findings are in the JSON and SARIF reports."]
     return lines + [""]
+
+
+def _instruction_files(report: Report) -> list[str]:
+    """Phase 3 batch 1 spec 10.4: how many instruction files were scanned and, for each one with an open finding, when the agent
+    applies it (a table row has no line under it, so the scope words sit here). Nothing when there is no instruction file."""
+    scopes = instruction_files.scopes(report.items)
+    if not scopes:
+        return []
+    lines = [f"**Instruction files:** {_plural(len(scopes), 'file')} scanned.", ""]
+    with_findings = sorted({item.item for item in report.unsuppressed() if item.item in scopes})
+    lines += [f"- {_code(path)}: {_text(scopes[path])}" for path in with_findings[:MAX_ROWS]]
+    if len(with_findings) > MAX_ROWS:
+        lines.append(f"- and {len(with_findings) - MAX_ROWS} more in the JSON report")
+    return [*lines, ""] if with_findings else lines
 
 
 def _errors(report: Report) -> list[str]:
@@ -203,7 +217,8 @@ def render(report: Report) -> str:
     section = connected_section(report)
     if section:
         lines.append(section)
-    lines += _findings(open_findings) + _errors(report) + _lock(report) + _probes(report) + _agents(report)
+    lines += _findings(open_findings) + _instruction_files(report)
+    lines += _errors(report) + _lock(report) + _probes(report) + _agents(report)
     if accepted:
         lines += [f"{_plural(accepted, 'accepted finding')} with {'its' if accepted == 1 else 'their'} reasons "
                   f"{'is' if accepted == 1 else 'are'} listed in the baseline file.", ""]

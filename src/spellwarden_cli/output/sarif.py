@@ -8,7 +8,7 @@ from urllib.parse import quote
 
 from spellwarden_scan import Rule
 
-from spellwarden_cli import escape
+from spellwarden_cli import escape, instruction_files
 from spellwarden_cli.output.upload import upload_path
 from spellwarden_cli.report import Report, ReportFinding
 
@@ -37,7 +37,7 @@ def _rule(rule: Rule) -> dict:
     }
 
 
-def _result(report: Report, item: ReportFinding, index: dict[str, int]) -> dict:
+def _result(report: Report, item: ReportFinding, index: dict[str, int], instructions: dict[str, dict]) -> dict:
     finding = item.finding
     text = f"{finding.title}: {finding.evidence}" if finding.evidence else finding.title
     physical: dict = {"artifactLocation": {"uri": quote(upload_path(report, finding.location.path), safe="/")}}
@@ -57,6 +57,8 @@ def _result(report: Report, item: ReportFinding, index: dict[str, int]) -> dict:
     }
     if finding.rule_id in index:
         result["ruleIndex"] = index[finding.rule_id]
+    if item.item in instructions:  # a finding of an instruction file says which format it is and when the agent applies it
+        result["properties"] = {"instructions": instructions[item.item]}
     if item.suppressed:
         reason = (item.baseline or {}).get("reason", "")
         result["suppressions"] = [{"kind": "external", "justification": escape.message(reason)}]
@@ -66,13 +68,16 @@ def _result(report: Report, item: ReportFinding, index: dict[str, int]) -> dict:
 def render(report: Report) -> str:
     rules = list(report.rules)
     index = {rule.id: position for position, rule in enumerate(rules)}
+    scopes = instruction_files.scopes(report.items)
+    instructions = {entry.path: {"format": entry.format, "scope": escape.message(scopes[entry.path])}
+                    for entry in report.items if entry.kind == "instructions"}
     document = {
         "$schema": SCHEMA_URI,
         "version": "2.1.0",
         "runs": [{
             "tool": {"driver": {"name": "Spellwarden", "semanticVersion": report.scanner_version,
                                 "informationUri": INFORMATION_URI, "rules": [_rule(rule) for rule in rules]}},
-            "results": [_result(report, item, index) for item in report.findings],
+            "results": [_result(report, item, index, instructions) for item in report.findings],
         }],
     }
     return json.dumps(document, indent=2, sort_keys=True, ensure_ascii=True) + "\n"
