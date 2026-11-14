@@ -16,7 +16,7 @@ from spellwarden_scan import (RULES_VERSION, Finding, OrgRuleBudget, RuleSet, __
                               scan_skill_package)
 
 from spellwarden_cli import agents as agents_module
-from spellwarden_cli import discover, files
+from spellwarden_cli import details, discover, files
 from spellwarden_cli.ci import ORG_RE
 from spellwarden_cli.discover import Discovery, SkillPackage
 from spellwarden_cli.report import LockState, Notice, ProbeReport, Report, ReportFinding
@@ -156,7 +156,7 @@ def scan(options: ScanOptions) -> Report:
         scanner_version=__version__, rules_version=RULES_VERSION, as_of=options.as_of.isoformat(),
         fail_on=options.settings.fail_on, items=found.items, findings=tuple(findings), probes=tuple(probes), lock=lock,
         notices=tuple(notices), errors=tuple(errors), repo_prefix=fileset.repo_prefix, rules=rules,
-        agents=tuple(agent_reports),
+        agents=tuple(agent_reports), root_name=os.path.basename(options.root), details=details.item_details(found),
         connected=({**connected.report_block(state, context), "registry": registry}
                    if state is not None and context is not None else None))
     report = report.sorted()

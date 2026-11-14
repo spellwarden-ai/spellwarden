@@ -48,6 +48,7 @@ REFUSALS = ("private_address", "not_https")
 MAX_TEXT = prober.MAX_DESCRIPTION
 MAX_ITEMS = prober.MAX_TOOLS
 MAX_KEYS = 200
+MAX_TOOL_NAMES = 200  # the tool names one probed server keeps for the CycloneDX document (phase 3 batch 2a spec 7.3)
 MAX_DEPTH = 8
 
 
@@ -185,7 +186,8 @@ def _probe_one(target: ProbeTarget, rules: RuleSet, budget: _Budget, fetcher_fac
     # The server decides how much it sends, so a list longer than the probe reads is shown, never a failed scan (README
     # "Limits"); SW-MCP-011 judged what was read. Tools keep their 1.9.0 rule: a list not read whole keeps SW-MCP-001 high.
     incomplete = tuple(name for name in result.lists_read if not getattr(result, f"{name}_complete"))
-    return ProbeReport(target.item, "probed", None, evaluated, incomplete), findings, None
+    tools = tuple(tool.name for tool in result.tools)[:MAX_TOOL_NAMES]
+    return ProbeReport(target.item, "probed", None, evaluated, incomplete, tools), findings, None
 
 
 class ProbeTask(Protocol):

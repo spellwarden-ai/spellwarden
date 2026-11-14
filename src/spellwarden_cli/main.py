@@ -54,7 +54,7 @@ def _add_scan(commands) -> None:
     scan = commands.add_parser("scan", help="scan a directory for agent content and judge it")
     scan.add_argument("path", nargs="?", default=".", help="the scan root (default: the current directory)")
     scan.add_argument("--format", action=_FormatAction, metavar="FMT", dest="format",
-                      help="text (default), json, sarif, markdown or gitlab-codequality; repeatable")
+                      help="text (default), json, sarif, markdown, gitlab-codequality or cyclonedx; repeatable")
     scan.add_argument("--output", action=_OutputAction, metavar="FILE", help="the file the preceding --format writes")
     scan.add_argument("--fail-on", choices=FAIL_ON, default=None, help="fail at this severity or worse (default: high)")
     scan.add_argument("--locked", action="store_true", help="fail when .spellwarden/lock.json is absent or stale")
