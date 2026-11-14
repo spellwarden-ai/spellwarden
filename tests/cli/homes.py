@@ -27,3 +27,20 @@ def make_home(base: Path, system: str) -> Path:
         if "{{HOME}}" in text:
             path.write_bytes(text.replace("{{HOME}}", escaped).encode("utf-8"))
     return home
+
+
+# The variables that move a client's files (`clients.BASES`); a test removes the developer's own before it scans a fixture home.
+USER_VARIABLES = ("CLAUDE_CONFIG_DIR", "CODEX_HOME", "COPILOT_HOME", "XDG_CONFIG_HOME", "APPDATA", "CLAUDE_CODE_PLUGIN_CACHE_DIR")
+PLATFORMS = {"linux": "linux", "macos": "darwin", "windows": "win32"}
+
+
+def isolate(monkeypatch, home: Path, system: str | None = None) -> dict[str, str]:
+    """The environment of a `run_cli` that scans `home` as its user's home (as on `system` when given): the base variables
+    removed, `HOME` and `USERPROFILE` set."""
+    for name in USER_VARIABLES:
+        monkeypatch.delenv(name, raising=False)
+    if system is not None:
+        from spellwarden_cli import workstation
+
+        monkeypatch.setattr(workstation, "_platform", lambda: PLATFORMS[system])
+    return {"HOME": str(home), "USERPROFILE": str(home)}

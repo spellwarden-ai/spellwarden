@@ -52,7 +52,12 @@ class _OutputAction(argparse.Action):
 
 def _add_scan(commands) -> None:
     scan = commands.add_parser("scan", help="scan a directory for agent content and judge it")
-    scan.add_argument("path", nargs="?", default=".", help="the scan root (default: the current directory)")
+    scan.add_argument("path", nargs="?", default=None, help="the scan root (default: the current directory)")
+    scan.add_argument("--user", action="store_true",
+                      help="scan the agent clients' configuration in your home directory instead of a repository")
+    scan.add_argument("--inventory", action="store_true", help="with --user: list what is installed, without judging it")
+    scan.add_argument("--device-label", metavar="TEXT",
+                      help="with --user --upload: the name your organisation sees for this device (kept for later runs)")
     scan.add_argument("--format", action=_FormatAction, metavar="FMT", dest="format",
                       help="text (default), json, sarif, markdown, gitlab-codequality or cyclonedx; repeatable")
     scan.add_argument("--output", action=_OutputAction, metavar="FILE", help="the file the preceding --format writes")
@@ -72,7 +77,8 @@ def _add_scan(commands) -> None:
     scan.add_argument("--no-telemetry", action="store_true", help="send no usage ping")
     upload = scan.add_mutually_exclusive_group()
     upload.add_argument("--upload", dest="upload", action="store_true", default=None,
-                        help="in connected mode, upload the results in CI (default: on)")
+                        help="in connected mode, upload the results in CI (default: on); with --user, upload the "
+                             "workstation inventory (default: off)")
     upload.add_argument("--no-upload", dest="upload", action="store_false")
     talk = scan.add_mutually_exclusive_group()
     talk.add_argument("--quiet", action="store_true", help="print only the requested outputs and errors")
@@ -217,14 +223,45 @@ def write_outputs(report: Report, outputs: list[tuple[str, str | None]], *, stdo
             raise
 
 
+USER_FORMATS_INVENTORY = ("text", "json", "cyclonedx")
+
+
+def _usage_problem(args: argparse.Namespace, outputs: list[tuple[str, str | None]]) -> str | None:
+    """Phase 3 batch 2a spec 11.3: the flags `--user`, `--inventory` and `--device-label` allow and refuse, as argparse would
+    word a usage error."""
+    if not args.user:
+        for flag, given in (("--inventory", args.inventory), ("--device-label", args.device_label is not None)):
+            if given:
+                return f"{flag} needs --user"
+        return None
+    for flag, given in (("PATH", args.path is not None), ("--locked", args.locked), ("--baseline", args.baseline is not None),
+                        ("--config", args.config is not None)):
+        if given:
+            return f"--user scans the home directory and cannot be used with {flag}"
+    if args.inventory and args.probe:
+        return "--inventory lists without judging and cannot be used with --probe"
+    if args.inventory and any(fmt not in USER_FORMATS_INVENTORY for fmt, _ in outputs):
+        return f"--inventory writes only {', '.join(USER_FORMATS_INVENTORY)}"
+    return None
+
+
 def cmd_scan(args: argparse.Namespace) -> int:
     outputs = [tuple(pair) for pair in (args.outputs or [["text", None]])]
     if sum(1 for _, path in outputs if path is None) > 1:
         _stderr("at most one format can go to stdout; give the others an --output")
         return 2
+    problem = _usage_problem(args, outputs)
+    if problem is not None:
+        _stderr(problem)
+        return 2
     from spellwarden_cli import ci, ping
 
-    credentials = read_credentials(os.environ)  # first: the four secrets leave the environment before anything else runs
+    credentials = read_credentials(os.environ)  # first: the secrets leave the environment before anything else runs
+    if args.user:
+        from spellwarden_cli import workstation  # here: the user scan and the upload are this command's other mode
+
+        return workstation.cmd_user(args, outputs, credentials)
+    args.path = "." if args.path is None else args.path
     root = os.path.abspath(args.path)
     context = ci.detect(os.environ, git_remote=lambda: ci.git_remote_of(root, env=os.environ),
                         git_head=lambda: ci.git_head_of(root, env=os.environ),

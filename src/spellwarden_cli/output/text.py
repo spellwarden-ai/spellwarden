@@ -5,8 +5,9 @@ command (`escape.log_lines`)."""
 from __future__ import annotations
 
 import re
+from collections import Counter
 
-from spellwarden_cli import instruction_files
+from spellwarden_cli import clients, instruction_files
 from spellwarden_cli.escape import log_lines, terminal
 from spellwarden_cli.output import agents as agent_view
 from spellwarden_cli.report import FREE_MODE_NOTICES, Report
@@ -28,6 +29,54 @@ def _summary(report: Report) -> str:
         verdict = _VERDICT[code]
     return (f"{sum(counts.values())} findings ({counts['critical']} critical, {counts['high']} high, "
             f"{counts['medium']} medium, {counts['low']} low), {accepted} accepted; {verdict}")
+
+
+_DOCUMENT_KINDS = ("mcp-config", "settings", "hooks", "plugin-manifest")
+_COUNTED = (("mcp-server", "server"), ("skill", "skill"), ("plugin", "plugin"), ("marketplace", "marketplace"))
+
+
+def _plural(count: int, word: str) -> str:
+    return f"{count} {word}" if count == 1 else f"{count} {word}s"
+
+
+def client_summary(report: Report, client: str) -> str:
+    """Phase 3 batch 2a spec 11.3: what a client of a `--user` report has, in words (`4 servers, 12 skills, 2 plugins, 1
+    marketplace, 3 hooks, 2 instruction files`); counts of zero are left out."""
+    mine = [item for item in report.items if client in item.clients]
+    counts = Counter(item.kind for item in mine)
+    hooks = sum(report.details.get(item.path, {}).get("hooks", 0) for item in mine if item.kind in _DOCUMENT_KINDS)
+    parts = [_plural(counts[kind], word) for kind, word in _COUNTED if counts[kind]]
+    parts += [_plural(hooks, "hook")] if hooks else []
+    parts += [_plural(counts["instructions"], "instruction file")] if counts["instructions"] else []
+    return ", ".join(parts) if parts else "found, nothing to list"
+
+
+def client_lines(report: Report) -> list[str]:
+    """One line per client of a `--user` report: its name and `client_summary`, or `not found`. Nothing for a repository."""
+    if report.clients is None:
+        return []
+    return [f"{clients.CLIENT_NAMES[entry['client']]}: "
+            f"{client_summary(report, entry['client']) if entry['found'] else 'not found'}" for entry in report.clients]
+
+
+def _inventory_lines(report: Report) -> list[str]:
+    """`--inventory`: every item under the first client that reaches it, a server with its transport and its reduced endpoint
+    or command identity (never an argument or an environment value)."""
+    lines: list[str] = []
+    for entry in report.clients or ():
+        mine = [item for item in report.items if item.clients and item.clients[0] == entry["client"]]
+        if not mine:
+            continue
+        lines.append(f"{clients.CLIENT_NAMES[entry['client']]}:")
+        for item in mine:
+            facts = report.details.get(item.path, {})
+            extra = [facts[key] for key in ("transport", "endpoint", "command_identity", "command_reason") if facts.get(key)]
+            others = item.clients[1:]
+            if others:
+                extra.append("also " + ", ".join(clients.CLIENT_NAMES[name] for name in others))
+            suffix = f" ({terminal(', '.join(extra))})" if extra else ""
+            lines.append(f"  {item.kind} {terminal(item.path)}{suffix}")
+    return lines
 
 
 _UNAVAILABLE = re.compile(r"Connected mode was not available \(([a-z_]+)\)")
@@ -77,6 +126,11 @@ def render(report: Report) -> str:
     lines: list[str] = []
     if report.connected is None:
         lines.extend(connected_lines(report))  # the first line says that connected mode was not used
+    if report.clients is not None:  # `scan --user`: one line per client, then (`--inventory`) every item
+        lines.extend(client_lines(report))
+        if report.user == "inventory":
+            lines.extend(_inventory_lines(report))
+        lines.append("")
     by_item: dict[str, list] = {}
     for rf in report.findings:
         by_item.setdefault(rf.item, []).append(rf)
@@ -118,9 +172,13 @@ def render(report: Report) -> str:
         lines.append(f"notice {notice.code} {terminal(notice.path)}: {terminal(notice.message)}")
     for error in report.errors:
         lines.append(f"error {error.code} {terminal(error.path)}: {terminal(error.message)}")
-    if scopes:
+    if scopes and report.user != "inventory":
         lines.append(f"instruction files: {len(scopes)} scanned")
-    lines.append(_summary(report))
+    if report.user == "inventory":
+        lines.append(f"{_plural(len(report.items), 'item')} listed, not judged (--inventory)"
+                     + ("; incomplete: see the errors above" if report.errors else ""))
+    else:
+        lines.append(_summary(report))
     if report.connected is not None:
         lines.extend(connected_lines(report))
     return log_lines("\n".join(lines) + "\n")
