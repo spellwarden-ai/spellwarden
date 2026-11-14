@@ -9,7 +9,9 @@ MCP probe. When a server declares the capability, the probe also lists its promp
 page each, at most 200 entries, with a completeness flag, like tools) and keeps the server's own instructions (at most
 16,000 characters). SW-MCP-011 (now "MCP server text contains instruction-like text") and the organisation-rule predicate
 tool_description_matches read these texts too; a finding names its place: prompt:<name>, resource:<uri>,
-resource_template:<uriTemplate> or server_instructions. In prompts, resources, templates and instructions only the
+resource_template:<uriTemplate> or server_instructions (an address drops any userinfo, query and fragment, and a prompt
+name or address is masked like evidence and cut at 200 characters). The evidence of such a finding is the matched words
+with their surroundings; its fingerprint is over the whole text. In prompts, resources, templates and instructions only the
 injection and concealment patterns apply, not the steering patterns. The probe never calls resources/read, prompts/get or
 tools/call, and refuses to send any method outside an allow-list. Precision on these four places has not been measured;
 SW-MCP-011's published figures are for tool descriptions. A server that declares neither capability and sends no
@@ -22,13 +24,15 @@ each finding of the JSON report (`tags`). The report's `schema` stays 1. Organis
 
 Instruction files. The scanner now finds AGENTS.md, CLAUDE.md and GEMINI.md at any depth, .github/copilot-instructions.md,
 Cursor rules (.cursor/rules/**/*.mdc and .cursorrules) and Windsurf rules (.windsurf/rules and .devin/rules, .windsurfrules)
-and scans each as an instruction file (every skill rule except the two about SKILL.md metadata). The front matter of a rule
+whatever their case, and scans each as an instruction file (every skill rule except the two about SKILL.md metadata; a
+rule file inside a skill directory is scanned by that skill, still read as Markdown). The front matter of a rule
 file (description, globs, alwaysApply, trigger) is read and shown with its findings. Each file is an item of kind
 "instructions", pinned in .spellwarden/lock.json (a repository with a lock sees them as added, so `spellwarden lock` has to
 be run once; a lock that holds them is unreadable to 1.12.0 and older, so upgrade every scanner that reads it), reported in
 every format and uploaded in connected mode. Set `instructions: false` in .spellwarden/config.yml to
-leave them out; the key is unknown to older scanners, which refuse a config that has it. A repository with no instruction
-files produces the same findings, items, lock and exit code as on 1.12.0.
+leave them out; the key is unknown to older scanners, which refuse a config that has it. At most 200 instruction files are read per
+scan root, the shallowest first. A repository with no instruction files produces the same findings, items, lock and exit
+code as on 1.12.0 (each finding of the JSON report also carries its `tags`).
 
 ## 1.12.0 (2026-11-13)
 

@@ -8,7 +8,7 @@ import re
 from collections.abc import Iterator
 
 from spellwarden_scan.evidence import bounded_evidence, fingerprint
-from spellwarden_scan.evidence import around
+from spellwarden_scan.evidence import excerpt_around
 from spellwarden_scan.evidence import redacted_url as _redacted
 from spellwarden_scan.model import Finding, Location, ProbeResult, ToolInfo
 from spellwarden_scan.probe import probe_texts, text_of
@@ -775,10 +775,18 @@ def _where(probe: ProbeResult) -> str:
     return _redacted(probe.endpoint or probe.repository or "server")
 
 
-def _finding(rule_id: str, severity: str, probe: ProbeResult, evidence: str, *, path: str | None = None) -> Finding:
-    """The fingerprint is over the original text; the stored evidence is `bounded_evidence` of it."""
+def _first_match(text: str) -> tuple[int, int] | None:
+    """The span of the earliest injection or concealment match in `text`, or None."""
+    found = [m for m in (p.search(text) for p in (*P.INJECTION, *_TOOL_CONCEALMENT)) if m is not None]
+    return min(((m.start(), m.end()) for m in found), default=None)
+
+
+def _finding(rule_id: str, severity: str, probe: ProbeResult, evidence: str, *, path: str | None = None,
+             shown: str | None = None) -> Finding:
+    """The fingerprint is over the original text; the stored evidence is `bounded_evidence` of it, or of `shown` (an excerpt
+    of it) when given."""
     location = path or _where(probe)
-    return Finding(rule_id, severity, TITLES[rule_id], Location(location, None), bounded_evidence(evidence),
+    return Finding(rule_id, severity, TITLES[rule_id], Location(location, None), bounded_evidence(evidence if shown is None else shown),
                    fingerprint(rule_id, location, evidence), False)
 
 
@@ -971,14 +979,12 @@ def _mcp_011(probe: ProbeResult) -> Iterator[Finding]:
     # advertises are read for injection and concealment only, never for steering: a prompt or the server's instructions exist to
     # steer a model ("call search before answering questions about the catalogue"), so steering words there are the design. The
     # precision of the rule on these four places has not been measured.
-    # A finding there shows and fingerprints the first match with its surroundings, not the whole text, which can be 16,000
-    # characters of instructions (r0:F2); a tool keeps its whole description, so its 1.12.0 fingerprints hold.
+    # A finding there shows the first match with its surroundings, not the start of a text that can be 16,000 characters of
+    # instructions (r0:F2); the fingerprint stays over the whole text, as a tool's does, so a phrase added later is new.
     for path, text in probe_texts(probe):
         seen = " ".join(visible(text).split())
-        matches = [m for m in (p.search(seen) for p in (*P.INJECTION, *_TOOL_CONCEALMENT)) if m is not None]
-        if matches:
-            first = min(matches, key=lambda m: m.start())
-            yield _finding("SW-MCP-011", "high", probe, around(seen, first.start(), first.end()), path=path)
+        if any(p.search(seen) for p in P.INJECTION) or any(p.search(seen) for p in _TOOL_CONCEALMENT):
+            yield _finding("SW-MCP-011", "high", probe, text, path=path, shown=excerpt_around(seen, _first_match))
 
 
 TITLES = {

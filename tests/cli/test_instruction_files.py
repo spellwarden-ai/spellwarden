@@ -26,7 +26,7 @@ def test_the_paths_of_the_table_are_instruction_files(path, expected):
 
 
 @pytest.mark.parametrize("path", [
-    "README.md", "agents.md", "Agents.md", "claude.md", "gemini.md", "AGENT.md", "AGENTS.local.md", "CLAUDE.local.md", "AGENTS.mdx",
+    "README.md", "AGENT.md", "AGENTS.local.md", "CLAUDE.local.md", "AGENTS.mdx",
     ".github/instructions/python.instructions.md", ".github/copilot-instructions.md.bak", "docs/.github/copilot-instructions.md",
     "sub/.cursorrules", "sub/.windsurfrules", ".cursor/rules/old.md", ".cursor/rules/style.mdc.bak", ".cursor/style.mdc",
     "rules/style.mdc", ".windsurf/rules/sub/team.md", ".windsurf/rules/team.txt", ".windsurf/global_rules.md", ".devin/team.md",
@@ -140,3 +140,14 @@ def test_scopes_covers_the_instruction_items_only():
     items = [Item("skill", "skills/a"), Item("instructions", "AGENTS.md", "agents-md"),
              Item("instructions", ".cursor/rules/a.mdc", "cursor-mdc", None)]
     assert instructions.scopes(items) == {"AGENTS.md": "Applied: always", ".cursor/rules/a.mdc": "Applied when asked for"}
+
+
+@pytest.mark.parametrize(("path", "expected"), [
+    ("claude.md", "claude-md"), ("Agents.MD", "agents-md"), ("docs/gemini.md", "gemini-md"),
+    (".GITHUB/Copilot-Instructions.md", "copilot-instructions"), (".CursorRules", "cursorrules"), (".WindsurfRules", "windsurf-rules"),
+    (".Cursor/Rules/style.MDC", "cursor-mdc"), ("app/.cursor/RULES/sub/a.mdc", "cursor-mdc"),
+    (".Windsurf/rules/team.MD", "windsurf-rules"), (".DEVIN/Rules/deploy.md", "windsurf-rules"),
+])
+def test_a_path_in_another_case_is_the_same_instruction_file(path, expected):
+    """macOS and Windows open `CLAUDE.md` when the repository holds `claude.md`: the scanner must read what the agent loads."""
+    assert instructions.format_of(path) == expected

@@ -182,6 +182,7 @@ def engine_findings(found: Discovery, rules: RuleSet, notices: list[Notice], err
         # a case variant of SKILL.md is read under the engine's SKILL.md key and reported as written (spec 6.5)
         result = scan_skill_package(skill.engine_files(), rules, root="" if skill.path == "." else skill.path,
                                     executable_paths=skill.engine_executable(), nested_roots=skill.nested,
+                                    markdown_paths=skill.markdown,
                                     **({"org_rule_budget": org_budget()} if org_budget is not None else {}))
         if result.org_rules_incomplete and errors is not None:
             errors.append(connected.org_rules_incomplete_error(result.org_rules_incomplete, skill.path))

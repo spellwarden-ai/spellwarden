@@ -73,6 +73,9 @@ class SkillPackage:
     nested: tuple[str, ...] = ()
     # the files the followed member links point at, scan-root paths (O3 spec 6.6: a change to one is a change to the skill)
     targets: frozenset[str] = frozenset()
+    # 1.13.0 (Phase 3 batch 1 spec 10.2): the instruction files this skill owns, scan-root paths, which its scan reads as
+    # Markdown whatever their suffix (a `.mdc`, `.cursorrules` or `.windsurfrules` file); empty with `instructions: false`
+    markdown: frozenset[str] = frozenset()
 
     def engine_key(self) -> str:
         """The key the engine reads the skill file under (`frontmatter.skill_md_path`)."""
@@ -664,6 +667,11 @@ def discover(fileset: FileSet, *, listed_cards: Sequence[str] = (), agents_confi
     cards = _agent_cards(builder, listed_cards)
     # Before the loop below: a link followed here is no `symlink_skipped`.
     instruction_list = _instruction_files(builder, frozenset(skill.path for skill in skills)) if instructions else []
+    if instructions:
+        # an instruction file inside a skill is scanned by that skill, once (one owner per file), and read as Markdown there
+        # as it would be on its own: otherwise a root SKILL.md would turn the Markdown rules off for every rule file
+        skills = [replace(skill, markdown=frozenset(p for p in skill.files if instruction_files.format_of(p) is not None))
+                  for skill in skills]
     for path in sorted(builder.links):
         if path in builder.skipped:
             refusal = builder.resolved[path].refusal
@@ -703,18 +711,23 @@ def _owned_by_a_skill(path: str, skill_directories: frozenset[str]) -> bool:
 
 def _instruction_files(builder: _Builder, skill_directories: frozenset[str]) -> list[InstructionFile]:
     """The instruction files of the file set (Phase 3 batch 1 spec 10.2, 10.3), in path order, at most
-    `instruction_files.MAX_FILES` (the notice `instructions_limit` counts the rest, which are not read). A symbolic link at one of
-    these names is followed when it can be, as at the names of a configuration file; one that cannot be followed is the notice
+    `instruction_files.MAX_FILES`, the shallowest first (the notice `instructions_limit` counts the rest, which are not read).
+    A symbolic link at one of these names is followed when it can be, as at the names of a configuration file; one that cannot
+    be followed is the notice
     `symlink_skipped` it was on 1.12.0, never an error. A rule file whose front matter cannot be read still scans and has the
     notice `instructions_front_matter`."""
-    chosen = sorted(path for path in {*builder.paths, *builder.links}
-                    if instruction_files.format_of(path) is not None and not _owned_by_a_skill(path, skill_directories))
+    # Shallowest first, then by path: past the limit, the files at the root and in the fixed places an agent reads first are
+    # kept, so decoy files deep in the tree cannot push the root `AGENTS.md` or `CLAUDE.md` out of the scan. What is read is
+    # then handled in path order.
+    chosen = sorted((path for path in {*builder.paths, *builder.links}
+                     if instruction_files.format_of(path) is not None and not _owned_by_a_skill(path, skill_directories)),
+                    key=lambda path: (path.count("/"), path))
     limit = instruction_files.MAX_FILES
     if len(chosen) > limit:
         builder.notices.append(Notice("instructions_limit", "", f"{len(chosen) - limit} more instruction files were not read: "
                                       f"the scanner reads at most {limit} per scan root"))
     found: list[InstructionFile] = []
-    for path in chosen[:limit]:
+    for path in sorted(chosen[:limit]):
         if not _follow_quietly(builder, path):
             continue
         content = builder.read(path)

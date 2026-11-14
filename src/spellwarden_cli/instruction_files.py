@@ -2,8 +2,9 @@
 matter of a rule file, and how a file's scope is put in words. Pure functions of a path and bytes; `discover.py` finds the files,
 `run.py` scans them and the output modules print `instruction_scope`.
 
-The table of 10.2, as each tool documented its layout on 2026-11-13. Paths are scan-root paths with `/`, matched exactly as
-written (no case folding); each row is a `format`:
+The table of 10.2, as each tool documented its layout on 2026-11-13. Paths are scan-root paths with `/`, matched whatever their
+case and Unicode form (NFC, then case folding, as macOS and Windows open names and as configuration file names match): a
+`claude.md` committed to a repository is what an agent on those systems loads as `CLAUDE.md`. Each row is a `format`:
 
 - `agents-md`: a file named `AGENTS.md`, at any depth.
 - `claude-md`: a file named `CLAUDE.md`, at any depth.
@@ -18,6 +19,8 @@ from __future__ import annotations
 
 import posixpath
 
+from spellwarden_scan.identity import fold_skill_name as _fold
+
 FORMATS = ("agents-md", "claude-md", "gemini-md", "copilot-instructions", "cursor-mdc", "cursorrules", "windsurf-rules")
 MAX_FILES = 200            # instruction files read per scan root; the rest are the notice `instructions_limit`
 FRONT_MATTER_WINDOW = 4096  # the closing `---` must be within this many bytes of the file's start
@@ -25,7 +28,7 @@ MAX_GLOBS = 20
 MAX_GLOB = 200
 MAX_DESCRIPTION = 300
 MAX_TRIGGER = 32
-_NAMED = {"AGENTS.md": "agents-md", "CLAUDE.md": "claude-md", "GEMINI.md": "gemini-md"}
+_NAMED = {"agents.md": "agents-md", "claude.md": "claude-md", "gemini.md": "gemini-md"}  # folded names
 # The keys read from the front matter of a rule file, by format: Cursor writes `description`, `globs` and `alwaysApply`,
 # Windsurf and Devin `trigger`, `globs` and `description`. No other format has its front matter read.
 _FRONT_MATTER_KEYS = {"cursor-mdc": ("description", "globs", "alwaysApply"),
@@ -37,15 +40,16 @@ ASKED = "Applied when asked for"
 
 def format_of(path: str) -> str | None:
     """The `format` of the instruction file at the scan-root path `path`, or None when it is not one."""
-    parts = path.split("/")
+    folded = _fold(path)
+    parts = folded.split("/")
     name, directories = parts[-1], parts[:-1]
     if name in _NAMED:
         return _NAMED[name]
-    if path == ".github/copilot-instructions.md":
+    if folded == ".github/copilot-instructions.md":
         return "copilot-instructions"
-    if path == ".cursorrules":
+    if folded == ".cursorrules":
         return "cursorrules"
-    if path == ".windsurfrules":
+    if folded == ".windsurfrules":
         return "windsurf-rules"
     if name.endswith(".mdc") and any(a == ".cursor" and b == "rules" for a, b in zip(directories, directories[1:], strict=False)):
         return "cursor-mdc"

@@ -98,6 +98,39 @@ def test_over_200_files_give_the_notice_and_the_rest_are_not_read(make_repo, tmp
     assert len([f for f in report["findings"] if f["rule_id"] == "SW-SKL-001"]) == 200 and code == 1
 
 
+def test_past_the_limit_the_shallowest_files_are_read_so_deep_decoys_cannot_push_the_root_file_out(make_repo, tmp_path, run_cli):
+    tree = {**PLAIN, **{f"a/d{number:03d}/AGENTS.md": "# A\n\n" for number in range(200)}, "CLAUDE.md": "# C\n\n" + INJECTION,
+            "zz/AGENTS.md": "# A\n\n" + INJECTION}
+    code, report, _err = scan(run_cli, make(make_repo, tmp_path, tree))
+    read = [item["path"] for item in instruction_items(report)]
+    assert len(read) == 200 and read == sorted(read)
+    assert "CLAUDE.md" in read and "zz/AGENTS.md" in read and "a/d199/AGENTS.md" not in read and "a/d198/AGENTS.md" not in read
+    assert [n["message"] for n in report["notices"] if n["code"] == "instructions_limit"] == [
+        "2 more instruction files were not read: the scanner reads at most 200 per scan root"]
+    assert sorted(f["item"] for f in report["findings"] if f["rule_id"] == "SW-SKL-001") == ["CLAUDE.md", "zz/AGENTS.md"]
+    assert code == 1
+
+
+def test_a_rule_file_inside_a_skill_is_read_as_markdown_by_that_skill(make_repo, tmp_path, run_cli):
+    """A root SKILL.md owns every file; its scan still reads a `.mdc`, `.cursorrules` and `.windsurfrules` as Markdown."""
+    tree = {"SKILL.md": SKILL, ".cursor/rules/x.mdc": INJECTION, ".cursorrules": INJECTION, ".windsurfrules": INJECTION}
+    _code, report, _err = scan(run_cli, make(make_repo, tmp_path, tree))
+    assert instruction_items(report) == []
+    found = [f for f in report["findings"] if f["rule_id"] == "SW-SKL-001"]
+    assert sorted((f["item"], f["location"]["path"]) for f in found) == [
+        (".", ".cursor/rules/x.mdc"), (".", ".cursorrules"), (".", ".windsurfrules")]
+    _code, off, _err = scan(run_cli, make(make_repo, tmp_path, {**tree, ".spellwarden/config.yml": "instructions: false\n"}, "off"))
+    assert [f for f in off["findings"] if f["rule_id"] == "SW-SKL-001"] == []
+
+
+def test_an_instruction_file_named_in_another_case_is_found(make_repo, tmp_path, run_cli):
+    tree = {**PLAIN, "claude.md": "# c\n\n" + INJECTION, ".Cursor/Rules/x.MDC": INJECTION}
+    _code, report, _err = scan(run_cli, make(make_repo, tmp_path, tree))
+    assert [(item["path"], item["format"]) for item in instruction_items(report)] == [
+        (".Cursor/Rules/x.MDC", "cursor-mdc"), ("claude.md", "claude-md")]
+    assert sorted(f["item"] for f in report["findings"] if f["rule_id"] == "SW-SKL-001") == [".Cursor/Rules/x.MDC", "claude.md"]
+
+
 def test_a_front_matter_that_cannot_be_read_still_scans_and_has_a_notice(make_repo, tmp_path, run_cli):
     tree = {**PLAIN, ".cursor/rules/broken.mdc": "---\ndescription: never closed\n" + INJECTION,
             ".cursor/rules/ok.mdc": "---\nglobs: *.ts\n---\n" + INJECTION}

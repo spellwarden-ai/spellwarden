@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import re
 import unicodedata
+from collections.abc import Callable
 
 from spellwarden_scan.rules.patterns import (
     ASSIGNED_SECRET, ASSIGNED_VALUE, CREDENTIAL_PATTERNS, PLACEHOLDER_VALUE, name_tokens, secret_named,
@@ -354,10 +355,16 @@ def mask_credentials(text: str) -> str:
 MATCH_MARGIN = 100  # characters kept on each side of a match in a long text (1.13.0, r0:F2)
 
 
-def around(text: str, start: int, end: int) -> str:
-    """The part of `text` a finding in a long place shows and fingerprints (1.13.0, r0:F2): the match and up to `MATCH_MARGIN`
-    characters on each side, so the matched words are in the evidence and an edit elsewhere in the text keeps the fingerprint."""
-    return text[max(0, start - MATCH_MARGIN):end + MATCH_MARGIN]
+def excerpt_around(text: str, find: Callable[[str], tuple[int, int] | None]) -> str:
+    """What a finding in long server text shows (1.13.0, r0:F2): the text is masked whole first, so no window can cut a
+    secret in two and leave half of it unmasked; then `find` locates the match in the masked text and the match with up to
+    `MATCH_MARGIN` characters on each side is kept. When masking hid the match, the masked text is shown (cut as usual).
+    Display only: the fingerprint stays over the whole text, so a second phrase added to an accepted text is a new finding."""
+    masked = mask_credentials(" ".join(str(text).split()))
+    span = find(masked)
+    if span is None:
+        return masked
+    return masked[max(0, span[0] - MATCH_MARGIN):span[1] + MATCH_MARGIN]
 
 
 def bounded_evidence(text: str) -> str:

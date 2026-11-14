@@ -17,7 +17,7 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from datetime import date
 
-from spellwarden_scan.evidence import around, bounded_evidence, fingerprint
+from spellwarden_scan.evidence import bounded_evidence, excerpt_around, fingerprint
 from spellwarden_scan.glob import glob_match
 from spellwarden_scan.model import SEVERITY_RANK, Finding, Location
 from spellwarden_scan.package import CodeBlock, Package
@@ -819,11 +819,12 @@ class OrgRuleDetector:
 
     def _text_unit(self, path: str, text: str) -> Callable[[], Finding | None]:
         def run() -> Finding | None:
-            span = None if self.pattern is None else pattern_span(self.pattern, text)
-            if span is None:
+            pattern = self.pattern
+            if pattern is None or not pattern_search(pattern, text):
                 return None
-            # the match and its surroundings, not the whole text (up to 16,000 characters of instructions), as in SW-MCP-011
-            return self._finding(path, around(text, *span))
+            # shows the match and its surroundings, not the start of up to 16,000 characters of instructions; fingerprinted over
+            # the whole text, as in SW-MCP-011
+            return self._finding(path, text, shown=excerpt_around(text, lambda masked: pattern_span(pattern, masked)))
         return run
 
     def _server_finding(self, probe) -> Finding | None:
@@ -849,12 +850,13 @@ class OrgRuleDetector:
             return self._finding(None, f"endpoint host {host}", probe) if listed else None
         return None if listed else self._finding(None, f"endpoint host {host or 'unknown'}", probe)
 
-    def _finding(self, path: str | None, evidence: str, probe=None) -> Finding:
+    def _finding(self, path: str | None, evidence: str, probe=None, *, shown: str | None = None) -> Finding:
         from spellwarden_scan.rules.mcp import _where
 
         location = path if path is not None else _where(probe)
-        return Finding(self.rule_id, self.severity, self.title, Location(location, None), bounded_evidence(evidence),
-                       fingerprint(self.rule_id, location, evidence), self.malicious)
+        return Finding(self.rule_id, self.severity, self.title, Location(location, None),
+                       bounded_evidence(evidence if shown is None else shown), fingerprint(self.rule_id, location, evidence),
+                       self.malicious)
 
 
 def endpoint_host(endpoint: str | None) -> str | None:
