@@ -36,7 +36,7 @@ def test_the_section_says_what_the_spec_requires():
                    '"Expired or revoked keys MUST NOT be used for verification" (8.4.3)', "removing a key from `a2a.keys`",
                    "`exclude: [\"samples/**\"]`", "Findings on a remote agent's card do not fail a pull or merge request",
                    "only one of them says who signed", "whoever controls the host", "unsigned_members", "RFC 8785",
-                   "deprecated in 1.0 and documented as removed", "DER-encoded ECDSA", "`SW-A2A-018`", "At most 200 cards are read per run",
+                   "deprecated in 1.0 and documented as removed", "DER-encoded ECDSA", "`SW-A2A-018`", "At most 300 cards are read per run",
                    "reported as `unsafe_path`", "reported as `unreadable`", "spelled with its proto field name", "a whole entry of `securityRequirements`", "a scheme entry with no scopes",
                    "**Proto field names.**", "keeps the later of two spellings", "(`proto_field_name`)", "a protobuf reader refuses the card",
                    "`SW-A2A-015` reads every value as served", "**0.x members in snake_case.**", "(`legacy_field_name`)",
