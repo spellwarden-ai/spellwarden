@@ -164,7 +164,8 @@ def test_a_phrase_planted_in_each_rule_file_that_does_not_end_in_md_is_found(mak
 def test_the_lock_pins_each_file_and_names_a_change_an_addition_and_a_removal(make_repo, tmp_path, run_cli):
     repo = make(make_repo, tmp_path, {**PLAIN, **FILES})
     code, out, err = run_cli(["lock", str(repo)])
-    assert (code, err) == (0, "") and out == f"Wrote .spellwarden/lock.json with {len(FILES) + 3} items.\n"  # + document, server, skill
+    # + document, server, skill; the console writes `\r\n` on Windows
+    assert (code, err) == (0, "") and out.splitlines() == [f"Wrote .spellwarden/lock.json with {len(FILES) + 3} items."]
     lock = json.loads((repo / ".spellwarden" / "lock.json").read_text(encoding="utf-8"))
     pinned = {item["path"]: item for item in lock["items"] if item["kind"] == "instructions"}
     assert sorted(pinned) == sorted(FILES)
