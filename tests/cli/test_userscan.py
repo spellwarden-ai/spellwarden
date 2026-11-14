@@ -167,8 +167,8 @@ def test_a_client_base_directory_that_is_a_link_out_of_the_home_is_skipped_and_o
     discovered = userscan.discover_home(str(home), "linux", {})
     paths = {item.path for item in discovered.found.items}
     assert not any(path.startswith("~/.claude/") for path in paths)
-    skipped = {notice.path for notice in discovered.found.notices if notice.code == "symlink_skipped"}
-    assert "~/.claude" in skipped
+    skipped = [notice.path for notice in discovered.found.notices if notice.code == "symlink_skipped"]
+    assert skipped.count("~/.claude") == 1  # one notice, though seven rows start there (review r1:F1)
     assert discovered.found.errors == ()
     (home / ".claude").unlink()
     dotfiles = home / "dotfiles"

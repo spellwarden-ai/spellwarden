@@ -532,6 +532,11 @@ class _Home:
                         for path, entry in self.entries.items()), key=lambda item: (item.kind, item.path))
         if not items:
             self.notices.append(Notice("no_agent_content", "", "No agent content found in the home directory"))
+        # A link several rows start at or walk through (`~/.claude` is the base of seven rows) is one notice, not one per
+        # row: the first notice of each code and path is kept, in the order found (review r1:F1).
+        seen: set[tuple[str, str]] = set()
+        self.notices = [notice for notice in self.notices
+                        if (notice.code, notice.path) not in seen and not seen.add((notice.code, notice.path))]
         found = Discovery(tuple(items), tuple(self.skills[path] for path in sorted(self.skills)),
                           tuple(self.documents[path] for path in sorted(self.documents)), (), tuple(self.notices),
                           tuple(self.errors), None, (), tuple(self.instructions[path] for path in sorted(self.instructions)))
