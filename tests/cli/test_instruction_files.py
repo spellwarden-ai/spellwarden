@@ -157,6 +157,8 @@ def test_a_path_in_another_case_is_the_same_instruction_file(path, expected):
     ("AGENTS.md", True), ("claude.md", True), (".github/copilot-instructions.md", True), (".cursorrules", True),
     (".windsurfrules", True), (".cursor/rules/a/b/c.mdc", True), (".Windsurf/rules/t.md", True), (".devin/rules/d.md", True),
     ("app/AGENTS.md", False), ("app/.cursor/rules/x.mdc", False), ("svc/.windsurf/rules/t.md", False),
+    (".github/d1/AGENTS.md", False), (".cursor/rules/AGENTS.md", False), (".windsurf/rules/x/CLAUDE.md", False),
+    (".devin/rules/GEMINI.md", False), ("README.md", False),
 ])
 def test_the_places_an_agent_reads_at_the_root_come_first(path, first):
     assert instructions.loaded_first(path) is first

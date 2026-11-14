@@ -112,12 +112,13 @@ def test_past_the_limit_the_shallowest_files_are_read_so_deep_decoys_cannot_push
 
 
 def test_past_the_limit_a_deep_root_cursor_rule_is_read_before_shallower_nested_decoys(make_repo, tmp_path, run_cli):
-    tree = {**PLAIN, **{f"d{number:03d}/AGENTS.md": "# A\n\n" for number in range(200)},
+    # decoys under `.github/` are nested files, not the root Copilot place, so they get no priority either
+    tree = {**PLAIN, **{f".github/d{number:03d}/AGENTS.md": "# A\n\n" for number in range(200)},
             ".cursor/rules/team/backend/api.mdc": INJECTION, ".github/copilot-instructions.md": INJECTION}
     _code, report, _err = scan(run_cli, make(make_repo, tmp_path, tree))
     read = {item["path"] for item in instruction_items(report)}
     assert len(read) == 200 and {".cursor/rules/team/backend/api.mdc", ".github/copilot-instructions.md"} <= read
-    assert "d199/AGENTS.md" not in read and "d198/AGENTS.md" not in read
+    assert len([path for path in read if path.endswith("/AGENTS.md")]) == 198
 
 
 def test_a_rule_file_inside_a_skill_is_read_as_markdown_by_that_skill(make_repo, tmp_path, run_cli):

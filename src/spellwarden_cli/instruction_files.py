@@ -63,8 +63,14 @@ def loaded_first(path: str) -> bool:
     `CLAUDE.md` or `GEMINI.md` at the root, `.github/copilot-instructions.md`, `.cursorrules`, `.windsurfrules`, or a rule
     under the root `.cursor/rules/`, `.windsurf/rules/` or `.devin/rules/`. Past the limit these are read before any other,
     so nested decoys cannot push them out of the scan."""
-    folded = _fold(path)
-    return "/" not in folded or folded.startswith((".github/", ".cursor/rules/", ".windsurf/rules/", ".devin/rules/"))
+    format, folded = format_of(path), _fold(path)
+    if format in ("agents-md", "claude-md", "gemini-md"):
+        return "/" not in folded  # `.github/x/AGENTS.md` or `.cursor/rules/AGENTS.md` is a nested file, not a root place
+    if format == "cursor-mdc":
+        return folded.startswith(".cursor/rules/")
+    if format == "windsurf-rules":
+        return "/" not in folded or folded.startswith((".windsurf/rules/", ".devin/rules/"))
+    return format in ("copilot-instructions", "cursorrules")  # the table holds these at the root only
 
 
 def _unquote(text: str) -> str:
