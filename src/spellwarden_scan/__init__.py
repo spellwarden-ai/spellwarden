@@ -7,7 +7,8 @@ signatures cover (`signature_inputs`); the command verifies them. Since 1.2.0
 `identity` and `gate` hold the identities and findings of the connected command's
 registry gate. Since 1.1.0 it also compiles organisation rules
 (`compile_org_rule`), validates policy pack documents (`validate_pack`) and
-builds their exports (`build_export`)."""
+builds their exports (`build_export`). Since 1.14.0 `cyclonedx` writes CycloneDX 1.7
+documents (the scanner's `--format cyclonedx` and the hosted AI bill of materials)."""
 from __future__ import annotations
 
 from spellwarden_scan.a2a import CARD_FORMATS as A2A_CARD_FORMATS
@@ -20,7 +21,7 @@ from spellwarden_scan.agentconfig import (
     parse_document, parse_hooks, parse_marketplace, parse_mcp_config, parse_plugin_manifest, parse_settings,
     reference_kind,
 )
-from spellwarden_scan import frameworks, gate, identity  # noqa: F401 (`spellwarden_scan.gate`, `.identity`: O3 spec 5.4; `.frameworks`: 1.13.0)
+from spellwarden_scan import cyclonedx, frameworks, gate, identity  # noqa: F401 (`spellwarden_scan.gate`, `.identity`: O3 spec 5.4; `.frameworks`: 1.13.0; `.cyclonedx`: 1.14.0)
 from spellwarden_scan.archive import ArchiveError, ArchiveLimits, unpack_zip
 from spellwarden_scan.canonical import canonical_sha256
 from spellwarden_scan.evidence import mask_credentials
