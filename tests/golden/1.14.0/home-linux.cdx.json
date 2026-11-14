@@ -1,0 +1,1645 @@
+{
+  "$schema": "http://cyclonedx.org/schema/bom-1.7.schema.json",
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.7",
+  "serialNumber": "urn:uuid:e89f8ebd-f3b7-5b68-a4a7-757915b14e15",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-11-14T00:00:00Z",
+    "tools": {
+      "components": [
+        {
+          "type": "application",
+          "name": "Spellwarden",
+          "version": "1.14.0",
+          "externalReferences": [
+            {
+              "type": "website",
+              "url": "https://spellwarden.ai/?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+            }
+          ]
+        }
+      ]
+    },
+    "component": {
+      "type": "device",
+      "name": "workstation"
+    },
+    "properties": [
+      {
+        "name": "spellwarden:mode",
+        "value": "scan"
+      },
+      {
+        "name": "spellwarden:rules_version",
+        "value": "2026.11.6"
+      },
+      {
+        "name": "spellwarden:as_of",
+        "value": "2026-11-14"
+      },
+      {
+        "name": "spellwarden:exit_code",
+        "value": "1"
+      },
+      {
+        "name": "spellwarden:complete",
+        "value": "true"
+      },
+      {
+        "name": "spellwarden:errors",
+        "value": "0"
+      },
+      {
+        "name": "spellwarden:client:claude-code",
+        "value": "found"
+      },
+      {
+        "name": "spellwarden:client:claude-desktop",
+        "value": "found"
+      },
+      {
+        "name": "spellwarden:client:cursor",
+        "value": "found"
+      },
+      {
+        "name": "spellwarden:client:vscode",
+        "value": "found"
+      },
+      {
+        "name": "spellwarden:client:windsurf",
+        "value": "found"
+      },
+      {
+        "name": "spellwarden:client:codex",
+        "value": "found"
+      },
+      {
+        "name": "spellwarden:client:gemini-cli",
+        "value": "found"
+      }
+    ]
+  },
+  "components": [
+    {
+      "bom-ref": "document:~/.claude/plugins/cache/tools/lint/1.0.0/hooks/hooks.json",
+      "type": "file",
+      "name": "~/.claude/plugins/cache/tools/lint/1.0.0/hooks/hooks.json",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "95617ecdde013c3343e516b5fe182da93b53c6182ba5b4bda398b6f45141bd6c"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "hooks"
+        },
+        {
+          "name": "spellwarden:plugin",
+          "value": "lint"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "claude-code"
+        }
+      ]
+    },
+    {
+      "bom-ref": "document:~/.codex/hooks.json",
+      "type": "file",
+      "name": "~/.codex/hooks.json",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "1affb962934ec7e78d6ddc3b1298b3fbbc0278a99b70f1056576f37af22185f9"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "hooks"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "codex"
+        }
+      ]
+    },
+    {
+      "bom-ref": "document:~/.cursor/hooks.json",
+      "type": "file",
+      "name": "~/.cursor/hooks.json",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "125f4ec24c88a3d464f7e16017103b1e0b0bf168f3af9c32c51b5cb2ebf1a329"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "hooks"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "cursor"
+        }
+      ]
+    },
+    {
+      "bom-ref": "document:~/.gemini/extensions/jira/hooks/hooks.json",
+      "type": "file",
+      "name": "~/.gemini/extensions/jira/hooks/hooks.json",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "bdfb829d85d3f7d7f307fb00cf529d96ed6609114aeb16ff807e8ac9dcabf96c"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "hooks"
+        },
+        {
+          "name": "spellwarden:plugin",
+          "value": "jira"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "gemini-cli"
+        }
+      ]
+    },
+    {
+      "bom-ref": "instructions:~/.claude/CLAUDE.md",
+      "type": "file",
+      "name": "~/.claude/CLAUDE.md",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "39bf3f5e868039ef6dc07681cf49acb88c0194ac8af8ac41e1a4d83bc4ef5e5d"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "instructions"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "claude-code"
+        },
+        {
+          "name": "spellwarden:format",
+          "value": "claude-md"
+        }
+      ]
+    },
+    {
+      "bom-ref": "instructions:~/.claude/rules/typescript.md",
+      "type": "file",
+      "name": "~/.claude/rules/typescript.md",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "8bcf7016758c6680c19d807f9fdadf2988f7673596f5b42fe94f2144101a80cd"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "instructions"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "claude-code"
+        },
+        {
+          "name": "spellwarden:format",
+          "value": "claude-rule"
+        }
+      ]
+    },
+    {
+      "bom-ref": "instructions:~/.codex/AGENTS.md",
+      "type": "file",
+      "name": "~/.codex/AGENTS.md",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "e8f37af7260cf82d10f5732ba203cf4eaae14e5838a5a924ce1e09e7d6008148"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "instructions"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "codex"
+        },
+        {
+          "name": "spellwarden:format",
+          "value": "codex-agents-md"
+        }
+      ]
+    },
+    {
+      "bom-ref": "instructions:~/.devin/global_rules.md",
+      "type": "file",
+      "name": "~/.devin/global_rules.md",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "ef8ef13dcbbfd1e3418f17033ed5d3648711af8f71823094d1d21237122189fe"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "instructions"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "windsurf"
+        },
+        {
+          "name": "spellwarden:format",
+          "value": "devin-rules"
+        }
+      ]
+    },
+    {
+      "bom-ref": "instructions:~/.devin/rules/style.md",
+      "type": "file",
+      "name": "~/.devin/rules/style.md",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "fdbd2b4ee2f48b2d536b94664c9cda19369021e477dd652f547065e1b1459000"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "instructions"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "windsurf"
+        },
+        {
+          "name": "spellwarden:format",
+          "value": "devin-rules"
+        }
+      ]
+    },
+    {
+      "bom-ref": "instructions:~/.gemini/GEMINI.md",
+      "type": "file",
+      "name": "~/.gemini/GEMINI.md",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "05c4fdc530fcd5d107b6d46d74205138881ee7dc3b3eb5251f66ddf4b49fed0f"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "instructions"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "gemini-cli"
+        },
+        {
+          "name": "spellwarden:format",
+          "value": "gemini-md"
+        }
+      ]
+    },
+    {
+      "bom-ref": "instructions:~/.gemini/extensions/jira/JIRA.md",
+      "type": "file",
+      "name": "~/.gemini/extensions/jira/JIRA.md",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "0b3560584022e1e59d0cc01a2b6db8498417e56f08e4b2b18d7367b1120a8199"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "instructions"
+        },
+        {
+          "name": "spellwarden:plugin",
+          "value": "jira"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "gemini-cli"
+        },
+        {
+          "name": "spellwarden:format",
+          "value": "gemini-md"
+        }
+      ]
+    },
+    {
+      "bom-ref": "marketplace:~/.claude/plugins/known_marketplaces.json#tools",
+      "type": "data",
+      "name": "tools",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://git.example.com/tools.git"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "marketplace"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "claude-code"
+        }
+      ]
+    },
+    {
+      "bom-ref": "marketplace:~/.codex/config.toml#tools",
+      "type": "data",
+      "name": "tools",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://git.example.com/codex-tools.git"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "marketplace"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "codex"
+        }
+      ]
+    },
+    {
+      "bom-ref": "document:~/.claude.json",
+      "type": "file",
+      "name": "~/.claude.json",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "a408b60d5fb5faf742f2cd8f97594fb4459561ee594a6245f9d6263228bfd151"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "mcp-config"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "claude-code"
+        }
+      ]
+    },
+    {
+      "bom-ref": "document:~/.claude.json#outside-home:9a1042f5/app",
+      "type": "file",
+      "name": "~/.claude.json#outside-home:9a1042f5/app",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "a408b60d5fb5faf742f2cd8f97594fb4459561ee594a6245f9d6263228bfd151"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "mcp-config"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "claude-code"
+        },
+        {
+          "name": "spellwarden:scope",
+          "value": "outside-home:9a1042f5/app"
+        }
+      ]
+    },
+    {
+      "bom-ref": "document:~/.claude.json#~/work/app",
+      "type": "file",
+      "name": "~/.claude.json#~/work/app",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "a408b60d5fb5faf742f2cd8f97594fb4459561ee594a6245f9d6263228bfd151"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "mcp-config"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "claude-code"
+        },
+        {
+          "name": "spellwarden:scope",
+          "value": "~/work/app"
+        }
+      ]
+    },
+    {
+      "bom-ref": "document:~/.claude/plugins/cache/tools/lint/1.0.0/.mcp.json",
+      "type": "file",
+      "name": "~/.claude/plugins/cache/tools/lint/1.0.0/.mcp.json",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "7e6c11df9514cc1aa8baf11a2a0fb2f14078f36cd537458a04099ce746f6bfea"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "mcp-config"
+        },
+        {
+          "name": "spellwarden:plugin",
+          "value": "lint"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "claude-code"
+        }
+      ]
+    },
+    {
+      "bom-ref": "document:~/.config/Claude/claude_desktop_config.json",
+      "type": "file",
+      "name": "~/.config/Claude/claude_desktop_config.json",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "6f764f2aef486ffcf8d6f96617daa00e76ccc28366e921f14f5659d1c5840021"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "mcp-config"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "claude-desktop"
+        }
+      ]
+    },
+    {
+      "bom-ref": "document:~/.config/devin/mcp_config.json",
+      "type": "file",
+      "name": "~/.config/devin/mcp_config.json",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "0e156dd4fa5d06ebe8e194b60114c1866f788b1e6c794ff9c2063faa97e32439"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "mcp-config"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "windsurf"
+        }
+      ]
+    },
+    {
+      "bom-ref": "document:~/.copilot/mcp-config.json",
+      "type": "file",
+      "name": "~/.copilot/mcp-config.json",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "76e44fdab9afd5faad869571ac81cf849b8fa7a40aea43ecb2ac85e809365b38"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "mcp-config"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "vscode"
+        }
+      ]
+    },
+    {
+      "bom-ref": "document:~/.cursor/mcp.json",
+      "type": "file",
+      "name": "~/.cursor/mcp.json",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "f71e028ba066aaf885557c449bad6c619c60856f173ca11d30d7b9a8b204199e"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "mcp-config"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "cursor"
+        }
+      ]
+    },
+    {
+      "bom-ref": "plugin:~/.claude/plugins/installed_plugins.json#lint@tools",
+      "type": "library",
+      "name": "lint",
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "plugin"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "claude-code"
+        }
+      ]
+    },
+    {
+      "bom-ref": "plugin:~/.codex/config.toml#review@tools",
+      "type": "library",
+      "name": "review",
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "plugin"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "codex"
+        }
+      ]
+    },
+    {
+      "bom-ref": "plugin:~/.gemini/extensions/jira",
+      "type": "library",
+      "name": "jira",
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "plugin"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "gemini-cli"
+        }
+      ]
+    },
+    {
+      "bom-ref": "document:~/.claude/plugins/cache/tools/lint/1.0.0/.claude-plugin/plugin.json",
+      "type": "file",
+      "name": "~/.claude/plugins/cache/tools/lint/1.0.0/.claude-plugin/plugin.json",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "a84bc38f5c7a73188b8df63735b830557731da2a5d0f2fc7b04a2be91fef5dad"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "plugin-manifest"
+        },
+        {
+          "name": "spellwarden:plugin",
+          "value": "lint"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "claude-code"
+        }
+      ]
+    },
+    {
+      "bom-ref": "document:~/.gemini/extensions/jira/gemini-extension.json",
+      "type": "file",
+      "name": "~/.gemini/extensions/jira/gemini-extension.json",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "dc063b9add48bafb6476b3566984f3bfd96079c1f41f463462c8a0cb3067f8ff"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "plugin-manifest"
+        },
+        {
+          "name": "spellwarden:plugin",
+          "value": "jira"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "gemini-cli"
+        }
+      ]
+    },
+    {
+      "bom-ref": "document:~/.claude/settings.json",
+      "type": "file",
+      "name": "~/.claude/settings.json",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "05840b9bb56f116ef610439a30dfea3017b0cece1f895b63092cfb96a89da067"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "settings"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "claude-code"
+        }
+      ]
+    },
+    {
+      "bom-ref": "document:~/.codex/config.toml",
+      "type": "file",
+      "name": "~/.codex/config.toml",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "077dfa83fc9229611a4e4131be8651f407b54040d7e1b92cc1edc42eac0a7324"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "settings"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "codex"
+        }
+      ]
+    },
+    {
+      "bom-ref": "document:~/.gemini/settings.json",
+      "type": "file",
+      "name": "~/.gemini/settings.json",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "19a294d32281030ca2853189af2766adb66b411e88bf7771f816fd2ee4f47696"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "settings"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "gemini-cli"
+        }
+      ]
+    },
+    {
+      "bom-ref": "skill:~/.agents/skills/shared",
+      "type": "library",
+      "name": "shared",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "aa4db578d790e044b881edaedc94c2150f7a28f91e3c0032b9f4283509bf8ce3"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "skill"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "vscode"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "windsurf"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "codex"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "gemini-cli"
+        },
+        {
+          "name": "spellwarden:path",
+          "value": "~/.agents/skills/shared"
+        }
+      ]
+    },
+    {
+      "bom-ref": "skill:~/.claude/plugins/cache/tools/lint/1.0.0/skills/lint-rules",
+      "type": "library",
+      "name": "lint-rules",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "1b2528f800e2b922e51109e3b0ce8594b66363d6dc2284776f44f3e15ee5cb65"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "skill"
+        },
+        {
+          "name": "spellwarden:plugin",
+          "value": "lint"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "claude-code"
+        },
+        {
+          "name": "spellwarden:path",
+          "value": "~/.claude/plugins/cache/tools/lint/1.0.0/skills/lint-rules"
+        }
+      ]
+    },
+    {
+      "bom-ref": "skill:~/.claude/skills/deploy",
+      "type": "library",
+      "name": "deploy",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "57d185c93318f68a61686c975c3f258a2cdfb1fbbd80c281e34c1da024c78f3f"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "skill"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "claude-code"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "vscode"
+        },
+        {
+          "name": "spellwarden:path",
+          "value": "~/.claude/skills/deploy"
+        }
+      ]
+    },
+    {
+      "bom-ref": "skill:~/.config/devin/skills/notes",
+      "type": "library",
+      "name": "notes",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "e7535fe75bbae6efa173c2749b1279aef8977876e3d4b460a395de46be680c3f"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "skill"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "windsurf"
+        },
+        {
+          "name": "spellwarden:path",
+          "value": "~/.config/devin/skills/notes"
+        }
+      ]
+    },
+    {
+      "bom-ref": "skill:~/.copilot/skills/review",
+      "type": "library",
+      "name": "review",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "6311640a9db40cf18a6d6bc54d52fe1f30fab4d2bc9384c56287e99ec1be8469"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "skill"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "vscode"
+        },
+        {
+          "name": "spellwarden:path",
+          "value": "~/.copilot/skills/review"
+        }
+      ]
+    },
+    {
+      "bom-ref": "skill:~/.gemini/skills/research",
+      "type": "library",
+      "name": "research",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "e992581128328d3f16473ae57d82db6df1da6df12afa12000be8c36d621b9167"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "skill"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "gemini-cli"
+        },
+        {
+          "name": "spellwarden:path",
+          "value": "~/.gemini/skills/research"
+        }
+      ]
+    }
+  ],
+  "services": [
+    {
+      "bom-ref": "mcp-server:~/.claude.json#github",
+      "name": "github",
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "mcp-server"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "claude-code"
+        },
+        {
+          "name": "spellwarden:transport",
+          "value": "stdio"
+        },
+        {
+          "name": "spellwarden:command",
+          "value": "cmd:npx @modelcontextprotocol/server-github@1.0.0 args=e65ae0fe571fde23014def8cd64d8a8e"
+        }
+      ]
+    },
+    {
+      "bom-ref": "mcp-server:~/.claude.json#outside-home:9a1042f5/app#db",
+      "name": "db",
+      "endpoints": [
+        "https://db.example.com/mcp"
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "mcp-server"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "claude-code"
+        },
+        {
+          "name": "spellwarden:scope",
+          "value": "outside-home:9a1042f5/app"
+        },
+        {
+          "name": "spellwarden:transport",
+          "value": "http"
+        }
+      ]
+    },
+    {
+      "bom-ref": "mcp-server:~/.claude.json#~/work/app#db",
+      "name": "db",
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "mcp-server"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "claude-code"
+        },
+        {
+          "name": "spellwarden:scope",
+          "value": "~/work/app"
+        },
+        {
+          "name": "spellwarden:transport",
+          "value": "stdio"
+        },
+        {
+          "name": "spellwarden:command",
+          "value": "cmd:uvx db-mcp==2.0.0 args=9b7160ba75ecddf007444ecdb4182513"
+        }
+      ]
+    },
+    {
+      "bom-ref": "mcp-server:~/.claude/plugins/cache/tools/lint/1.0.0/.mcp.json#lint-server",
+      "name": "lint-server",
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "mcp-server"
+        },
+        {
+          "name": "spellwarden:plugin",
+          "value": "lint"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "claude-code"
+        },
+        {
+          "name": "spellwarden:transport",
+          "value": "stdio"
+        },
+        {
+          "name": "spellwarden:command",
+          "value": "cmd:npx lint-mcp@1.0.0"
+        }
+      ]
+    },
+    {
+      "bom-ref": "mcp-server:~/.codex/config.toml#docs",
+      "name": "docs",
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "mcp-server"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "codex"
+        },
+        {
+          "name": "spellwarden:transport",
+          "value": "stdio"
+        },
+        {
+          "name": "spellwarden:command",
+          "value": "cmd:npx docs-mcp@1.2.0 args=67d7ab38abda151f4cc7276453b6fc52"
+        }
+      ]
+    },
+    {
+      "bom-ref": "mcp-server:~/.codex/config.toml#remote",
+      "name": "remote",
+      "endpoints": [
+        "https://remote.example.com/mcp"
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "mcp-server"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "codex"
+        },
+        {
+          "name": "spellwarden:transport",
+          "value": "http"
+        }
+      ]
+    },
+    {
+      "bom-ref": "mcp-server:~/.config/Claude/claude_desktop_config.json#weather",
+      "name": "weather",
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "mcp-server"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "claude-desktop"
+        },
+        {
+          "name": "spellwarden:transport",
+          "value": "stdio"
+        },
+        {
+          "name": "spellwarden:command_reason",
+          "value": "unknown_launcher"
+        }
+      ]
+    },
+    {
+      "bom-ref": "mcp-server:~/.config/devin/mcp_config.json#tickets",
+      "name": "tickets",
+      "endpoints": [
+        "https://tickets.example.com/mcp"
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "mcp-server"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "windsurf"
+        },
+        {
+          "name": "spellwarden:transport",
+          "value": "http"
+        }
+      ]
+    },
+    {
+      "bom-ref": "mcp-server:~/.copilot/mcp-config.json#copilot-tools",
+      "name": "copilot-tools",
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "mcp-server"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "vscode"
+        },
+        {
+          "name": "spellwarden:transport",
+          "value": "stdio"
+        },
+        {
+          "name": "spellwarden:command",
+          "value": "cmd:npx copilot-tools@1.0.0"
+        }
+      ]
+    },
+    {
+      "bom-ref": "mcp-server:~/.cursor/mcp.json#search",
+      "name": "search",
+      "endpoints": [
+        "https://search.example.com/sse"
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "mcp-server"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "cursor"
+        },
+        {
+          "name": "spellwarden:transport",
+          "value": "http"
+        }
+      ]
+    },
+    {
+      "bom-ref": "mcp-server:~/.gemini/extensions/jira/gemini-extension.json#jira-ext",
+      "name": "jira-ext",
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "mcp-server"
+        },
+        {
+          "name": "spellwarden:plugin",
+          "value": "jira"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "gemini-cli"
+        },
+        {
+          "name": "spellwarden:transport",
+          "value": "stdio"
+        },
+        {
+          "name": "spellwarden:command_reason",
+          "value": "unknown_launcher"
+        }
+      ]
+    },
+    {
+      "bom-ref": "mcp-server:~/.gemini/settings.json#events",
+      "name": "events",
+      "endpoints": [
+        "https://events.example.com/sse"
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "mcp-server"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "gemini-cli"
+        },
+        {
+          "name": "spellwarden:transport",
+          "value": "sse"
+        }
+      ]
+    },
+    {
+      "bom-ref": "mcp-server:~/.gemini/settings.json#local",
+      "name": "local",
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "mcp-server"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "gemini-cli"
+        },
+        {
+          "name": "spellwarden:transport",
+          "value": "stdio"
+        },
+        {
+          "name": "spellwarden:command_reason",
+          "value": "unknown_launcher"
+        }
+      ]
+    },
+    {
+      "bom-ref": "mcp-server:~/.gemini/settings.json#maps",
+      "name": "maps",
+      "endpoints": [
+        "https://maps.example.com/mcp"
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "mcp-server"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "gemini-cli"
+        },
+        {
+          "name": "spellwarden:transport",
+          "value": "http"
+        }
+      ]
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "document:~/.claude.json",
+      "dependsOn": [
+        "mcp-server:~/.claude.json#github"
+      ]
+    },
+    {
+      "ref": "document:~/.claude.json#outside-home:9a1042f5/app",
+      "dependsOn": [
+        "mcp-server:~/.claude.json#outside-home:9a1042f5/app#db"
+      ]
+    },
+    {
+      "ref": "document:~/.claude.json#~/work/app",
+      "dependsOn": [
+        "mcp-server:~/.claude.json#~/work/app#db"
+      ]
+    },
+    {
+      "ref": "document:~/.claude/plugins/cache/tools/lint/1.0.0/.mcp.json",
+      "dependsOn": [
+        "mcp-server:~/.claude/plugins/cache/tools/lint/1.0.0/.mcp.json#lint-server"
+      ]
+    },
+    {
+      "ref": "document:~/.codex/config.toml",
+      "dependsOn": [
+        "mcp-server:~/.codex/config.toml#docs",
+        "mcp-server:~/.codex/config.toml#remote"
+      ]
+    },
+    {
+      "ref": "document:~/.config/Claude/claude_desktop_config.json",
+      "dependsOn": [
+        "mcp-server:~/.config/Claude/claude_desktop_config.json#weather"
+      ]
+    },
+    {
+      "ref": "document:~/.config/devin/mcp_config.json",
+      "dependsOn": [
+        "mcp-server:~/.config/devin/mcp_config.json#tickets"
+      ]
+    },
+    {
+      "ref": "document:~/.copilot/mcp-config.json",
+      "dependsOn": [
+        "mcp-server:~/.copilot/mcp-config.json#copilot-tools"
+      ]
+    },
+    {
+      "ref": "document:~/.cursor/mcp.json",
+      "dependsOn": [
+        "mcp-server:~/.cursor/mcp.json#search"
+      ]
+    },
+    {
+      "ref": "document:~/.gemini/extensions/jira/gemini-extension.json",
+      "dependsOn": [
+        "mcp-server:~/.gemini/extensions/jira/gemini-extension.json#jira-ext"
+      ]
+    },
+    {
+      "ref": "document:~/.gemini/settings.json",
+      "dependsOn": [
+        "mcp-server:~/.gemini/settings.json#events",
+        "mcp-server:~/.gemini/settings.json#local",
+        "mcp-server:~/.gemini/settings.json#maps"
+      ]
+    },
+    {
+      "ref": "marketplace:~/.claude/plugins/known_marketplaces.json#tools",
+      "dependsOn": [
+        "plugin:~/.claude/plugins/installed_plugins.json#lint@tools"
+      ]
+    },
+    {
+      "ref": "marketplace:~/.codex/config.toml#tools",
+      "dependsOn": [
+        "plugin:~/.codex/config.toml#review@tools"
+      ]
+    },
+    {
+      "ref": "plugin:~/.claude/plugins/installed_plugins.json#lint@tools",
+      "dependsOn": [
+        "skill:~/.claude/plugins/cache/tools/lint/1.0.0/skills/lint-rules"
+      ]
+    }
+  ],
+  "vulnerabilities": [
+    {
+      "bom-ref": "finding:7455252f0f13962b66604271f3c59f518ff2afaedd078203b3be4a00059c79a2",
+      "id": "SW-CFG-002",
+      "source": {
+        "name": "Spellwarden",
+        "url": "https://spellwarden.ai/docs/rules/SW-CFG-002?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "Spellwarden",
+            "url": "https://spellwarden.ai/docs/rules/SW-CFG-002?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+          },
+          "severity": "critical",
+          "method": "other"
+        }
+      ],
+      "description": "Credential written into an MCP server configuration",
+      "analysis": {
+        "state": "in_triage"
+      },
+      "affects": [
+        {
+          "ref": "document:~/.claude.json#outside-home:9a1042f5/app"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:location",
+          "value": "~/.claude.json#outside-home:9a1042f5/app:18"
+        },
+        {
+          "name": "spellwarden:origin",
+          "value": "rule"
+        },
+        {
+          "name": "spellwarden:status",
+          "value": "open"
+        }
+      ]
+    },
+    {
+      "bom-ref": "finding:bef65c055e4979941c0c4b4e4726bfb4b3eca2f49ba913b52e4e190700959336",
+      "id": "SW-CFG-005",
+      "source": {
+        "name": "Spellwarden",
+        "url": "https://spellwarden.ai/docs/rules/SW-CFG-005?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "Spellwarden",
+            "url": "https://spellwarden.ai/docs/rules/SW-CFG-005?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+          },
+          "severity": "high",
+          "method": "other"
+        }
+      ],
+      "description": "Hook pipes remote content to a shell",
+      "analysis": {
+        "state": "in_triage"
+      },
+      "affects": [
+        {
+          "ref": "document:~/.claude/settings.json"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:location",
+          "value": "~/.claude/settings.json:9"
+        },
+        {
+          "name": "spellwarden:origin",
+          "value": "rule"
+        },
+        {
+          "name": "spellwarden:status",
+          "value": "open"
+        }
+      ]
+    },
+    {
+      "bom-ref": "finding:ff15bfc76b11590284966121edaeb56d9ec71b7131b2c09db2fcf3ae4da3deab",
+      "id": "SW-CFG-010",
+      "source": {
+        "name": "Spellwarden",
+        "url": "https://spellwarden.ai/docs/rules/SW-CFG-010?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "Spellwarden",
+            "url": "https://spellwarden.ai/docs/rules/SW-CFG-010?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+          },
+          "severity": "high",
+          "method": "other"
+        }
+      ],
+      "description": "Literal value under a secret name in an MCP server configuration",
+      "analysis": {
+        "state": "in_triage"
+      },
+      "affects": [
+        {
+          "ref": "document:~/.claude.json"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:location",
+          "value": "~/.claude.json:4"
+        },
+        {
+          "name": "spellwarden:origin",
+          "value": "rule"
+        },
+        {
+          "name": "spellwarden:status",
+          "value": "open"
+        }
+      ]
+    },
+    {
+      "bom-ref": "finding:3789a241f564a3032f46da8ba15a846e421ee071447542baee8e00df296e26b4",
+      "id": "SW-CFG-010",
+      "source": {
+        "name": "Spellwarden",
+        "url": "https://spellwarden.ai/docs/rules/SW-CFG-010?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "Spellwarden",
+            "url": "https://spellwarden.ai/docs/rules/SW-CFG-010?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+          },
+          "severity": "high",
+          "method": "other"
+        }
+      ],
+      "description": "Literal value under a secret name in an MCP server configuration",
+      "analysis": {
+        "state": "in_triage"
+      },
+      "affects": [
+        {
+          "ref": "document:~/.claude.json#~/work/app"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:location",
+          "value": "~/.claude.json#~/work/app:13"
+        },
+        {
+          "name": "spellwarden:origin",
+          "value": "rule"
+        },
+        {
+          "name": "spellwarden:status",
+          "value": "open"
+        }
+      ]
+    },
+    {
+      "bom-ref": "finding:51d02d534c686d9fccb1f68b73921008303dab5e2f71da4b4306042fa38a1d9b",
+      "id": "SW-CFG-010",
+      "source": {
+        "name": "Spellwarden",
+        "url": "https://spellwarden.ai/docs/rules/SW-CFG-010?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "Spellwarden",
+            "url": "https://spellwarden.ai/docs/rules/SW-CFG-010?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+          },
+          "severity": "high",
+          "method": "other"
+        }
+      ],
+      "description": "Literal value under a secret name in an MCP server configuration",
+      "analysis": {
+        "state": "in_triage"
+      },
+      "affects": [
+        {
+          "ref": "document:~/.codex/config.toml"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:location",
+          "value": "~/.codex/config.toml:4"
+        },
+        {
+          "name": "spellwarden:origin",
+          "value": "rule"
+        },
+        {
+          "name": "spellwarden:status",
+          "value": "open"
+        }
+      ]
+    },
+    {
+      "bom-ref": "finding:ff270830aa3a538b863cbd9cc72db99eeb84fc533475c0e4c772d4fb6e489b9e",
+      "id": "SW-CFG-010",
+      "source": {
+        "name": "Spellwarden",
+        "url": "https://spellwarden.ai/docs/rules/SW-CFG-010?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "Spellwarden",
+            "url": "https://spellwarden.ai/docs/rules/SW-CFG-010?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+          },
+          "severity": "high",
+          "method": "other"
+        }
+      ],
+      "description": "Literal value under a secret name in an MCP server configuration",
+      "analysis": {
+        "state": "in_triage"
+      },
+      "affects": [
+        {
+          "ref": "document:~/.gemini/settings.json"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:location",
+          "value": "~/.gemini/settings.json:3"
+        },
+        {
+          "name": "spellwarden:origin",
+          "value": "rule"
+        },
+        {
+          "name": "spellwarden:status",
+          "value": "open"
+        }
+      ]
+    },
+    {
+      "bom-ref": "finding:f2c216994608a46d752b1cc376d13438513f684804d29c3504bcf81a805ac92e",
+      "id": "SW-CFG-010",
+      "source": {
+        "name": "Spellwarden",
+        "url": "https://spellwarden.ai/docs/rules/SW-CFG-010?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "Spellwarden",
+            "url": "https://spellwarden.ai/docs/rules/SW-CFG-010?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+          },
+          "severity": "high",
+          "method": "other"
+        }
+      ],
+      "description": "Literal value under a secret name in an MCP server configuration",
+      "analysis": {
+        "state": "in_triage"
+      },
+      "affects": [
+        {
+          "ref": "document:~/.gemini/settings.json"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:location",
+          "value": "~/.gemini/settings.json:5"
+        },
+        {
+          "name": "spellwarden:origin",
+          "value": "rule"
+        },
+        {
+          "name": "spellwarden:status",
+          "value": "open"
+        }
+      ]
+    },
+    {
+      "bom-ref": "finding:6dd0de0216f76ca77512cd8df9da4b8857f8c050c3fbe97dbfdc026a7fca46b5",
+      "id": "SW-SKL-007",
+      "source": {
+        "name": "Spellwarden",
+        "url": "https://spellwarden.ai/docs/rules/SW-SKL-007?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "Spellwarden",
+            "url": "https://spellwarden.ai/docs/rules/SW-SKL-007?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+          },
+          "severity": "high",
+          "method": "other"
+        }
+      ],
+      "description": "Remote script piped to a shell",
+      "analysis": {
+        "state": "in_triage"
+      },
+      "affects": [
+        {
+          "ref": "skill:~/.claude/skills/deploy"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:location",
+          "value": "~/.claude/skills/deploy/scripts/setup.sh:2"
+        },
+        {
+          "name": "spellwarden:origin",
+          "value": "rule"
+        },
+        {
+          "name": "spellwarden:status",
+          "value": "open"
+        }
+      ]
+    }
+  ]
+}

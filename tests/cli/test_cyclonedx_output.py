@@ -1,5 +1,6 @@
-"""Phase 3 batch 2a spec 7.3 (scanner column), 11.5 and T-8: `--format cyclonedx` writes the recorded document of a repository;
-it validates against the vendored 1.7.2 schema, every reference resolves, and the mapping holds for the repository's objects."""
+"""Phase 3 batch 2a spec 7.3 (scanner column), 11.5 and T-8: `--format cyclonedx` writes the recorded documents of a repository,
+of each system's fixture home and of an inventory; each validates against the vendored 1.7.2 schema, every reference resolves,
+and the mapping holds for the objects of the repository."""
 from __future__ import annotations
 
 import importlib.util
@@ -8,6 +9,7 @@ from pathlib import Path
 
 import pytest
 from conftest import _RUNNER_VARIABLES, cyclonedx_problems
+from homes import USER_VARIABLES
 
 ROOT = Path(__file__).resolve().parents[2]
 GOLDEN = ROOT / "tests" / "golden" / "1.14.0"
@@ -19,7 +21,7 @@ TAGS = "utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
 
 @pytest.fixture
 def clean(monkeypatch):
-    for name in _RUNNER_VARIABLES:
+    for name in (*_RUNNER_VARIABLES, *USER_VARIABLES):
         monkeypatch.delenv(name, raising=False)
 
 
@@ -33,6 +35,28 @@ def test_the_repository_document_is_the_recorded_one_and_valid(tmp_path):
     produced = record.repository_document(tmp_path)
     assert produced == (GOLDEN / "repo.cdx.json").read_bytes().decode("utf-8")
     assert cyclonedx_problems(json.loads(produced)) == []
+
+
+def _without_home(text: str) -> dict:
+    """A home document without what depends on where the fixture home was copied: `~/.claude.json` names the home's own path
+    (its projects), so its hash and therefore the serial number differ from copy to copy."""
+    document = json.loads(text)
+    del document["serialNumber"]
+    for component in document.get("components", []):
+        if component["bom-ref"].startswith("document:~/.claude.json"):
+            component.pop("hashes", None)
+    return document
+
+
+@pytest.mark.usefixtures("clean")
+@pytest.mark.parametrize("system, inventory", record.HOME_DOCUMENTS)
+def test_each_home_document_is_the_recorded_one_and_valid(tmp_path, system, inventory):
+    produced = record.home_document(tmp_path, system, inventory)
+    assert _without_home(produced) == _without_home((GOLDEN / record.home_name(system, inventory)).read_bytes().decode("utf-8"))
+    document = json.loads(produced)
+    assert cyclonedx_problems(document) == []
+    assert document["metadata"]["component"] == {"type": "device", "name": "workstation"}
+    assert ("vulnerabilities" in document) is not inventory
 
 
 def test_the_repository_mapping(repository):
