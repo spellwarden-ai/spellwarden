@@ -88,37 +88,39 @@ def test_a_root_skill_owns_every_file_so_no_instruction_file_is_listed(make_repo
     assert [f["item"] for f in report["findings"] if f["rule_id"] == "SW-SKL-001"] == ["."]
 
 
-def test_over_200_files_give_the_notice_and_the_rest_are_not_read(make_repo, tmp_path, run_cli):
-    tree = {**PLAIN, **{f"d{number:03d}/AGENTS.md": "# A\n\n" + INJECTION for number in range(201)}}
+def test_over_300_files_give_an_incomplete_scan_and_the_rest_are_not_read(make_repo, tmp_path, run_cli):
+    tree = {**PLAIN, **{f"d{number:03d}/AGENTS.md": "# A\n\n" + INJECTION for number in range(301)}}
     code, report, _err = scan(run_cli, make(make_repo, tmp_path, tree))
-    assert len(instruction_items(report)) == 200 and "d200/AGENTS.md" not in {item["path"] for item in report["items"]}
-    notices = [n for n in report["notices"] if n["code"] == "instructions_limit"]
-    assert [(n["path"], n["message"]) for n in notices] == [("", "1 more instruction files were not read: the scanner reads at most "
-                                                                "200 per scan root")]
-    assert len([f for f in report["findings"] if f["rule_id"] == "SW-SKL-001"]) == 200 and code == 1
+    assert len(instruction_items(report)) == 300 and "d300/AGENTS.md" not in {item["path"] for item in report["items"]}
+    errors = [n for n in report["errors"] if n["code"] == "instructions_limit"]
+    assert [(n["path"], n["message"]) for n in errors] == [("", "1 more instruction files were not read: the scanner reads at most 300 per scan root, so the scan is "
+        "incomplete; leave directories out with `exclude` in .spellwarden/config.yml")]
+    assert not [n for n in report["notices"] if n["code"] == "instructions_limit"]
+    assert len([f for f in report["findings"] if f["rule_id"] == "SW-SKL-001"]) == 300 and code == 2
 
 
 def test_past_the_limit_the_shallowest_files_are_read_so_deep_decoys_cannot_push_the_root_file_out(make_repo, tmp_path, run_cli):
-    tree = {**PLAIN, **{f"a/d{number:03d}/AGENTS.md": "# A\n\n" for number in range(200)}, "CLAUDE.md": "# C\n\n" + INJECTION,
+    tree = {**PLAIN, **{f"a/d{number:03d}/AGENTS.md": "# A\n\n" for number in range(300)}, "CLAUDE.md": "# C\n\n" + INJECTION,
             "zz/AGENTS.md": "# A\n\n" + INJECTION}
     code, report, _err = scan(run_cli, make(make_repo, tmp_path, tree))
     read = [item["path"] for item in instruction_items(report)]
-    assert len(read) == 200 and read == sorted(read)
-    assert "CLAUDE.md" in read and "zz/AGENTS.md" in read and "a/d199/AGENTS.md" not in read and "a/d198/AGENTS.md" not in read
-    assert [n["message"] for n in report["notices"] if n["code"] == "instructions_limit"] == [
-        "2 more instruction files were not read: the scanner reads at most 200 per scan root"]
+    assert len(read) == 300 and read == sorted(read)
+    assert "CLAUDE.md" in read and "zz/AGENTS.md" in read and "a/d299/AGENTS.md" not in read and "a/d298/AGENTS.md" not in read
+    assert [n["message"] for n in report["errors"] if n["code"] == "instructions_limit"] == [
+        "2 more instruction files were not read: the scanner reads at most 300 per scan root, so the scan is "
+        "incomplete; leave directories out with `exclude` in .spellwarden/config.yml"]
     assert sorted(f["item"] for f in report["findings"] if f["rule_id"] == "SW-SKL-001") == ["CLAUDE.md", "zz/AGENTS.md"]
-    assert code == 1
+    assert code == 2
 
 
 def test_past_the_limit_a_deep_root_cursor_rule_is_read_before_shallower_nested_decoys(make_repo, tmp_path, run_cli):
     # decoys under `.github/` are nested files, not the root Copilot place, so they get no priority either
-    tree = {**PLAIN, **{f".github/d{number:03d}/AGENTS.md": "# A\n\n" for number in range(200)},
+    tree = {**PLAIN, **{f".github/d{number:03d}/AGENTS.md": "# A\n\n" for number in range(300)},
             ".cursor/rules/team/backend/api.mdc": INJECTION, ".github/copilot-instructions.md": INJECTION}
     _code, report, _err = scan(run_cli, make(make_repo, tmp_path, tree))
     read = {item["path"] for item in instruction_items(report)}
-    assert len(read) == 200 and {".cursor/rules/team/backend/api.mdc", ".github/copilot-instructions.md"} <= read
-    assert len([path for path in read if path.endswith("/AGENTS.md")]) == 198
+    assert len(read) == 300 and {".cursor/rules/team/backend/api.mdc", ".github/copilot-instructions.md"} <= read
+    assert len([path for path in read if path.endswith("/AGENTS.md")]) == 298
 
 
 def test_a_rule_file_inside_a_skill_is_read_as_markdown_by_that_skill(make_repo, tmp_path, run_cli):

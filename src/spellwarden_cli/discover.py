@@ -32,7 +32,7 @@ from spellwarden_cli.files import FileEntry, FileSet
 from spellwarden_cli.report import Notice
 
 SKILL_FILE = "SKILL.md"
-MAX_CARDS = 200  # discovered and listed agent cards together (O4 spec 6.3); the rest are not read
+MAX_CARDS = 300  # discovered and listed agent cards together (O4 spec 6.3; 300 since 1.13.0); more is the error `a2a_cards_limit`
 _ITEM_KIND = {"mcp": "mcp-config", "settings": "settings", "marketplace": "marketplace", "hooks": "hooks",
               "plugin": "plugin-manifest"}
 
@@ -711,7 +711,7 @@ def _owned_by_a_skill(path: str, skill_directories: frozenset[str]) -> bool:
 
 def _instruction_files(builder: _Builder, skill_directories: frozenset[str]) -> list[InstructionFile]:
     """The instruction files of the file set (Phase 3 batch 1 spec 10.2, 10.3), in path order, at most
-    `instruction_files.MAX_FILES`, root places first (the notice `instructions_limit` counts the rest, which are not read).
+    `instruction_files.MAX_FILES`, root places first (the error `instructions_limit` counts the rest, which are not read).
     A symbolic link at one of these names is followed when it can be, as at the names of a configuration file; one that cannot
     be followed is the notice
     `symlink_skipped` it was on 1.12.0, never an error. A rule file whose front matter cannot be read still scans and has the
@@ -724,8 +724,9 @@ def _instruction_files(builder: _Builder, skill_directories: frozenset[str]) -> 
                     key=lambda path: (not instruction_files.loaded_first(path), path.count("/"), path))
     limit = instruction_files.MAX_FILES
     if len(chosen) > limit:
-        builder.notices.append(Notice("instructions_limit", "", f"{len(chosen) - limit} more instruction files were not read: "
-                                      f"the scanner reads at most {limit} per scan root"))
+        builder.errors.append(Notice("instructions_limit", "", f"{len(chosen) - limit} more instruction files were not read: the "
+                                     f"scanner reads at most {limit} per scan root, so the scan is incomplete; leave directories "
+                                     "out with `exclude` in .spellwarden/config.yml"))
     found: list[InstructionFile] = []
     for path in sorted(chosen[:limit]):
         if not _follow_quietly(builder, path):
@@ -745,7 +746,7 @@ def _instruction_files(builder: _Builder, skill_directories: frozenset[str]) -> 
 
 def _agent_cards(builder: _Builder, listed: Sequence[str]) -> list[CardFile]:
     """The agent card files (O4 spec 6.3): every file whose name makes a card and every path of `a2a.cards`, in path order,
-    at most `MAX_CARDS` (the notice `a2a_cards_limit` counts the rest). A listed path that is not in the file set is the notice
+    at most `MAX_CARDS` (the error `a2a_cards_limit` counts the rest). A listed path that is not in the file set is the notice
     `file_missing`. A path both discovered and listed is one card: `listed` when its name alone would make it only a
     `named` or `legacy_path` card (an unreadable one is then a finding, not a notice), else the form its name gives. A
     `well_known` or `listed` card that cannot be followed or read is a `CardFile` with `read_error` (SW-A2A-018), never an error
@@ -768,8 +769,9 @@ def _agent_cards(builder: _Builder, listed: Sequence[str]) -> list[CardFile]:
             forms[path] = "listed"
     chosen = sorted(forms)
     if len(chosen) > MAX_CARDS:
-        builder.notices.append(Notice("a2a_cards_limit", "", f"{len(chosen) - MAX_CARDS} more agent cards were not read: the "
-                                      f"scanner checks at most {MAX_CARDS} per run"))
+        builder.errors.append(Notice("a2a_cards_limit", "", f"{len(chosen) - MAX_CARDS} more agent cards were not read: the "
+                                     f"scanner checks at most {MAX_CARDS} per run, so the scan is incomplete; leave directories "
+                                     "out with `exclude` in .spellwarden/config.yml"))
     cards = []
     for path in chosen[:MAX_CARDS]:
         mark = len(builder.errors)

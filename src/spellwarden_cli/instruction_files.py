@@ -22,7 +22,7 @@ import posixpath
 from spellwarden_scan.identity import fold_skill_name as _fold
 
 FORMATS = ("agents-md", "claude-md", "gemini-md", "copilot-instructions", "cursor-mdc", "cursorrules", "windsurf-rules")
-MAX_FILES = 200            # instruction files read per scan root; the rest are the notice `instructions_limit`
+MAX_FILES = 300            # instruction files read per scan root; more is the error `instructions_limit` (exit 2)
 FRONT_MATTER_WINDOW = 4096  # the closing `---` must be within this many bytes of the file's start
 MAX_GLOBS = 20
 MAX_GLOB = 200

@@ -200,7 +200,8 @@
                           "connected_config", "connected_key_invalid", "connected_no_credential", "connected_auth",
                           "connected_subscription", "connected_ci_key_required", "connected_forbidden",
                           "connected_rate_limited", "connected_unavailable", "connected_required", "policy_not_found",
-                          "policy_invalid", "org_rules_incomplete", "registry_check_failed", "registry_check_too_large"]},
+                          "policy_invalid", "org_rules_incomplete", "registry_check_failed", "registry_check_too_large",
+                          "a2a_cards_limit", "instructions_limit"]},
         "path": {"type": "string"},
         "message": {"type": "string"}
       }

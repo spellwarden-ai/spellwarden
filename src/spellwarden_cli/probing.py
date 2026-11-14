@@ -182,7 +182,10 @@ def _probe_one(target: ProbeTarget, rules: RuleSet, budget: _Budget, fetcher_fac
                                **({"org_rule_budget": org_budget()} if org_budget is not None else {}))
     findings = [ReportFinding(dataclasses.replace(finding, location=Location(target.path, target.line)), target.item)
                 for finding in evaluated.findings]
-    return ProbeReport(target.item, "probed", None, evaluated), findings, None
+    # The server decides how much it sends, so a list longer than the probe reads is shown, never a failed scan (README
+    # "Limits"); SW-MCP-011 judged what was read. Tools keep their 1.9.0 rule: a list not read whole keeps SW-MCP-001 high.
+    incomplete = tuple(name for name in result.lists_read if not getattr(result, f"{name}_complete"))
+    return ProbeReport(target.item, "probed", None, evaluated, incomplete), findings, None
 
 
 class ProbeTask(Protocol):
@@ -253,6 +256,10 @@ def run_combined(targets: Sequence[ProbeTarget], rules: RuleSet, *, agent_tasks:
             if report.status == "skipped":
                 reason = f"{report.skip_reason}: {refusals[report.item]}" if report.item in refusals else report.skip_reason
                 notices.append(Notice("probe_skipped", report.item, f"not probed ({reason})"))
+            for name in report.incomplete_lists:
+                notices.append(Notice("probe_list_incomplete", report.item,
+                                      f"the server listed more {name.replace('_', ' ')} than the probe reads (one page of at "
+                                      f"most {prober.MAX_LISTED}); only those were checked"))
     reports.sort(key=lambda report: report.item)
     agent_outcomes = outcomes[len(chosen):len(chosen) + len(agents)] + [task.skipped() for task in agents_over]
     keyset_outcomes = outcomes[len(chosen) + len(agents):] + [task.skipped() for task in keysets_over]

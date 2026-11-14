@@ -253,3 +253,18 @@ def test_verbose_events_are_one_escaped_line_each():
     on_event("net_request", {"host": "evil\x1b[2J.example", "method": "POST", "status": 200, "bytes": 3, "ms": 12})
     on_event("probe_failed", {"error_class": "RuntimeError"})
     assert lines == ["net: POST evil\\x1b[2J.example 200 (12 ms)", "probe: failed (RuntimeError)"]
+
+
+def test_a_list_longer_than_the_probe_reads_is_a_notice_never_a_failed_scan(monkeypatch):
+    """1.13.0 (README "Limits"): the server decides how much it sends, so a prompts, resources or templates list cut by the probe
+    is the notice `probe_list_incomplete` per list; a list read whole gives none."""
+    cut = ProbeResult(endpoint="https://mcp.example.com/mcp", reachable=True, lists_read=("prompts", "resources"),
+                      prompts_complete=False, resources_complete=True)
+    monkeypatch.setattr(prober, "probe", lambda *_args, **_kwargs: cut)
+    notices: list[Notice] = []
+    reports, _ = probing.run_phase(targets_of(1), RULES, fetcher_factory=Server().factory(), now_iso=NOW, notices=notices)
+    assert reports[0].status == "probed" and reports[0].incomplete_lists == ("prompts",)
+    listed = [(n.path, n.message) for n in notices if n.code == "probe_list_incomplete"]
+    assert listed == [(reports[0].item, "the server listed more prompts than the probe reads (one page of at most 200); only "
+                                        "those were checked")]
+    assert "incomplete_lists" not in reports[0].to_dict()

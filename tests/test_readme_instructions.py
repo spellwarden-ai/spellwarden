@@ -19,7 +19,7 @@ def test_the_readme_has_an_instruction_files_section_that_names_every_format_and
     for format in instruction_files.FORMATS:
         assert f"`{format}`" in section, format
     for needle in ("instructions_limit", "instructions_front_matter", "instructions: false", "spellwarden lock", "lock_unreadable",
-                   "at most 200", "belongs to that skill", "`.github/instructions/*.instructions.md`"):
+                   "at most 300", "belongs to that skill", "`.github/instructions/*.instructions.md`"):
         assert needle in section, needle
     assert "instructions: true" in text  # the settings example shows the default
     assert "| Instruction file |" in text

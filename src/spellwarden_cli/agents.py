@@ -261,17 +261,24 @@ def repository_reports(found: Discovery, rules: RuleSet, a2a: A2a, notices: list
             kept = tuple(replace(f, evidence=evidence) if f.rule_id == "SW-A2A-018" else f for f in result.findings)
             result = replace(result, findings=kept)
         notices.extend(key_notices(item, outcomes))
-        notices.extend(truncation_notices(item, result))
+        notices.extend(truncation_notices(item, result, repository=True))
+        if result.document_truncated:
+            # a card in the repository is content the scanner was given: one it read only in part is an incomplete scan
+            # (exit 2), as a configuration document cut short is (README "Limits", 1.13.0)
+            errors.append(Notice("truncated", item, "more entries than the scanner reads; the first entries were judged, the "
+                                                    "rest were not, so the scan is incomplete"))
         reports.append(AgentReport(item, "repository", card.path_form, "checked", result=result))
         findings.extend(ReportFinding(finding, item) for finding in result.findings)
     return reports, findings
 
 
-def truncation_notices(item: str, result: A2aScanResult) -> list[Notice]:
+def truncation_notices(item: str, result: A2aScanResult, *, repository: bool = False) -> list[Notice]:
+    """The notices of a card's caps. A remote card the scanner was sent only in part is a notice: its server decides its size
+    (README "Limits"); a repository card's `document_truncated` is the error `truncated` instead (`repository_reports`)."""
     notices = []
     if result.truncated:
         notices.append(Notice("findings_truncated", item, f"{result.truncated} more findings were not kept"))
-    if result.document_truncated:
+    if result.document_truncated and not repository:
         notices.append(Notice("findings_truncated", item, "more entries than the scanner reads; the first entries were judged, "
                                                          "the rest were not"))
     return notices

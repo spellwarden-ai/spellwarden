@@ -30,9 +30,18 @@ file inside a skill directory is scanned by that skill, still read as Markdown).
 pinned in .spellwarden/lock.json (a repository with a lock sees them as added, so `spellwarden lock` has to be run once; a
 lock that holds them is unreadable to 1.12.0 and older, so upgrade every scanner that reads it), reported in every format
 and uploaded in connected mode. Set `instructions: false` in .spellwarden/config.yml to leave them out; the key is unknown
-to older scanners, which refuse a config that has it. At most 200 instruction files are read per scan root, the root files
-and root Cursor and Windsurf rules first. A repository with no instruction files produces the same findings, items, lock and
-exit code as on 1.12.0 (each finding of the JSON report also carries its `tags`).
+to older scanners, which refuse a config that has it. At most 300 instruction files are read per scan root, the root files
+and root Cursor and Windsurf rules first; more is the error instructions_limit (exit 2). A repository with no instruction
+files produces the same findings, items, lock and exit code as on 1.12.0 (each finding of the JSON report also carries its
+`tags`).
+
+Limits. One rule now covers every limit (README "Limits"): content the scanner leaves unread never looks like a pass. What
+the repository holds and the scanner leaves unread is an incomplete scan (exit 2), with `exclude` as the reviewed way to
+narrow it; what a remote server sends past a limit is shown and never lowers a judgement; output caps show their count.
+Two existing limits change to follow it and can turn a passing scan into exit 2: more than 300 agent cards (was 200, a
+notice) is the error a2a_cards_limit, and a repository agent card with more entries than the scanner reads is the error
+truncated (was a notice). A probed server whose prompts, resources or templates list is longer than one page of 200 gets the
+notice probe_list_incomplete.
 
 ## 1.12.0 (2026-11-13)
 

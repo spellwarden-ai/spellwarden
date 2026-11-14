@@ -155,11 +155,22 @@ def test_d1_a_baseline_entry_accepts_an_unreadable_card(run_cli, make_repo, tmp_
     assert code == 0 and report["findings"][0]["suppressed"] is True and report["errors"] == []
 
 
-def test_d2_201_cards_give_200_reports_and_the_notice(run_cli, make_repo, tmp_path):
-    files = {f"a/a{number:03d}/.well-known/agent-card.json": card_bytes(clean_card()) for number in range(201)}
+def test_d2_301_cards_give_300_reports_and_an_incomplete_scan(run_cli, make_repo, tmp_path):
+    files = {f"a/a{number:03d}/.well-known/agent-card.json": card_bytes(clean_card()) for number in range(301)}
     code, report, _ = scan(run_cli, make_repo, tmp_path, files)
-    assert len(report["agents"]) == 200 and code == 0
-    assert [n["code"] for n in report["notices"] if n["code"] == "a2a_cards_limit"] == ["a2a_cards_limit"]
+    assert len(report["agents"]) == 300 and code == 2  # an incomplete scan never looks like a pass
+    assert [n["code"] for n in report["errors"] if n["code"] == "a2a_cards_limit"] == ["a2a_cards_limit"]
+
+
+def test_a_repository_card_with_more_entries_than_the_scanner_reads_is_an_incomplete_scan(run_cli, make_repo, tmp_path):
+    """1.13.0: a card in the repository read only in part is the error `truncated` (exit 2), as a configuration document cut
+    short is; a card a remote server sends stays a notice, because its server decides its size."""
+    card = clean_card()
+    card["skills"] = [dict(card["skills"][0], id=f"s{number}") for number in range(501)]
+    code, report, _ = scan(run_cli, make_repo, tmp_path, {".well-known/agent-card.json": card_bytes(card)})
+    assert code == 2
+    assert [(n["code"], n["path"]) for n in report["errors"]] == [("truncated", "a2a-card:.well-known/agent-card.json")]
+    assert not [n for n in report["notices"] if n["message"].startswith("more entries than the scanner reads")]
 
 
 def test_listed_cards_and_the_exclude_setting(run_cli, make_repo, tmp_path):
