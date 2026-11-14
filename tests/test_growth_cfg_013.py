@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import inspect
 import json
+import os
 import time
 
 import pytest
@@ -13,6 +14,10 @@ from conftest import CONFIG_FIXTURES, _read_dir, config_documents, load_config_f
 from spellwarden_scan.agentconfig import parse_document, parse_mcp_config
 from spellwarden_scan.rules import growth_cfg_013
 from spellwarden_scan.rules.growth_cfg_013 import MALICIOUS, NIST, OWASP, RULE_ID, SEVERITY, TITLE, detect
+
+# Wall-clock budgets scale with SPELLWARDEN_SPEED_FACTOR when it is set (CI sets 3: shared runners, Windows above all, are
+# slower), as tests/otel/test_speed.py and tests/test_rules_mcp.py do.
+SPEED_FACTOR = float(os.environ.get("SPELLWARDEN_SPEED_FACTOR", "1"))
 
 NEW_IDS = frozenset({"SW-SKL-032", "SW-SKL-036", "SW-SKL-037", "SW-CFG-012", "SW-CFG-013"})
 
@@ -211,7 +216,7 @@ def test_a_300000_character_url_and_argument_are_read_in_under_a_second():
     assert all(document.error is None for document in documents)
     started = time.perf_counter()
     counts = [len(list(detect(config(document)))) for document in documents]
-    assert time.perf_counter() - started < 1
+    assert time.perf_counter() - started < 1 * SPEED_FACTOR
     assert counts == [0, 1, 1, 1, 0]
 
 
@@ -220,7 +225,7 @@ def test_many_servers_and_arguments_give_bounded_output_in_linear_time():
     text = json.dumps({"mcpServers": servers}).encode()
     started = time.perf_counter()
     findings = list(detect(config(parse_mcp_config(".mcp.json", text))))
-    assert time.perf_counter() - started < 2
+    assert time.perf_counter() - started < 2 * SPEED_FACTOR
     assert len(findings) <= 2000
 
 
@@ -246,7 +251,7 @@ def test_many_host_occurrences_in_one_url_are_read_in_linear_time():
     url = "https://mcp.supabase.com/mcp?project_ref=abc" + "&x=/mcp.supabase.com?" * 20_000
     started = time.perf_counter()
     findings = run({"db": {"type": "http", "url": url}})
-    assert time.perf_counter() - started < 1.0
+    assert time.perf_counter() - started < 1.0 * SPEED_FACTOR
     assert len(findings) == 1  # no read_only=true: still reported
 
 

@@ -4,6 +4,7 @@ matcher here must read a 300 000-character line in well under a second; at that 
 took between 2 and 400 seconds (measured on the forms of ce9115c), so each case fails on the old code."""
 from __future__ import annotations
 
+import os
 import time
 
 import pytest
@@ -14,7 +15,7 @@ from spellwarden_scan.rules import mcp, skill
 from spellwarden_scan.rules import patterns as P
 
 N = 300_000
-BUDGET_SECONDS = 1.0
+BUDGET_SECONDS = 1.0 * float(os.environ.get("SPELLWARDEN_SPEED_FACTOR", "1"))  # CI sets 3
 
 CASES = [
     (skill._PIPED, "iex("), (skill._PIPED, "curl "), (skill._PIPED, "iwr "), (skill._SEND, "curl "), (skill._SEND, "scp "),

@@ -1,12 +1,17 @@
 """Spec 5.10 and claim P7: masking and excerpts."""
 from __future__ import annotations
 
+import os
 import time
 
 import pytest
 from conftest import credential
 
 from spellwarden_scan.evidence import EVIDENCE_MAX, bounded_evidence, code_point_names, excerpt, fingerprint, mask_credentials
+
+# Wall-clock budgets scale with SPELLWARDEN_SPEED_FACTOR when it is set (CI sets 3: shared runners, Windows above all, are
+# slower), as tests/otel/test_speed.py and tests/test_rules_mcp.py do.
+SPEED_FACTOR = float(os.environ.get("SPELLWARDEN_SPEED_FACTOR", "1"))
 
 
 def test_every_credential_pattern_is_masked_and_masking_is_idempotent():
@@ -297,7 +302,7 @@ _ADVERSARIAL = [
 def test_masking_adversarial_lines_is_linear_and_idempotent(text):
     started = time.perf_counter()
     once = mask_credentials(text)
-    assert time.perf_counter() - started < 1.0
+    assert time.perf_counter() - started < 1.0 * SPEED_FACTOR
     assert mask_credentials(once) == once
 
 

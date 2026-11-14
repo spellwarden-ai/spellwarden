@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import inspect
 import json
+import os
 import time
 
 import pytest
@@ -13,6 +14,10 @@ from conftest import CONFIG_FIXTURES, _read_dir, config_documents, config_kind, 
 from spellwarden_scan.agentconfig import parse_document, parse_mcp_config
 from spellwarden_scan.rules import growth_cfg_012
 from spellwarden_scan.rules.growth_cfg_012 import MALICIOUS, NIST, OWASP, RULE_ID, SEVERITY, TITLE, detect
+
+# Wall-clock budgets scale with SPELLWARDEN_SPEED_FACTOR when it is set (CI sets 3: shared runners, Windows above all, are
+# slower), as tests/otel/test_speed.py and tests/test_rules_mcp.py do.
+SPEED_FACTOR = float(os.environ.get("SPELLWARDEN_SPEED_FACTOR", "1"))
 
 NEW_IDS = frozenset({"SW-SKL-032", "SW-SKL-036", "SW-SKL-037", "SW-CFG-012", "SW-CFG-013"})
 
@@ -235,7 +240,7 @@ def test_a_long_tool_list_is_read_in_linear_time_and_findings_are_bounded():
     started = time.perf_counter()
     document = parse_mcp_config(".mcp.json", text)
     findings = list(detect(config(document)))
-    assert time.perf_counter() - started < 1
+    assert time.perf_counter() - started < 1 * SPEED_FACTOR
     assert 1 <= len(findings) <= 30
 
 
@@ -244,7 +249,7 @@ def test_a_300000_character_value_is_read_in_under_a_second():
     text = json.dumps({"mcpServers": {"a": {"command": "a", "default_tools_approval_mode": value, "autoApprove": [value]}}}).encode()
     started = time.perf_counter()
     findings = list(detect(config(parse_mcp_config(".mcp.json", text))))
-    assert time.perf_counter() - started < 1
+    assert time.perf_counter() - started < 1 * SPEED_FACTOR
     assert len(findings) == 1
 
 

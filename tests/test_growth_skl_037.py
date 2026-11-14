@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import inspect
+import os
 import time
 
 import pytest
@@ -12,6 +13,10 @@ from conftest import GENERATED, SKILL_FIXTURES, _read_dir, clean_md, make_packag
 from spellwarden_scan.package import Package
 from spellwarden_scan.rules import growth_skl_037
 from spellwarden_scan.rules.growth_skl_037 import MALICIOUS, NIST, OWASP, RULE_ID, SEVERITY, TITLE, detect
+
+# Wall-clock budgets scale with SPELLWARDEN_SPEED_FACTOR when it is set (CI sets 3: shared runners, Windows above all, are
+# slower), as tests/otel/test_speed.py and tests/test_rules_mcp.py do.
+SPEED_FACTOR = float(os.environ.get("SPELLWARDEN_SPEED_FACTOR", "1"))
 
 NEW_IDS = frozenset({"SW-SKL-032", "SW-SKL-036", "SW-SKL-037", "SW-CFG-012", "SW-CFG-013"})
 SUM = "0123456789abcdef" * 4
@@ -381,7 +386,7 @@ def test_long_lines_are_read_in_linear_time(unit):
                   {"scripts/long.py": line + "\n"}, {"scripts/long.js": line + "\n"}):
         started = time.perf_counter()
         list(detect(Package.build(make_package(files))))
-        assert time.perf_counter() - started < 1.0, sorted(files)
+        assert time.perf_counter() - started < 1.0 * SPEED_FACTOR, sorted(files)
 
 
 def test_many_pipe_stages_in_one_command_are_read_in_linear_time():
@@ -391,11 +396,11 @@ def test_many_pipe_stages_in_one_command_are_read_in_linear_time():
         started = time.perf_counter()
         run(**{"scripts/a.sh": line + "\n"})
         run(fenced(line))
-        assert time.perf_counter() - started < 1.0
+        assert time.perf_counter() - started < 1.0 * SPEED_FACTOR
     # many stages in the command and in each command of its execute window
     started = time.perf_counter()
     run(**{"scripts/b.sh": "\n".join([same] * 6) + "\n"})
-    assert time.perf_counter() - started < 1.0
+    assert time.perf_counter() - started < 1.0 * SPEED_FACTOR
 
 
 def test_download_run_by_a_nearby_pipe_stage_still_fires():
@@ -415,7 +420,7 @@ def test_a_pipeline_of_many_distinct_run_steps_is_read_in_linear_time():
     line = "curl -L https://dl.example.com/t0 -o t0 | " + "".join(f"./t{n} | " for n in range(1, 30_000)) + "./t0"
     started = time.perf_counter()
     assert run(**{"scripts/a.sh": line + "\n"})
-    assert time.perf_counter() - started < 1.0
+    assert time.perf_counter() - started < 1.0 * SPEED_FACTOR
 
 
 def test_many_downloads_followed_by_one_large_command_are_read_in_linear_time():
@@ -424,7 +429,7 @@ def test_many_downloads_followed_by_one_large_command_are_read_in_linear_time():
     large = "./" + "a" * 200_000 + " " + "b" * 100_000
     started = time.perf_counter()
     run(**{"scripts/a.sh": downloads + "\n" + large + "\n"})
-    assert time.perf_counter() - started < 1.0
+    assert time.perf_counter() - started < 1.0 * SPEED_FACTOR
 
 
 # --- 1.8.0 revision: inline spans, extract then place, latest tag resolved, moving constants, keywords --------
@@ -618,7 +623,7 @@ def test_a_line_of_many_mentions_of_a_moving_constant_is_read_in_linear_time():
               + "x = (" + "BASE, " * 50_000 + ")\n")
     started = time.perf_counter()
     run(**{"scripts/a.py": script})
-    assert time.perf_counter() - started < 1.0
+    assert time.perf_counter() - started < 1.0 * SPEED_FACTOR
 
 
 def test_javascript_const_with_a_type_annotation_and_a_python_annotation_are_collected():
@@ -723,7 +728,7 @@ def test_many_echo_pipelines_are_read_in_linear_time():
                   {"SKILL.md": clean_md() + fenced(line)}):
         started = time.perf_counter()
         list(detect(Package.build(make_package(files))))
-        assert time.perf_counter() - started < 1.0, sorted(files)
+        assert time.perf_counter() - started < 1.0 * SPEED_FACTOR, sorted(files)
 
 
 @pytest.mark.parametrize("unit", [
@@ -736,7 +741,7 @@ def test_inline_spans_are_read_in_linear_time(unit):
     assert len(line) == 300_000
     started = time.perf_counter()
     run("\n- " + line + "\n")
-    assert time.perf_counter() - started < 1.0
+    assert time.perf_counter() - started < 1.0 * SPEED_FACTOR
 
 
 def test_thousands_of_keyword_only_commands_are_read_in_linear_time():
@@ -745,7 +750,7 @@ def test_thousands_of_keyword_only_commands_are_read_in_linear_time():
     started = time.perf_counter()
     clone_found = run(**{"scripts/a.sh": clone + keywords * 1_000 + "echo x\n" * 5_000 + "cd dir\nnpm install\n"})
     download_found = run(**{"scripts/b.sh": "curl -L https://dl.example.com/tool -o tool\n" + keywords * 1_000 + "chmod +x tool\n"})
-    assert time.perf_counter() - started < 1.0
+    assert time.perf_counter() - started < 1.0 * SPEED_FACTOR
     assert len(clone_found) == 1 and len(download_found) == 1
 
 
@@ -755,7 +760,7 @@ def test_a_long_variable_url_line_after_a_latest_tag_is_read_in_linear_time():
     started = time.perf_counter()
     run(**{"scripts/a.sh": LATEST_TAG + "\n" + line + "\n"})
     run(fenced(LATEST_TAG, line))
-    assert time.perf_counter() - started < 1.0
+    assert time.perf_counter() - started < 1.0 * SPEED_FACTOR
 
 
 def test_many_markdown_files_with_many_fenced_blocks_are_read_in_linear_time():
@@ -764,7 +769,7 @@ def test_many_markdown_files_with_many_fenced_blocks_are_read_in_linear_time():
     files = {f"references/r{n}.md": body for n in range(600)}
     started = time.perf_counter()
     run(**files)
-    assert time.perf_counter() - started < 1.0
+    assert time.perf_counter() - started < 1.0 * SPEED_FACTOR
 
 
 # --- fixtures ----------------------------------------------------------------------------------------

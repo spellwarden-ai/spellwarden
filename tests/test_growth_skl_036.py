@@ -2,6 +2,7 @@
 The rule is not registered yet, so the tests call the module's `detect` directly."""
 from __future__ import annotations
 
+import os
 import time
 
 import pytest
@@ -9,6 +10,10 @@ from conftest import GENERATED, SKILL_FIXTURES, _read_dir, make_package
 
 from spellwarden_scan.package import Package
 from spellwarden_scan.rules.growth_skl_036 import MALICIOUS, NIST, OWASP, RULE_ID, SEVERITY, TITLE, detect
+
+# Wall-clock budgets scale with SPELLWARDEN_SPEED_FACTOR when it is set (CI sets 3: shared runners, Windows above all, are
+# slower), as tests/otel/test_speed.py and tests/test_rules_mcp.py do.
+SPEED_FACTOR = float(os.environ.get("SPELLWARDEN_SPEED_FACTOR", "1"))
 
 NEW_IDS = frozenset({"SW-SKL-032", "SW-SKL-036", "SW-SKL-037"})
 
@@ -174,7 +179,7 @@ def test_long_allowed_tools_line_is_read_in_linear_time(token):
     line = "allowed-tools: " + token * (300_000 // len(token))
     start = time.perf_counter()
     findings = run(line)
-    assert time.perf_counter() - start < 1.0
+    assert time.perf_counter() - start < 1.0 * SPEED_FACTOR
     assert len(findings) <= 10
 
 
@@ -186,7 +191,7 @@ def test_escaped_entries_that_are_not_in_the_raw_text_are_read_in_linear_time():
     findings = run(line)
     # Nearly all of the time is the frontmatter parser reading a 280,000-character YAML list (0.3 s on a fast machine, over
     # a second on a slow CI runner); the rule adds almost nothing, and a quadratic rule would take minutes.
-    assert time.perf_counter() - start < 2.0
+    assert time.perf_counter() - start < 2.0 * SPEED_FACTOR
     assert at(findings) == [("SKILL.md", 4)]
 
 
