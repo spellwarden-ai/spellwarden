@@ -44,7 +44,8 @@ def test_the_section_says_what_the_spec_requires():
         assert needle in text, needle
     for code in A2A_NOTICES:
         assert f"`{code}`" in text, code
-    assert len(A2A_NOTICES) == 9
+    assert len(A2A_NOTICES) == 8  # `a2a_cards_limit` is an error since 1.13.0 (README "Limits")
+    assert "`a2a_cards_limit`" in text
     for rule_id in ("SW-A2A-001", "SW-A2A-002", "SW-A2A-003", "SW-A2A-004", "SW-A2A-005", "SW-A2A-010", "SW-A2A-011",
                     "SW-A2A-013", "SW-A2A-016", "SW-A2A-017", "SW-A2A-018", "SW-A2A-019"):
         assert rule_id in text, rule_id
