@@ -39,8 +39,9 @@ def prop(name: str, value: object) -> dict:
 
 def reduce_url(text: object) -> str | None:
     """`scheme://host[:port]/path` of an absolute URL: user name and password, query and fragment removed, a credential in a
-    path segment masked, scheme and host lower-cased (the rule of `identity._reduce_source`). None for anything that is not an absolute URL, or that holds a
-    control character or whitespace. Used for every endpoint and every source URL an export writes."""
+    path segment masked, scheme and host lower-cased (the rule of `identity._reduce_source`). None for anything that is not
+    an absolute URL, or that holds a control character or whitespace. Used for every endpoint and every source URL an export
+    writes."""
     if not isinstance(text, str) or any(ord(char) < 0x21 or ord(char) == 0x7F for char in text):
         return None
     parts = url_parts(text)

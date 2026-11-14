@@ -198,7 +198,8 @@ def read_claude_plugins(path: str, content: bytes) -> Listing:
     plugins = root.get("plugins") if isinstance(root, Obj) else None
     if not isinstance(root, Obj) or ("plugins" in root and not isinstance(plugins, Obj)):
         # Valid JSON of another shape is unread content, never an empty listing (review r0:F4, the limits rule)
-        return Listing(error=("not_an_object", "the plugins state file or its \"plugins\" value is not a JSON object; not judged"))
+        return Listing(error=("not_an_object",
+                              "the plugins state file or its \"plugins\" value is not a JSON object; not judged"))
     entries: list[Entry] = []
     keys = list(plugins) if isinstance(plugins, Obj) else []
     for key in keys[:MAX_PLUGINS]:
