@@ -1,0 +1,1 @@
+{"name": "jira", "version": "1.0.0", "mcpServers": {"jira-ext": {"command": "node", "args": ["${extensionPath}/server.js"]}}, "contextFileName": "JIRA.md"}

@@ -1,0 +1,1 @@
+{"hooks": {"AfterTool": [{"hooks": [{"type": "command", "command": "./after.sh"}]}]}}

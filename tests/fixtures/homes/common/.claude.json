@@ -1,0 +1,27 @@
+{
+  "numStartups": 12,
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github@1.0.0", "CANARY-ARGUMENT"],
+      "env": {"GITHUB_TOKEN": "CANARY-ENV-VALUE"}
+    }
+  },
+  "projects": {
+    "{{HOME}}/work/app": {
+      "mcpServers": {
+        "db": {"command": "uvx", "args": ["db-mcp==2.0.0", "--password", "CANARY-ARGUMENT"]}
+      }
+    },
+    "/srv/outside/app": {
+      "mcpServers": {
+        "db": {
+          "type": "http",
+          "url": "https://CANARY-USERINFO:pw@db.example.com/mcp?key=CANARY-QUERY#CANARY-FRAGMENT",
+          "headers": {"Authorization": "Bearer CANARY-HEADER-VALUE"}
+        }
+      }
+    },
+    "{{HOME}}/notes": {"mcpServers": {}}
+  }
+}

@@ -1,0 +1,1 @@
+{"mcpServers": {"lint-server": {"command": "npx", "args": ["lint-mcp@1.0.0"]}}}

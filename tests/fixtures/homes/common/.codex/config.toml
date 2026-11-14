@@ -1,0 +1,25 @@
+model = "o3"
+notify = ["notify-send", "Codex"]
+
+[mcp_servers.docs]
+command = "npx"
+args = ["-y", "docs-mcp@1.2.0", "CANARY-ARGUMENT"]
+env = { DOCS_TOKEN = "CANARY-ENV-VALUE" }
+
+[mcp_servers.remote]
+url = "https://remote.example.com/mcp?key=CANARY-QUERY"
+bearer_token_env_var = "REMOTE_TOKEN"
+http_headers = { "X-Api-Key" = "CANARY-HEADER-VALUE" }
+
+[[hooks.PreToolUse]]
+matcher = "Bash"
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = "./guard.sh"
+
+[plugins."review@tools"]
+enabled = true
+
+[marketplaces.tools]
+source = "https://CANARY-USERINFO@git.example.com/codex-tools.git#CANARY-FRAGMENT"
+source_type = "git"

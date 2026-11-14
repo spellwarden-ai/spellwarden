@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "maps": {"httpUrl": "https://maps.example.com/mcp?key=CANARY-QUERY", "headers": {"X-Api-Key": "CANARY-HEADER-VALUE"}},
+    "events": {"url": "https://events.example.com/sse"},
+    "local": {"command": "python", "args": ["-m", "local_mcp", "CANARY-ARGUMENT"], "env": {"TOKEN": "CANARY-ENV-VALUE"}}
+  },
+  "hooks": {
+    "BeforeTool": [{"matcher": "run_shell_command", "hooks": [{"type": "command", "command": "./guard.sh"}]}]
+  }
+}

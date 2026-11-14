@@ -1,0 +1,1 @@
+{"servers": {"jira": {"type": "http", "url": "https://jira.example.com/mcp", "headers": {"Authorization": "Bearer CANARY-HEADER-VALUE"}}}}
