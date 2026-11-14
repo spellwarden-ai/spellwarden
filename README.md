@@ -547,6 +547,85 @@ Off by default. With `--probe`, the scanner also fetches the cards of the remote
 
 `--probe-private` (or `SPELLWARDEN_PROBE_PRIVATE=true`) also allows the private addresses of the configured servers themselves (never a link-local address such as the cloud metadata service, and never an address that a server's answer or redirect points to), but only on a local run or on a push, schedule or manual run of a protected branch or tag in GitHub Actions or GitLab CI; anywhere else it is ignored with the notice `probe_private_untrusted`, because whoever can push a revision controls the endpoints it names. It cannot be set in `.spellwarden/config.yml`.
 
+### Scanning a workstation
+
+`spellwarden scan --user` scans the agent configuration in your home directory instead of a repository: the MCP servers, skills, plugins and marketplaces, hooks and instruction files of Claude Code, Claude Desktop, Cursor, VS Code, Windsurf (Devin Desktop), Codex and Gemini CLI, on Linux, macOS and Windows. It reads the files of the table below for the running system, judges them with the rules of a repository scan (the `SW-MCP` rules need `--probe`, as always) and reports per client. The text and Markdown reports start with one line per client (`Claude Code: 4 servers, 2 skills, 1 plugin, 1 marketplace, 2 hooks, 2 instruction files`, or `not found`), the JSON report adds `clients` (`client`, `found`, `roots`) and each item's `clients`, and SARIF results carry `properties.clients`. Paths are shown relative to the home directory (`~/.claude.json`), or under the variable that moved them (`$CODEX_HOME/config.toml`), never as absolute paths. A Claude Code server configured for one project is the item `~/.claude.json#<project>#<name>`, and its `scope` is the project directory: `~/work/app` inside the home, `outside-home:<8 hex>/<last segment>` outside it, so no directory above the project is printed.
+
+```
+spellwarden scan --user [--inventory] [--format FMT [--output FILE]]... [--fail-on LEVEL] [--probe]
+                 [--upload --device-label TEXT] [--quiet | --verbose]
+```
+
+It never changes a client file (every file is opened read-only), never starts a local server, probes remote servers only under `--probe`, sends no usage ping, and reads no `.spellwarden/config.yml`, baseline or lock: `--user` with a `PATH`, `--locked`, `--baseline` or `--config` is a usage error (exit 2). It never starts connected mode: `SPELLWARDEN_ORG`, `SPELLWARDEN_API_KEY` and the CI token variables are taken out of the environment and ignored. `--inventory` lists what is installed without judging it: no rule, no finding and no probe (`--probe` is a usage error), formats `text`, `json` and `cyclonedx` only, exit 0, or 2 when a file could not be read.
+
+Secrets stay on the machine. An endpoint or a marketplace source is shown as `scheme://host[:port]/path`, without user name, query or fragment; a stdio server by its pinned command identity (`cmd:npx pkg@1.2.0 args=<hash>`) or the reason it has none; and a finding on a configuration document by its location, without an excerpt, because those files hold environment values, headers and tokens. No environment value, header, argument or `bearer_token_env_var` target is printed, written or uploaded.
+
+A symbolic link at a path of the table, at a directory the table lists entries of, or inside a skill is followed when its target is a regular file or a directory inside the home directory (the links a dotfile manager makes). The item keeps the path it was reached by, and each real file or directory is read once, so a skills directory that two clients read is one set of items with both clients. Any other link is the notice `symlink_skipped`. With `--verbose`, a client with no file of the table is named on stderr (the notice `client_not_found`); the JSON report lists it with `found: false`. A client is found when a file or directory that only it reads exists: a directory that several clients read (`~/.agents/skills`, and `~/.claude/skills`, which VS Code reads too) is listed for the clients found, or for every client that reads it when none of them was found.
+
+<!-- clients:start -->
+| Client | Systems | Path | Reads | Source | Checked |
+|---|---|---|---|---|---|
+| Claude Code | all | `~/.claude.json` (`$CLAUDE_CONFIG_DIR/.claude.json` when `CLAUDE_CONFIG_DIR` is set) | MCP servers of the user scope (`mcpServers`) and of each project (`projects.<directory>.mcpServers`) | <https://code.claude.com/docs/en/claude-directory> | 2026-11-14 |
+| Claude Code | all | `$CLAUDE_CONFIG_DIR/settings.json` | hooks, permissions, `enabledPlugins`, `extraKnownMarketplaces` | <https://code.claude.com/docs/en/settings> | 2026-11-14 |
+| Claude Code | all | `$CLAUDE_CONFIG_DIR/skills` | skills (`<name>/SKILL.md`) | <https://code.claude.com/docs/en/claude-directory> | 2026-11-14 |
+| Claude Code | all | `$CLAUDE_CONFIG_DIR/CLAUDE.md` | instruction file (`claude-md`) | <https://code.claude.com/docs/en/claude-directory> | 2026-11-14 |
+| Claude Code | all | `$CLAUDE_CONFIG_DIR/rules/*.md` | instruction files (`claude-rule`) | <https://code.claude.com/docs/en/claude-directory> | 2026-11-14 |
+| Claude Code | all | `$CLAUDE_CONFIG_DIR/plugins/installed_plugins.json` | installed plugins, and in each plugin's directory its skills, `.mcp.json`, `hooks/hooks.json` and `.claude-plugin/plugin.json` | <https://code.claude.com/docs/en/plugins/loading> | 2026-11-14 |
+| Claude Code | all | `$CLAUDE_CONFIG_DIR/plugins/known_marketplaces.json` | marketplaces and their sources | <https://code.claude.com/docs/en/plugins/loading> | 2026-11-14 |
+| Claude Desktop | Linux | `$XDG_CONFIG_HOME/Claude/claude_desktop_config.json` | MCP servers (`mcpServers`) | <https://modelcontextprotocol.io/docs/develop/connect-local-servers> | 2026-11-14 |
+| Claude Desktop | macOS | `~/Library/Application Support/Claude/claude_desktop_config.json` | MCP servers (`mcpServers`) | <https://modelcontextprotocol.io/docs/develop/connect-local-servers> | 2026-11-14 |
+| Claude Desktop | Windows | `%APPDATA%/Claude/claude_desktop_config.json` | MCP servers (`mcpServers`) | <https://modelcontextprotocol.io/docs/develop/connect-local-servers> | 2026-11-14 |
+| Cursor | all | `~/.cursor/mcp.json` | MCP servers (`mcpServers`) | <https://cursor.com/docs/context/mcp> | 2026-11-14 |
+| Cursor | all | `~/.cursor/hooks.json` | hooks | <https://cursor.com/docs/agent/hooks> | 2026-11-14 |
+| VS Code | all | `$COPILOT_HOME/mcp-config.json` | MCP servers (`mcpServers`) | <https://code.visualstudio.com/docs/copilot/reference/mcp-configuration> | 2026-11-14 |
+| VS Code | all | `$COPILOT_HOME/skills` | skills (`<name>/SKILL.md`) | <https://code.visualstudio.com/docs/copilot/customization/agent-skills> | 2026-11-14 |
+| VS Code | all | `~/.claude/skills` | skills (`<name>/SKILL.md`) | <https://code.visualstudio.com/docs/copilot/customization/agent-skills> | 2026-11-14 |
+| VS Code | all | `~/.agents/skills` | skills (`<name>/SKILL.md`) | <https://code.visualstudio.com/docs/copilot/customization/agent-skills> | 2026-11-14 |
+| Windsurf (Devin Desktop) | all | `~/.config/devin/mcp_config.json` | MCP servers (`mcpServers`, remote ones by `serverUrl` or `url`) | <https://docs.devin.ai/desktop/cascade/mcp> | 2026-11-14 |
+| Windsurf (Devin Desktop) | all | `~/.devin/global_rules.md` | instruction file (`devin-rules`) | <https://docs.devin.ai/desktop/cascade/memories> | 2026-11-14 |
+| Windsurf (Devin Desktop) | all | `~/.devin/rules/*.md` | instruction files (`devin-rules`) | <https://docs.devin.ai/desktop/cascade/memories> | 2026-11-14 |
+| Windsurf (Devin Desktop) | all | `~/.config/devin/skills` | skills (`<name>/SKILL.md`) | <https://docs.devin.ai/desktop/cascade/mcp> | 2026-11-14 |
+| Windsurf (Devin Desktop) | all | `~/.agents/skills` | skills (`<name>/SKILL.md`) | <https://docs.devin.ai/desktop/cascade/mcp> | 2026-11-14 |
+| Codex | all | `$CODEX_HOME/config.toml` | MCP servers (`[mcp_servers.<id>]`), hooks (`[hooks]`, `notify`), plugins (`[plugins]`), marketplaces (`[marketplaces]`) | <https://learn.chatgpt.com/docs/config-file/config-reference> | 2026-11-14 |
+| Codex | all | `$CODEX_HOME/hooks.json` | hooks | <https://learn.chatgpt.com/docs/hooks> | 2026-11-14 |
+| Codex | all | `~/.agents/skills` | skills (`<name>/SKILL.md`) | <https://learn.chatgpt.com/docs/build-skills> | 2026-11-14 |
+| Codex | all | `$CODEX_HOME/AGENTS.md`<br>`$CODEX_HOME/AGENTS.override.md` | instruction files (`codex-agents-md`) | <https://learn.chatgpt.com/docs/agent-configuration/agents-md> | 2026-11-14 |
+| Gemini CLI | all | `~/.gemini/settings.json` | MCP servers (`mcpServers`; `url` is SSE, `httpUrl` streamable HTTP), hooks | <https://geminicli.com/docs/reference/configuration> | 2026-11-14 |
+| Gemini CLI | all | `~/.gemini/extensions` | extensions (plugins): each `<name>/gemini-extension.json` with its MCP servers, `hooks/hooks.json` and the context files it names | <https://geminicli.com/docs/extensions/reference/> | 2026-11-14 |
+| Gemini CLI | all | `~/.gemini/GEMINI.md` | instruction file (`gemini-md`) | <https://geminicli.com/docs/cli/gemini-md/> | 2026-11-14 |
+| Gemini CLI | all | `~/.gemini/skills` | skills (`<name>/SKILL.md`) | <https://geminicli.com/docs/cli/skills/> | 2026-11-14 |
+| Gemini CLI | all | `~/.agents/skills` | skills (`<name>/SKILL.md`) | <https://geminicli.com/docs/cli/skills/> | 2026-11-14 |
+
+Not read:
+
+- Windsurf's `~/.codeium/windsurf/mcp_config.json` and `~/.codeium/windsurf/memories/global_rules.md`: the Windsurf documentation now leads to Devin Desktop's, which names `~/.config/devin/` and `~/.devin/` instead.
+- Codex's `$CODEX_HOME/skills/`: the Codex skills guide names `~/.agents/skills/` only.
+- VS Code's user and profile `mcp.json` files (`Code/User/mcp.json`, `Code/User/profiles/*/mcp.json`, also of VS Code Insiders): the profiles and MCP documentation name no path for the file.
+- VS Code's user instruction files (`*.instructions.md` of the user profile): the documentation names no path.
+- The files of installed Codex plugins: only the `[plugins]` and `[marketplaces]` entries of `config.toml` are listed.
+- Claude Code's plugins when `CLAUDE_CODE_PLUGIN_CACHE_DIR` moves them out of `$CLAUDE_CONFIG_DIR/plugins/`, the components a plugin declares outside its standard layout, and MCP bundles (`.mcpb`, `.dxt`).
+- Skills inside Gemini CLI extensions: the documentation names no directory for them.
+- System-wide managed files outside the home directory (`/etc/claude-code/`, `/etc/gemini-cli/`, `C:\ProgramData\`), which belong to an administrator, not to the user.
+- Cursor's user rules, which Cursor keeps in its own settings database, not in a file.
+- Claude Code subagents, commands and output styles, and Claude Desktop extensions.
+<!-- clients:end -->
+
+The table follows each client's own documentation: a row stays only while its source names the path, and carries the date it was checked; when a client moves its files (Windsurf became Devin Desktop), the old place moves to "Not read" until a release reads the new one. The tests read a fixture home for each system; CI runs on Linux and Windows, so macOS is covered by its fixture home.
+
+#### Uploading a workstation inventory
+
+An organisation on the Enterprise plan can collect these inventories. An owner or manager creates a key with access Workstation under Settings, API keys, and developers (or a device management tool) set two variables that only `scan --user --upload` reads:
+
+```
+SPELLWARDEN_WORKSTATION_ORG=<slug> SPELLWARDEN_WORKSTATION_KEY=swk_... spellwarden scan --user --upload --device-label "Anna's laptop"
+```
+
+They are not `SPELLWARDEN_ORG` and `SPELLWARDEN_API_KEY` on purpose: either of those switches every repository scan on the machine to connected mode, which a workstation key cannot establish, while a repository scan never reads the workstation variables (it only takes the key out of its environment). Either variable missing or malformed is the error `workstation_no_credential`, before any client file is read (exit 2). The upload is off unless `--upload` is given; `SPELLWARDEN_UPLOAD` and the settings file do not apply to `--user`.
+
+The first upload needs `--device-label` (1 to 64 characters after control and zero-width characters are removed; else the error `workstation_label_missing`, exit 2). It creates the state file `workstation.json` in the user configuration directory (`$XDG_CONFIG_HOME/spellwarden/`, `~/Library/Application Support/spellwarden/` or `%APPDATA%\spellwarden\`, mode 0600 where the system has modes), holding a random install id and the label and no credential. Later uploads reuse both unless `--device-label` is given again, and deleting the file makes the next upload a new device. Only an upload run writes it.
+
+After every report is written, the command sends one request, `POST https://dash.spellwarden.ai/api/v1/orgs/<slug>/workstations/inventory`, with the network rules of connected mode (HTTPS, public addresses only, no redirect, 10 seconds, one retry after a 429 or a 5xx). The body holds the label and the install id, the operating system, the scanner and rules versions, whether the scan was complete, the clients found with their roots, each item (kind, name, home-relative path, project directory, transport, endpoint, command identity or its reason, plugin, marketplace, instruction format and clients), each finding (its item, rule id, severity, line and whether a baseline accepted it) and the codes and paths of at most 50 errors and 50 notices with their totals. It holds no message, excerpt, environment value, header or argument. Success is the notice `workstation_uploaded`; any other answer is the error `workstation_upload_failed` with the server's code (`plan_required`, `device_limit`, `inventory_too_large`, `api_key_revoked`, `workstation_key_required`, `rate_limited`) and its message, exit 2, because an inventory you asked to send must not vanish silently. Both are printed on stderr: the reports were written before the request. Over 1 MiB, 2,000 items or 1,000 findings nothing is sent (`workstation_upload_too_large`, exit 2).
+
 ### The usage ping
 
 In CI, and only in CI, each `spellwarden scan` sends one request at the end to `https://dash.spellwarden.ai/api/public/ping`. It lets us count how many organisations run the free scanner and how many runs checked an A2A agent card. The ping is pseudonymous, not anonymous, and carries exactly six fields:
