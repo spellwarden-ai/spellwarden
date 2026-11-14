@@ -20,7 +20,7 @@ from spellwarden_scan.agentconfig import (
     parse_document, parse_hooks, parse_marketplace, parse_mcp_config, parse_plugin_manifest, parse_settings,
     reference_kind,
 )
-from spellwarden_scan import gate, identity  # noqa: F401 (O3 spec 5.4: `spellwarden_scan.gate`, `spellwarden_scan.identity`)
+from spellwarden_scan import frameworks, gate, identity  # noqa: F401 (`spellwarden_scan.gate`, `.identity`: O3 spec 5.4; `.frameworks`: 1.13.0)
 from spellwarden_scan.archive import ArchiveError, ArchiveLimits, unpack_zip
 from spellwarden_scan.canonical import canonical_sha256
 from spellwarden_scan.evidence import mask_credentials

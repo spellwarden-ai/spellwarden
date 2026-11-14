@@ -1,0 +1,77 @@
+{
+ "frameworks": {
+  "atlas": {"name": "MITRE ATLAS", "url": "https://atlas.mitre.org/", "version": "2026.10"},
+  "nist": {"name": "NIST SP 800-53", "url": "https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final", "version": "Revision 5, base controls (provisional mapping)", "items": [
+   {"id": "AC-3", "name": "Access Enforcement"},
+   {"id": "AC-6", "name": "Least Privilege"},
+   {"id": "AU-2", "name": "Event Logging"},
+   {"id": "CM-7", "name": "Least Functionality"},
+   {"id": "IA-5", "name": "Authenticator Management"},
+   {"id": "SC-7", "name": "Boundary Protection"},
+   {"id": "SC-8", "name": "Transmission Confidentiality and Integrity"},
+   {"id": "SI-10", "name": "Information Input Validation"},
+   {"id": "SI-3", "name": "Malicious Code Protection"},
+   {"id": "SI-7", "name": "Software, Firmware, and Information Integrity"},
+   {"id": "SR-3", "name": "Supply Chain Controls and Processes"}
+  ]},
+  "owasp_agentic": {"name": "OWASP Top 10 for Agentic Applications", "url": "https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/", "version": "2026 edition (December 2025)", "items": [
+   {"id": "ASI01", "name": "Agent Goal Hijack"},
+   {"id": "ASI02", "name": "Tool Misuse and Exploitation"},
+   {"id": "ASI03", "name": "Identity and Privilege Abuse"},
+   {"id": "ASI04", "name": "Agentic Supply Chain Vulnerabilities"},
+   {"id": "ASI05", "name": "Unexpected Code Execution (RCE)"},
+   {"id": "ASI06", "name": "Memory & Context Poisoning"},
+   {"id": "ASI07", "name": "Insecure Inter-Agent Communication"},
+   {"id": "ASI08", "name": "Cascading Failures"},
+   {"id": "ASI09", "name": "Human-Agent Trust Exploitation"},
+   {"id": "ASI10", "name": "Rogue Agents"}
+  ]},
+  "owasp_ast": {"name": "OWASP Agentic Skills Top 10", "status": "incubator project under public review", "url": "https://owasp.org/www-project-agentic-skills-top-10/", "version": "1.0 (2026 edition)", "items": [
+   {"id": "AST01", "name": "Malicious Skills"},
+   {"id": "AST02", "name": "Supply Chain Compromise"},
+   {"id": "AST03", "name": "Over-Privileged Skills"},
+   {"id": "AST04", "name": "Insecure Metadata"},
+   {"id": "AST05", "name": "Untrusted External Instructions"},
+   {"id": "AST06", "name": "Weak Isolation"},
+   {"id": "AST07", "name": "Update Drift"},
+   {"id": "AST08", "name": "Poor Scanning"},
+   {"id": "AST09", "name": "No Governance"},
+   {"id": "AST10", "name": "Cross-Platform Reuse"}
+  ]},
+  "owasp_mcp": {"name": "OWASP MCP Top 10", "url": "https://owasp.org/www-project-mcp-top-10/", "version": "2025 edition (beta)", "items": [
+   {"id": "MCP01", "name": "Token Mismanagement & Secret Exposure"},
+   {"id": "MCP02", "name": "Privilege Escalation via Scope Creep"},
+   {"id": "MCP03", "name": "Tool Poisoning"},
+   {"id": "MCP04", "name": "Software Supply Chain Attacks & Dependency Tampering"},
+   {"id": "MCP05", "name": "Command Injection & Execution"},
+   {"id": "MCP06", "name": "Prompt Injection via Contextual Payloads"},
+   {"id": "MCP07", "name": "Insufficient Authentication & Authorization"},
+   {"id": "MCP08", "name": "Lack of Audit and Telemetry"},
+   {"id": "MCP09", "name": "Shadow MCP Servers"},
+   {"id": "MCP10", "name": "Context Injection & Over-Sharing"}
+  ]}
+ },
+ "no_atlas": {
+  "SW-A2A-001": "card format, transport, authorization-flow and parser hygiene",
+  "SW-A2A-002": "card format, transport, authorization-flow and parser hygiene",
+  "SW-A2A-003": "card format, transport, authorization-flow and parser hygiene",
+  "SW-A2A-004": "card format, transport, authorization-flow and parser hygiene",
+  "SW-A2A-005": "card format, transport, authorization-flow and parser hygiene",
+  "SW-A2A-006": "card format, transport, authorization-flow and parser hygiene",
+  "SW-A2A-009": "card format, transport, authorization-flow and parser hygiene",
+  "SW-A2A-018": "card format, transport, authorization-flow and parser hygiene",
+  "SW-A2A-019": "card format, transport, authorization-flow and parser hygiene",
+  "SW-CFG-001": "plain HTTP transport",
+  "SW-MCP-002": "authentication method, transport and protocol-version hygiene",
+  "SW-MCP-003": "authentication method, transport and protocol-version hygiene",
+  "SW-MCP-004": "authentication method, transport and protocol-version hygiene",
+  "SW-MCP-005": "authentication method, transport and protocol-version hygiene",
+  "SW-MCP-006": "authentication method, transport and protocol-version hygiene",
+  "SW-MCP-007": "authentication method, transport and protocol-version hygiene",
+  "SW-MCP-008": "authentication method, transport and protocol-version hygiene",
+  "SW-MCP-009": "authentication method, transport and protocol-version hygiene",
+  "SW-MCP-010": "authentication method, transport and protocol-version hygiene",
+  "SW-SKL-015": "metadata hygiene",
+  "SW-SKL-031": "metadata hygiene"
+ }
+}

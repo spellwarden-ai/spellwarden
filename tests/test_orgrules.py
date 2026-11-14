@@ -78,7 +78,7 @@ def test_mappings_are_split_like_make_rule_and_the_baseline_id_check_is_unchange
     compiled = compile_org_rule(rule(owasp=["ASI04", "MCP01"], nist=["SR-3"]))
     assert compiled.owasp_agentic == ("ASI04",) and compiled.owasp_mcp == ("MCP01",) and compiled.nist == ("SR-3",)
     with pytest.raises(ValueError):
-        make_rule("SW-ORG-001", "x", "high", "skill", owasp=(), nist=(), detect=lambda _: iter(()))
+        make_rule("SW-ORG-001", "x", "high", "skill", owasp=(), nist=(), atlas=(), detect=lambda _: iter(()))
     assert RULE_ID_RE.pattern == r"^SW-(SKL|MCP|CFG|REG|A2A|ORG)-[0-9]{3}$"
 
 
@@ -234,7 +234,7 @@ def test_a_custom_rule_whose_detector_has_an_evaluate_method_is_called_as_in_1_0
         def evaluate(self, _text):
             raise AssertionError("not called")
 
-    rules = BASELINE.with_rules([make_rule("SW-SKL-099", "Custom", "low", "skill", owasp=(), nist=(), detect=Detector())])
+    rules = BASELINE.with_rules([make_rule("SW-SKL-099", "Custom", "low", "skill", owasp=(), nist=(), atlas=(), detect=Detector())])
     result = scan_skill_package(_budget_package(), rules, org_rule_budget=OrgRuleBudget(clock=StepClock(), seconds=1))
     assert [f.rule_id for f in result.findings] == [f.rule_id for f in scan_skill_package(_budget_package(), BASELINE).findings]
 
