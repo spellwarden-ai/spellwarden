@@ -77,10 +77,19 @@
       "type": "object",
       "required": ["kind", "path", "name", "plugin"],
       "properties": {
-        "kind": {"enum": ["skill", "marketplace", "plugin", "mcp-config", "mcp-server", "settings", "hooks", "plugin-manifest"]},
+        "kind": {"enum": ["skill", "marketplace", "plugin", "mcp-config", "mcp-server", "settings", "hooks", "plugin-manifest", "instructions"]},
         "path": {"type": "string", "minLength": 1},
         "name": {"type": "string"},
-        "plugin": {"type": ["string", "null"]}
+        "plugin": {"type": ["string", "null"]},
+        "format": {"enum": ["agents-md", "claude-md", "gemini-md", "copilot-instructions", "cursor-mdc", "cursorrules", "windsurf-rules"],
+                   "description": "Instruction files only (kind instructions), with front_matter."},
+        "front_matter": {"oneOf": [
+          {"type": "null"},
+          {"type": "object", "required": ["description", "globs", "always_apply", "trigger"],
+           "properties": {"description": {"type": ["string", "null"]},
+                          "globs": {"type": ["array", "null"], "items": {"type": "string"}},
+                          "always_apply": {"type": ["boolean", "null"]}, "trigger": {"type": ["string", "null"]}}}
+        ]}
       }
     },
     "finding": {
@@ -163,7 +172,7 @@
     "change": {
       "type": "object",
       "required": ["kind", "path"],
-      "properties": {"kind": {"enum": ["document", "mcp-server", "plugin", "plugin-dir", "skill"]}, "path": {"type": "string"}}
+      "properties": {"kind": {"enum": ["document", "mcp-server", "plugin", "plugin-dir", "skill", "instructions"]}, "path": {"type": "string"}}
     },
     "lock": {
       "type": "object",

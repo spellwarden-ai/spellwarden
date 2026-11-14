@@ -104,7 +104,8 @@ def test_notice_and_error_codes_are_todays_plus_the_closed_lists_of_spec_6_9():
         "upload_failed", "upload_skipped", "upload_ci_only", "upload_disabled", "registry_gate_off",
         "mcp_rules_need_probe", "policy_newer_than_scanner",
         "a2a_not_card", "a2a_cards_limit", "a2a_agents_need_probe", "a2a_fetch_failed", "a2a_signature_unverified",
-        "a2a_keys_unavailable", "a2a_keys_missing", "a2a_key_without_kid", "a2a_private_key_in_jwks")
+        "a2a_keys_unavailable", "a2a_keys_missing", "a2a_key_without_kid", "a2a_private_key_in_jwks",
+        "instructions_limit", "instructions_front_matter")
     assert ERROR_CODES == TODAYS_ERROR_CODES + (
         "connected_config", "connected_key_invalid", "connected_no_credential", "connected_auth", "connected_subscription",
         "connected_ci_key_required", "connected_forbidden", "connected_rate_limited", "connected_unavailable",

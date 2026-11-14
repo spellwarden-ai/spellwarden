@@ -235,9 +235,22 @@ def test_1_0_0_reports_validate_against_the_1_2_0_schemas():
     _validate(json.loads((GOLDEN / "out" / "report.json").read_text(encoding="utf-8")), _current_schema("report"))
 
 
+# 1.13.0 added a lock item kind, `instructions`, as the sixth alternative of `$defs.item.oneOf` in the lock schema (the five of 1.0.0
+# keep their places); what that alternative requires belongs to an item no 1.0.0 lock holds. A kind is an addition, as a notice code
+# is, and the README says what an older scanner does with it.
+LOCK_ITEM_KINDS_1_0_0 = 5
+
+
+def _required_by_1_0_0_alternatives(name: str) -> set[tuple]:
+    return {entry for entry in _required_fields(_current_schema(name))
+            if not (name == "lock" and entry[0][:3] == ("$defs", "item", "oneOf") and entry[0][3] >= LOCK_ITEM_KINDS_1_0_0)}
+
+
 @pytest.mark.parametrize("name", ["settings", "baseline", "lock"])
 def test_1_2_0_input_schemas_require_no_more_than_1_0_0_did(name):
-    assert _required_fields(_current_schema(name)) <= _required_fields(_schema(name))
+    assert _required_by_1_0_0_alternatives(name) <= _required_fields(_schema(name))
+    if name == "lock":
+        assert len(_current_schema("lock")["$defs"]["item"]["oneOf"]) == LOCK_ITEM_KINDS_1_0_0 + 1
 
 
 def test_1_2_0_report_schema_keeps_every_1_0_0_required_field():

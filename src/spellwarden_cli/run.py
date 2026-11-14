@@ -117,7 +117,8 @@ def scan(options: ScanOptions) -> Report:
             return _stopped(options, early, Notice(failed.code, "", failed.message))
     fileset = files.list_files(options.root, options.settings, env=options.env)
     a2a = options.settings.a2a
-    found = discover.discover(fileset, listed_cards=a2a.cards, agents_configured=bool(a2a.agents))
+    found = discover.discover(fileset, listed_cards=a2a.cards, agents_configured=bool(a2a.agents),
+                              instructions=options.settings.instructions)
     notices: list[Notice] = [*fileset.notices, *found.notices, *early]
     errors: list[Notice] = [*fileset.errors, *found.errors]
     options.log(f"{len(fileset.entries)} files listed, {len(found.items)} items discovered")
@@ -171,8 +172,8 @@ def scan(options: ScanOptions) -> Report:
 def engine_findings(found: Discovery, rules: RuleSet, notices: list[Notice], errors: list[Notice] | None = None, *,
                     org_budget: Callable[[], OrgRuleBudget] | None = None) -> list[ReportFinding]:
     """The engine once per skill (only that package's files, under scan-root keys, so finding paths are scan-root
-    paths) and once for every configuration document that parsed or was truncated (spec 5.5, 6.5). In connected mode
-    `org_budget` gives each package a time budget for the org rules; a rule that did not finish is the error
+    paths), once per instruction file and once for every configuration document that parsed or was truncated (spec 5.5, 6.5).
+    In connected mode `org_budget` gives each package a time budget for the org rules; a rule that did not finish is the error
     `org_rules_incomplete` (O3 spec 6.5)."""
     from spellwarden_cli import connected
 
@@ -187,6 +188,17 @@ def engine_findings(found: Discovery, rules: RuleSet, notices: list[Notice], err
         findings.extend(ReportFinding(_as_written(skill, finding), skill.path) for finding in result.findings)
         if result.truncated:
             notices.append(Notice("findings_truncated", skill.path, f"{result.truncated} more findings were not kept"))
+    for instruction in found.instruction_files:
+        # 1.13.0 (Phase 3 batch 1 spec 10.3): one file, scanned as an instruction file (every skill rule but the two about the
+        # SKILL.md metadata); `markdown_paths` makes a `.mdc` rule, `.cursorrules` and `.windsurfrules` read as Markdown
+        result = scan_skill_package({instruction.path: instruction.content}, rules, root="", kind="instructions",
+                                    markdown_paths=frozenset({instruction.path}),
+                                    **({"org_rule_budget": org_budget()} if org_budget is not None else {}))
+        if result.org_rules_incomplete and errors is not None:
+            errors.append(connected.org_rules_incomplete_error(result.org_rules_incomplete, instruction.path))
+        findings.extend(ReportFinding(finding, instruction.path) for finding in result.findings)
+        if result.truncated:
+            notices.append(Notice("findings_truncated", instruction.path, f"{result.truncated} more findings were not kept"))
     judged = [document for document in found.documents if document.error in (None, "truncated")]
     if judged:
         result = scan_agent_config(judged, rules)

@@ -12,7 +12,8 @@ from spellwarden_scan.agentconfig import DOCUMENT_ERRORS
 if TYPE_CHECKING:
     from spellwarden_cli.discover import Item
 
-ITEM_KINDS = ("skill", "marketplace", "plugin", "mcp-config", "mcp-server", "settings", "hooks", "plugin-manifest")
+ITEM_KINDS = ("skill", "marketplace", "plugin", "mcp-config", "mcp-server", "settings", "hooks", "plugin-manifest",
+              "instructions")
 ERROR_CODES = (*DOCUMENT_ERRORS, "unsafe_path", "case_collision", "unreadable", "package_too_large", "path_not_directory",
                "settings_invalid", "baseline_invalid", "lock_unreadable", "invalid_input", "crash",
                # O3 spec 6.9: connected mode
@@ -34,13 +35,15 @@ NOTICE_CODES = ("no_agent_content", "git_unavailable", "exec_bits_unknown", "sym
                 "mcp_rules_need_probe", "policy_newer_than_scanner",
                 # O4 spec 6.9: A2A agent cards
                 "a2a_not_card", "a2a_cards_limit", "a2a_agents_need_probe", "a2a_fetch_failed", "a2a_signature_unverified",
-                "a2a_keys_unavailable", "a2a_keys_missing", "a2a_key_without_kid", "a2a_private_key_in_jwks")
+                "a2a_keys_unavailable", "a2a_keys_missing", "a2a_key_without_kid", "a2a_private_key_in_jwks",
+                # Phase 3 batch 1 spec 10.2, 10.3: instruction files
+                "instructions_limit", "instructions_front_matter")
 # The notices that say a run continued in free mode after connected mode could not start (O3 spec 6.4); the text and
 # Markdown outputs derive their "unavailable" line from them.
 FREE_MODE_NOTICES = ("connected_fallback", "fork_free_mode", "dependabot_free_mode")
 PROBE_SKIP_REASONS = ("unresolved", "limit", "budget", "fork", "refused")
 LOCK_STATUSES = ("ok", "stale", "absent", "not_checked")
-LOCK_ITEM_KINDS = ("document", "mcp-server", "plugin", "plugin-dir", "skill")
+LOCK_ITEM_KINDS = ("document", "mcp-server", "plugin", "plugin-dir", "skill", "instructions")
 
 
 @dataclass(frozen=True)
