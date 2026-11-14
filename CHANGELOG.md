@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.14.0 (2026-11-NN)
+## 1.14.0 (2026-11-14)
 
 - `spellwarden scan --user` scans the user-level configuration of Claude Code, Claude Desktop, Cursor, VS Code, Windsurf (Devin Desktop), Codex and Gemini CLI on Linux, macOS and Windows: MCP servers, skills, plugins and marketplaces, hooks and instruction files, reported per client, paths relative to the home directory. It never changes a configuration, never starts a local server, probes remote servers only with --probe and sends no usage ping. The paths it reads are listed with their sources in the README.
 - `spellwarden scan --user --inventory` lists what is installed without judging it.
