@@ -104,3 +104,34 @@ def test_the_same_scan_gives_the_same_bytes(tmp_path):
     first.mkdir()
     second.mkdir()
     assert record.repository_document(first) == record.repository_document(second)
+
+
+@pytest.mark.parametrize("auth_mode, authenticated", [("static-key", True), ("none", False), ("unknown", None)])
+def test_a_probed_server_carries_its_tools_auth_mode_and_migration_status(auth_mode, authenticated):
+    """Review r0:F5: the `--probe` part of the mapping (spec 7.3, 11.5): one `spellwarden:tool` per listed tool name, the
+    auth mode and migration status, and `authenticated` only for an auth mode that says so."""
+    from dataclasses import replace
+
+    from spellwarden_scan import McpScanResult
+    from test_outputs import make_report
+
+    from spellwarden_cli.discover import Item
+    from spellwarden_cli.output import cyclonedx
+    from spellwarden_cli.report import ProbeReport
+
+    result = McpScanResult(findings=(), truncated=0, spec_version="2026-07-28", transport="streamable-http",
+                           auth_mode=auth_mode, deprecated_features=(), migration_status="ready", checklist=(),
+                           rules_version="2026.12.1", scanner_version="0.3.0")
+    probe = ProbeReport(".mcp.json#jira", "probed", None, result, tools=("search", "create_issue", "delete_issue"))
+    report = replace(make_report(probes=[probe]), items=(Item("mcp-server", ".mcp.json#jira", "jira"),),
+                     details={".mcp.json#jira": {"transport": "streamable-http", "endpoint": "https://mcp.example.com/mcp"}})
+    document = json.loads(cyclonedx.render(report))
+    assert cyclonedx_problems(document) == []
+    (service,) = document["services"]
+    properties = [(entry["name"], entry["value"]) for entry in service["properties"]]
+    assert [value for name, value in properties if name == "spellwarden:tool"] == ["search", "create_issue", "delete_issue"]
+    assert ("spellwarden:auth_mode", auth_mode) in properties
+    assert ("spellwarden:migration_status", "ready") in properties
+    assert service.get("authenticated") is authenticated
+    assert service["endpoints"] == ["https://mcp.example.com/mcp"]
+
