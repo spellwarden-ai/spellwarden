@@ -6,7 +6,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
-from spellwarden_scan import SEVERITY_RANK, A2aScanResult, Finding, McpScanResult, RuleSet
+from spellwarden_scan import SEVERITY_RANK, A2aScanResult, Finding, McpScanResult, Rule, RuleSet
 from spellwarden_scan.agentconfig import DOCUMENT_ERRORS
 
 if TYPE_CHECKING:
@@ -186,12 +186,24 @@ class Report:
             notices=tuple(sorted(self.notices, key=_notice_order)), errors=tuple(sorted(self.errors, key=_notice_order)))
 
 
+TAG_KEYS = ("owasp_agentic", "owasp_mcp", "nist", "atlas", "owasp_ast")
+
+
+def rule_tags(rule: Rule | None) -> dict[str, list[str]]:
+    """The tags of `rule` as the JSON report lists them on each of its findings (Phase 3 batch 1 spec 11.3): one list per
+    framework, empty for a rule that has none (an organisation rule has no ATLAS or AST id) and for a rule the set lacks."""
+    return {key: [] if rule is None else list(getattr(rule, key)) for key in TAG_KEYS}
+
+
 def to_json_dict(report: Report) -> dict:
-    """The JSON format of spec 6.9 (`schemas/report.schema.json`)."""
+    """The JSON format of spec 6.9 (`schemas/report.schema.json`). Since 1.13.0 each finding also carries `tags`, looked up
+    through the report's rule set."""
+    by_id = {rule.id: rule for rule in report.rules}
     document = {
         "schema": 1, "scanner_version": report.scanner_version, "rules_version": report.rules_version,
         "as_of": report.as_of, "items": [item.to_dict() for item in report.items],
-        "findings": [rf.to_dict() for rf in report.findings], "probes": [probe.to_dict() for probe in report.probes],
+        "findings": [{**rf.to_dict(), "tags": rule_tags(by_id.get(rf.finding.rule_id))} for rf in report.findings],
+        "probes": [probe.to_dict() for probe in report.probes],
         "lock": report.lock.to_dict(), "notices": [n.to_dict() for n in report.notices],
         "errors": [e.to_dict() for e in report.errors], "fail_on": report.fail_on, "exit_code": report.exit_code(),
     }

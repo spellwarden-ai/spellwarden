@@ -67,76 +67,76 @@ The score is `12 x (0.6 S + 0.2 M + 0.2 E)`: `S = max(0, 1 - (6 critical + 3 hig
 
 ## The rules
 
-Ids are `SW-SKL-NNN` (skill packages), `SW-MCP-NNN` (probed MCP servers), `SW-CFG-NNN` (agent configuration files: MCP client configurations, Claude Code settings and hooks, plugin marketplaces), `SW-REG-NNN` (the registry gate of connected mode) and `SW-A2A-NNN` (A2A agent cards). Mappings use the OWASP Agentic Top 10 (ASI) and OWASP MCP Top 10 (MCP) identifiers and NIST SP 800-53 base controls, labelled as a provisional mapping to SP 800-53 base controls. Five rules are malicious indicators: an open finding from one of them quarantines the package.
+Ids are `SW-SKL-NNN` (skill packages), `SW-MCP-NNN` (probed MCP servers), `SW-CFG-NNN` (agent configuration files: MCP client configurations, Claude Code settings and hooks, plugin marketplaces), `SW-REG-NNN` (the registry gate of connected mode) and `SW-A2A-NNN` (A2A agent cards). Mappings use the OWASP Agentic Top 10 (ASI) and OWASP MCP Top 10 (MCP) identifiers, NIST SP 800-53 base controls (labelled as a provisional mapping to SP 800-53 base controls), MITRE ATLAS technique ids (the ATLAS column; release 2026.10, data format 6.1.0; an empty cell means no technique fits the rule) and OWASP Agentic Skills Top 10 ids (the AST column; version 1.0, 2026 edition, an OWASP incubator project under public review). The mapping, with its sources and the reason for every empty ATLAS cell, is in [docs/frameworks.md](docs/frameworks.md); the JSON report carries each finding's tags and `spellwarden rules --format json` each rule's. Five rules are malicious indicators: an open finding from one of them quarantines the package.
 
 <!-- rules:start -->
-| Id | Title | Severity | OWASP | NIST |
-|---|---|---|---|---|
-| SW-SKL-001 | Prompt-injection phrases in skill instructions | high | ASI01 | SI-10 |
-| SW-SKL-002 | Hidden text: zero-width or bidirectional control characters | high | ASI01 | SI-10 |
-| SW-SKL-003 | Instructions to skip approvals or disable hooks | high | ASI10 | AC-6 |
-| SW-SKL-004 | Encoded payload decoded and executed (malicious indicator) | critical | ASI04 | SR-3 |
-| SW-SKL-005 | Writes to agent configuration | high | ASI10 | AC-6 |
-| SW-SKL-006 | Destructive command without a confirmation step | medium | ASI10 | AC-6 |
-| SW-SKL-007 | Remote script piped to a shell | high | ASI04, MCP04 | SR-3 |
-| SW-SKL-008 | Sends local file contents to an external host (malicious indicator) | critical | ASI10 | SC-7 |
-| SW-SKL-009 | Unpinned dependency install | medium | ASI04, MCP04 | SR-3 |
-| SW-SKL-010 | Bundled binary or executable file | medium | ASI04 | SR-3 |
-| SW-SKL-011 | Hard-coded credential in the package | critical | MCP01 | IA-5 |
-| SW-SKL-012 | Reads a credential file path without stating purpose | medium | ASI04 | IA-5 |
-| SW-SKL-013 | Network calls to raw IP addresses or URL shorteners | medium | ASI10 | SC-7 |
-| SW-SKL-014 | Obfuscated script code | medium | ASI04 | SR-3 |
-| SW-SKL-015 | Frontmatter missing or invalid (name, description) | low | ASI04 | SR-3 |
-| SW-SKL-019 | Fetches external URL content into context without an allowlist | medium | ASI01, MCP06 | SI-10 |
-| SW-SKL-031 | Missing license and version metadata | low | ASI04 | SR-3 |
-| SW-SKL-032 | Instructions lure the user into running a password-protected download or a pasted script (malicious indicator) | critical | ASI04, ASI09 | SR-3, SI-3 |
-| SW-SKL-036 | Frontmatter pre-approves an unscoped shell or interpreter | medium | ASI02, ASI03 | AC-6, CM-7 |
-| SW-SKL-037 | Executable downloaded from a moving reference and run without an integrity check | medium | ASI04, ASI05, MCP04 | SR-3, SI-7 |
-| SW-MCP-001 | Server lists tools without authentication | high | MCP07 | AC-3 |
-| SW-MCP-002 | Static key authentication instead of OAuth | medium | MCP01, MCP07 | IA-5 |
-| SW-MCP-003 | OAuth dynamic client registration (deprecated; use Client ID Metadata Documents) | medium | MCP07 | IA-5 |
-| SW-MCP-004 | HTTP+SSE transport (deprecated) | medium | ASI04 | SR-3 |
-| SW-MCP-005 | Spec version older than 2026-07-28 | low | ASI04 | SR-3 |
-| SW-MCP-006 | Protocol sessions (Mcp-Session-Id) in use | medium | ASI04 | SR-3 |
-| SW-MCP-007 | Requires the initialize handshake; no server/discover | medium | ASI04 | SR-3 |
-| SW-MCP-008 | Uses deprecated Roots, Sampling or Logging | medium | ASI04 | SR-3 |
-| SW-MCP-009 | Endpoint not served over HTTPS | high |  | SC-7 |
-| SW-MCP-010 | No protected resource metadata, or issuer not validated | medium | MCP07 | IA-5 |
-| SW-MCP-011 | MCP server text contains instruction-like text | high | ASI01, MCP03 | SI-10 |
-| SW-CFG-001 | Remote MCP server over plain HTTP | high |  | SC-7 |
-| SW-CFG-002 | Credential written into an MCP server configuration | critical | MCP01, MCP07 | IA-5 |
-| SW-CFG-003 | MCP server launched from an unpinned package | medium | ASI04, MCP04 | SR-3 |
-| SW-CFG-004 | MCP server at a raw IP address or behind a URL shortener | medium | ASI10 | SC-7 |
-| SW-CFG-005 | Hook pipes remote content to a shell | high | ASI04 | SR-3 |
-| SW-CFG-006 | Hook sends local file contents to an external host (malicious indicator) | critical | ASI10 | SC-7 |
-| SW-CFG-007 | Hook decodes and runs an encoded payload (malicious indicator) | critical | ASI04 | SR-3 |
-| SW-CFG-008 | Settings switch off approval prompts | high | ASI10 | AC-6 |
-| SW-CFG-009 | Marketplace plugin source not pinned to a commit | medium | ASI04, MCP04 | SR-3 |
-| SW-CFG-010 | Literal value under a secret name in an MCP server configuration | high | MCP01, MCP07 | IA-5 |
-| SW-CFG-012 | MCP server configured to approve every tool call automatically | high | ASI02 | AC-6, CM-7 |
-| SW-CFG-013 | Database or cluster MCP server with write access although a read-only mode exists | high | ASI03, MCP02 | AC-3, AC-6 |
-| SW-REG-001 | Skill package not admitted in the organisation's private registry | high | ASI04 | SR-3 |
-| SW-REG-002 | MCP server not admitted in the organisation's private registry | high | MCP09 | SR-3 |
-| SW-REG-003 | Agent content the private registry cannot judge | high | ASI04 | SR-3 |
-| SW-A2A-001 | Agent card does not follow A2A 1.0 | medium | ASI07 | SI-10 |
-| SW-A2A-002 | Agent card uses a format older than A2A 1.0 | medium | ASI07 | SI-10 |
-| SW-A2A-003 | Agent card at the path used before A2A 0.3 | medium | ASI07 | SI-10 |
-| SW-A2A-004 | Agent endpoint or authentication URL not served over HTTPS | high | ASI07 | SC-8 |
-| SW-A2A-005 | OAuth implicit or password flow declared (deprecated in A2A 1.0) | high | ASI03 | IA-5 |
-| SW-A2A-006 | OAuth authorization code flow without PKCE required | medium | ASI03 | IA-5 |
-| SW-A2A-007 | Agent declares no authentication | medium | ASI03 | AC-3 |
-| SW-A2A-008 | API key sent in the URL query | medium | ASI03 | IA-5 |
-| SW-A2A-009 | Skill inherits every scope of the agent | low | ASI03 | AC-6 |
-| SW-A2A-010 | Agent card signature does not verify | high | ASI07 | SI-7 |
-| SW-A2A-011 | Agent card signature is malformed or uses a refused algorithm | high | ASI07 | SI-7 |
-| SW-A2A-012 | Agent card is not signed | low | ASI07 | SI-7 |
-| SW-A2A-013 | Signing key not bound to the card's host | medium | ASI07 | SI-7 |
-| SW-A2A-014 | Agent card text contains injected instructions or hidden characters | high | ASI01 | SI-10 |
-| SW-A2A-015 | Credential in the agent card | critical | ASI03 | IA-5 |
-| SW-A2A-016 | Agent card fetched through a redirect to another host | medium | ASI07 | SC-8 |
-| SW-A2A-017 | Agent card signed with a shared secret that only the agent can check | medium | ASI07 | SI-7 |
-| SW-A2A-018 | Agent card cannot be read | high | ASI07 | SI-10 |
-| SW-A2A-019 | Agent card member spelled two ways | high | ASI07 | SI-10 |
+| Id | Title | Severity | OWASP | NIST | ATLAS | AST |
+|---|---|---|---|---|---|---|
+| SW-SKL-001 | Prompt-injection phrases in skill instructions | high | ASI01 | SI-10 | AML.T0051.001, AML.T0110.000 | AST05 |
+| SW-SKL-002 | Hidden text: zero-width or bidirectional control characters | high | ASI01 | SI-10 | AML.T0068, AML.T0110.000 | AST05 |
+| SW-SKL-003 | Instructions to skip approvals or disable hooks | high | ASI10 | AC-6 | AML.T0081 | AST03 |
+| SW-SKL-004 | Encoded payload decoded and executed (malicious indicator) | critical | ASI04 | SR-3 | AML.T0011.002 | AST01 |
+| SW-SKL-005 | Writes to agent configuration | high | ASI10 | AC-6 | AML.T0081 | AST03 |
+| SW-SKL-006 | Destructive command without a confirmation step | medium | ASI10 | AC-6 | AML.T0101 |  |
+| SW-SKL-007 | Remote script piped to a shell | high | ASI04, MCP04 | SR-3 | AML.T0010.005 | AST02 |
+| SW-SKL-008 | Sends local file contents to an external host (malicious indicator) | critical | ASI10 | SC-7 | AML.T0086, AML.T0037 | AST01 |
+| SW-SKL-009 | Unpinned dependency install | medium | ASI04, MCP04 | SR-3 | AML.T0010.005 | AST02, AST07 |
+| SW-SKL-010 | Bundled binary or executable file | medium | ASI04 | SR-3 | AML.T0011.001 | AST02 |
+| SW-SKL-011 | Hard-coded credential in the package | critical | MCP01 | IA-5 | AML.T0055 |  |
+| SW-SKL-012 | Reads a credential file path without stating purpose | medium | ASI04 | IA-5 | AML.T0098 |  |
+| SW-SKL-013 | Network calls to raw IP addresses or URL shorteners | medium | ASI10 | SC-7 | AML.T0025 |  |
+| SW-SKL-014 | Obfuscated script code | medium | ASI04 | SR-3 | AML.T0011.001 |  |
+| SW-SKL-015 | Frontmatter missing or invalid (name, description) | low | ASI04 | SR-3 |  | AST04 |
+| SW-SKL-019 | Fetches external URL content into context without an allowlist | medium | ASI01, MCP06 | SI-10 | AML.T0051.001 | AST05 |
+| SW-SKL-031 | Missing license and version metadata | low | ASI04 | SR-3 |  | AST04 |
+| SW-SKL-032 | Instructions lure the user into running a password-protected download or a pasted script (malicious indicator) | critical | ASI04, ASI09 | SR-3, SI-3 | AML.T0011 | AST01 |
+| SW-SKL-036 | Frontmatter pre-approves an unscoped shell or interpreter | medium | ASI02, ASI03 | AC-6, CM-7 | AML.T0053 | AST03 |
+| SW-SKL-037 | Executable downloaded from a moving reference and run without an integrity check | medium | ASI04, ASI05, MCP04 | SR-3, SI-7 | AML.T0010.005, AML.T0109 | AST02, AST07 |
+| SW-MCP-001 | Server lists tools without authentication | high | MCP07 | AC-3 | AML.T0084.001, AML.T0132 |  |
+| SW-MCP-002 | Static key authentication instead of OAuth | medium | MCP01, MCP07 | IA-5 |  |  |
+| SW-MCP-003 | OAuth dynamic client registration (deprecated; use Client ID Metadata Documents) | medium | MCP07 | IA-5 |  |  |
+| SW-MCP-004 | HTTP+SSE transport (deprecated) | medium | ASI04 | SR-3 |  |  |
+| SW-MCP-005 | Spec version older than 2026-07-28 | low | ASI04 | SR-3 |  |  |
+| SW-MCP-006 | Protocol sessions (Mcp-Session-Id) in use | medium | ASI04 | SR-3 |  |  |
+| SW-MCP-007 | Requires the initialize handshake; no server/discover | medium | ASI04 | SR-3 |  |  |
+| SW-MCP-008 | Uses deprecated Roots, Sampling or Logging | medium | ASI04 | SR-3 |  |  |
+| SW-MCP-009 | Endpoint not served over HTTPS | high |  | SC-7 |  |  |
+| SW-MCP-010 | No protected resource metadata, or issuer not validated | medium | MCP07 | IA-5 |  |  |
+| SW-MCP-011 | MCP server text contains instruction-like text | high | ASI01, MCP03 | SI-10 | AML.T0110.000, AML.T0051.001 |  |
+| SW-CFG-001 | Remote MCP server over plain HTTP | high |  | SC-7 |  |  |
+| SW-CFG-002 | Credential written into an MCP server configuration | critical | MCP01, MCP07 | IA-5 | AML.T0055, AML.T0083 |  |
+| SW-CFG-003 | MCP server launched from an unpinned package | medium | ASI04, MCP04 | SR-3 | AML.T0010.005 | AST02, AST07 |
+| SW-CFG-004 | MCP server at a raw IP address or behind a URL shortener | medium | ASI10 | SC-7 | AML.T0010.005 |  |
+| SW-CFG-005 | Hook pipes remote content to a shell | high | ASI04 | SR-3 | AML.T0142 |  |
+| SW-CFG-006 | Hook sends local file contents to an external host (malicious indicator) | critical | ASI10 | SC-7 | AML.T0142, AML.T0086 |  |
+| SW-CFG-007 | Hook decodes and runs an encoded payload (malicious indicator) | critical | ASI04 | SR-3 | AML.T0142, AML.T0011.001 |  |
+| SW-CFG-008 | Settings switch off approval prompts | high | ASI10 | AC-6 | AML.T0081 |  |
+| SW-CFG-009 | Marketplace plugin source not pinned to a commit | medium | ASI04, MCP04 | SR-3 | AML.T0010.005, AML.T0109 | AST02, AST07 |
+| SW-CFG-010 | Literal value under a secret name in an MCP server configuration | high | MCP01, MCP07 | IA-5 | AML.T0083 |  |
+| SW-CFG-012 | MCP server configured to approve every tool call automatically | high | ASI02 | AC-6, CM-7 | AML.T0053 |  |
+| SW-CFG-013 | Database or cluster MCP server with write access although a read-only mode exists | high | ASI03, MCP02 | AC-3, AC-6 | AML.T0053 |  |
+| SW-REG-001 | Skill package not admitted in the organisation's private registry | high | ASI04 | SR-3 | AML.T0010.005 | AST09 |
+| SW-REG-002 | MCP server not admitted in the organisation's private registry | high | MCP09 | SR-3 | AML.T0010.005 | AST09 |
+| SW-REG-003 | Agent content the private registry cannot judge | high | ASI04 | SR-3 | AML.T0010.005 | AST09 |
+| SW-A2A-001 | Agent card does not follow A2A 1.0 | medium | ASI07 | SI-10 |  |  |
+| SW-A2A-002 | Agent card uses a format older than A2A 1.0 | medium | ASI07 | SI-10 |  |  |
+| SW-A2A-003 | Agent card at the path used before A2A 0.3 | medium | ASI07 | SI-10 |  |  |
+| SW-A2A-004 | Agent endpoint or authentication URL not served over HTTPS | high | ASI07 | SC-8 |  |  |
+| SW-A2A-005 | OAuth implicit or password flow declared (deprecated in A2A 1.0) | high | ASI03 | IA-5 |  |  |
+| SW-A2A-006 | OAuth authorization code flow without PKCE required | medium | ASI03 | IA-5 |  |  |
+| SW-A2A-007 | Agent declares no authentication | medium | ASI03 | AC-3 | AML.T0132 |  |
+| SW-A2A-008 | API key sent in the URL query | medium | ASI03 | IA-5 | AML.T0055 |  |
+| SW-A2A-009 | Skill inherits every scope of the agent | low | ASI03 | AC-6 |  |  |
+| SW-A2A-010 | Agent card signature does not verify | high | ASI07 | SI-7 | AML.T0074 |  |
+| SW-A2A-011 | Agent card signature is malformed or uses a refused algorithm | high | ASI07 | SI-7 | AML.T0074 |  |
+| SW-A2A-012 | Agent card is not signed | low | ASI07 | SI-7 | AML.T0074 |  |
+| SW-A2A-013 | Signing key not bound to the card's host | medium | ASI07 | SI-7 | AML.T0074 |  |
+| SW-A2A-014 | Agent card text contains injected instructions or hidden characters | high | ASI01 | SI-10 | AML.T0051.001, AML.T0110.000 |  |
+| SW-A2A-015 | Credential in the agent card | critical | ASI03 | IA-5 | AML.T0055 |  |
+| SW-A2A-016 | Agent card fetched through a redirect to another host | medium | ASI07 | SC-8 | AML.T0074 |  |
+| SW-A2A-017 | Agent card signed with a shared secret that only the agent can check | medium | ASI07 | SI-7 | AML.T0074 |  |
+| SW-A2A-018 | Agent card cannot be read | high | ASI07 | SI-10 |  |  |
+| SW-A2A-019 | Agent card member spelled two ways | high | ASI07 | SI-10 |  |  |
 <!-- rules:end -->
 
 SW-REG-001 to SW-REG-003 are the registry gate of connected mode (Enterprise). They fire only in a connected run.

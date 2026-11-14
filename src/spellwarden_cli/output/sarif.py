@@ -32,7 +32,7 @@ def _rule(rule: Rule) -> dict:
         "shortDescription": {"text": rule.title},
         "helpUri": HELP_URI,
         "defaultConfiguration": {"level": LEVEL[rule.severity_default]},
-        "properties": {"tags": ["security", *rule.owasp_agentic, *rule.owasp_mcp, *rule.nist],
+        "properties": {"tags": ["security", *rule.owasp_agentic, *rule.owasp_mcp, *rule.nist, *rule.atlas, *rule.owasp_ast],
                        "security-severity": SECURITY_SEVERITY[rule.severity_default]},
     }
 

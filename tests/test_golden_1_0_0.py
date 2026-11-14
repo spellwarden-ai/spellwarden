@@ -149,6 +149,20 @@ RETAGGED_1_9_1 = ("SW-SKL-007", "SW-SKL-009", "SW-SKL-019", "SW-MCP-001", "SW-MC
 RETITLED_1_13_0 = {"SW-MCP-011": ("ToolDescriptionContainsInstructionLikeText", "Tool description contains instruction-like text")}
 
 
+# 1.13.0 added ATLAS ids (`AML.T...`) and OWASP Agentic Skills Top 10 ids (`AST..`) to each SARIF rule's tags and `tags` to each
+# finding of the JSON report (spec 11.3); the 1.0.0 recordings have neither, and nothing else may differ.
+ADDED_TAG_PREFIXES_1_13_0 = ("AML.", "AST")
+
+
+def _without_finding_tags(name: str, text: str) -> str:
+    if name != "report.json":
+        return text
+    document = json.loads(text)
+    for finding in document["findings"]:
+        assert sorted(finding.pop("tags")) == ["atlas", "nist", "owasp_agentic", "owasp_ast", "owasp_mcp"]
+    return json.dumps(document, indent=2, sort_keys=True, ensure_ascii=True) + "\n"
+
+
 def _normalised_sarif(text: str, *, produced: bool) -> dict:
     """The SARIF document with the descriptors of the rules added since 1.0.0 (the three registry rules, the nineteen
     A2A rules and the five rules of 1.8.0) removed and every `ruleIndex` remapped through the reduced table; the version is put back to the recorded one."""
@@ -169,6 +183,7 @@ def _normalised_sarif(text: str, *, produced: bool) -> dict:
     for rule in driver["rules"]:
         if rule["id"] in RETAGGED_1_9_1:
             rule["properties"]["tags"] = [tag for tag in rule["properties"]["tags"] if not tag.startswith("MCP")]
+        rule["properties"]["tags"] = [tag for tag in rule["properties"]["tags"] if not tag.startswith(ADDED_TAG_PREFIXES_1_13_0)]
         if rule["id"] in RETITLED_1_13_0:
             rule["name"], rule["shortDescription"]["text"] = RETITLED_1_13_0[rule["id"]]
     return document
@@ -178,7 +193,7 @@ def _normalised_sarif(text: str, *, produced: bool) -> dict:
 def test_reports_differ_from_the_recorded_ones_only_in_the_normalised_differences(fresh):
     for _fmt, name in record.OUTPUTS:
         recorded = (GOLDEN / "out" / name).read_bytes().decode("utf-8")
-        produced = (fresh[1] / name).read_bytes().decode("utf-8")
+        produced = _without_finding_tags(name, (fresh[1] / name).read_bytes().decode("utf-8"))
         if name == "report.sarif":
             assert _normalised_sarif(produced, produced=True) == _normalised_sarif(recorded, produced=False)
             continue

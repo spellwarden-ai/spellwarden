@@ -98,6 +98,13 @@
         "malicious_indicator": {"type": "boolean"},
         "item": {"type": "string"},
         "suppressed": {"type": "boolean"},
+        "tags": {"type": "object", "required": ["owasp_agentic", "owasp_mcp", "nist", "atlas", "owasp_ast"],
+                 "description": "The tags of the finding's rule, one list per framework (since 1.13.0). atlas holds MITRE ATLAS technique ids, owasp_ast OWASP Agentic Skills Top 10 ids; a rule with none has an empty list. The upload leaves this out.",
+                 "properties": {"owasp_agentic": {"type": "array", "items": {"type": "string"}},
+                                "owasp_mcp": {"type": "array", "items": {"type": "string"}},
+                                "nist": {"type": "array", "items": {"type": "string"}},
+                                "atlas": {"type": "array", "items": {"type": "string"}},
+                                "owasp_ast": {"type": "array", "items": {"type": "string"}}}},
         "baseline": {"oneOf": [
           {"type": "null"},
           {"type": "object", "required": ["reason", "added", "expires"],

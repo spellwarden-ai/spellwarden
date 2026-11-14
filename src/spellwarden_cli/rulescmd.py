@@ -25,10 +25,11 @@ def _title(rule: Rule) -> str:
 
 
 def rules_markdown(rules: RuleSet) -> str:
-    lines = ["| Id | Title | Severity | OWASP | NIST |", "|---|---|---|---|---|"]
+    lines = ["| Id | Title | Severity | OWASP | NIST | ATLAS | AST |", "|---|---|---|---|---|---|---|"]
     for rule in _ordered(rules):
         owasp = ", ".join(rule.owasp_agentic + rule.owasp_mcp)
-        lines.append(f"| {rule.id} | {_title(rule)} | {rule.severity_default} | {owasp} | {', '.join(rule.nist)} |")
+        lines.append(f"| {rule.id} | {_title(rule)} | {rule.severity_default} | {owasp} | {', '.join(rule.nist)} | "
+                     f"{', '.join(rule.atlas)} | {', '.join(rule.owasp_ast)} |")
     return "\n".join(lines) + "\n"
 
 
