@@ -14,6 +14,7 @@ import uuid
 from collections.abc import Iterable, Sequence
 
 from spellwarden_scan.agentconfig import url_parts
+from spellwarden_scan.evidence import mask_credentials
 
 SPEC_VERSION = "1.7"
 SCHEMA_URL = "http://cyclonedx.org/schema/bom-1.7.schema.json"
@@ -37,8 +38,8 @@ def prop(name: str, value: object) -> dict:
 
 
 def reduce_url(text: object) -> str | None:
-    """`scheme://host[:port]/path` of an absolute URL: user name and password, query and fragment removed, scheme and host
-    lower-cased (the rule of `identity._reduce_source`). None for anything that is not an absolute URL, or that holds a
+    """`scheme://host[:port]/path` of an absolute URL: user name and password, query and fragment removed, a credential in a
+    path segment masked, scheme and host lower-cased (the rule of `identity._reduce_source`). None for anything that is not an absolute URL, or that holds a
     control character or whitespace. Used for every endpoint and every source URL an export writes."""
     if not isinstance(text, str) or any(ord(char) < 0x21 or ord(char) == 0x7F for char in text):
         return None
@@ -46,7 +47,11 @@ def reduce_url(text: object) -> str | None:
     if parts is None:
         return None
     host = f"[{parts.host}]" if ":" in parts.host else parts.host
-    return f"{parts.scheme}://{host}{':' + parts.port if parts.port else ''}{parts.path}"
+    # A token carried in the path (`/api/mcp/s/<token>/mcp`, a webhook's secret segment) is masked like any evidence, segment
+    # by segment, as `evidence.redacted_url` does, so the host and the other segments stay readable. Idempotent, so the server
+    # reducing an address the engine already reduced writes the same text.
+    path = "/".join(mask_credentials(segment) for segment in parts.path.split("/"))
+    return f"{parts.scheme}://{host}{':' + parts.port if parts.port else ''}{path}"
 
 
 def component(*, ref: str | None, type: str, name: str, version: str | None = None, hashes: Sequence[str] = (),

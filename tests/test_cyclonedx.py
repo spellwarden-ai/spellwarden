@@ -117,9 +117,20 @@ def test_properties_are_prefixed_strings():
     ("http://[::1]:9000/sse", "http://[::1]:9000/sse"),
     ("https://github.com/example/tools.git", "https://github.com/example/tools.git"),
     ("example/tools", None), ("/srv/data", None), ("https://a.example/ b", None), (None, None),
+    # A token carried in a path segment is masked, the other segments and the host stay readable
+    ("https://mcp.example.com/api/mcp/s/q8F3kZ7vR2mX9pL4tW6yB1nC5dH0jA/mcp",
+     "https://mcp.example.com/api/mcp/s/q8F3***/mcp"),
+    ("https://hooks.example.com/services/T0001/B0002/ghp_abcdefghijklmnopqrstuvwxyz0123456789",
+     "https://hooks.example.com/services/T0001/B0002/ghp_***"),
 ])
 def test_reduce_url_keeps_scheme_host_port_and_path_only(given, reduced):
     assert cdx.reduce_url(given) == reduced
+
+
+def test_reduce_url_is_idempotent_on_a_masked_path():
+    once = cdx.reduce_url("https://mcp.example.com/s/q8F3kZ7vR2mX9pL4tW6yB1nC5dH0jA/mcp")
+    assert once is not None and "q8F3kZ7vR2mX9pL4tW6yB1nC5dH0jA" not in once
+    assert cdx.reduce_url(once) == once
 
 
 def test_a_workstation_subject_carries_no_identifier():
