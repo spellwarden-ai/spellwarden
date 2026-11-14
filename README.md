@@ -437,7 +437,7 @@ Instruction files are on by default. Set `instructions: false` in `.spellwarden/
 |---|---|
 | 0 | Passed: no unsuppressed finding at or above `--fail-on` (default `high`; `never` always passes on findings). |
 | 1 | Failed on findings. |
-| 2 | Incomplete or invalid: a usage or settings error, an unreadable file, a configuration document or agent card the scanner refused or cut short (over 200 servers, 500 hooks or 200 plugins), a skill over 2000 files or 50 MiB, over 300 instruction files or 300 agent cards, an invalid baseline entry, or a scanner crash. |
+| 2 | Incomplete or invalid: a usage or settings error, an unreadable file, a configuration document or agent card the scanner refused or cut short (over 200 servers, 500 hooks or 200 plugins), a skill over 2000 files or 50 MiB, over 300 instruction files or 300 agent cards, an invalid baseline entry, or a scanner crash; under `--user`, over 300 instruction files of one client or 1,000 skills in one skills directory, a missing workstation credential or label, or a workstation upload that failed or was too large. |
 | 3 | `--locked` and the lock file is absent or out of date. |
 
 When several apply, 2 wins over 1, and 1 over 3: an incomplete scan never looks like a pass. Every requested report is written before the exit.
@@ -449,6 +449,14 @@ The scanner has limits so that a run ends in bounded time and memory. One rule d
 - **What the repository holds** (files, configuration documents, skills, instruction files, agent cards): the repository decides its size, so a limit reached is an error and the scan is incomplete (exit 2). The way out is a narrower scan with `exclude` in `.spellwarden/config.yml`, a change reviewers see in the diff, never a skip the scanner makes on its own. Where the scanner must choose what to read first, it reads what an agent loads first (for instruction files, the places at the repository root).
 - **What a remote server sends to the probe** (tool, prompt and resource lists, a remote agent card): the server decides its size, and a limit reached there cannot fail your build, or any server could. It is shown in every report (`probe_list_incomplete`, the card's notice), and it never lowers a judgement: a tool list not read whole keeps SW-MCP-001 high.
 - **What the scanner writes** (the findings kept per package, the evidence of a finding): these cut output, not reading. Everything was judged, and the count of what was left out is shown (`findings_truncated`).
+
+`spellwarden scan --user` (see "Scanning a workstation") follows the same rule. What a home directory holds is the user's own content, so each of these limits reached is an error and an incomplete scan (exit 2), and the way out is to remove what is not used, or to scan without `--user`:
+
+- at most 300 instruction files per client (`user_instructions_limit`), read in the order of the client table;
+- at most 1,000 skills per skills directory (`user_skills_limit`);
+- at most 200 plugins and 200 marketplaces per state file (`installed_plugins.json`, `known_marketplaces.json`, Codex's `config.toml`) and 200 Gemini CLI extensions (`truncated`); each configuration document keeps the limits of a repository scan (1 MiB, 200 servers, 500 hooks, 200 plugins);
+- files over 10 MiB (`unreadable`); Claude Code's `~/.claude.json`, which holds the client's own state, is read up to 10 MiB;
+- the workstation upload: 1 MiB, 2,000 items and 1,000 findings, never cut (`workstation_upload_too_large`, nothing is sent). Its body lists at most 50 errors and 50 notices and carries their totals: an output cap, since the report on the workstation lists them all.
 
 ### Settings: `.spellwarden/config.yml`
 
@@ -495,7 +503,7 @@ On a pull or merge request the scan reads the baseline from the base revision, l
 
 ### Reports
 
-`--format` may be given several times, each followed by its own `--output` (stdout when omitted, one format at most). Every report is byte-identical for the same files, settings and `--as-of` date, holds no timestamp and no absolute path, and is sorted.
+`--format` may be given several times, each followed by its own `--output` (stdout when omitted, one format at most). Every report is byte-identical for the same files, settings and `--as-of` date, holds no timestamp (a CycloneDX document's `metadata.timestamp` is the `--as-of` date at midnight UTC) and no absolute path, and is sorted.
 
 | Format | For |
 |---|---|
@@ -504,6 +512,7 @@ On a pull or merge request the scan reads the baseline from the base revision, l
 | `sarif` | GitHub code scanning (SARIF 2.1.0, one fingerprint per result under `partialFingerprints["spellwarden/v1"]`, accepted findings as `suppressions`) |
 | `markdown` | the job summary and the pull or merge request comment (starts with `<!-- spellwarden-scan -->`, at most 60,000 characters) |
 | `gitlab-codequality` | the GitLab Code Quality report (critical, high, medium and low become critical, major, minor and info) |
+| `cyclonedx` | an AI bill of materials, CycloneDX 1.7 JSON (since 1.14.0): skills, plugins, marketplaces, instruction files and configuration documents as components, MCP servers and A2A agent cards as services, findings as vulnerabilities naming their component or service (open ones `in_triage`, accepted ones `exploitable` with `will_not_fix` and the baseline's reason), the rest as `spellwarden:` properties; the serial number is derived from the content, so the same scan gives the same file |
 
 Paths are relative to the scan root, except in SARIF and Code Quality, where they are relative to the repository root, because that is where GitHub and GitLab resolve them.
 
@@ -641,7 +650,7 @@ In CI, and only in CI, each `spellwarden scan` sends one request at the end to `
 
 The installation identity is the forge host plus the GitHub account's numeric id (`github:github.com:1234567`), the GitLab top-level group's path (`gitlab:gitlab.com:acme`), or the owner in the `origin` remote elsewhere. It is hashed as `sha256("spellwarden-ping-v1:" + identity)`. Anyone who knows an identity can compute its hash, which is why we call it pseudonymous. One company on GitHub and on GitLab is two identities; a self-managed GitLab or GitHub Enterprise Server is its own; renaming a GitLab top-level group starts a new one. The identity cannot be joined to an organisation of the hosted product.
 
-The server keeps one row per hashed identity and ISO week: the number of runs, the number of those that checked an agent card (`a2a_runs`), the first and last time seen, the last scanner and rules versions and the CI kind. The row holds no IP address and no user agent, and is deleted 400 days after the end of its week. To limit abuse, the rate limiter keeps the sending address for one hour. Like every request to the service, the ping also appears in the technical logs, kept for 90 days, with the address it arrived from (usually one of the content delivery network's). No repository content is sent; the ping carries one yes-or-no fact derived from it: whether the run checked an agent card, from the repository or from an agent you listed. No card, address or count of cards is sent. Nothing is sent from a local run or by `lock`, `baseline`, `rules` or `version`.
+The server keeps one row per hashed identity and ISO week: the number of runs, the number of those that checked an agent card (`a2a_runs`), the first and last time seen, the last scanner and rules versions and the CI kind. The row holds no IP address and no user agent, and is deleted 400 days after the end of its week. To limit abuse, the rate limiter keeps the sending address for one hour. Like every request to the service, the ping also appears in the technical logs, kept for 90 days, with the address it arrived from (usually one of the content delivery network's). No repository content is sent; the ping carries one yes-or-no fact derived from it: whether the run checked an agent card, from the repository or from an agent you listed. No card, address or count of cards is sent. Nothing is sent from a local run, by `scan --user` (in CI too) or by `lock`, `baseline`, `rules` or `version`.
 
 Switch it off with any of: `--no-telemetry`, `SPELLWARDEN_TELEMETRY=off` (or `0`, `false`, `no`), `DO_NOT_TRACK=1`, `telemetry: false` in `.spellwarden/config.yml`, or the `telemetry: false` input of the Action or the GitLab component. A failed or slow ping never changes a report or an exit code.
 
@@ -656,7 +665,7 @@ There are two credentials, and a run uses one of them. Both set is the error `co
 - **A CI connection** (recommended). An administrator adds a CI connection for your GitHub account or organisation, or your GitLab group, under Settings, CI connections. The pipeline then proves who it is with the OIDC token its code host issues, and nothing secret is stored in the repository. Set `SPELLWARDEN_ORG` to the organisation's slug (`^[a-z0-9-]{2,64}$`, the part of the dashboard address after `dash.spellwarden.ai/`). On GitHub the job needs `permissions: id-token: write`, and the command asks the Actions token endpoint itself for a token whose audience is `https://dash.spellwarden.ai/ci/<slug>`. On GitLab the job declares `id_tokens` with that audience and passes it as `SPELLWARDEN_ID_TOKEN`. The GitHub Action takes the slug as its `org` input and the GitLab component as its `org` input.
 - **A CI key.** For a pipeline that cannot use a CI connection, create a key with access CI under Settings, API keys, and pass it as the secret `SPELLWARDEN_API_KEY` (`swk_` and 40 characters). The key is a secret that every workflow of the repository can read, which a CI connection avoids. Results uploaded with a key are shown as reported with a CI key: they are not the repository's attested state and do not count in the trust score. The first upload binds the repository to the key; after the old key is revoked, the next upload rebinds it. A key for read or write access, a connector token (`swc_`) or a CI token (`swt_`) is refused.
 
-The command reads these variables once, keeps them as secrets that print as `***`, removes them from its environment, and gives every program it starts an explicit environment. There is no flag and no settings key for a credential, and no message, report or upload body ever holds one.
+The command reads these variables once, keeps them as secrets that print as `***`, removes them from its environment, and gives every program it starts an explicit environment. A workstation uploads its inventory with a key of another kind, through other variables, and never in connected mode: see "Uploading a workstation inventory". There is no flag and no settings key for a credential, and no message, report or upload body ever holds one.
 
 ```yaml
 # .spellwarden/config.yml
@@ -919,7 +928,7 @@ The receiver refuses bodies over 4 MiB as sent or 16 MiB decompressed: batch at 
 
 ## Releases
 
-Releases are built and published by GitHub Actions through PyPI trusted publishing (OpenID Connect): a push of a tag `vX.Y.Z` whose version equals the one in `pyproject.toml` builds the sdist and the wheel and publishes them from the `pypi` environment. No API token exists anywhere. The sources are checked on Python 3.11, 3.12 and 3.13 on Linux, and on Python 3.13 on macOS and Windows, on every push; every workflow is checked with `actionlint`.
+Releases are built and published by GitHub Actions through PyPI trusted publishing (OpenID Connect): a push of a tag `vX.Y.Z` whose version equals the one in `pyproject.toml` builds the sdist and the wheel and publishes them from the `pypi` environment. No API token exists anywhere. The sources are checked on Python 3.11, 3.12 and 3.13 on Linux, and on Python 3.13 on Windows, on every push; every workflow is checked with `actionlint`.
 
 ## Development
 
