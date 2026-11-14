@@ -2,7 +2,7 @@
   "$schema": "http://cyclonedx.org/schema/bom-1.7.schema.json",
   "bomFormat": "CycloneDX",
   "specVersion": "1.7",
-  "serialNumber": "urn:uuid:c281ca6c-0ba0-5ab4-a6b4-624a48132b87",
+  "serialNumber": "urn:uuid:5f17677f-cfde-5f8a-9e89-370f70c3c814",
   "version": 1,
   "metadata": {
     "timestamp": "2026-11-14T00:00:00Z",
@@ -374,7 +374,7 @@
       ]
     },
     {
-      "bom-ref": "marketplace:~/.codex/config.toml#tools",
+      "bom-ref": "marketplace:~/.codex/config.toml#marketplaces.tools",
       "type": "data",
       "name": "tools",
       "externalReferences": [
@@ -401,7 +401,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "7d897dfadfd5fe1757ce47b2b49f74f585ca6c26278dbe8e00405c379bf3727b"
+          "content": "0f46e5e0eb4d5b1f3ac82200630becd3631fe2c517fdf4b80dc22b656004c21f"
         }
       ],
       "properties": [
@@ -422,7 +422,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "7d897dfadfd5fe1757ce47b2b49f74f585ca6c26278dbe8e00405c379bf3727b"
+          "content": "0f46e5e0eb4d5b1f3ac82200630becd3631fe2c517fdf4b80dc22b656004c21f"
         }
       ],
       "properties": [
@@ -447,7 +447,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "7d897dfadfd5fe1757ce47b2b49f74f585ca6c26278dbe8e00405c379bf3727b"
+          "content": "0f46e5e0eb4d5b1f3ac82200630becd3631fe2c517fdf4b80dc22b656004c21f"
         }
       ],
       "properties": [
@@ -590,7 +590,7 @@
       ]
     },
     {
-      "bom-ref": "plugin:~/.codex/config.toml#review@tools",
+      "bom-ref": "plugin:~/.codex/config.toml#plugins.review@tools",
       "type": "library",
       "name": "review",
       "properties": [
@@ -1300,9 +1300,9 @@
       ]
     },
     {
-      "ref": "marketplace:~/.codex/config.toml#tools",
+      "ref": "marketplace:~/.codex/config.toml#marketplaces.tools",
       "dependsOn": [
-        "plugin:~/.codex/config.toml#review@tools"
+        "plugin:~/.codex/config.toml#plugins.review@tools"
       ]
     },
     {

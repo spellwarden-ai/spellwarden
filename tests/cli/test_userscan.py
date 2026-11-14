@@ -41,8 +41,8 @@ COMMON = [
     ("skill", "~/.config/devin/skills/notes", ["windsurf/skills"]),
     ("settings", "~/.codex/config.toml", ["codex/config"]), ("mcp-server", "~/.codex/config.toml#docs", ["codex/config"]),
     ("mcp-server", "~/.codex/config.toml#remote", ["codex/config"]),
-    ("plugin", "~/.codex/config.toml#review@tools", ["codex/config"]),
-    ("marketplace", "~/.codex/config.toml#tools", ["codex/config"]),
+    ("plugin", "~/.codex/config.toml#plugins.review@tools", ["codex/config"]),
+    ("marketplace", "~/.codex/config.toml#marketplaces.tools", ["codex/config"]),
     ("hooks", "~/.codex/hooks.json", ["codex/hooks"]), ("instructions", "~/.codex/AGENTS.md", ["codex/agents"]),
     ("settings", "~/.gemini/settings.json", ["gemini-cli/settings"]),
     *(("mcp-server", f"~/.gemini/settings.json#{name}", ["gemini-cli/settings"]) for name in ("maps", "events", "local")),
@@ -252,3 +252,23 @@ def test_a_skill_file_over_the_size_limit_is_an_error_and_never_a_skip(tmp_path,
     found = userscan.discover_home(str(home), "linux", {}).found
     assert ("unreadable", "~/.gemini/skills/research/big.bin") in [(e.code, e.path) for e in found.errors]
     assert not [notice for notice in found.notices if notice.code == "file_too_large"]
+
+
+def test_a_codex_server_a_marketplace_and_a_plugin_of_one_name_are_three_items_with_their_own_paths(tmp_path):
+    """r0:F2: `[mcp_servers.github]`, `[marketplaces.github]` and a plugin of that marketplace keep their own item paths, so no
+    item is dropped and the plugin names the marketplace, not the server."""
+    home = tmp_path / "home"
+    (home / ".codex").mkdir(parents=True)
+    (home / ".codex" / "config.toml").write_text(
+        '[mcp_servers.github]\ncommand = "npx"\nargs = ["github-mcp@1.0.0"]\n\n'
+        '[marketplaces.github]\nsource = "https://github.com/acme/plugins"\nsource_type = "git"\n\n'
+        '[plugins."x@github"]\nenabled = true\n', encoding="utf-8")
+    discovered = userscan.discover_home(str(home), "linux", {})
+    items = [(item.kind, item.path) for item in discovered.found.items]
+    base = "~/.codex/config.toml"
+    assert items == sorted(items) and len(items) == len(set(items))
+    assert set(items) == {("settings", base), ("mcp-server", f"{base}#github"), ("marketplace", f"{base}#marketplaces.github"),
+                          ("plugin", f"{base}#plugins.x@github")}
+    assert "source" not in discovered.details[f"{base}#github"]
+    assert discovered.details[f"{base}#marketplaces.github"]["source"] == "https://github.com/acme/plugins"
+    assert discovered.details[f"{base}#plugins.x@github"]["marketplace_item"] == f"{base}#marketplaces.github"

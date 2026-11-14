@@ -317,19 +317,19 @@ class _Home:
             self.errors.append(Notice("unreadable", shown, f"{config.error}; not judged"))
             return
         self.document(config.document, row.client)
-        self.listing(config.listing, shown, row.client, marketplaces=shown)
+        self.listing(config.listing, shown, row.client, marketplaces=f"{shown}#marketplaces.")
 
     def _claude_marketplaces(self, row, real, shown):
         content = self.read(real, shown)
         if content is not None:
-            self.listing(userdocs.read_claude_marketplaces(shown, content), shown, row.client, marketplaces=shown)
+            self.listing(userdocs.read_claude_marketplaces(shown, content), shown, row.client, marketplaces=f"{shown}#")
 
     def _claude_plugins(self, row, real, shown):
         content = self.read(real, shown)
         if content is None:
             return
         listing = userdocs.read_claude_plugins(shown, content)
-        self.listing(listing, shown, row.client, marketplaces=posixpath.dirname(shown) + "/known_marketplaces.json")
+        self.listing(listing, shown, row.client, marketplaces=posixpath.dirname(shown) + "/known_marketplaces.json#")
         for entry in listing.entries:
             install = entry.facts.get("install_path")
             if install is None:
@@ -343,7 +343,7 @@ class _Home:
 
     def listing(self, listing: userdocs.Listing, shown: str, client: str, *, marketplaces: str) -> None:
         """The plugins and marketplaces of a state file as items; a plugin names its marketplace's item when the marketplace
-        listing of the same client holds it (resolved in `finish`)."""
+        listing of the same client holds it (resolved in `finish`); `marketplaces` is a marketplace item path up to its name."""
         if listing.error is not None:
             self.errors.append(Notice(listing.error[0], shown, listing.error[1]))
         if listing.cut:
@@ -359,7 +359,7 @@ class _Home:
                     source = clients.display(local, self.home, self.system, self.env)
                 self.facts[entry.path] = {"source": source} if source else {}
             elif entry.facts.get("marketplace"):
-                self.facts[entry.path] = {"marketplace_item": f"{marketplaces}#{entry.facts['marketplace']}"}
+                self.facts[entry.path] = {"marketplace_item": f"{marketplaces}{entry.facts['marketplace']}"}
 
     def plugin_directory(self, real: str, shown: str, client: str, plugin: str) -> None:
         """An installed Claude Code plugin's standard layout: its manifest, `.mcp.json`, `hooks/hooks.json` and `skills/` (a

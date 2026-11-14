@@ -249,7 +249,8 @@ def _notify_events(root: Obj) -> Any:
 def read_codex_config(path: str, content: bytes) -> CodexConfig:
     """`config.toml`: one settings document (`[mcp_servers.<id>]`, `[hooks]`, `notify`), and the entries of `[plugins]`
     (`"<name>@<marketplace>"`, the default `_default` left out) and `[marketplaces]` (`source`, `source_type` `git` or
-    `local`)."""
+    `local`); their item paths are `<path>#marketplaces.<name>` and `<path>#plugins.<key>`, so a server of the same name
+    keeps its own."""
     try:
         root = codex_toml.read(content)
     except ValueError as exc:
@@ -261,7 +262,7 @@ def read_codex_config(path: str, content: bytes) -> CodexConfig:
     for name, record in (marketplaces.items() if isinstance(marketplaces, Obj) else ()):
         source = record.get("source") if isinstance(record, Obj) else None
         local = isinstance(record, Obj) and record.get("source_type") == "local"
-        entries.append(Entry("marketplace", f"{path}#{name}", name, {
+        entries.append(Entry("marketplace", f"{path}#marketplaces.{name}", name, {
             "source_url": None if local else _source_url(source),
             "source_path": source if local and isinstance(source, str) else None}))
     plugins = root.get("plugins")
@@ -269,7 +270,7 @@ def read_codex_config(path: str, content: bytes) -> CodexConfig:
         if key == "_default":
             continue
         name, _, marketplace = key.rpartition("@")
-        entries.append(Entry("plugin", f"{path}#{key}", name or key, {"marketplace": marketplace or None}))
+        entries.append(Entry("plugin", f"{path}#plugins.{key}", name or key, {"marketplace": marketplace or None}))
     kept = [entry for entry in entries if entry.kind == "marketplace"][:MAX_PLUGINS] + \
         [entry for entry in entries if entry.kind == "plugin"][:MAX_PLUGINS]
     return CodexConfig(document, Listing(tuple(kept), cut=len(entries) - len(kept)))
