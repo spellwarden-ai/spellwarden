@@ -102,7 +102,7 @@ Ids are `SW-SKL-NNN` (skill packages), `SW-MCP-NNN` (probed MCP servers), `SW-CF
 | SW-MCP-008 | Uses deprecated Roots, Sampling or Logging | medium | ASI04 | SR-3 |
 | SW-MCP-009 | Endpoint not served over HTTPS | high |  | SC-7 |
 | SW-MCP-010 | No protected resource metadata, or issuer not validated | medium | MCP07 | IA-5 |
-| SW-MCP-011 | Tool description contains instruction-like text | high | ASI01, MCP03 | SI-10 |
+| SW-MCP-011 | MCP server text contains instruction-like text | high | ASI01, MCP03 | SI-10 |
 | SW-CFG-001 | Remote MCP server over plain HTTP | high |  | SC-7 |
 | SW-CFG-002 | Credential written into an MCP server configuration | critical | MCP01, MCP07 | IA-5 |
 | SW-CFG-003 | MCP server launched from an unpinned package | medium | ASI04, MCP04 | SR-3 |

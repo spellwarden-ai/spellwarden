@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import dataclasses
 import re
+from collections.abc import Iterator
 from datetime import date
 
 from spellwarden_scan import checklist
@@ -140,6 +141,35 @@ def text_of(value: object) -> str:
         elif isinstance(item, (list, tuple)):
             stack.extend(reversed(item))
     return " ".join(parts)
+
+
+LOCATION_CUT = 200  # the address in a finding's location (`resource:<uri>`), spec 8.3
+
+
+def _joined(parts: tuple[object, ...]) -> str:
+    return " ".join(text for text in (text_of(part) for part in parts) if text)
+
+
+def probe_texts(probe: ProbeResult) -> Iterator[tuple[str, str]]:
+    """`(location path, text)` of each place a server speaks besides a tool description (Phase 3 batch 1 spec 8.3), in a fixed
+    order: every prompt (its title, its description and each argument's description, joined by a space), every resource
+    (name, title, description), every resource template (the same) and the server's instructions. A place with no text is not
+    yielded. A tool keeps its own `tool:<name>` reading in `rules.mcp` and the org-rule check."""
+    for prompt in probe.prompts:
+        text = _joined((prompt.title, prompt.description, *(argument.description for argument in prompt.arguments)))
+        if text:
+            yield f"prompt:{prompt.name}", text
+    for resource in probe.resources:
+        text = _joined((resource.name, resource.title, resource.description))
+        if text:
+            yield f"resource:{resource.uri[:LOCATION_CUT]}", text
+    for template in probe.resource_templates:
+        text = _joined((template.name, template.title, template.description))
+        if text:
+            yield f"resource_template:{template.uri_template[:LOCATION_CUT]}", text
+    instructions = text_of(probe.instructions)
+    if instructions:
+        yield "server_instructions", instructions
 
 
 def list_meta_missing_of(probe: ProbeResult) -> bool:

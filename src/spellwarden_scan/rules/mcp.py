@@ -1,5 +1,6 @@
 """The 11 MCP rules of spec 5.4. Each `detect(probe)` yields `Finding`s whose
-location is the endpoint (or the repository), or `tool:<name>` for SW-MCP-011."""
+location is the endpoint (or the repository), or, for SW-MCP-011, the place of the text: `tool:<name>`, `prompt:<name>`,
+`resource:<uri>`, `resource_template:<uriTemplate>` or `server_instructions`."""
 from __future__ import annotations
 
 import bisect
@@ -8,7 +9,7 @@ from collections.abc import Iterator
 
 from spellwarden_scan.evidence import bounded_evidence, fingerprint, mask_credentials
 from spellwarden_scan.model import Finding, Location, ProbeResult, ToolInfo
-from spellwarden_scan.probe import text_of
+from spellwarden_scan.probe import probe_texts, text_of
 from spellwarden_scan.probe import auth_mode_of, classify, deprecated_capabilities, initialize_only, spec_version_of, transport_of
 from spellwarden_scan.rules import Rule, make_rule
 from spellwarden_scan.rules import patterns as P
@@ -986,6 +987,14 @@ def _mcp_011(probe: ProbeResult) -> Iterator[Finding]:
         elif any(p.search(seen) for p in _TOOL_STEERING):
             severity = "high" if _asks_for_data(seen) else "medium"
             yield _finding("SW-MCP-011", severity, probe, text, path=f"tool:{tool.name}")
+    # 1.13.0 (Phase 3 batch 1 spec 8.3, decision D15): the prompts, resources, resource templates and instructions a server
+    # advertises are read for injection and concealment only, never for steering: a prompt or the server's instructions exist to
+    # steer a model ("call search before answering questions about the catalogue"), so steering words there are the design. The
+    # precision of the rule on these four places has not been measured.
+    for path, text in probe_texts(probe):
+        seen = " ".join(visible(text).split())
+        if any(p.search(seen) for p in P.INJECTION) or any(p.search(seen) for p in _TOOL_CONCEALMENT):
+            yield _finding("SW-MCP-011", "high", probe, text, path=path)
 
 
 TITLES = {
@@ -999,7 +1008,7 @@ TITLES = {
     "SW-MCP-008": "Uses deprecated Roots, Sampling or Logging",
     "SW-MCP-009": "Endpoint not served over HTTPS",
     "SW-MCP-010": "No protected resource metadata, or issuer not validated",
-    "SW-MCP-011": "Tool description contains instruction-like text",
+    "SW-MCP-011": "MCP server text contains instruction-like text",
 }
 
 RULES: tuple[Rule, ...] = (

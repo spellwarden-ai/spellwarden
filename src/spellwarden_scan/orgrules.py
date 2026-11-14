@@ -791,6 +791,12 @@ class OrgRuleDetector:
         if self.predicate in PATTERN_PREDICATES:
             for tool in probe.tools:
                 yield self._tool_unit(tool)
+            # 1.13.0 (Phase 3 batch 1 spec 8.3, D14): the check reads the other places a server speaks as well
+            if self.predicate == "tool_description_matches":
+                from spellwarden_scan.probe import probe_texts
+
+                for path, text in probe_texts(probe):
+                    yield self._text_unit(path, text)
             return
         yield lambda: self._server_finding(probe)
 
@@ -802,6 +808,13 @@ class OrgRuleDetector:
             if self.pattern is None or not isinstance(text, str) or not pattern_search(self.pattern, text):
                 return None
             return self._finding(f"tool:{tool.name}", text)
+        return run
+
+    def _text_unit(self, path: str, text: str) -> Callable[[], Finding | None]:
+        def run() -> Finding | None:
+            if self.pattern is None or not pattern_search(self.pattern, text):
+                return None
+            return self._finding(path, text)
         return run
 
     def _server_finding(self, probe) -> Finding | None:

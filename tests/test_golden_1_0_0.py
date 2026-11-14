@@ -144,6 +144,11 @@ RETAGGED_1_9_1 = ("SW-SKL-007", "SW-SKL-009", "SW-SKL-019", "SW-MCP-001", "SW-MC
                   "SW-MCP-010", "SW-MCP-011", "SW-CFG-001", "SW-CFG-002", "SW-CFG-003", "SW-CFG-009", "SW-CFG-010")
 
 
+# 1.13.0 retitled SW-MCP-011 ("MCP server text contains instruction-like text": the rule reads more than tool descriptions), so
+# the `name` and `shortDescription` of its SARIF descriptor are put back to the recorded ones on both sides.
+RETITLED_1_13_0 = {"SW-MCP-011": ("ToolDescriptionContainsInstructionLikeText", "Tool description contains instruction-like text")}
+
+
 def _normalised_sarif(text: str, *, produced: bool) -> dict:
     """The SARIF document with the descriptors of the rules added since 1.0.0 (the three registry rules, the nineteen
     A2A rules and the five rules of 1.8.0) removed and every `ruleIndex` remapped through the reduced table; the version is put back to the recorded one."""
@@ -164,6 +169,8 @@ def _normalised_sarif(text: str, *, produced: bool) -> dict:
     for rule in driver["rules"]:
         if rule["id"] in RETAGGED_1_9_1:
             rule["properties"]["tags"] = [tag for tag in rule["properties"]["tags"] if not tag.startswith("MCP")]
+        if rule["id"] in RETITLED_1_13_0:
+            rule["name"], rule["shortDescription"]["text"] = RETITLED_1_13_0[rule["id"]]
     return document
 
 
