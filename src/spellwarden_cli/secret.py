@@ -7,7 +7,9 @@ from collections.abc import MutableMapping
 from dataclasses import dataclass
 
 CREDENTIAL_VARIABLES = ("SPELLWARDEN_API_KEY", "SPELLWARDEN_ID_TOKEN", "ACTIONS_ID_TOKEN_REQUEST_URL",
-                        "ACTIONS_ID_TOKEN_REQUEST_TOKEN")
+                        "ACTIONS_ID_TOKEN_REQUEST_TOKEN",
+                        # phase 3 batch 2a spec 11.4: the key of `scan --user --upload`, read by no other run
+                        "SPELLWARDEN_WORKSTATION_KEY")
 
 
 class Secret:
@@ -62,16 +64,21 @@ class Credentials:
     id_token: Secret | None
     request_url: Secret | None
     request_token: Secret | None
+    # Phase 3 batch 2a spec 11.4 (D33): the organisation and the key of `scan --user --upload`, never the repository ones
+    workstation_org: str | None = None
+    workstation_key: Secret | None = None
 
 
 def read_credentials(environ: MutableMapping[str, str]) -> Credentials:
-    """Reads the four credential variables once and removes them from `environ`; `SPELLWARDEN_ORG` is a slug, not a
-    secret: it is read and stays."""
+    """Reads the five credential variables once and removes them from `environ`; `SPELLWARDEN_ORG` and
+    `SPELLWARDEN_WORKSTATION_ORG` are slugs, not secrets: they are read and stay."""
     org = environ.get("SPELLWARDEN_ORG") or None
     return Credentials(org=org, key=take_secret(environ, "SPELLWARDEN_API_KEY"),
                        id_token=take_secret(environ, "SPELLWARDEN_ID_TOKEN"),
                        request_url=take_secret(environ, "ACTIONS_ID_TOKEN_REQUEST_URL"),
-                       request_token=take_secret(environ, "ACTIONS_ID_TOKEN_REQUEST_TOKEN"))
+                       request_token=take_secret(environ, "ACTIONS_ID_TOKEN_REQUEST_TOKEN"),
+                       workstation_org=environ.get("SPELLWARDEN_WORKSTATION_ORG") or None,
+                       workstation_key=take_secret(environ, "SPELLWARDEN_WORKSTATION_KEY"))
 
 
 __all__ = ["CREDENTIAL_VARIABLES", "Credentials", "Secret", "read_credentials", "take_secret"]
