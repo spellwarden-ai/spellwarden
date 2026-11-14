@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.14.0 (2026-11-NN)
+
+- `spellwarden scan --user` scans the user-level configuration of Claude Code, Claude Desktop, Cursor, VS Code, Windsurf (Devin Desktop), Codex and Gemini CLI on Linux, macOS and Windows: MCP servers, skills, plugins and marketplaces, hooks and instruction files, reported per client, paths relative to the home directory. It never changes a configuration, never starts a local server, probes remote servers only with --probe and sends no usage ping. The paths it reads are listed with their sources in the README.
+- `spellwarden scan --user --inventory` lists what is installed without judging it.
+- `spellwarden scan --user --upload --device-label TEXT` uploads the inventory to a Spellwarden organisation on the Enterprise plan with a workstation key, read from SPELLWARDEN_WORKSTATION_ORG and SPELLWARDEN_WORKSTATION_KEY (a repository scan ignores both, and a --user scan ignores the CI variables). Nothing secret is sent: no environment values, headers, arguments or evidence.
+- `--format cyclonedx` writes a CycloneDX 1.7 JSON document (skills, plugins, marketplaces, instruction files, configuration documents, MCP servers, agent cards and findings).
+- New public module `spellwarden_scan.cyclonedx`.
+- Repository scans without --format cyclonedx give the same reports as 1.13.0.
+
 ## 1.13.0 (2026-11-14)
 
 Rules version 2026.11.6. Three changes; the second and third can add findings to a scan that was clean on 1.12.0, so a CI
