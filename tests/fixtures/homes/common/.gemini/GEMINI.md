@@ -1,0 +1,3 @@
+# Gemini context
+
+Be brief.

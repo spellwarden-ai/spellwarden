@@ -37,7 +37,8 @@ def _rule(rule: Rule) -> dict:
     }
 
 
-def _result(report: Report, item: ReportFinding, index: dict[str, int], instructions: dict[str, dict]) -> dict:
+def _result(report: Report, item: ReportFinding, index: dict[str, int], instructions: dict[str, dict],
+            clients_of: dict[str, list[str]] | None = None) -> dict:
     finding = item.finding
     text = f"{finding.title}: {finding.evidence}" if finding.evidence else finding.title
     physical: dict = {"artifactLocation": {"uri": quote(upload_path(report, finding.location.path), safe="/")}}
@@ -59,6 +60,8 @@ def _result(report: Report, item: ReportFinding, index: dict[str, int], instruct
         result["ruleIndex"] = index[finding.rule_id]
     if item.item in instructions:  # a finding of an instruction file says which format it is and when the agent applies it
         result["properties"] = {"instructions": instructions[item.item]}
+    if clients_of is not None:  # `scan --user` (phase 3 batch 2a spec 11.3): the clients whose configuration holds the item
+        result.setdefault("properties", {})["clients"] = clients_of.get(item.item, [])
     if item.suppressed:
         reason = (item.baseline or {}).get("reason", "")
         result["suppressions"] = [{"kind": "external", "justification": escape.message(reason)}]
@@ -71,13 +74,14 @@ def render(report: Report) -> str:
     scopes = instruction_files.scopes(report.items)
     instructions = {entry.path: {"format": entry.format, "scope": escape.message(scopes[entry.path])}
                     for entry in report.items if entry.kind == "instructions"}
+    clients_of = {entry.path: list(entry.clients) for entry in report.items} if report.clients is not None else None
     document = {
         "$schema": SCHEMA_URI,
         "version": "2.1.0",
         "runs": [{
             "tool": {"driver": {"name": "Spellwarden", "semanticVersion": report.scanner_version,
                                 "informationUri": INFORMATION_URI, "rules": [_rule(rule) for rule in rules]}},
-            "results": [_result(report, item, index, instructions) for item in report.findings],
+            "results": [_result(report, item, index, instructions, clients_of) for item in report.findings],
         }],
     }
     return json.dumps(document, indent=2, sort_keys=True, ensure_ascii=True) + "\n"

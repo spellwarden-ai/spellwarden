@@ -12,6 +12,7 @@ import hashlib
 import ipaddress
 import json
 import re
+from collections.abc import Callable, Sequence
 from typing import Any, NamedTuple
 
 from spellwarden_scan._json import MAX_DOCUMENT_BYTES
@@ -74,9 +75,9 @@ def _error_document(path: str, kind: str, code: str, content: bytes) -> ConfigDo
                           truncated=False, sha256=_sha256(content))
 
 
-def _parse(kind: str, path: str, content: bytes, build) -> ConfigDocument:
+def _parse(kind: str, path: str, content: bytes, build, tree: Any = None) -> ConfigDocument:
     try:
-        root = _load_jsonc(content)
+        root = _load_jsonc(content) if tree is None else tree
         if not isinstance(root, _Obj):
             raise _Refused("not_an_object")
         parts = _Parts()
@@ -359,6 +360,26 @@ def parse_plugin_manifest(path: str, content: bytes) -> ConfigDocument:
     """`.claude-plugin/plugin.json`, or a referenced file with hooks and servers: inline servers (`mcpServers` and
     `servers`) and hooks; string values of `mcpServers` and `hooks` are `references` to other files."""
     return _parse("plugin", path, content, _build_plugin)
+
+
+def parse_selected(kind: str, path: str, content: bytes, select: Callable[[Any], tuple[Sequence[Any], Any]], *,
+                   root: Any = None) -> ConfigDocument:
+    """1.14.0 (`spellwarden scan --user`, phase 3 batch 2a spec 11.2): a client file whose servers or hooks sit elsewhere than
+    the five document kinds read them (Claude Code's `projects.<directory>.mcpServers`, a Gemini CLI settings file, Cursor's
+    hooks file). `select(root)` returns `(server maps, hook events)` from the root object, whose values are the reader's `Obj`
+    and `Arr` with the line of every key; each server map is read as `mcpServers` is (a name in two maps is `duplicate_key`), the
+    hook events as `hooks` is. `kind` is one of `DOC_KINDS` and names the document only. `root`, when given, is the document
+    already read into `Obj` and `Arr` values (the command reads `config.toml` itself): `content` is then hashed only when the
+    root is refused. Pure and total, as `parse_document`; `select` must not raise."""
+    if kind not in DOC_KINDS:
+        raise ValueError(f"unknown document kind {kind!r}")
+
+    def build(parts: _Parts, tree: _Obj, _path: str) -> None:
+        maps, events = select(tree)
+        _servers(parts, list(maps))
+        _hooks(parts, events)
+
+    return _parse(kind, path, content, build, root)
 
 
 _PARSERS = {"mcp": parse_mcp_config, "hooks": parse_hooks, "settings": parse_settings,

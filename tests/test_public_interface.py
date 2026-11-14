@@ -35,6 +35,9 @@ IDENTITY_NAMES = (
     "parse_command_identity", "format_command_identity", "ParsedCommandIdentity", "LAUNCH_OVERRIDE_ENV", "QUIET_FLAGS",
     "LAUNCHER_FAMILY", "resolver_files", "canonical_repo_url", "plugin_identity", "marketplace_identity", "SKIP_DIRS",
 )
+# Phase 3 batch 2a spec 7.2: the public module `spellwarden_scan.cyclonedx` (1.14.0); `__all__` of the package is unchanged.
+CYCLONEDX_NAMES = ("SPEC_VERSION", "SCHEMA_URL", "PROPERTY_PREFIX", "SEVERITY", "ANALYSIS", "document", "component", "service",
+                   "vulnerability", "dependency", "prop", "reduce_url")
 GATE_NAMES = ("gate_finding", "resolver_binding", "unhashable_binding", "GATE_RULE_IDS", "GATE_REASONS", "GATE_KINDS")
 
 
@@ -118,3 +121,13 @@ def test_1_7_0_adds_the_otel_subpackage_and_pins_its_limits():
     assert otel.DIALECTS == ("claude_code", "claude_platform", "openinference", "genai_legacy", "genai", "mcp")
     assert otel.RECORD_KINDS == ("agent", "model", "tool", "mcp", "decision", "connection", "skill", "content", "other")
     assert otel.CONTENT_KINDS == ("system", "input", "output", "tool_arguments", "tool_result", "prompt", "response")
+
+
+def test_1_14_0_adds_the_cyclonedx_module_and_no_package_name():
+    from spellwarden_scan import cyclonedx
+
+    assert spellwarden_scan.cyclonedx is cyclonedx
+    for name in CYCLONEDX_NAMES:
+        assert hasattr(cyclonedx, name), name
+    assert (cyclonedx.SPEC_VERSION, cyclonedx.PROPERTY_PREFIX) == ("1.7", "spellwarden:")
+    assert "cyclonedx" not in spellwarden_scan.__all__

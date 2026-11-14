@@ -1,0 +1,39 @@
+{
+  "protocolVersion": "0.3.0",
+  "name": "Legacy Helper",
+  "description": "Answers questions about the legacy ledger.",
+  "url": "https://legacy.example.com/a2a",
+  "preferredTransport": "JSONRPC",
+  "version": "0.9.0",
+  "capabilities": {
+    "streaming": false
+  },
+  "securitySchemes": {
+    "key": {
+      "type": "apiKey",
+      "in": "header",
+      "name": "X-Key"
+    }
+  },
+  "security": [
+    {
+      "key": []
+    }
+  ],
+  "defaultInputModes": [
+    "text/plain"
+  ],
+  "defaultOutputModes": [
+    "text/plain"
+  ],
+  "skills": [
+    {
+      "id": "ledger",
+      "name": "Ledger lookup",
+      "description": "Looks up one ledger entry.",
+      "tags": [
+        "ledger"
+      ]
+    }
+  ]
+}

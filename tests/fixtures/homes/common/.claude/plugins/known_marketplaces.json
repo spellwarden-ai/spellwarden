@@ -1,0 +1,7 @@
+{
+  "tools": {
+    "source": {"source": "git", "url": "https://CANARY-USERINFO:x@git.example.com/tools.git?token=CANARY-QUERY#CANARY-FRAGMENT"},
+    "installLocation": "{{HOME}}/.claude/plugins/marketplaces/tools",
+    "lastUpdated": "2026-11-01T00:00:00Z"
+  }
+}

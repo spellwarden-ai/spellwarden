@@ -1,0 +1,1 @@
+{"servers": {"fs": {"type": "stdio", "command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem@2025.1.1"]}}, "inputs": [{"type": "promptString", "id": "token", "password": true}]}

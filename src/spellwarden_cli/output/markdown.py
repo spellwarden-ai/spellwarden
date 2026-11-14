@@ -11,7 +11,7 @@ from spellwarden_scan.gate import GATE_REASONS
 
 from spellwarden_cli import escape, instruction_files
 from spellwarden_cli.output import agents as agent_view
-from spellwarden_cli.output.text import connected_lines
+from spellwarden_cli.output.text import client_lines, connected_lines
 from spellwarden_cli.report import CONNECTED_ERRORS, Report, ReportFinding
 
 MARKER = "<!-- spellwarden-scan -->"
@@ -217,6 +217,8 @@ def render(report: Report) -> str:
     section = connected_section(report)
     if section:
         lines.append(section)
+    if report.clients is not None:  # `scan --user` (phase 3 batch 2a spec 11.3)
+        lines += ["**Clients:**", "", *(f"- {_text(line)}" for line in client_lines(report)), ""]
     lines += _findings(open_findings) + _instruction_files(report)
     lines += _errors(report) + _lock(report) + _probes(report) + _agents(report)
     if accepted:

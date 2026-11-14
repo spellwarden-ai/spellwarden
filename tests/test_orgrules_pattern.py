@@ -2,12 +2,17 @@
 `Then`-style evaluation and its bounded time (claim E4, the pattern half; the budget half is in test_orgrules.py)."""
 from __future__ import annotations
 
+import os
 import re
 import time
 
 import pytest
 
 from spellwarden_scan.orgrules import PATTERN_LIMITS, OrgRuleError, compile_pattern, pattern_search, unit_windows
+
+# Wall-clock budgets scale with SPELLWARDEN_SPEED_FACTOR when it is set (CI sets 3: shared runners, Windows above all, are
+# slower), as tests/otel/test_speed.py and tests/test_rules_mcp.py do.
+SPEED_FACTOR = float(os.environ.get("SPELLWARDEN_SPEED_FACTOR", "1"))
 
 
 def code_of(pattern: str) -> str:
@@ -185,4 +190,4 @@ def test_the_worst_allowed_shapes_read_a_100_000_character_adversarial_line_in_u
     for line in lines:
         started = time.perf_counter()
         pattern_search(compiled, line)
-        assert time.perf_counter() - started < 1.0
+        assert time.perf_counter() - started < 1.0 * SPEED_FACTOR

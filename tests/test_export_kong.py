@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import os
 import re
 from pathlib import Path
 
@@ -20,6 +21,10 @@ from spellwarden_scan.orgrules import compile_pattern
 from spellwarden_scan.packs import ENFORCEMENT_IDS, ENFORCEMENT_RULES, PackError, baseline_pack, validate_pack
 from spellwarden_scan.rules.patterns import INJECTION
 from spellwarden_scan.text import comment_safe
+
+# Wall-clock budgets scale with SPELLWARDEN_SPEED_FACTOR when it is set (CI sets 3: shared runners, Windows above all, are
+# slower), as tests/otel/test_speed.py and tests/test_rules_mcp.py do.
+SPEED_FACTOR = float(os.environ.get("SPELLWARDEN_SPEED_FACTOR", "1"))
 
 PACKS = Path(__file__).resolve().parents[1] / "fixtures" / "packs"
 BUILT = "2026-12-01T10:00:00Z"
@@ -222,7 +227,7 @@ def test_an_org_pattern_reads_line_by_line_like_the_engine_and_never_backtracks_
     hostile = "ab" * 50_000 + "\n" + "a" * 100_000
     started = time.perf_counter()
     exported.search(hostile)
-    assert time.perf_counter() - started < 0.5
+    assert time.perf_counter() - started < 0.5 * SPEED_FACTOR
 
 
 def test_nothing_to_enforce_gives_an_empty_plugin_list_and_says_so():

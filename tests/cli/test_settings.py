@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import fnmatch
 import itertools
+import os
 import time
 import types
 
@@ -12,6 +13,10 @@ from conftest import write_tree
 
 from spellwarden_cli.settings import Flags, Settings, SettingsError, env_bool, glob_match, load_settings
 from spellwarden_scan import glob as glob_module
+
+# Wall-clock budgets scale with SPELLWARDEN_SPEED_FACTOR when it is set (CI sets 3: shared runners, Windows above all, are
+# slower), as tests/otel/test_speed.py and tests/test_rules_mcp.py do.
+SPEED_FACTOR = float(os.environ.get("SPELLWARDEN_SPEED_FACTOR", "1"))
 
 CONFIG = ".spellwarden/config.yml"
 
@@ -168,7 +173,7 @@ def test_glob_match_with_many_double_stars_is_fast():
     assert glob_match(path, "/".join(["**"] * 60 + ["nomatch"])) is False
     assert glob_match(path, "/".join(["**", "a"] * 30 + ["nomatch"])) is False
     assert glob_match(path, "/".join(["**", "a"] * 30 + ["**"])) is True
-    assert time.perf_counter() - started < 1.0
+    assert time.perf_counter() - started < 1.0 * SPEED_FACTOR
 
 
 def test_glob_match_on_the_longest_pattern_a_config_scalar_allows():

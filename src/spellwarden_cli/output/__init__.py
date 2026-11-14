@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import TextIO
 
-from spellwarden_cli.output import codequality, json_out, markdown, sarif, text
+from spellwarden_cli.output import codequality, cyclonedx, json_out, markdown, sarif, text
 
 FORMATS = {
     "text": text.render,
@@ -11,6 +11,7 @@ FORMATS = {
     "sarif": sarif.render,
     "markdown": markdown.render,
     "gitlab-codequality": codequality.render,
+    "cyclonedx": cyclonedx.render,  # phase 3 batch 2a spec 11.5
 }
 
 

@@ -23,9 +23,14 @@
     "exit_code": {"enum": [0, 1, 2, 3]},
     "connected": {"$ref": "#/$defs/connected"},
     "upload_truncated": {"type": "integer", "minimum": 0, "description": "Findings left out of the upload body to fit its caps."},
-    "upload_truncated_fields": {"type": "array", "items": {"type": "string"}, "description": "Fields of the upload body that were cut."}
+    "upload_truncated_fields": {"type": "array", "items": {"type": "string"}, "description": "Fields of the upload body that were cut."},
+    "clients": {"type": "array", "description": "scan --user only (scanner 1.14.0): each client of the table, in a fixed order.",
+                "items": {"type": "object", "required": ["client", "found", "roots"],
+                          "properties": {"client": {"$ref": "#/$defs/client_name"}, "found": {"type": "boolean"},
+                                         "roots": {"type": "array", "items": {"type": "string"}}}}}
   },
   "$defs": {
+    "client_name": {"enum": ["claude-code", "claude-desktop", "cursor", "vscode", "windsurf", "codex", "gemini-cli"]},
     "connected": {
       "type": "object",
       "description": "Present only when connected mode established its session. Never carries a credential.",
@@ -81,8 +86,12 @@
         "path": {"type": "string", "minLength": 1},
         "name": {"type": "string"},
         "plugin": {"type": ["string", "null"]},
-        "format": {"enum": ["agents-md", "claude-md", "gemini-md", "copilot-instructions", "cursor-mdc", "cursorrules", "windsurf-rules"],
-                   "description": "Instruction files only (kind instructions), with front_matter."},
+        "format": {"enum": ["agents-md", "claude-md", "gemini-md", "copilot-instructions", "cursor-mdc", "cursorrules", "windsurf-rules",
+                            "claude-rule", "codex-agents-md", "devin-rules"],
+                   "description": "Instruction files only (kind instructions), with front_matter. The last three only in scan --user (scanner 1.14.0)."},
+        "clients": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/client_name"},
+                    "description": "scan --user only (scanner 1.14.0): the clients whose configuration reaches the item."},
+        "scope": {"type": "string", "description": "scan --user only: the project directory of a project-scoped MCP server, ~/... or outside-home:<8 hex>/<name>."},
         "front_matter": {"oneOf": [
           {"type": "null"},
           {"type": "object", "required": ["description", "globs", "always_apply", "trigger"],
@@ -201,7 +210,9 @@
                           "connected_subscription", "connected_ci_key_required", "connected_forbidden",
                           "connected_rate_limited", "connected_unavailable", "connected_required", "policy_not_found",
                           "policy_invalid", "org_rules_incomplete", "registry_check_failed", "registry_check_too_large",
-                          "a2a_cards_limit", "instructions_limit"]},
+                          "a2a_cards_limit", "instructions_limit", "user_instructions_limit", "user_skills_limit",
+                          "workstation_no_credential", "workstation_label_missing", "workstation_upload_too_large",
+                          "workstation_upload_failed"]},
         "path": {"type": "string"},
         "message": {"type": "string"}
       }

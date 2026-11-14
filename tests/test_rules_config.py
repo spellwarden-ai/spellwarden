@@ -3,6 +3,7 @@ heuristic, hook identity, the judged-document rule and the paired skill/hook equ
 from __future__ import annotations
 
 import json
+import os
 
 import pytest
 from conftest import FIXTURES, clean_md, credential, make_package
@@ -12,6 +13,10 @@ from spellwarden_scan.agentconfig import parse_hooks, parse_marketplace, parse_m
 from spellwarden_scan.rules import RuleSet
 from spellwarden_scan.rules.config import is_placeholder, is_reference, name_tokens, secret_named
 from spellwarden_scan.scan import scan_agent_config, scan_skill_package
+
+# Wall-clock budgets scale with SPELLWARDEN_SPEED_FACTOR when it is set (CI sets 3: shared runners, Windows above all, are
+# slower), as tests/otel/test_speed.py and tests/test_rules_mcp.py do.
+SPEED_FACTOR = float(os.environ.get("SPELLWARDEN_SPEED_FACTOR", "1"))
 
 RULES = RuleSet.baseline()
 
@@ -505,7 +510,7 @@ def test_003_reading_unknown_builtin_options_both_ways_stays_linear():
                              ("nohup " + "-x npx " * 20_000 + "evil-pkg", ["s: npx evil-pkg (via bash -c)"])):
         started = time.perf_counter()
         found = fired(servers({"s": {"command": "bash", "args": ["-c", script]}}), rule_id="SW-CFG-003")
-        assert time.perf_counter() - started < 2.0
+        assert time.perf_counter() - started < 2.0 * SPEED_FACTOR
         assert [f.evidence for f in found] == evidence
 
 

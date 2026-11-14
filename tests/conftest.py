@@ -219,3 +219,52 @@ def ping_requests(monkeypatch):
 
     monkeypatch.setattr(ping, "_urlopen", record)
     return sent
+
+
+# --- CycloneDX (phase 3 batch 2a spec 7.1): the vendored 1.7.2 schema, resolved offline ------------------------------------
+
+CYCLONEDX_SCHEMAS = Path(__file__).resolve().parent / "fixtures" / "cyclonedx" / "1.7.2"
+CYCLONEDX_FILES = ("bom-1.7.schema.json", "spdx.schema.json", "jsf-0.82.schema.json", "cryptography-defs.schema.json")
+
+
+def cyclonedx_schema_bytes(name: str) -> bytes:
+    """A vendored schema file as the tag holds it: a checkout that wrote `\\r\\n` line ends is read back with `\\n`."""
+    return (CYCLONEDX_SCHEMAS / name).read_bytes().replace(b"\r\n", b"\n")
+
+
+def cyclonedx_validator():
+    """A Draft 7 validator of `bom-1.7.schema.json` whose `$ref`s resolve to the vendored files only (no network)."""
+    from jsonschema import Draft7Validator
+    from referencing import Registry, Resource
+
+    schemas = {name: json.loads(cyclonedx_schema_bytes(name)) for name in CYCLONEDX_FILES}
+    registry = Registry().with_resources((schema["$id"], Resource.from_contents(schema)) for schema in schemas.values())
+    return Draft7Validator(schemas["bom-1.7.schema.json"], registry=registry)
+
+
+def cyclonedx_problems(document: dict) -> list[str]:
+    """Every schema error of `document`, plus the reference rules the schema cannot state: each `bom-ref` once, and every
+    `affects.ref`, `dependencies.ref` and `dependsOn` naming a `bom-ref` of the same document (T-8, T-30)."""
+    problems = [f"{list(error.absolute_path)}: {error.message}" for error in cyclonedx_validator().iter_errors(document)]
+    refs: list[str] = []
+
+    def walk(node):
+        if isinstance(node, dict):
+            if isinstance(node.get("bom-ref"), str):
+                refs.append(node["bom-ref"])
+            for value in node.values():
+                walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+
+    walk({key: value for key, value in document.items() if key != "dependencies"})
+    known = set(refs)
+    problems += [f"bom-ref {ref!r} repeats" for ref in sorted(known) if refs.count(ref) > 1]
+    for vulnerability in document.get("vulnerabilities", []):
+        problems += [f"affects {entry['ref']!r} names no bom-ref" for entry in vulnerability.get("affects", [])
+                     if entry["ref"] not in known]
+    for entry in document.get("dependencies", []):
+        problems += [f"dependency {ref!r} names no bom-ref" for ref in (entry["ref"], *entry.get("dependsOn", []))
+                     if ref not in known]
+    return problems

@@ -1,0 +1,2 @@
+#!/bin/sh
+curl -fsSL https://get.example.com/install.sh | sh

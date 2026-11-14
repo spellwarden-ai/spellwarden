@@ -14,6 +14,11 @@ case and Unicode form (NFC, then case folding, as macOS and Windows open names a
 - `cursorrules`: `.cursorrules` at the scan root.
 - `windsurf-rules`: a `.md` file directly under `.windsurf/rules/` or `.devin/rules/` at any depth, and `.windsurfrules` at the
   scan root.
+
+Three formats exist only in `scan --user` (phase 3 batch 2a spec 11.3), where the client table gives each file its format and
+`format_of` is not asked: `claude-rule` (a Markdown file in Claude Code's user `rules/` directory, scoped by a `paths` list in
+its front matter), `codex-agents-md` (Codex's user `AGENTS.md`) and `devin-rules` (Devin Desktop's user rules, front matter as
+Windsurf's). A user-level `global_rules.md` of Windsurf or Devin is always applied.
 """
 from __future__ import annotations
 
@@ -21,7 +26,8 @@ import posixpath
 
 from spellwarden_scan.identity import fold_skill_name as _fold
 
-FORMATS = ("agents-md", "claude-md", "gemini-md", "copilot-instructions", "cursor-mdc", "cursorrules", "windsurf-rules")
+FORMATS = ("agents-md", "claude-md", "gemini-md", "copilot-instructions", "cursor-mdc", "cursorrules", "windsurf-rules",
+           "claude-rule", "codex-agents-md", "devin-rules")
 MAX_FILES = 300            # instruction files read per scan root; more is the error `instructions_limit` (exit 2)
 FRONT_MATTER_WINDOW = 4096  # the closing `---` must be within this many bytes of the file's start
 MAX_GLOBS = 20
@@ -32,7 +38,9 @@ _NAMED = {"agents.md": "agents-md", "claude.md": "claude-md", "gemini.md": "gemi
 # The keys read from the front matter of a rule file, by format: Cursor writes `description`, `globs` and `alwaysApply`,
 # Windsurf and Devin `trigger`, `globs` and `description`. No other format has its front matter read.
 _FRONT_MATTER_KEYS = {"cursor-mdc": ("description", "globs", "alwaysApply"),
-                      "windsurf-rules": ("trigger", "globs", "description")}
+                      "windsurf-rules": ("trigger", "globs", "description"),
+                      "devin-rules": ("trigger", "globs", "description"),
+                      "claude-rule": ("paths",)}  # Claude Code scopes a rule by `paths`, a list read like `globs`
 
 ALWAYS = "Applied: always"
 ASKED = "Applied when asked for"
@@ -120,7 +128,7 @@ def front_matter_of(format: str, content: bytes) -> tuple[dict | None, bool]:
         key, value = key.strip(), value.strip()
         if not separator or key not in keys:
             continue
-        if key == "globs":
+        if key in ("globs", "paths"):
             if value == "":
                 globs, in_list = [], True
                 continue
@@ -149,8 +157,12 @@ def instruction_scope(format: str, path: str, front_matter: dict | None) -> str:
     (globs, a description): the output modules escape it."""
     if format not in _FRONT_MATTER_KEYS or (front_matter is None and posixpath.basename(path) == ".windsurfrules"):
         return ALWAYS
+    if format in ("windsurf-rules", "devin-rules") and path.startswith("~/") and posixpath.basename(path) == "global_rules.md":
+        return ALWAYS  # `scan --user`: the global rules of Windsurf and Devin Desktop apply to every conversation
     given = front_matter or {}
     trigger, description, globs = given.get("trigger"), given.get("description"), given.get("globs") or []
+    if format == "claude-rule":
+        return "Applied to files matching: " + ", ".join(globs) if globs else ALWAYS
     if given.get("always_apply") is True or trigger == "always_on":
         return ALWAYS
     if trigger == "manual":

@@ -427,9 +427,9 @@ A plugin hosted elsewhere (a GitHub repository or a URL) is listed and locked by
 
 Since 1.13.0 the scanner also finds the files that give instructions to a coding agent (the table above) and scans each one as an instruction file: every skill rule except the two about `SKILL.md` metadata, with Markdown rules reading a `.mdc`, `.cursorrules` or `.windsurfrules` file as Markdown. Paths match whatever their case (`claude.md`, `.Cursor/Rules/x.MDC`), as macOS and Windows open them and as configuration file names match, after `include`, `exclude` and the walk rules. A file inside a skill directory belongs to that skill and is scanned there, once, with a `.mdc`, `.cursorrules` or `.windsurfrules` file still read as Markdown; at most 300 instruction files are read per scan root, those an agent reads at the root of the repository first (root `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, the Copilot file and the root Cursor and Windsurf rules), then the rest shallowest first; more is the error `instructions_limit` and an incomplete scan (exit 2; see [Limits](#limits)). A symbolic link at one of these names is followed like one at a configuration file's name; one that cannot be followed is the notice `symlink_skipped`.
 
-Each file is an item of kind `instructions` with a `format` (`agents-md`, `claude-md`, `gemini-md`, `copilot-instructions`, `cursor-mdc`, `cursorrules` or `windsurf-rules`) and a `front_matter`. The front matter of a Cursor rule (`description`, `globs`, `alwaysApply`) and of a Windsurf or Devin rule (`trigger`, `globs`, `description`) is read by a line parser, not YAML, because Cursor writes values YAML refuses (`globs: *.ts`); a block that cannot be read leaves `front_matter` null, still scans the file and gives the notice `instructions_front_matter`. The text and Markdown reports say when the agent applies a file next to its findings (`Applied: always`, `Applied to files matching: ...`, `Applied when the agent judges it relevant: ...` or `Applied when asked for`), and SARIF results of an instruction file carry `properties.instructions` with the format and that scope. Each file is pinned in the lock file (`kind` `instructions`, with its `format` and the hash of its name and bytes) and uploaded in connected mode; the registry gate does not consider instruction files.
+Each file is an item of kind `instructions` with a `format` (`agents-md`, `claude-md`, `gemini-md`, `copilot-instructions`, `cursor-mdc`, `cursorrules` or `windsurf-rules`; a `spellwarden scan --user` run also writes `claude-rule`, `codex-agents-md` and `devin-rules`, see "Scanning a workstation") and a `front_matter`. The front matter of a Cursor rule (`description`, `globs`, `alwaysApply`) and of a Windsurf or Devin rule (`trigger`, `globs`, `description`) is read by a line parser, not YAML, because Cursor writes values YAML refuses (`globs: *.ts`); a block that cannot be read leaves `front_matter` null, still scans the file and gives the notice `instructions_front_matter`. The text and Markdown reports say when the agent applies a file next to its findings (`Applied: always`, `Applied to files matching: ...`, `Applied when the agent judges it relevant: ...` or `Applied when asked for`), and SARIF results of an instruction file carry `properties.instructions` with the format and that scope. Each file is pinned in the lock file (`kind` `instructions`, with its `format` and the hash of its name and bytes) and uploaded in connected mode; the registry gate does not consider instruction files.
 
-Instruction files are on by default. Set `instructions: false` in `.spellwarden/config.yml` to leave them out: they are then not found, locked, scanned or reported, and the report is the one 1.12.0 wrote, apart from the `tags` each finding carries since 1.13.0. Upgrading can change a result: a repository that holds instruction files can gain findings, so a gate that passed can fail, and a repository with a lock file sees its instruction files as `added` (lock `stale`, exit 3) until `spellwarden lock` is run once. A lock file that holds them is unreadable to 1.12.0 and older (`lock_unreadable`), and an older scanner refuses a config with the `instructions` key, so a team that runs two scanner versions against one repository must upgrade both or set `instructions: false`. Not read: `.github/instructions/*.instructions.md`, `AGENT.md`, `AGENTS.local.md`, `CLAUDE.local.md`, `.gemini/` files, `.md` files in `.cursor/rules/`, and the global rule files in a user's home directory.
+Instruction files are on by default. Set `instructions: false` in `.spellwarden/config.yml` to leave them out: they are then not found, locked, scanned or reported, and the report is the one 1.12.0 wrote, apart from the `tags` each finding carries since 1.13.0. Upgrading can change a result: a repository that holds instruction files can gain findings, so a gate that passed can fail, and a repository with a lock file sees its instruction files as `added` (lock `stale`, exit 3) until `spellwarden lock` is run once. A lock file that holds them is unreadable to 1.12.0 and older (`lock_unreadable`), and an older scanner refuses a config with the `instructions` key, so a team that runs two scanner versions against one repository must upgrade both or set `instructions: false`. Not read: `.github/instructions/*.instructions.md`, `AGENT.md`, `AGENTS.local.md`, `CLAUDE.local.md`, `.gemini/` files, and `.md` files in `.cursor/rules/`. The global rule files in a user's home directory are not part of a repository scan: `spellwarden scan --user` reads them (see "Scanning a workstation").
 
 ### Exit codes
 
@@ -437,7 +437,7 @@ Instruction files are on by default. Set `instructions: false` in `.spellwarden/
 |---|---|
 | 0 | Passed: no unsuppressed finding at or above `--fail-on` (default `high`; `never` always passes on findings). |
 | 1 | Failed on findings. |
-| 2 | Incomplete or invalid: a usage or settings error, an unreadable file, a configuration document or agent card the scanner refused or cut short (over 200 servers, 500 hooks or 200 plugins), a skill over 2000 files or 50 MiB, over 300 instruction files or 300 agent cards, an invalid baseline entry, or a scanner crash. |
+| 2 | Incomplete or invalid: a usage or settings error, an unreadable file, a configuration document or agent card the scanner refused or cut short (over 200 servers, 500 hooks or 200 plugins), a skill over 2000 files or 50 MiB, over 300 instruction files or 300 agent cards, an invalid baseline entry, or a scanner crash; under `--user`, over 300 instruction files of one client or 1,000 skills in one skills directory, a missing workstation credential or label, or a workstation upload that failed or was too large. |
 | 3 | `--locked` and the lock file is absent or out of date. |
 
 When several apply, 2 wins over 1, and 1 over 3: an incomplete scan never looks like a pass. Every requested report is written before the exit.
@@ -449,6 +449,14 @@ The scanner has limits so that a run ends in bounded time and memory. One rule d
 - **What the repository holds** (files, configuration documents, skills, instruction files, agent cards): the repository decides its size, so a limit reached is an error and the scan is incomplete (exit 2). The way out is a narrower scan with `exclude` in `.spellwarden/config.yml`, a change reviewers see in the diff, never a skip the scanner makes on its own. Where the scanner must choose what to read first, it reads what an agent loads first (for instruction files, the places at the repository root).
 - **What a remote server sends to the probe** (tool, prompt and resource lists, a remote agent card): the server decides its size, and a limit reached there cannot fail your build, or any server could. It is shown in every report (`probe_list_incomplete`, the card's notice), and it never lowers a judgement: a tool list not read whole keeps SW-MCP-001 high.
 - **What the scanner writes** (the findings kept per package, the evidence of a finding): these cut output, not reading. Everything was judged, and the count of what was left out is shown (`findings_truncated`).
+
+`spellwarden scan --user` (see "Scanning a workstation") follows the same rule. What a home directory holds is the user's own content, so each of these limits reached is an error and an incomplete scan (exit 2), and the way out is to remove what is not used, or to scan without `--user`:
+
+- at most 300 instruction files per client (`user_instructions_limit`), read in the order of the client table;
+- at most 1,000 skills per skills directory (`user_skills_limit`);
+- at most 200 plugins and 200 marketplaces per state file (`installed_plugins.json`, `known_marketplaces.json`, Codex's `config.toml`) and 200 Gemini CLI extensions (`truncated`); each configuration document keeps the limits of a repository scan (1 MiB, 200 servers, 500 hooks, 200 plugins);
+- files over 10 MiB (`unreadable`); Claude Code's `~/.claude.json`, which holds the client's own state, is read up to 10 MiB;
+- the workstation upload: 1 MiB, 2,000 items and 1,000 findings, never cut (`workstation_upload_too_large`, nothing is sent). Its body lists at most 50 errors and 50 notices and carries their totals: an output cap, since the report on the workstation lists them all.
 
 ### Settings: `.spellwarden/config.yml`
 
@@ -495,7 +503,7 @@ On a pull or merge request the scan reads the baseline from the base revision, l
 
 ### Reports
 
-`--format` may be given several times, each followed by its own `--output` (stdout when omitted, one format at most). Every report is byte-identical for the same files, settings and `--as-of` date, holds no timestamp and no absolute path, and is sorted.
+`--format` may be given several times, each followed by its own `--output` (stdout when omitted, one format at most). Every report is byte-identical for the same files, settings and `--as-of` date, holds no timestamp (a CycloneDX document's `metadata.timestamp` is the `--as-of` date at midnight UTC) and no absolute path, and is sorted.
 
 | Format | For |
 |---|---|
@@ -504,6 +512,7 @@ On a pull or merge request the scan reads the baseline from the base revision, l
 | `sarif` | GitHub code scanning (SARIF 2.1.0, one fingerprint per result under `partialFingerprints["spellwarden/v1"]`, accepted findings as `suppressions`) |
 | `markdown` | the job summary and the pull or merge request comment (starts with `<!-- spellwarden-scan -->`, at most 60,000 characters) |
 | `gitlab-codequality` | the GitLab Code Quality report (critical, high, medium and low become critical, major, minor and info) |
+| `cyclonedx` | an AI bill of materials, CycloneDX 1.7 JSON (since 1.14.0): skills, plugins, marketplaces, instruction files and configuration documents as components, MCP servers and A2A agent cards as services, findings as vulnerabilities naming their component or service (open ones `in_triage`, accepted ones `exploitable` with `will_not_fix` and the baseline's reason), the rest as `spellwarden:` properties; the serial number is derived from the content, so the same scan gives the same file |
 
 Paths are relative to the scan root, except in SARIF and Code Quality, where they are relative to the repository root, because that is where GitHub and GitLab resolve them.
 
@@ -547,6 +556,85 @@ Off by default. With `--probe`, the scanner also fetches the cards of the remote
 
 `--probe-private` (or `SPELLWARDEN_PROBE_PRIVATE=true`) also allows the private addresses of the configured servers themselves (never a link-local address such as the cloud metadata service, and never an address that a server's answer or redirect points to), but only on a local run or on a push, schedule or manual run of a protected branch or tag in GitHub Actions or GitLab CI; anywhere else it is ignored with the notice `probe_private_untrusted`, because whoever can push a revision controls the endpoints it names. It cannot be set in `.spellwarden/config.yml`.
 
+### Scanning a workstation
+
+`spellwarden scan --user` scans the agent configuration in your home directory instead of a repository: the MCP servers, skills, plugins and marketplaces, hooks and instruction files of Claude Code, Claude Desktop, Cursor, VS Code, Windsurf (Devin Desktop), Codex and Gemini CLI, on Linux, macOS and Windows. It reads the files of the table below for the running system, judges them with the rules of a repository scan (the `SW-MCP` rules need `--probe`, as always) and reports per client. The text and Markdown reports start with one line per client (`Claude Code: 4 servers, 2 skills, 1 plugin, 1 marketplace, 2 hooks, 2 instruction files`, or `not found`), the JSON report adds `clients` (`client`, `found`, `roots`) and each item's `clients`, and SARIF results carry `properties.clients`. Paths are shown relative to the home directory (`~/.claude.json`), or under the variable that moved them (`$CODEX_HOME/config.toml`), never as absolute paths. A Claude Code server configured for one project is the item `~/.claude.json#<project>#<name>`, and its `scope` is the project directory: `~/work/app` inside the home, `outside-home:<8 hex>/<last segment>` outside it, so no directory above the project is printed.
+
+```
+spellwarden scan --user [--inventory] [--format FMT [--output FILE]]... [--fail-on LEVEL] [--probe]
+                 [--upload --device-label TEXT] [--quiet | --verbose]
+```
+
+It never changes a client file (every file is opened read-only), never starts a local server, probes remote servers only under `--probe`, sends no usage ping, and reads no `.spellwarden/config.yml`, baseline or lock: `--user` with a `PATH`, `--locked`, `--baseline` or `--config` is a usage error (exit 2). It never starts connected mode: `SPELLWARDEN_ORG`, `SPELLWARDEN_API_KEY` and the CI token variables are taken out of the environment and ignored. `--inventory` lists what is installed without judging it: no rule, no finding and no probe (`--probe` is a usage error), formats `text`, `json` and `cyclonedx` only, exit 0, or 2 when a file could not be read.
+
+Secrets stay on the machine. An endpoint or a marketplace source is shown as `scheme://host[:port]/path`, without user name, query or fragment; a stdio server by its pinned command identity (`cmd:npx pkg@1.2.0 args=<hash>`) or the reason it has none; and a finding on a configuration document by its location, without an excerpt, because those files hold environment values, headers and tokens. No environment value, header, argument or `bearer_token_env_var` target is printed, written or uploaded.
+
+A symbolic link at a path of the table, at a directory the table lists entries of, or inside a skill is followed when its target is a regular file or a directory inside the home directory (the links a dotfile manager makes). The item keeps the path it was reached by, and each real file or directory is read once, so a skills directory that two clients read is one set of items with both clients. Any other link is the notice `symlink_skipped`. With `--verbose`, a client with no file of the table is named on stderr (the notice `client_not_found`); the JSON report lists it with `found: false`. A client is found when a file or directory that only it reads exists: a directory that several clients read (`~/.agents/skills`, and `~/.claude/skills`, which VS Code reads too) is listed for the clients found, or for every client that reads it when none of them was found.
+
+<!-- clients:start -->
+| Client | Systems | Path | Reads | Source | Checked |
+|---|---|---|---|---|---|
+| Claude Code | all | `~/.claude.json` (`$CLAUDE_CONFIG_DIR/.claude.json` when `CLAUDE_CONFIG_DIR` is set) | MCP servers of the user scope (`mcpServers`) and of each project (`projects.<directory>.mcpServers`) | <https://code.claude.com/docs/en/claude-directory> | 2026-11-14 |
+| Claude Code | all | `$CLAUDE_CONFIG_DIR/settings.json` | hooks, permissions, `enabledPlugins`, `extraKnownMarketplaces` | <https://code.claude.com/docs/en/settings> | 2026-11-14 |
+| Claude Code | all | `$CLAUDE_CONFIG_DIR/skills` | skills (`<name>/SKILL.md`) | <https://code.claude.com/docs/en/claude-directory> | 2026-11-14 |
+| Claude Code | all | `$CLAUDE_CONFIG_DIR/CLAUDE.md` | instruction file (`claude-md`) | <https://code.claude.com/docs/en/claude-directory> | 2026-11-14 |
+| Claude Code | all | `$CLAUDE_CONFIG_DIR/rules/*.md` | instruction files (`claude-rule`) | <https://code.claude.com/docs/en/claude-directory> | 2026-11-14 |
+| Claude Code | all | `$CLAUDE_CONFIG_DIR/plugins/installed_plugins.json` | installed plugins, and in each plugin's directory its skills, `.mcp.json`, `hooks/hooks.json` and `.claude-plugin/plugin.json` | <https://code.claude.com/docs/en/plugins/loading> | 2026-11-14 |
+| Claude Code | all | `$CLAUDE_CONFIG_DIR/plugins/known_marketplaces.json` | marketplaces and their sources | <https://code.claude.com/docs/en/plugins/loading> | 2026-11-14 |
+| Claude Desktop | Linux | `$XDG_CONFIG_HOME/Claude/claude_desktop_config.json` | MCP servers (`mcpServers`) | <https://modelcontextprotocol.io/docs/develop/connect-local-servers> | 2026-11-14 |
+| Claude Desktop | macOS | `~/Library/Application Support/Claude/claude_desktop_config.json` | MCP servers (`mcpServers`) | <https://modelcontextprotocol.io/docs/develop/connect-local-servers> | 2026-11-14 |
+| Claude Desktop | Windows | `%APPDATA%/Claude/claude_desktop_config.json` | MCP servers (`mcpServers`) | <https://modelcontextprotocol.io/docs/develop/connect-local-servers> | 2026-11-14 |
+| Cursor | all | `~/.cursor/mcp.json` | MCP servers (`mcpServers`) | <https://cursor.com/docs/context/mcp> | 2026-11-14 |
+| Cursor | all | `~/.cursor/hooks.json` | hooks | <https://cursor.com/docs/agent/hooks> | 2026-11-14 |
+| VS Code | all | `$COPILOT_HOME/mcp-config.json` | MCP servers (`mcpServers`) | <https://code.visualstudio.com/docs/copilot/reference/mcp-configuration> | 2026-11-14 |
+| VS Code | all | `$COPILOT_HOME/skills` | skills (`<name>/SKILL.md`) | <https://code.visualstudio.com/docs/copilot/customization/agent-skills> | 2026-11-14 |
+| VS Code | all | `~/.claude/skills` | skills (`<name>/SKILL.md`) | <https://code.visualstudio.com/docs/copilot/customization/agent-skills> | 2026-11-14 |
+| VS Code | all | `~/.agents/skills` | skills (`<name>/SKILL.md`) | <https://code.visualstudio.com/docs/copilot/customization/agent-skills> | 2026-11-14 |
+| Windsurf (Devin Desktop) | all | `~/.config/devin/mcp_config.json` | MCP servers (`mcpServers`, remote ones by `serverUrl` or `url`) | <https://docs.devin.ai/desktop/cascade/mcp> | 2026-11-14 |
+| Windsurf (Devin Desktop) | all | `~/.devin/global_rules.md` | instruction file (`devin-rules`) | <https://docs.devin.ai/desktop/cascade/memories> | 2026-11-14 |
+| Windsurf (Devin Desktop) | all | `~/.devin/rules/*.md` | instruction files (`devin-rules`) | <https://docs.devin.ai/desktop/cascade/memories> | 2026-11-14 |
+| Windsurf (Devin Desktop) | all | `~/.config/devin/skills` | skills (`<name>/SKILL.md`) | <https://docs.devin.ai/desktop/cascade/mcp> | 2026-11-14 |
+| Windsurf (Devin Desktop) | all | `~/.agents/skills` | skills (`<name>/SKILL.md`) | <https://docs.devin.ai/desktop/cascade/mcp> | 2026-11-14 |
+| Codex | all | `$CODEX_HOME/config.toml` | MCP servers (`[mcp_servers.<id>]`), hooks (`[hooks]`, `notify`), plugins (`[plugins]`), marketplaces (`[marketplaces]`) | <https://learn.chatgpt.com/docs/config-file/config-reference> | 2026-11-14 |
+| Codex | all | `$CODEX_HOME/hooks.json` | hooks | <https://learn.chatgpt.com/docs/hooks> | 2026-11-14 |
+| Codex | all | `~/.agents/skills` | skills (`<name>/SKILL.md`) | <https://learn.chatgpt.com/docs/build-skills> | 2026-11-14 |
+| Codex | all | `$CODEX_HOME/AGENTS.md`<br>`$CODEX_HOME/AGENTS.override.md` | instruction files (`codex-agents-md`) | <https://learn.chatgpt.com/docs/agent-configuration/agents-md> | 2026-11-14 |
+| Gemini CLI | all | `~/.gemini/settings.json` | MCP servers (`mcpServers`; `url` is SSE, `httpUrl` streamable HTTP), hooks | <https://geminicli.com/docs/reference/configuration> | 2026-11-14 |
+| Gemini CLI | all | `~/.gemini/extensions` | extensions (plugins): each `<name>/gemini-extension.json` with its MCP servers, `hooks/hooks.json` and the context files it names | <https://geminicli.com/docs/extensions/reference/> | 2026-11-14 |
+| Gemini CLI | all | `~/.gemini/GEMINI.md` | instruction file (`gemini-md`) | <https://geminicli.com/docs/cli/gemini-md/> | 2026-11-14 |
+| Gemini CLI | all | `~/.gemini/skills` | skills (`<name>/SKILL.md`) | <https://geminicli.com/docs/cli/skills/> | 2026-11-14 |
+| Gemini CLI | all | `~/.agents/skills` | skills (`<name>/SKILL.md`) | <https://geminicli.com/docs/cli/skills/> | 2026-11-14 |
+
+Not read:
+
+- Windsurf's `~/.codeium/windsurf/mcp_config.json` and `~/.codeium/windsurf/memories/global_rules.md`: the Windsurf documentation now leads to Devin Desktop's, which names `~/.config/devin/` and `~/.devin/` instead.
+- Codex's `$CODEX_HOME/skills/`: the Codex skills guide names `~/.agents/skills/` only.
+- VS Code's user and profile `mcp.json` files (`Code/User/mcp.json`, `Code/User/profiles/*/mcp.json`, also of VS Code Insiders): the profiles and MCP documentation name no path for the file.
+- VS Code's user instruction files (`*.instructions.md` of the user profile): the documentation names no path.
+- The files of installed Codex plugins: only the `[plugins]` and `[marketplaces]` entries of `config.toml` are listed.
+- Claude Code's plugins when `CLAUDE_CODE_PLUGIN_CACHE_DIR` moves them out of `$CLAUDE_CONFIG_DIR/plugins/`, the components a plugin declares outside its standard layout, and MCP bundles (`.mcpb`, `.dxt`).
+- Skills inside Gemini CLI extensions: the documentation names no directory for them.
+- System-wide managed files outside the home directory (`/etc/claude-code/`, `/etc/gemini-cli/`, `C:\ProgramData\`), which belong to an administrator, not to the user.
+- Cursor's user rules, which Cursor keeps in its own settings database, not in a file.
+- Claude Code subagents, commands and output styles, and Claude Desktop extensions.
+<!-- clients:end -->
+
+The table follows each client's own documentation: a row stays only while its source names the path, and carries the date it was checked; when a client moves its files (Windsurf became Devin Desktop), the old place moves to "Not read" until a release reads the new one. The tests read a fixture home for each system; CI runs on Linux and Windows, so macOS is covered by its fixture home.
+
+#### Uploading a workstation inventory
+
+An organisation on the Enterprise plan can collect these inventories. An owner or manager creates a key with access Workstation under Settings, API keys, and developers (or a device management tool) set two variables that only `scan --user --upload` reads:
+
+```
+SPELLWARDEN_WORKSTATION_ORG=<slug> SPELLWARDEN_WORKSTATION_KEY=swk_... spellwarden scan --user --upload --device-label "Anna's laptop"
+```
+
+They are not `SPELLWARDEN_ORG` and `SPELLWARDEN_API_KEY` on purpose: either of those switches every repository scan on the machine to connected mode, which a workstation key cannot establish, while a repository scan never reads the workstation variables (it only takes the key out of its environment). Either variable missing or malformed is the error `workstation_no_credential`, before any client file is read (exit 2). The upload is off unless `--upload` is given; `SPELLWARDEN_UPLOAD` and the settings file do not apply to `--user`.
+
+The first upload needs `--device-label` (1 to 64 characters after control and zero-width characters are removed; else the error `workstation_label_missing`, exit 2). It creates the state file `workstation.json` in the user configuration directory (`$XDG_CONFIG_HOME/spellwarden/`, `~/Library/Application Support/spellwarden/` or `%APPDATA%\spellwarden\`, mode 0600 where the system has modes), holding a random install id and the label and no credential. Later uploads reuse both unless `--device-label` is given again, and deleting the file makes the next upload a new device. Only an upload run writes it.
+
+After every report is written, the command sends one request, `POST https://dash.spellwarden.ai/api/v1/orgs/<slug>/workstations/inventory`, with the network rules of connected mode (HTTPS, public addresses only, no redirect, 10 seconds, one retry after a 429 or a 5xx). The body holds the label and the install id, the operating system, the scanner and rules versions, whether the scan was complete, the clients found with their roots, each item (kind, name, home-relative path, project directory, transport, endpoint, command identity or its reason, plugin, marketplace, instruction format and clients), each finding (its item, rule id, severity, line and whether a baseline accepted it) and the codes and paths of at most 50 errors and 50 notices with their totals. It holds no message, excerpt, environment value, header or argument. Success is the notice `workstation_uploaded`; any other answer is the error `workstation_upload_failed` with the server's code (`plan_required`, `device_limit`, `inventory_too_large`, `api_key_revoked`, `workstation_key_required`, `rate_limited`) and its message, exit 2, because an inventory you asked to send must not vanish silently. Both are printed on stderr: the reports were written before the request. Over 1 MiB, 2,000 items or 1,000 findings nothing is sent (`workstation_upload_too_large`, exit 2).
+
 ### The usage ping
 
 In CI, and only in CI, each `spellwarden scan` sends one request at the end to `https://dash.spellwarden.ai/api/public/ping`. It lets us count how many organisations run the free scanner and how many runs checked an A2A agent card. The ping is pseudonymous, not anonymous, and carries exactly six fields:
@@ -562,7 +650,7 @@ In CI, and only in CI, each `spellwarden scan` sends one request at the end to `
 
 The installation identity is the forge host plus the GitHub account's numeric id (`github:github.com:1234567`), the GitLab top-level group's path (`gitlab:gitlab.com:acme`), or the owner in the `origin` remote elsewhere. It is hashed as `sha256("spellwarden-ping-v1:" + identity)`. Anyone who knows an identity can compute its hash, which is why we call it pseudonymous. One company on GitHub and on GitLab is two identities; a self-managed GitLab or GitHub Enterprise Server is its own; renaming a GitLab top-level group starts a new one. The identity cannot be joined to an organisation of the hosted product.
 
-The server keeps one row per hashed identity and ISO week: the number of runs, the number of those that checked an agent card (`a2a_runs`), the first and last time seen, the last scanner and rules versions and the CI kind. The row holds no IP address and no user agent, and is deleted 400 days after the end of its week. To limit abuse, the rate limiter keeps the sending address for one hour. Like every request to the service, the ping also appears in the technical logs, kept for 90 days, with the address it arrived from (usually one of the content delivery network's). No repository content is sent; the ping carries one yes-or-no fact derived from it: whether the run checked an agent card, from the repository or from an agent you listed. No card, address or count of cards is sent. Nothing is sent from a local run or by `lock`, `baseline`, `rules` or `version`.
+The server keeps one row per hashed identity and ISO week: the number of runs, the number of those that checked an agent card (`a2a_runs`), the first and last time seen, the last scanner and rules versions and the CI kind. The row holds no IP address and no user agent, and is deleted 400 days after the end of its week. To limit abuse, the rate limiter keeps the sending address for one hour. Like every request to the service, the ping also appears in the technical logs, kept for 90 days, with the address it arrived from (usually one of the content delivery network's). No repository content is sent; the ping carries one yes-or-no fact derived from it: whether the run checked an agent card, from the repository or from an agent you listed. No card, address or count of cards is sent. Nothing is sent from a local run, by `scan --user` (in CI too) or by `lock`, `baseline`, `rules` or `version`.
 
 Switch it off with any of: `--no-telemetry`, `SPELLWARDEN_TELEMETRY=off` (or `0`, `false`, `no`), `DO_NOT_TRACK=1`, `telemetry: false` in `.spellwarden/config.yml`, or the `telemetry: false` input of the Action or the GitLab component. A failed or slow ping never changes a report or an exit code.
 
@@ -577,7 +665,7 @@ There are two credentials, and a run uses one of them. Both set is the error `co
 - **A CI connection** (recommended). An administrator adds a CI connection for your GitHub account or organisation, or your GitLab group, under Settings, CI connections. The pipeline then proves who it is with the OIDC token its code host issues, and nothing secret is stored in the repository. Set `SPELLWARDEN_ORG` to the organisation's slug (`^[a-z0-9-]{2,64}$`, the part of the dashboard address after `dash.spellwarden.ai/`). On GitHub the job needs `permissions: id-token: write`, and the command asks the Actions token endpoint itself for a token whose audience is `https://dash.spellwarden.ai/ci/<slug>`. On GitLab the job declares `id_tokens` with that audience and passes it as `SPELLWARDEN_ID_TOKEN`. The GitHub Action takes the slug as its `org` input and the GitLab component as its `org` input.
 - **A CI key.** For a pipeline that cannot use a CI connection, create a key with access CI under Settings, API keys, and pass it as the secret `SPELLWARDEN_API_KEY` (`swk_` and 40 characters). The key is a secret that every workflow of the repository can read, which a CI connection avoids. Results uploaded with a key are shown as reported with a CI key: they are not the repository's attested state and do not count in the trust score. The first upload binds the repository to the key; after the old key is revoked, the next upload rebinds it. A key for read or write access, a connector token (`swc_`) or a CI token (`swt_`) is refused.
 
-The command reads these variables once, keeps them as secrets that print as `***`, removes them from its environment, and gives every program it starts an explicit environment. There is no flag and no settings key for a credential, and no message, report or upload body ever holds one.
+The command reads these variables once, keeps them as secrets that print as `***`, removes them from its environment, and gives every program it starts an explicit environment. A workstation uploads its inventory with a key of another kind, through other variables, and never in connected mode: see "Uploading a workstation inventory". There is no flag and no settings key for a credential, and no message, report or upload body ever holds one.
 
 ```yaml
 # .spellwarden/config.yml
@@ -840,7 +928,7 @@ The receiver refuses bodies over 4 MiB as sent or 16 MiB decompressed: batch at 
 
 ## Releases
 
-Releases are built and published by GitHub Actions through PyPI trusted publishing (OpenID Connect): a push of a tag `vX.Y.Z` whose version equals the one in `pyproject.toml` builds the sdist and the wheel and publishes them from the `pypi` environment. No API token exists anywhere. The sources are checked on Python 3.11, 3.12 and 3.13 on Linux, and on Python 3.13 on macOS and Windows, on every push; every workflow is checked with `actionlint`.
+Releases are built and published by GitHub Actions through PyPI trusted publishing (OpenID Connect): a push of a tag `vX.Y.Z` whose version equals the one in `pyproject.toml` builds the sdist and the wheel and publishes them from the `pypi` environment. No API token exists anywhere. The sources are checked on Python 3.11, 3.12 and 3.13 on Linux, and on Python 3.13 on Windows, on every push; every workflow is checked with `actionlint`.
 
 ## Development
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import base64
 import inspect
+import os
 import time
 
 import pytest
@@ -13,6 +14,10 @@ from conftest import GENERATED, SKILL_FIXTURES, _read_dir, clean_md, make_packag
 from spellwarden_scan.package import Package
 from spellwarden_scan.rules import growth_skl_032
 from spellwarden_scan.rules.growth_skl_032 import MALICIOUS, NIST, OWASP, RULE_ID, SEVERITY, TITLE, detect
+
+# Wall-clock budgets scale with SPELLWARDEN_SPEED_FACTOR when it is set (CI sets 3: shared runners, Windows above all, are
+# slower), as tests/otel/test_speed.py and tests/test_rules_mcp.py do.
+SPEED_FACTOR = float(os.environ.get("SPELLWARDEN_SPEED_FACTOR", "1"))
 
 NEW_IDS = frozenset({"SW-SKL-032", "SW-SKL-036", "SW-SKL-037"})
 
@@ -250,14 +255,14 @@ def test_long_lines_are_read_in_linear_time(unit):
     started = time.perf_counter()
     run("\n" + line + "\n")
     run("\n```\n" + line + "\n```\n")
-    assert time.perf_counter() - started < 1.0
+    assert time.perf_counter() - started < 1.0 * SPEED_FACTOR
 
 
 def test_long_encoded_line_is_read_in_linear_time():
     line = "echo " + "A" * 300_000 + " | base64 -d | bash"
     started = time.perf_counter()
     run("\n```bash\n" + line + "\n```\n")
-    assert time.perf_counter() - started < 1.0
+    assert time.perf_counter() - started < 1.0 * SPEED_FACTOR
 
 
 # --- invariant 4: no finding on any existing skill fixture ------------------------------------

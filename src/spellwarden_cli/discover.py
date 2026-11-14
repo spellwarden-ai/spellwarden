@@ -47,11 +47,20 @@ class Item:
     # `instruction_files` and the front matter of a rule file, None when it has none or it could not be read.
     format: str | None = None
     front_matter: dict | None = field(default=None, hash=False)
+    # `scan --user` only (phase 3 batch 2a spec 11.3): the clients whose table rows reach the item, in the order of
+    # `clients.CLIENTS`, and the project directory of a project-scoped server (`~/...` or `outside-home:<8 hex>/<name>`).
+    # Written only when set, so a repository report is byte-identical to 1.13.0's.
+    clients: tuple[str, ...] = ()
+    scope: str | None = None
 
     def to_dict(self) -> dict:
         data = {"kind": self.kind, "path": self.path, "name": self.name, "plugin": self.plugin}
         if self.kind == "instructions":  # written for these items only, so every other item is byte-identical to 1.12.0's
             data["format"], data["front_matter"] = self.format, self.front_matter
+        if self.clients:
+            data["clients"] = list(self.clients)
+        if self.scope is not None:
+            data["scope"] = self.scope
         return data
 
 

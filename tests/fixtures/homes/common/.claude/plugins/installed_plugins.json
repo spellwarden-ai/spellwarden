@@ -1,0 +1,8 @@
+{
+  "version": 2,
+  "plugins": {
+    "lint@tools": [
+      {"scope": "user", "installPath": "{{HOME}}/.claude/plugins/cache/tools/lint/1.0.0", "version": "1.0.0"}
+    ]
+  }
+}

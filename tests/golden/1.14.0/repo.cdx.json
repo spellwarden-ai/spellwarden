@@ -1,0 +1,509 @@
+{
+  "$schema": "http://cyclonedx.org/schema/bom-1.7.schema.json",
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.7",
+  "serialNumber": "urn:uuid:4fbe49af-140c-5161-a688-49fccdd16557",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-11-14T00:00:00Z",
+    "tools": {
+      "components": [
+        {
+          "type": "application",
+          "name": "Spellwarden",
+          "version": "1.14.0",
+          "externalReferences": [
+            {
+              "type": "website",
+              "url": "https://spellwarden.ai/?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+            }
+          ]
+        }
+      ]
+    },
+    "component": {
+      "type": "application",
+      "name": "repo"
+    },
+    "properties": [
+      {
+        "name": "spellwarden:mode",
+        "value": "repository"
+      },
+      {
+        "name": "spellwarden:rules_version",
+        "value": "2026.11.6"
+      },
+      {
+        "name": "spellwarden:as_of",
+        "value": "2026-11-14"
+      },
+      {
+        "name": "spellwarden:exit_code",
+        "value": "1"
+      },
+      {
+        "name": "spellwarden:complete",
+        "value": "true"
+      },
+      {
+        "name": "spellwarden:errors",
+        "value": "0"
+      }
+    ]
+  },
+  "components": [
+    {
+      "bom-ref": "instructions:AGENTS.md",
+      "type": "file",
+      "name": "AGENTS.md",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "d361e749ce45daebfd85b912c2e02fca942f213547f1c7120c01c991aeec72ff"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "instructions"
+        },
+        {
+          "name": "spellwarden:format",
+          "value": "agents-md"
+        }
+      ]
+    },
+    {
+      "bom-ref": "marketplace:.claude-plugin/marketplace.json",
+      "type": "data",
+      "name": "marketplace.json",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "f5c7c813430ab3345ad2e463a2bbb3a445c9148d9f676c8e42791283b0c7c6b2"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "marketplace"
+        }
+      ]
+    },
+    {
+      "bom-ref": "document:.mcp.json",
+      "type": "file",
+      "name": ".mcp.json",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "9c19ea337fce30fa2f59236726e41598b9820bbf3b379eabb4ab4b884133d544"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "mcp-config"
+        }
+      ]
+    },
+    {
+      "bom-ref": "plugin:.claude-plugin/marketplace.json#lint",
+      "type": "library",
+      "name": "lint",
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/example/lint-plugin"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "plugin"
+        }
+      ]
+    },
+    {
+      "bom-ref": "document:.claude/settings.json",
+      "type": "file",
+      "name": ".claude/settings.json",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "2274b5f33c0d48b3d621bcf5663a546a53b6ff6dd019ed52d1670494147ff91d"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "settings"
+        }
+      ]
+    },
+    {
+      "bom-ref": "skill:.claude/skills/deploy",
+      "type": "library",
+      "name": "deploy",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "57d185c93318f68a61686c975c3f258a2cdfb1fbbd80c281e34c1da024c78f3f"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "skill"
+        },
+        {
+          "name": "spellwarden:path",
+          "value": ".claude/skills/deploy"
+        }
+      ]
+    }
+  ],
+  "services": [
+    {
+      "bom-ref": "mcp-server:.mcp.json#files",
+      "name": "files",
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "mcp-server"
+        },
+        {
+          "name": "spellwarden:transport",
+          "value": "stdio"
+        },
+        {
+          "name": "spellwarden:command_reason",
+          "value": "unpinned"
+        }
+      ]
+    },
+    {
+      "bom-ref": "mcp-server:.mcp.json#remote",
+      "name": "remote",
+      "endpoints": [
+        "https://mcp.example.com/mcp"
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "mcp-server"
+        },
+        {
+          "name": "spellwarden:transport",
+          "value": "http"
+        }
+      ]
+    },
+    {
+      "bom-ref": "agent:a2a-card:.well-known/agent-card.json",
+      "name": ".well-known/agent-card.json",
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "a2a-agent"
+        },
+        {
+          "name": "spellwarden:source",
+          "value": "repository"
+        },
+        {
+          "name": "spellwarden:status",
+          "value": "checked"
+        },
+        {
+          "name": "spellwarden:card_format",
+          "value": "0.3"
+        },
+        {
+          "name": "spellwarden:protocol_version",
+          "value": "0.3"
+        },
+        {
+          "name": "spellwarden:migration_status",
+          "value": "to_migrate"
+        },
+        {
+          "name": "spellwarden:signature_status",
+          "value": "unsigned"
+        }
+      ]
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "document:.mcp.json",
+      "dependsOn": [
+        "mcp-server:.mcp.json#files",
+        "mcp-server:.mcp.json#remote"
+      ]
+    },
+    {
+      "ref": "marketplace:.claude-plugin/marketplace.json",
+      "dependsOn": [
+        "plugin:.claude-plugin/marketplace.json#lint"
+      ]
+    }
+  ],
+  "vulnerabilities": [
+    {
+      "bom-ref": "finding:acd003db002fd80ea6e60d3701027262896b10a940830e32030e0486ccd6eab6",
+      "id": "SW-CFG-005",
+      "source": {
+        "name": "Spellwarden",
+        "url": "https://spellwarden.ai/docs/rules/SW-CFG-005?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "Spellwarden",
+            "url": "https://spellwarden.ai/docs/rules/SW-CFG-005?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+          },
+          "severity": "high",
+          "method": "other"
+        }
+      ],
+      "description": "Hook pipes remote content to a shell",
+      "analysis": {
+        "state": "in_triage"
+      },
+      "affects": [
+        {
+          "ref": "document:.claude/settings.json"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:location",
+          "value": ".claude/settings.json:4"
+        },
+        {
+          "name": "spellwarden:origin",
+          "value": "rule"
+        },
+        {
+          "name": "spellwarden:status",
+          "value": "open"
+        }
+      ]
+    },
+    {
+      "bom-ref": "finding:a69b2dc6be1abcc13eabe70d22b6781e5d2b39327564950666f795ad328fcf5d",
+      "id": "SW-SKL-007",
+      "source": {
+        "name": "Spellwarden",
+        "url": "https://spellwarden.ai/docs/rules/SW-SKL-007?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "Spellwarden",
+            "url": "https://spellwarden.ai/docs/rules/SW-SKL-007?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+          },
+          "severity": "high",
+          "method": "other"
+        }
+      ],
+      "description": "Remote script piped to a shell",
+      "analysis": {
+        "state": "in_triage"
+      },
+      "affects": [
+        {
+          "ref": "skill:.claude/skills/deploy"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:location",
+          "value": ".claude/skills/deploy/scripts/setup.sh:2"
+        },
+        {
+          "name": "spellwarden:origin",
+          "value": "rule"
+        },
+        {
+          "name": "spellwarden:status",
+          "value": "open"
+        }
+      ]
+    },
+    {
+      "bom-ref": "finding:ea0990d757ec0ca58d90ada3f1bc80e10b442ed5a5c61f2501458462d926fd91",
+      "id": "SW-A2A-002",
+      "source": {
+        "name": "Spellwarden",
+        "url": "https://spellwarden.ai/docs/rules/SW-A2A-002?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "Spellwarden",
+            "url": "https://spellwarden.ai/docs/rules/SW-A2A-002?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+          },
+          "severity": "medium",
+          "method": "other"
+        }
+      ],
+      "description": "Agent card uses a format older than A2A 1.0",
+      "analysis": {
+        "state": "in_triage"
+      },
+      "affects": [
+        {
+          "ref": "agent:a2a-card:.well-known/agent-card.json"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:location",
+          "value": ".well-known/agent-card.json:1"
+        },
+        {
+          "name": "spellwarden:origin",
+          "value": "rule"
+        },
+        {
+          "name": "spellwarden:status",
+          "value": "open"
+        }
+      ]
+    },
+    {
+      "bom-ref": "finding:eaa20732b321eae1abaaeeea259d0ab70a565f877d53663695c0e01b18bcf1a3",
+      "id": "SW-CFG-003",
+      "source": {
+        "name": "Spellwarden",
+        "url": "https://spellwarden.ai/docs/rules/SW-CFG-003?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "Spellwarden",
+            "url": "https://spellwarden.ai/docs/rules/SW-CFG-003?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+          },
+          "severity": "medium",
+          "method": "other"
+        }
+      ],
+      "description": "MCP server launched from an unpinned package",
+      "analysis": {
+        "state": "in_triage"
+      },
+      "affects": [
+        {
+          "ref": "document:.mcp.json"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:location",
+          "value": ".mcp.json:3"
+        },
+        {
+          "name": "spellwarden:origin",
+          "value": "rule"
+        },
+        {
+          "name": "spellwarden:status",
+          "value": "open"
+        }
+      ]
+    },
+    {
+      "bom-ref": "finding:51bf67a926747f18400b2914d7d2a42b47c65a95f515a0029a7e93ea959b5926",
+      "id": "SW-CFG-009",
+      "source": {
+        "name": "Spellwarden",
+        "url": "https://spellwarden.ai/docs/rules/SW-CFG-009?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "Spellwarden",
+            "url": "https://spellwarden.ai/docs/rules/SW-CFG-009?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+          },
+          "severity": "medium",
+          "method": "other"
+        }
+      ],
+      "description": "Marketplace plugin source not pinned to a commit",
+      "analysis": {
+        "state": "exploitable",
+        "response": [
+          "will_not_fix"
+        ],
+        "detail": "The lint plugin is reviewed at every release of the marketplace."
+      },
+      "affects": [
+        {
+          "ref": "marketplace:.claude-plugin/marketplace.json"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:location",
+          "value": ".claude-plugin/marketplace.json:4"
+        },
+        {
+          "name": "spellwarden:origin",
+          "value": "rule"
+        },
+        {
+          "name": "spellwarden:status",
+          "value": "accepted"
+        },
+        {
+          "name": "spellwarden:expires",
+          "value": "2027-05-01"
+        }
+      ]
+    },
+    {
+      "bom-ref": "finding:6464756775a40dbdbb62d2448955aad69f91eb0ce6f9b7029e0fb7c350a50627",
+      "id": "SW-A2A-012",
+      "source": {
+        "name": "Spellwarden",
+        "url": "https://spellwarden.ai/docs/rules/SW-A2A-012?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "Spellwarden",
+            "url": "https://spellwarden.ai/docs/rules/SW-A2A-012?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+          },
+          "severity": "low",
+          "method": "other"
+        }
+      ],
+      "description": "Agent card is not signed",
+      "analysis": {
+        "state": "in_triage"
+      },
+      "affects": [
+        {
+          "ref": "agent:a2a-card:.well-known/agent-card.json"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:location",
+          "value": ".well-known/agent-card.json:1"
+        },
+        {
+          "name": "spellwarden:origin",
+          "value": "rule"
+        },
+        {
+          "name": "spellwarden:status",
+          "value": "open"
+        }
+      ]
+    }
+  ]
+}
