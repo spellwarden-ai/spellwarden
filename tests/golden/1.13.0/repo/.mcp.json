@@ -1,0 +1,6 @@
+{
+  "mcpServers": {
+    "files": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", "/srv/data"]},
+    "remote": {"type": "http", "url": "https://mcp.example.com/mcp?tenant=acme"}
+  }
+}

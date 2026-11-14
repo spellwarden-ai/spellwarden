@@ -1,0 +1,5 @@
+{
+  "name": "tools",
+  "owner": {"name": "Example"},
+  "plugins": [{"name": "lint", "source": {"source": "github", "repo": "example/lint-plugin"}}]
+}

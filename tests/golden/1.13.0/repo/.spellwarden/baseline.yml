@@ -1,0 +1,8 @@
+version: 1
+accepted:
+  - fingerprint: "51bf67a926747f18400b2914d7d2a42b47c65a95f515a0029a7e93ea959b5926"
+    rule: "SW-CFG-009"
+    path: ".claude-plugin/marketplace.json"
+    reason: "The lint plugin is reviewed at every release of the marketplace."
+    added: 2026-11-01
+    expires: 2027-05-01
