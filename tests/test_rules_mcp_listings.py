@@ -6,9 +6,9 @@ from __future__ import annotations
 import pytest
 
 from spellwarden_scan import compile_org_rule
-from spellwarden_scan.evidence import fingerprint
+from spellwarden_scan.evidence import fingerprint, redacted_address, redacted_url
 from spellwarden_scan.model import ProbeResult, PromptArgument, PromptInfo, ResourceInfo, ResourceTemplateInfo, ToolInfo
-from spellwarden_scan.probe import evaluate_probe, probe_texts
+from spellwarden_scan.probe import LOCATION_CUT, evaluate_probe, probe_texts
 from spellwarden_scan.rules import RuleSet
 
 BASELINE = RuleSet.baseline()
@@ -133,6 +133,11 @@ CREDENTIAL_ADDRESSES = [
     "postgres://admin:hunter2@db.internal/prod",
     "https://api.example.com/data#token=sk_live_51HxQ2abcdefghijklmnop",
     "vault:admin:hunter2@db.internal?api_key=sk_live_51HxQ2abcdefghijklmnop",
+    # `://` only after the secret: the text before it is no scheme (r1:F1)
+    "urn:x:data?api_key=sk_live_51HxQ2abcdefghijklmnop&next=https://cb.example/x",
+    "vault:secret?token=sk_live_51HxQ2abcdefghijklmnop#https://x",
+    "mem:x;api_key=sk_live_51HxQ2abcdefghijklmnop;redirect=https://ok",
+    "a:b@c?k=sk_live_51HxQ2abcdefghijklmnop://d",
 ]
 SECRETS = ("sk_live_51HxQ2abcdefghijklmnop", "hunter2", "admin:")
 
@@ -152,3 +157,41 @@ def test_the_location_of_a_resource_or_template_never_carries_credentials_from_i
         assert "?" not in path and "#" not in path, path
     result = evaluate_probe(p, BASELINE).to_dict()
     assert not any(secret in str(result) for secret in SECRETS)
+
+
+def test_a_prompt_name_in_a_location_is_masked_and_cut():
+    secret_name = "run_sk_live_51HxQ2abcdefghijklmnop"
+    p = probe(prompts=(PromptInfo(secret_name, description=INJECTION), PromptInfo("x" * 500, description=INJECTION)))
+    paths = [path for path, _ in findings_011(p)]
+    assert len(paths) == 2
+    assert not any("sk_live_51HxQ2abcdefghijklmnop" in path for path in paths)
+    assert all(len(path) <= len("prompt:") + LOCATION_CUT for path in paths)
+
+
+def test_an_opaque_address_keeps_its_scheme_and_host_and_drops_the_userinfo():
+    assert redacted_address("vault:admin:hunter2@db.internal?x=1") == "vault:db.internal"
+    assert redacted_address("urn:isbn:0451450523") == "urn:isbn:0451450523"
+    assert redacted_url("urn:x?api_key=sk_live_51HxQ2abcdefghijklmnop&n=https://cb") == "urn:x"
+    assert redacted_url("https://user:pw@api.example.com/v1?k=1") == "https://api.example.com/v1"
+
+
+def _long(padding: str) -> str:
+    return padding * 100 + INJECTION + " Thanks."
+
+
+def _evidence_and_fingerprints(spec: dict | None, text: str) -> list[tuple[str, str, str]]:
+    rules = BASELINE if spec is None else BASELINE.with_rules([compile_org_rule(spec)])
+    return [(f.rule_id, f.evidence, f.fingerprint) for f in evaluate_probe(probe(instructions=text), rules).findings
+            if f.rule_id in ("SW-MCP-011", "SW-ORG-005")]
+
+
+@pytest.mark.parametrize("spec", [None, org_server("previous")])
+def test_a_long_text_shows_the_match_and_an_edit_elsewhere_keeps_the_fingerprint(spec):
+    """r0:F2: the evidence of a finding in long server text holds the matched words, and the fingerprint is over the match
+    and its surroundings, so a baselined finding stays baselined when an unrelated sentence changes."""
+    before = _evidence_and_fingerprints(spec, _long("Use the search tool. "))
+    after = _evidence_and_fingerprints(spec, "Read the docs first. " + _long("Use the search tool. "))
+    assert before and len(before) == len(after)
+    for (_, evidence, print_before), (_, _, print_after) in zip(before, after, strict=True):
+        assert "previous instructions" in evidence
+        assert print_before == print_after

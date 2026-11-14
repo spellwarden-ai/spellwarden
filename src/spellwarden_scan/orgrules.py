@@ -17,7 +17,7 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from datetime import date
 
-from spellwarden_scan.evidence import bounded_evidence, fingerprint
+from spellwarden_scan.evidence import around, bounded_evidence, fingerprint
 from spellwarden_scan.glob import glob_match
 from spellwarden_scan.model import SEVERITY_RANK, Finding, Location
 from spellwarden_scan.package import CodeBlock, Package
@@ -509,19 +509,26 @@ def pattern_search(compiled: CompiledPattern, text: str) -> bool:
     """`Then`-style: part 1 found, part 2 after the end of part 1's match, and so on, inside one window. Windows are
     ranges of `text` (`pos` and `endpos`), so `^` matches only at the start of the unit and `\\b` sees the character
     before a window; `$` is tried only in the window that ends at the end of the unit."""
+    return pattern_span(compiled, text) is not None
+
+
+def pattern_span(compiled: CompiledPattern, text: str) -> tuple[int, int] | None:
+    """`(start of part 1's match, end of the last part's match)` of the first window `pattern_search` finds, or None."""
     length = len(text)
     for start, end in unit_windows(text):
         if compiled.anchored_end and end != length:
             continue
         position = start
+        first: int | None = None
         for part in compiled.parts:
             match = part.search(text, position, end)
             if match is None:
                 break
+            first = match.start() if first is None else first
             position = match.end()
         else:
-            return True
-    return False
+            return (first if first is not None else start), position
+    return None
 
 
 # --- Org rule specs (spec 5.2.1, 5.2.3) and their detection ------------------------------------------------
@@ -812,9 +819,11 @@ class OrgRuleDetector:
 
     def _text_unit(self, path: str, text: str) -> Callable[[], Finding | None]:
         def run() -> Finding | None:
-            if self.pattern is None or not pattern_search(self.pattern, text):
+            span = None if self.pattern is None else pattern_span(self.pattern, text)
+            if span is None:
                 return None
-            return self._finding(path, text)
+            # the match and its surroundings, not the whole text (up to 16,000 characters of instructions), as in SW-MCP-011
+            return self._finding(path, around(text, *span))
         return run
 
     def _server_finding(self, probe) -> Finding | None:

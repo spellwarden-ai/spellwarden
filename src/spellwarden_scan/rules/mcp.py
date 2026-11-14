@@ -8,6 +8,7 @@ import re
 from collections.abc import Iterator
 
 from spellwarden_scan.evidence import bounded_evidence, fingerprint
+from spellwarden_scan.evidence import around
 from spellwarden_scan.evidence import redacted_url as _redacted
 from spellwarden_scan.model import Finding, Location, ProbeResult, ToolInfo
 from spellwarden_scan.probe import probe_texts, text_of
@@ -970,10 +971,14 @@ def _mcp_011(probe: ProbeResult) -> Iterator[Finding]:
     # advertises are read for injection and concealment only, never for steering: a prompt or the server's instructions exist to
     # steer a model ("call search before answering questions about the catalogue"), so steering words there are the design. The
     # precision of the rule on these four places has not been measured.
+    # A finding there shows and fingerprints the first match with its surroundings, not the whole text, which can be 16,000
+    # characters of instructions (r0:F2); a tool keeps its whole description, so its 1.12.0 fingerprints hold.
     for path, text in probe_texts(probe):
         seen = " ".join(visible(text).split())
-        if any(p.search(seen) for p in P.INJECTION) or any(p.search(seen) for p in _TOOL_CONCEALMENT):
-            yield _finding("SW-MCP-011", "high", probe, text, path=path)
+        matches = [m for m in (p.search(seen) for p in (*P.INJECTION, *_TOOL_CONCEALMENT)) if m is not None]
+        if matches:
+            first = min(matches, key=lambda m: m.start())
+            yield _finding("SW-MCP-011", "high", probe, around(seen, first.start(), first.end()), path=path)
 
 
 TITLES = {

@@ -351,6 +351,15 @@ def mask_credentials(text: str) -> str:
     return _mask_commands(masked)
 
 
+MATCH_MARGIN = 100  # characters kept on each side of a match in a long text (1.13.0, r0:F2)
+
+
+def around(text: str, start: int, end: int) -> str:
+    """The part of `text` a finding in a long place shows and fingerprints (1.13.0, r0:F2): the match and up to `MATCH_MARGIN`
+    characters on each side, so the matched words are in the evidence and an edit elsewhere in the text keeps the fingerprint."""
+    return text[max(0, start - MATCH_MARGIN):end + MATCH_MARGIN]
+
+
 def bounded_evidence(text: str) -> str:
     """The one way evidence is made (spec 5.10): collapsed to single spaces, masked, and at most
     `EVIDENCE_MAX` characters in all (cut to 297 and `...` appended). Every finding's evidence,
@@ -386,12 +395,31 @@ def code_point_names(text: str) -> str:
     return ", ".join(seen)
 
 
+_HIERARCHICAL = re.compile(r"[A-Za-z][A-Za-z0-9+.\-]*://")  # a real scheme (RFC 3986 3.1) then `://`
+_URI_SCHEME = re.compile(r"[A-Za-z][A-Za-z0-9+.\-]*:")
+
+
+def redacted_address(text: str) -> str:
+    """An address that is not `scheme://...` (`urn:...`, `vault:user:pw@host`, a bare name) as a finding may show it: no query
+    or fragment, nothing up to the last `@` after its scheme (a userinfo), and masked like any evidence (1.13.0)."""
+    shown = text.split("#", 1)[0].split("?", 1)[0]
+    scheme = _URI_SCHEME.match(shown)
+    head, rest = (shown[:scheme.end()], shown[scheme.end():]) if scheme else ("", shown)
+    if "@" in rest:
+        rest = rest.rpartition("@")[2]
+    return mask_credentials(head + rest)
+
+
 def redacted_url(url: str, *, keep_empty_authority: bool = False) -> str:
     """`url` without userinfo, query or fragment: a finding's location and evidence never carry
     `https://user:pass@host/` or `?api_key=...` from a registered endpoint or repository URL. With `keep_empty_authority`
     an address with no host (`file:///notes.txt`) is kept, as a resource address often is."""
     if "://" not in url:
         return url
+    if not _HIERARCHICAL.match(url):
+        # `://` after a query or an opaque part (`urn:x?api_key=...&next=https://cb`): the text before it is no scheme, so the
+        # address is read as an opaque one, never split there (1.13.0, r1:F1)
+        return redacted_address(url)
     scheme, rest = url.split("://", 1)
     # An `@` ends the userinfo only when no `/`, `?` or `#` comes before it. Otherwise the `@` sits in the path or
     # query, or in a raw password that holds a delimiter: no reading is safe to show, so nothing is kept.

@@ -7,7 +7,7 @@ from collections.abc import Iterator
 from datetime import date
 
 from spellwarden_scan import checklist
-from spellwarden_scan.evidence import mask_credentials, redacted_url
+from spellwarden_scan.evidence import mask_credentials, redacted_address, redacted_url
 from spellwarden_scan.model import McpScanResult, ProbeResult
 from spellwarden_scan.orgrules import BudgetMeter, OrgRuleBudget
 from spellwarden_scan.rules import RuleSet
@@ -150,10 +150,7 @@ LOCATION_CUT = 200  # the address in a finding's location (`resource:<uri>`), sp
 def _address(uri: str) -> str:
     """A resource address as a finding's location: no userinfo, query or fragment, token segments masked, then cut at
     `LOCATION_CUT`. The server wrote it, and a location goes into every report, the SARIF file and the connected upload."""
-    if "://" in uri:
-        shown = redacted_url(uri, keep_empty_authority=True)
-    else:
-        shown = mask_credentials(uri.split("#", 1)[0].split("?", 1)[0])
+    shown = redacted_url(uri, keep_empty_authority=True) if "://" in uri else redacted_address(uri)
     return shown[:LOCATION_CUT]
 
 
@@ -169,7 +166,7 @@ def probe_texts(probe: ProbeResult) -> Iterator[tuple[str, str]]:
     for prompt in probe.prompts:
         text = _joined((prompt.title, prompt.description, *(argument.description for argument in prompt.arguments)))
         if text:
-            yield f"prompt:{prompt.name}", text
+            yield f"prompt:{mask_credentials(prompt.name)[:LOCATION_CUT]}", text
     for resource in probe.resources:
         text = _joined((resource.name, resource.title, resource.description))
         if text:
