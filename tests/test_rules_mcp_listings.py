@@ -126,3 +126,29 @@ def test_the_org_rule_check_tool_description_matches_reads_the_four_new_places_t
     assert org_findings(org_server("ledger", "tool_name_matches"), p) == []  # names are tool names only
     assert org_findings(org_server("search", "tool_name_matches"), p) == ["tool:search"]
     assert org_findings(org_server("nothing like this"), p) == []
+
+
+CREDENTIAL_ADDRESSES = [
+    "https://api.example.com/data?api_key=sk_live_51HxQ2abcdefghijklmnop",
+    "postgres://admin:hunter2@db.internal/prod",
+    "https://api.example.com/data#token=sk_live_51HxQ2abcdefghijklmnop",
+    "vault:admin:hunter2@db.internal?api_key=sk_live_51HxQ2abcdefghijklmnop",
+]
+SECRETS = ("sk_live_51HxQ2abcdefghijklmnop", "hunter2", "admin:")
+
+
+def test_the_location_of_a_resource_or_template_never_carries_credentials_from_its_address():
+    resources = tuple(ResourceInfo(uri, description=INJECTION) for uri in CREDENTIAL_ADDRESSES)
+    templates = tuple(ResourceTemplateInfo(uri + "/{x}", description=INJECTION) for uri in CREDENTIAL_ADDRESSES)
+    p = probe(resources=resources, resource_templates=templates)
+    paths = [path for path, _ in findings_011(p)]
+    assert len(paths) == 2 * len(CREDENTIAL_ADDRESSES)
+    assert "resource:https://api.example.com/data" in paths
+    assert "resource:postgres://db.internal/prod" in paths
+    org_paths = org_findings(org_server("previous"), p)
+    assert len(org_paths) == len(paths)
+    for path in paths + org_paths:
+        assert not any(secret in path for secret in SECRETS), path
+        assert "?" not in path and "#" not in path, path
+    result = evaluate_probe(p, BASELINE).to_dict()
+    assert not any(secret in str(result) for secret in SECRETS)

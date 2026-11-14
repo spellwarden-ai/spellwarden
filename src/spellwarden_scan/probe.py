@@ -7,6 +7,7 @@ from collections.abc import Iterator
 from datetime import date
 
 from spellwarden_scan import checklist
+from spellwarden_scan.evidence import mask_credentials, redacted_url
 from spellwarden_scan.model import McpScanResult, ProbeResult
 from spellwarden_scan.orgrules import BudgetMeter, OrgRuleBudget
 from spellwarden_scan.rules import RuleSet
@@ -146,6 +147,16 @@ def text_of(value: object) -> str:
 LOCATION_CUT = 200  # the address in a finding's location (`resource:<uri>`), spec 8.3
 
 
+def _address(uri: str) -> str:
+    """A resource address as a finding's location: no userinfo, query or fragment, token segments masked, then cut at
+    `LOCATION_CUT`. The server wrote it, and a location goes into every report, the SARIF file and the connected upload."""
+    if "://" in uri:
+        shown = redacted_url(uri, keep_empty_authority=True)
+    else:
+        shown = mask_credentials(uri.split("#", 1)[0].split("?", 1)[0])
+    return shown[:LOCATION_CUT]
+
+
 def _joined(parts: tuple[object, ...]) -> str:
     return " ".join(text for text in (text_of(part) for part in parts) if text)
 
@@ -162,11 +173,11 @@ def probe_texts(probe: ProbeResult) -> Iterator[tuple[str, str]]:
     for resource in probe.resources:
         text = _joined((resource.name, resource.title, resource.description))
         if text:
-            yield f"resource:{resource.uri[:LOCATION_CUT]}", text
+            yield f"resource:{_address(resource.uri)}", text
     for template in probe.resource_templates:
         text = _joined((template.name, template.title, template.description))
         if text:
-            yield f"resource_template:{template.uri_template[:LOCATION_CUT]}", text
+            yield f"resource_template:{_address(template.uri_template)}", text
     instructions = text_of(probe.instructions)
     if instructions:
         yield "server_instructions", instructions

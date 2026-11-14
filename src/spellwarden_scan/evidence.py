@@ -384,3 +384,26 @@ def code_point_names(text: str) -> str:
         if label not in seen:
             seen.append(label)
     return ", ".join(seen)
+
+
+def redacted_url(url: str, *, keep_empty_authority: bool = False) -> str:
+    """`url` without userinfo, query or fragment: a finding's location and evidence never carry
+    `https://user:pass@host/` or `?api_key=...` from a registered endpoint or repository URL. With `keep_empty_authority`
+    an address with no host (`file:///notes.txt`) is kept, as a resource address often is."""
+    if "://" not in url:
+        return url
+    scheme, rest = url.split("://", 1)
+    # An `@` ends the userinfo only when no `/`, `?` or `#` comes before it. Otherwise the `@` sits in the path or
+    # query, or in a raw password that holds a delimiter: no reading is safe to show, so nothing is kept.
+    if "@" in rest:
+        userinfo, _, rest = rest.rpartition("@")
+        if any(mark in userinfo for mark in "/?#"):
+            return f"{scheme}://redacted"
+    rest = rest.split("#", 1)[0].split("?", 1)[0]
+    authority, separator, path = rest.partition("/")
+    if not authority and not keep_empty_authority:
+        return f"{scheme}://redacted"
+    # A token carried in the path (`/api/mcp/s/<token>/mcp`) is masked like any evidence (spec 5.10), segment by segment
+    # so the host and the other segments stay readable.
+    path = "/".join(mask_credentials(segment) for segment in path.split("/"))
+    return f"{scheme}://{authority}{separator}{path}"

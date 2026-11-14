@@ -7,7 +7,8 @@ import bisect
 import re
 from collections.abc import Iterator
 
-from spellwarden_scan.evidence import bounded_evidence, fingerprint, mask_credentials
+from spellwarden_scan.evidence import bounded_evidence, fingerprint
+from spellwarden_scan.evidence import redacted_url as _redacted
 from spellwarden_scan.model import Finding, Location, ProbeResult, ToolInfo
 from spellwarden_scan.probe import probe_texts, text_of
 from spellwarden_scan.probe import auth_mode_of, classify, deprecated_capabilities, initialize_only, spec_version_of, transport_of
@@ -767,28 +768,6 @@ def _asks_for_data(seen: str) -> bool:
         unheld = [data for data in unheld
                   if (index := bisect.bisect_right(starts, data.start()) - 1) < 0 or not _holds(*found[index], seen, data)]
     return bool(unheld)
-
-
-def _redacted(url: str) -> str:
-    """`url` without userinfo, query or fragment: a finding's location and evidence never carry
-    `https://user:pass@host/` or `?api_key=...` from a registered endpoint or repository URL."""
-    if "://" not in url:
-        return url
-    scheme, rest = url.split("://", 1)
-    # An `@` ends the userinfo only when no `/`, `?` or `#` comes before it. Otherwise the `@` sits in the path or
-    # query, or in a raw password that holds a delimiter: no reading is safe to show, so nothing is kept.
-    if "@" in rest:
-        userinfo, _, rest = rest.rpartition("@")
-        if any(mark in userinfo for mark in "/?#"):
-            return f"{scheme}://redacted"
-    rest = rest.split("#", 1)[0].split("?", 1)[0]
-    authority, separator, path = rest.partition("/")
-    if not authority:
-        return f"{scheme}://redacted"
-    # A token carried in the path (`/api/mcp/s/<token>/mcp`) is masked like any evidence (spec 5.10), segment by segment
-    # so the host and the other segments stay readable.
-    path = "/".join(mask_credentials(segment) for segment in path.split("/"))
-    return f"{scheme}://{authority}{separator}{path}"
 
 
 def _where(probe: ProbeResult) -> str:
