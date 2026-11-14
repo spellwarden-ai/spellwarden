@@ -255,8 +255,19 @@ class _Home:
                 if target is not None:
                     walk(target, f"{shown}/{name}", more)
 
-        walk(os.path.realpath(base), self.show(base), pattern.split("/"))
+        start = self.start(base)
+        if start is not None:
+            walk(start, self.show(base), pattern.split("/"))
         return found
+
+    def start(self, base: str) -> str | None:
+        """The real directory a row's walk starts at. A base inside the home (the default of a client, or a variable that
+        names a place there) is walked from the real home by `step`, so a link on it that leaves the home is skipped with the
+        notice `symlink_skipped`; a base outside the home was named by an absolute variable and is trusted as it is."""
+        inside = clients.relative_to(base, self.home)
+        if inside is None:
+            return os.path.realpath(base)
+        return self.resolve(self.real_home, inside, "~") if inside else self.real_home
 
     def read_row(self, row: clients.Row, real: str, shown: str) -> None:
         if not self.once(real, row.client):

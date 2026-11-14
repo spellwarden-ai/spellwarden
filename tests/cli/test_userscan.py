@@ -159,6 +159,26 @@ def test_a_link_out_of_the_home_or_dangling_is_skipped_with_a_notice(tmp_path):
     assert discovered.found.errors == ()
 
 
+def test_a_client_base_directory_that_is_a_link_out_of_the_home_is_skipped_and_one_inside_is_read(tmp_path):
+    home = make_home(tmp_path, "linux")
+    outside = tmp_path / "outside"
+    (home / ".claude").rename(outside)
+    _link(outside, home / ".claude", directory=True)
+    discovered = userscan.discover_home(str(home), "linux", {})
+    paths = {item.path for item in discovered.found.items}
+    assert not any(path.startswith("~/.claude/") for path in paths)
+    skipped = {notice.path for notice in discovered.found.notices if notice.code == "symlink_skipped"}
+    assert "~/.claude" in skipped
+    assert discovered.found.errors == ()
+    (home / ".claude").unlink()
+    dotfiles = home / "dotfiles"
+    dotfiles.mkdir()
+    outside.rename(dotfiles / "claude")
+    _link(dotfiles / "claude", home / ".claude", directory=True)
+    inside = userscan.discover_home(str(home), "linux", {})
+    assert {(item.kind, item.path, item.clients) for item in inside.found.items} == expected("linux")
+
+
 def test_more_than_300_instruction_files_of_one_client_is_an_error(tmp_path):
     home = make_home(tmp_path, "linux")
     for number in range(301):
