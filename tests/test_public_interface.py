@@ -26,6 +26,8 @@ NAMES_1_3_0 = (
     "A2aScanResult", "signature_inputs", "a2a_checklist", "jcs_canonicalize", "JcsError", "A2A_CARD_FORMATS",
     "A2A_MIGRATION_STATUSES", "A2A_SIGNATURE_STATUSES",
 )
+# Phase 3 batch 1 spec 11.2
+NAMES_1_13_0 = ("PromptArgument", "PromptInfo", "ResourceInfo", "ResourceTemplateInfo")
 # O3 spec 5.4: the names that live in a submodule of the engine, which the package imports so that they are reachable.
 IDENTITY_NAMES = (
     "package_files", "PackageFiles", "package_sha256", "nested_skill_roots", "is_skill_file", "fold_skill_name",
@@ -44,7 +46,7 @@ def test_the_1_0_0_names_are_all_still_exported():
 def test_1_1_0_adds_exactly_the_names_of_spec_5_8():
     for name in NAMES_1_1_0:
         assert name in spellwarden_scan.__all__ and hasattr(spellwarden_scan, name), name
-    assert sorted(spellwarden_scan.__all__) == sorted(NAMES_1_0_0 + NAMES_1_1_0 + NAMES_1_2_0 + NAMES_1_3_0)
+    assert sorted(spellwarden_scan.__all__) == sorted(NAMES_1_0_0 + NAMES_1_1_0 + NAMES_1_2_0 + NAMES_1_3_0 + NAMES_1_13_0)
     assert len(spellwarden_scan.__all__) == len(set(spellwarden_scan.__all__))
 
 
@@ -100,6 +102,9 @@ def test_1_7_0_adds_the_otel_subpackage_and_pins_its_limits():
     assert sorted(otel.__all__) == sorted(("OTEL_NAMES", *OTEL_NAMES))
     for name in OTEL_NAMES:
         assert hasattr(otel, name), name
+        if name in NAMES_1_13_0:  # 1.13.0 added an MCP `ResourceInfo` to the package; the OTLP one stays in `otel` and is another class
+            assert getattr(spellwarden_scan, name) is not getattr(otel, name), name
+            continue
         assert name not in spellwarden_scan.__all__, name
     limits = otel.DEFAULT_LIMITS
     assert (limits.max_records, limits.max_depth, limits.max_attributes, limits.max_events, limits.max_value_bytes) == (

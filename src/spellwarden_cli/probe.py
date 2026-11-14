@@ -9,7 +9,9 @@ from collections.abc import Callable
 from dataclasses import replace
 from urllib.parse import urlsplit
 
-from spellwarden_scan import AuthServerMetadata, ProbeResult, ToolInfo
+from spellwarden_scan import (
+    AuthServerMetadata, ProbeResult, PromptArgument, PromptInfo, ResourceInfo, ResourceTemplateInfo, ToolInfo,
+)
 
 from spellwarden_cli import net
 
@@ -20,7 +22,23 @@ MAX_REQUESTS = 9
 MAX_TOOLS = 200
 MAX_DESCRIPTION = 1000
 MAX_SCHEMA_BYTES = 16 * 1024  # Phase C spec 5.6: the largest `inputSchema` recorded, as canonical JSON
+# Phase 3 batch 1 spec 8.1, 8.2, 11.2: the wider reading. One page of each list, at most MAX_LISTED entries, every text cut.
+MAX_LISTED = MAX_TOOLS
+MAX_INSTRUCTIONS = 16000
+MAX_NAME = 128
+MAX_TITLE = 256
+MAX_ARGUMENT_DESCRIPTION = 500
+MAX_URI = 2048
+MAX_ARGUMENTS = 20
+# The only JSON-RPC methods the prober ever sends. `resources/read`, `prompts/get` and `tools/call` are not here and cannot be
+# sent: `_Probe._post` refuses any other name before a byte leaves (spec 8.1, decision D16).
+ALLOWED_METHODS = ("server/discover", "initialize", "notifications/initialized", "tools/list", "prompts/list", "resources/list",
+                   "resources/templates/list")
 _RESOURCE_METADATA_RE = re.compile(r'resource_metadata="([^"]+)"')
+
+
+class MethodNotAllowed(ValueError):
+    """`_Probe._post` was asked for a method outside `ALLOWED_METHODS`; the probe reports `probe_failed`."""
 
 
 class _Probe:
@@ -43,6 +61,8 @@ class _Probe:
         return headers
 
     def _post(self, method: str, params: dict, *, notification: bool = False):
+        if method not in ALLOWED_METHODS:
+            raise MethodNotAllowed(f"the probe never sends {method}")
         if self.requests >= MAX_REQUESTS:
             return None
         self.requests += 1
@@ -125,11 +145,51 @@ class _Probe:
                                        and not (isinstance(cursor, str) and cursor))
             meta = {key: list_result[key] for key in ("ttlMs", "cacheScope") if key in list_result}
             state["list_result_meta"] = meta or None
+        self._note_instructions()
+        if listed is not None and state.get("unauthenticated_status") not in (401, 403):
+            self._read_listings()
         if state.get("unauthenticated_status") in (401, 403):
             self._auth_metadata()
         if not state.get("reachable"):
             state.setdefault("error", "unreachable")
         return ProbeResult(**state)
+
+    def _note_instructions(self) -> None:
+        """The server's own `instructions` (spec 8.1): the first non-empty string of the `server/discover` result, else the
+        `initialize` result, cut at MAX_INSTRUCTIONS. No request is made for it; both results are already held."""
+        for source in (self.state.get("discover"), self.state.get("initialize")):
+            text = source.get("instructions") if isinstance(source, dict) else None
+            if isinstance(text, str) and text:
+                self.state["instructions"] = text[:MAX_INSTRUCTIONS]
+                if len(text) > MAX_INSTRUCTIONS:
+                    self.state["instructions_truncated"] = True
+                return
+
+    def _read_listings(self) -> None:
+        """Spec 8.1: after `tools/list`, one request each of `prompts/list`, `resources/list` and `resources/templates/list`, in
+        that order, one page, and only for a capability the server declared (a JSON object under `prompts` or `resources`).
+        The caller has checked that `tools/list` was answered and not refused with 401 or 403, the sign that the server wants a
+        credential the probe never sends. A list is recorded when the answer is a list; it is complete only when nothing was
+        dropped (a cursor, the cap, an entry without a name or address)."""
+        state = self.state
+        capabilities = state.get("capabilities")
+        if not isinstance(capabilities, dict):
+            return
+        read: list[str] = []
+        for capability, method, key, field, complete_field, build in _LISTINGS:
+            if not isinstance(capabilities.get(capability), dict):
+                continue
+            result = _rpc_result(self._post(method, {}))
+            entries = result.get(key) if result is not None else None
+            if result is None or not isinstance(entries, list):
+                continue
+            kept = tuple(item for item in (build(entry) for entry in entries[:MAX_LISTED]) if item is not None)
+            cursor = result.get("nextCursor")
+            state[field] = kept
+            state[complete_field] = len(kept) == len(entries) and not (isinstance(cursor, str) and cursor)
+            read.append(field)
+        if read:
+            state["lists_read"] = tuple(read)
 
     def _auth_metadata(self) -> None:
         state = self.state
@@ -248,6 +308,49 @@ def _tool_of(tool: dict) -> ToolInfo:
     annotations = tool.get("annotations") if isinstance(tool.get("annotations"), dict) else {}
     return ToolInfo(name=tool["name"][:128], description=description[:MAX_DESCRIPTION], annotations=annotations,
                     input_schema=_schema_of(tool.get("inputSchema")))
+
+
+def _text(value: object, limit: int) -> str:
+    return value[:limit] if isinstance(value, str) else ""
+
+
+def _title(entry: dict) -> str | None:
+    title = entry.get("title")
+    return title[:MAX_TITLE] if isinstance(title, str) and title else None
+
+
+def _prompt_of(entry: object) -> PromptInfo | None:
+    if not isinstance(entry, dict) or not isinstance(entry.get("name"), str):
+        return None
+    arguments = entry.get("arguments")
+    kept = tuple(PromptArgument(name=argument["name"][:MAX_NAME], description=_text(argument.get("description"), MAX_ARGUMENT_DESCRIPTION))
+                 for argument in (arguments[:MAX_ARGUMENTS] if isinstance(arguments, list) else ())
+                 if isinstance(argument, dict) and isinstance(argument.get("name"), str))
+    return PromptInfo(name=entry["name"][:MAX_NAME], title=_title(entry), description=_text(entry.get("description"), MAX_DESCRIPTION),
+                      arguments=kept)
+
+
+def _resource_of(entry: object) -> ResourceInfo | None:
+    if not isinstance(entry, dict) or not isinstance(entry.get("uri"), str):
+        return None
+    return ResourceInfo(uri=entry["uri"][:MAX_URI], name=_text(entry.get("name"), MAX_NAME), title=_title(entry),
+                        description=_text(entry.get("description"), MAX_DESCRIPTION))
+
+
+def _template_of(entry: object) -> ResourceTemplateInfo | None:
+    if not isinstance(entry, dict) or not isinstance(entry.get("uriTemplate"), str):
+        return None
+    return ResourceTemplateInfo(uri_template=entry["uriTemplate"][:MAX_URI], name=_text(entry.get("name"), MAX_NAME),
+                                title=_title(entry), description=_text(entry.get("description"), MAX_DESCRIPTION))
+
+
+# (capability the server must declare, method, key of the answer, `ProbeResult` field, its completeness field, entry builder),
+# in the order the requests are sent.
+_LISTINGS = (
+    ("prompts", "prompts/list", "prompts", "prompts", "prompts_complete", _prompt_of),
+    ("resources", "resources/list", "resources", "resources", "resources_complete", _resource_of),
+    ("resources", "resources/templates/list", "resourceTemplates", "resource_templates", "resource_templates_complete", _template_of),
+)
 
 
 def probe(fetcher, endpoint: str, *, release: str, now_iso: str,
