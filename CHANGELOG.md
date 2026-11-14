@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.13.0 (2026-11-NN)
+## 1.13.0 (2026-11-14)
 
 Rules version 2026.11.6. Three changes; the second and third can add findings to a scan that was clean on 1.12.0, so a CI
 gate that failed on nothing before can fail after upgrading.
