@@ -711,17 +711,17 @@ def _owned_by_a_skill(path: str, skill_directories: frozenset[str]) -> bool:
 
 def _instruction_files(builder: _Builder, skill_directories: frozenset[str]) -> list[InstructionFile]:
     """The instruction files of the file set (Phase 3 batch 1 spec 10.2, 10.3), in path order, at most
-    `instruction_files.MAX_FILES`, the shallowest first (the notice `instructions_limit` counts the rest, which are not read).
+    `instruction_files.MAX_FILES`, root places first (the notice `instructions_limit` counts the rest, which are not read).
     A symbolic link at one of these names is followed when it can be, as at the names of a configuration file; one that cannot
     be followed is the notice
     `symlink_skipped` it was on 1.12.0, never an error. A rule file whose front matter cannot be read still scans and has the
     notice `instructions_front_matter`."""
-    # Shallowest first, then by path: past the limit, the files at the root and in the fixed places an agent reads first are
-    # kept, so decoy files deep in the tree cannot push the root `AGENTS.md` or `CLAUDE.md` out of the scan. What is read is
-    # then handled in path order.
+    # Past the limit, the files an agent reads at the root of the repository come first (`instruction_files.loaded_first`),
+    # then the rest shallowest first: decoys anywhere in the tree cannot push the root `AGENTS.md`, `CLAUDE.md` or a root
+    # Cursor or Windsurf rule out of the scan. What is read is then handled in path order.
     chosen = sorted((path for path in {*builder.paths, *builder.links}
                      if instruction_files.format_of(path) is not None and not _owned_by_a_skill(path, skill_directories)),
-                    key=lambda path: (path.count("/"), path))
+                    key=lambda path: (not instruction_files.loaded_first(path), path.count("/"), path))
     limit = instruction_files.MAX_FILES
     if len(chosen) > limit:
         builder.notices.append(Notice("instructions_limit", "", f"{len(chosen) - limit} more instruction files were not read: "

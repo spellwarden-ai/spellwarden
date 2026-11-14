@@ -24,15 +24,15 @@ each finding of the JSON report (`tags`). The report's `schema` stays 1. Organis
 
 Instruction files. The scanner now finds AGENTS.md, CLAUDE.md and GEMINI.md at any depth, .github/copilot-instructions.md,
 Cursor rules (.cursor/rules/**/*.mdc and .cursorrules) and Windsurf rules (.windsurf/rules and .devin/rules, .windsurfrules)
-whatever their case, and scans each as an instruction file (every skill rule except the two about SKILL.md metadata; a
-rule file inside a skill directory is scanned by that skill, still read as Markdown). The front matter of a rule
-file (description, globs, alwaysApply, trigger) is read and shown with its findings. Each file is an item of kind
-"instructions", pinned in .spellwarden/lock.json (a repository with a lock sees them as added, so `spellwarden lock` has to
-be run once; a lock that holds them is unreadable to 1.12.0 and older, so upgrade every scanner that reads it), reported in
-every format and uploaded in connected mode. Set `instructions: false` in .spellwarden/config.yml to
-leave them out; the key is unknown to older scanners, which refuse a config that has it. At most 200 instruction files are read per
-scan root, the shallowest first. A repository with no instruction files produces the same findings, items, lock and exit
-code as on 1.12.0 (each finding of the JSON report also carries its `tags`).
+whatever their case, and scans each as an instruction file (every skill rule except the two about SKILL.md metadata; a rule
+file inside a skill directory is scanned by that skill, still read as Markdown). The front matter of a rule file
+(description, globs, alwaysApply, trigger) is read and shown with its findings. Each file is an item of kind "instructions",
+pinned in .spellwarden/lock.json (a repository with a lock sees them as added, so `spellwarden lock` has to be run once; a
+lock that holds them is unreadable to 1.12.0 and older, so upgrade every scanner that reads it), reported in every format
+and uploaded in connected mode. Set `instructions: false` in .spellwarden/config.yml to leave them out; the key is unknown
+to older scanners, which refuse a config that has it. At most 200 instruction files are read per scan root, the root files
+and root Cursor and Windsurf rules first. A repository with no instruction files produces the same findings, items, lock and
+exit code as on 1.12.0 (each finding of the JSON report also carries its `tags`).
 
 ## 1.12.0 (2026-11-13)
 

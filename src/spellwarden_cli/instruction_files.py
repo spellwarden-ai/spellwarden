@@ -58,6 +58,15 @@ def format_of(path: str) -> str | None:
     return None
 
 
+def loaded_first(path: str) -> bool:
+    """Whether the instruction file at `path` is in a place an agent reads at the root of the repository: `AGENTS.md`,
+    `CLAUDE.md` or `GEMINI.md` at the root, `.github/copilot-instructions.md`, `.cursorrules`, `.windsurfrules`, or a rule
+    under the root `.cursor/rules/`, `.windsurf/rules/` or `.devin/rules/`. Past the limit these are read before any other,
+    so nested decoys cannot push them out of the scan."""
+    folded = _fold(path)
+    return "/" not in folded or folded.startswith((".github/", ".cursor/rules/", ".windsurf/rules/", ".devin/rules/"))
+
+
 def _unquote(text: str) -> str:
     if len(text) >= 2 and text[0] == text[-1] and text[0] in "\"'":
         return text[1:-1]

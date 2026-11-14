@@ -151,3 +151,12 @@ def test_scopes_covers_the_instruction_items_only():
 def test_a_path_in_another_case_is_the_same_instruction_file(path, expected):
     """macOS and Windows open `CLAUDE.md` when the repository holds `claude.md`: the scanner must read what the agent loads."""
     assert instructions.format_of(path) == expected
+
+
+@pytest.mark.parametrize(("path", "first"), [
+    ("AGENTS.md", True), ("claude.md", True), (".github/copilot-instructions.md", True), (".cursorrules", True),
+    (".windsurfrules", True), (".cursor/rules/a/b/c.mdc", True), (".Windsurf/rules/t.md", True), (".devin/rules/d.md", True),
+    ("app/AGENTS.md", False), ("app/.cursor/rules/x.mdc", False), ("svc/.windsurf/rules/t.md", False),
+])
+def test_the_places_an_agent_reads_at_the_root_come_first(path, first):
+    assert instructions.loaded_first(path) is first
