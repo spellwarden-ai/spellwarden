@@ -23,7 +23,10 @@ ERROR_CODES = (*DOCUMENT_ERRORS, "unsafe_path", "case_collision", "unreadable", 
                "registry_check_failed", "registry_check_too_large",
                # Repository content left unread by a limit is an incomplete scan, never a pass (README "Limits"): the
                # agent-card limit (a notice from 1.3.0 to 1.12.0) and the instruction-file limit, both 300 since 1.13.0
-               "a2a_cards_limit", "instructions_limit")
+               "a2a_cards_limit", "instructions_limit",
+               # Phase 3 batch 2a spec 11.6: `scan --user` and the workstation upload
+               "user_instructions_limit", "user_skills_limit", "workstation_no_credential", "workstation_label_missing",
+               "workstation_upload_too_large", "workstation_upload_failed")
 # The error codes whose message says what to fix (O3 spec 6.9); the Markdown report prints them whole.
 CONNECTED_ERRORS = ERROR_CODES[ERROR_CODES.index("connected_config"):ERROR_CODES.index("registry_check_too_large") + 1]
 NOTICE_CODES = ("no_agent_content", "git_unavailable", "exec_bits_unknown", "symlink_skipped", "file_too_large",
@@ -42,7 +45,9 @@ NOTICE_CODES = ("no_agent_content", "git_unavailable", "exec_bits_unknown", "sym
                 # Phase 3 batch 1 spec 10.2, 10.3: instruction files
                 "instructions_front_matter",
                 # 1.13.0: a probed server answered a list with more than the probe reads (README "Limits")
-                "probe_list_incomplete")
+                "probe_list_incomplete",
+                # Phase 3 batch 2a spec 11.6: the upload succeeded; a client of the table has no file (verbose text only)
+                "workstation_uploaded", "client_not_found")
 # The notices that say a run continued in free mode after connected mode could not start (O3 spec 6.4); the text and
 # Markdown outputs derive their "unavailable" line from them.
 FREE_MODE_NOTICES = ("connected_fallback", "fork_free_mode", "dependabot_free_mode")
@@ -99,6 +104,9 @@ class ProbeReport:
     # 1.13.0: the lists the server answered with more than the probe reads (`prompts`, `resources`, `resource_templates`),
     # each the notice `probe_list_incomplete`; not part of the report's probe entry
     incomplete_lists: tuple[str, ...] = field(default=(), compare=False)
+    # 1.14.0: the names of the tools the server listed (at most 200), the CycloneDX `spellwarden:tool` properties (spec 11.5);
+    # not part of the report's probe entry
+    tools: tuple[str, ...] = field(default=(), compare=False)
 
     def to_dict(self) -> dict:
         extra = self.result.to_dict() if self.result is not None else {}
@@ -167,6 +175,16 @@ class Report:
     connected: dict | None = None
     # O4 spec 6.9: the A2A agents, serialised only when there is one (a repository without cards reports as in 1.2.1).
     agents: tuple[AgentReport, ...] = ()
+    # Phase 3 batch 2a spec 11.3: `scan --user` only, `[{"client", "found", "roots"}]` in the order of `clients.CLIENTS`;
+    # serialised only when not None, so a repository report is byte-identical to 1.13.0's.
+    clients: tuple[dict, ...] | None = None
+    # `scan --user` only: "scan" or "inventory" (`--inventory`); None for a repository scan. Not serialised.
+    user: str | None = field(default=None, compare=False)
+    # The scan root's directory name, the subject of a CycloneDX document (spec 7.3); None for `--user`. Not serialised.
+    root_name: str | None = field(default=None, compare=False)
+    # Per item path, the facts a CycloneDX document and the workstation upload may carry, already free of secrets
+    # (`details.item_details`): hashes, transports, reduced endpoints and sources, command identities. Not serialised.
+    details: dict = field(default_factory=dict, compare=False, repr=False)
 
     def unsuppressed(self) -> tuple[ReportFinding, ...]:
         return tuple(rf for rf in self.findings if not rf.suppressed)
@@ -222,4 +240,6 @@ def to_json_dict(report: Report) -> dict:
         document["agents"] = [agent.to_dict() for agent in report.agents]
     if report.connected is not None:
         document["connected"] = report.connected
+    if report.clients is not None:
+        document["clients"] = [dict(entry) for entry in report.clients]
     return document
