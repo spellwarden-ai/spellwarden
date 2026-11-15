@@ -35,12 +35,13 @@ def test_the_example_is_the_beginning_of_the_baseline_policies_file():
 
 
 def test_the_export_sentence_and_the_enforcement_table():
-    assert EXPORT_TARGETS == ("claude-code-hooks", "kong", "zuplo", "toolhive")
+    assert EXPORT_TARGETS == ("claude-code-hooks", "kong", "zuplo", "toolhive", "docker-mcp-gateway")
     assert PLANNED_TARGETS == ("agentcore-policy", "cloudflare-egress")
-    assert ("`target` is one of `EXPORT_TARGETS` (`claude-code-hooks`, `kong`, `zuplo`, `toolhive`), and `PLANNED_TARGETS` "
+    assert ("`target` is one of `EXPORT_TARGETS` (`claude-code-hooks`, `kong`, `zuplo`, `toolhive`, `docker-mcp-gateway`), and "
+            "`PLANNED_TARGETS` "
             "(`agentcore-policy`, `cloudflare-egress`) are not available yet.") in README
     row = next(line for line in README.splitlines() if line.startswith("| `SW-GW-004` |"))
-    assert row.endswith("| Kong, prompts only; Zuplo, MCP server responses |")
+    assert row.endswith("| Kong, prompts only; Zuplo, MCP server responses; Docker MCP Gateway, tool results |")
     assert "the Zuplo export includes a script that checks it at deploy" in next(line for line in README.splitlines() if line.startswith("| `SW-GW-003` |"))
     assert "`kong` and `zuplo` (any pattern rule" in README
 

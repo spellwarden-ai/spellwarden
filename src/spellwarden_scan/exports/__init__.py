@@ -13,12 +13,13 @@ from collections.abc import Sequence
 from spellwarden_scan.packs import ENFORCEMENT_RULES, PackDocument
 from spellwarden_scan.text import comment_safe
 
-EXPORT_TARGETS = ("claude-code-hooks", "kong", "zuplo", "toolhive")
+EXPORT_TARGETS = ("claude-code-hooks", "kong", "zuplo", "toolhive", "docker-mcp-gateway")
 PLANNED_TARGETS = ("agentcore-policy", "cloudflare-egress")
 EXPORT_MODES = ("project", "managed")
 README_NAME = "SPELLWARDEN-README.md"
 VENDOR_LINE = "Validate field names against the vendor's current documentation before use."
 TARGET_NAMES = {"claude-code-hooks": "Claude Code hooks", "kong": "Kong", "zuplo": "Zuplo", "toolhive": "ToolHive",
+                "docker-mcp-gateway": "Docker MCP Gateway",
                 "agentcore-policy": "AWS AgentCore Policy", "cloudflare-egress": "Cloudflare sandbox egress",
                 "registry": "Private registry"}
 # Escaped text may be longer than what it escapes (`é` for one letter): user text in generated files is cut
@@ -60,12 +61,21 @@ CANNOT_ENFORCE: dict[tuple[str, str], str] = {
     ("SW-EG-005", "toolhive"): _EGRESS,
     ("SW-RG-007", "toolhive"): _REGISTRY,
     ("SW-OB-008", "toolhive"): "ToolHive's audit log is configured on thv run, not by this export",
+    # 1.15.0: the Docker MCP Gateway export (exports/docker_gateway.py)
+    ("SW-HK-001", "docker-mcp-gateway"): _HOOKS_EXPORT,
+    ("SW-HK-002", "docker-mcp-gateway"): _HOOKS_EXPORT,
+    ("SW-GW-003", "docker-mcp-gateway"): "a remote server's OAuth is set per server in the gateway's catalog, not by this export",
+    ("SW-EG-005", "docker-mcp-gateway"): _EGRESS,
+    ("SW-RG-007", "docker-mcp-gateway"): _REGISTRY,
+    ("SW-OB-008", "docker-mcp-gateway"): "the gateway's call log records tool names, not a protected audit trail",
 }
 # (rule id, target) -> the qualifier shown after the id of an enforced rule.
 _CANNOT_ASK = "denied: the gateway cannot ask a person"
 ENFORCED_NOTES: dict[tuple[str, str], str] = {("SW-GW-004", "kong"): "prompts only",
                                               ("SW-GW-004", "zuplo"): "MCP server responses",
-                                              ("SW-GW-006", "toolhive"): _CANNOT_ASK}
+                                              ("SW-GW-006", "toolhive"): _CANNOT_ASK,
+                                              ("SW-GW-004", "docker-mcp-gateway"): "tool results",
+                                              ("SW-GW-006", "docker-mcp-gateway"): _CANNOT_ASK}
 _PACK_ID = re.compile(r"baseline|[0-9a-f]{32}")
 _VERSION = re.compile(r"[0-9]{1,3}\.[0-9]{1,4}")
 
@@ -162,6 +172,10 @@ def build(doc: PackDocument, target: str, *, built_at: str, mode: str = "project
         from spellwarden_scan.exports.toolhive import toolhive_files
 
         return toolhive_files(doc, built_at=built_at)
+    if target == "docker-mcp-gateway":
+        from spellwarden_scan.exports.docker_gateway import docker_gateway_files
+
+        return docker_gateway_files(doc, built_at=built_at)
     from spellwarden_scan.exports.hooks import hooks_files  # Task 6 (spec 5.5.1)
 
     return hooks_files(doc, built_at=built_at, mode=mode)
