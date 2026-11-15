@@ -137,6 +137,8 @@ class _Probe:
             listed_tools = list_result.get("tools")
             tools = listed_tools if isinstance(listed_tools, list) else []
             state["tools"] = tuple(_tool_of(tool) for tool in tools[:MAX_TOOLS] if isinstance(tool, dict) and isinstance(tool.get("name"), str))
+            if any(_tool_cut(tool) for tool in tools[:MAX_TOOLS] if isinstance(tool, dict) and isinstance(tool.get("name"), str)):
+                state["lists_cut"] = (*state.get("lists_cut", ()), "tools")
             state["tools_source"] = "probe"
             cursor = list_result.get("nextCursor")
             # 1.9.0: the whole list, or SW-MCP-001 stays high (a later page, an entry past the cap or a dropped entry may
@@ -187,6 +189,8 @@ class _Probe:
             cursor = result.get("nextCursor")
             state[field] = kept
             state[complete_field] = len(kept) == len(entries) and not (isinstance(cursor, str) and cursor)
+            if any(_entry_cut(entry) for entry in entries[:MAX_LISTED]):
+                state["lists_cut"] = (*state.get("lists_cut", ()), field)
             read.append(field)
         if read:
             state["lists_read"] = tuple(read)
@@ -301,6 +305,35 @@ def _schema_of(value: object) -> dict | None:
     except (TypeError, ValueError, RecursionError):  # UnicodeEncodeError is a ValueError
         return None
     return value if size <= MAX_SCHEMA_BYTES else None
+
+
+def _over(value: object, limit: int) -> bool:
+    return isinstance(value, str) and len(value) > limit
+
+
+def _tool_cut(tool: dict) -> bool:
+    """True when `_tool_of` cuts a text of `tool` or drops its input schema for size."""
+    schema = tool.get("inputSchema")
+    return (_over(tool.get("name"), 128) or _over(tool.get("description"), MAX_DESCRIPTION)
+            or (isinstance(schema, dict) and _schema_of(schema) is None))
+
+
+def _entry_cut(entry: object) -> bool:
+    """True when a builder of `_LISTINGS` cuts a text of `entry` (or drops prompt arguments past MAX_ARGUMENTS)."""
+    if not isinstance(entry, dict):
+        return False
+    if any(_over(entry.get(key), limit) for key, limit in (
+            ("name", MAX_NAME), ("title", MAX_TITLE), ("description", MAX_DESCRIPTION), ("uri", MAX_URI),
+            ("uriTemplate", MAX_URI))):
+        return True
+    arguments = entry.get("arguments")
+    if isinstance(arguments, list):
+        if len(arguments) > MAX_ARGUMENTS:
+            return True
+        return any(isinstance(argument, dict) and (_over(argument.get("name"), MAX_NAME)
+                                                   or _over(argument.get("description"), MAX_ARGUMENT_DESCRIPTION))
+                   for argument in arguments[:MAX_ARGUMENTS])
+    return False
 
 
 def _tool_of(tool: dict) -> ToolInfo:

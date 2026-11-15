@@ -60,6 +60,7 @@ file has no deprecation marker, so "not deprecated" means "present in release 20
 | SW-MCP-009 | no technique (authentication method, transport and protocol-version hygiene) | none |
 | SW-MCP-010 | no technique (authentication method, transport and protocol-version hygiene) | none |
 | SW-MCP-011 | AML.T0110.000 AI Agent Tool Poisoning: Definition and Instructions; AML.T0051.001 LLM Prompt Injection: Indirect | none |
+| SW-MCP-012 | AML.T0109 AI Supply Chain Rug Pull; AML.T0110.000 AI Agent Tool Poisoning: Definition and Instructions | none |
 | SW-REG-001 | AML.T0010.005 Supply Chain Compromise: AI Agent Tool | AST09 |
 | SW-REG-002 | AML.T0010.005 Supply Chain Compromise: AI Agent Tool | AST09 |
 | SW-REG-003 | AML.T0010.005 Supply Chain Compromise: AI Agent Tool | AST09 |

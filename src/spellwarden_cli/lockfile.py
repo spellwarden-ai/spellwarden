@@ -1,6 +1,14 @@
 """`.spellwarden/lock.json` (spec 6.6): every discovered configuration document, MCP server entry, marketplace
 plugin, local plugin directory, skill and instruction file, each pinned by hash or declared source. `spellwarden lock` writes it;
-`--locked` and `lock --check` compare it with what the scan computed."""
+`--locked` and `lock --check` compare it with what the scan computed.
+
+1.15.0 (owner decision O2): `spellwarden lock --probe` also pins the probed tool hashes of each remote server whose tools it
+read, as an `mcp-tools` item (`{"kind": "mcp-tools", "path": "<document>#<server>", "format": 1, "kinds": {kind: hash}}`,
+`toolhash` kind hashes of the kinds read in full; never the endpoint or a credential). Only a run that probes compares them:
+`scan --probe --locked` makes the lock stale when a kind read in full both then and now has another hash, and says
+`tools_not_compared` for a pinned server or kind it could not read; `scan --probe` without `--locked` says `tools_changed`.
+Every comparison without a probe, `lock --check` included, leaves the pins out on both sides, and `lock` without `--probe`
+keeps the stored pin of every server it locks again."""
 from __future__ import annotations
 
 import argparse
@@ -8,16 +16,17 @@ import hashlib
 import json
 import os
 import sys
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
+from datetime import UTC, datetime
 
-from spellwarden_scan import canonical_sha256
+from spellwarden_scan import RuleSet, canonical_sha256, toolhash
 from spellwarden_scan.agentconfig import has_declared_pin
 from spellwarden_scan.model import PluginSource
 
 from spellwarden_cli import commands, discover, escape, files, paths
 from spellwarden_cli.baseline import BASELINE_PATH
 from spellwarden_cli.discover import Discovery
-from spellwarden_cli.report import LOCK_ITEM_KINDS, LockState
+from spellwarden_cli.report import LOCK_ITEM_KINDS, LockState, Notice, ProbeReport
 from spellwarden_cli.settings import CONFIG_PATH
 
 LOCK_PATH = ".spellwarden/lock.json"
@@ -27,6 +36,8 @@ KINDS = frozenset(LOCK_ITEM_KINDS)
 # The scanner's own files, by exact scan-root path. Nothing else under `.spellwarden/` is left out of a hash: a root
 # SKILL.md may run `.spellwarden/setup.sh`, and that script is skill content (r0:F5).
 OWN_FILES = frozenset({LOCK_PATH, BASELINE_PATH, CONFIG_PATH})
+PIN_KIND = "mcp-tools"
+PIN_FORMAT = 1
 
 
 class LockUnreadable(ValueError):
@@ -137,7 +148,15 @@ def _read(root: str) -> dict | None:
             raise LockUnreadable(f"{LOCK_PATH} holds an item without a kind and a path")
         if item["kind"] not in KINDS:
             raise LockUnreadable(f"{LOCK_PATH} holds an item of an unknown kind; the kinds are {', '.join(sorted(KINDS))}")
+        if item["kind"] == PIN_KIND and not _valid_pin(item):
+            raise LockUnreadable(f"{LOCK_PATH} holds an mcp-tools item that is not of format {PIN_FORMAT}")
     return document
+
+
+def _valid_pin(item: Mapping) -> bool:
+    kinds = item.get("kinds")
+    return (type(item.get("format")) is int and item["format"] == PIN_FORMAT and isinstance(kinds, dict) and bool(kinds)
+            and all(kind in toolhash.KINDS and isinstance(value, str) for kind, value in kinds.items()))
 
 
 def _grouped(items: Iterable[Mapping]) -> dict[tuple[str, str], list[str]]:
@@ -152,15 +171,181 @@ def _changes(keys: Iterable[tuple[str, str]]) -> tuple[dict, ...]:
     return tuple({"kind": kind, "path": path} for kind, path in sorted(keys))
 
 
-def compare_lock(root: str, computed: Mapping) -> LockState:
+def pin_of(path: str, listing: toolhash.ToolListing | None) -> tuple[dict | None, tuple[str, ...]]:
+    """The `mcp-tools` item of a probed server and the kinds its probe read only in part (never pinned: a partial list
+    cannot be compared for additions and removals). No item when the probe did not read `tools` or read no kind in full."""
+    if listing is None or "tools" not in listing.kinds:
+        return None, ()
+    whole = {kind: listed.hash for kind, listed in listing.kinds.items() if listed.complete}
+    partial = tuple(kind for kind, listed in listing.kinds.items() if not listed.complete)
+    if not whole:
+        return None, partial
+    return {"kind": PIN_KIND, "path": path, "format": PIN_FORMAT, "kinds": whole}, partial
+
+
+def _pins(document: Mapping) -> list[dict]:
+    return [item for item in document["items"] if item["kind"] == PIN_KIND]
+
+
+def _kinds_against(pin: Mapping, listing: toolhash.ToolListing) -> tuple[list[str], list[str]]:
+    """The pinned kinds whose hash differs now, and the pinned kinds this probe did not read in full."""
+    differ: list[str] = []
+    unread: list[str] = []
+    for kind in toolhash.KINDS:
+        if kind not in pin["kinds"]:
+            continue
+        now = listing.kinds.get(kind)
+        if now is None or not now.complete:
+            unread.append(kind)
+        elif now.hash != pin["kinds"][kind]:
+            differ.append(kind)
+    return differ, unread
+
+
+def _not_read_reason(report: ProbeReport | None) -> str:
+    if report is None:
+        return "the server was not probed"
+    if report.status != "probed":
+        return f"the server was not probed ({report.skip_reason})"
+    return "its tools were not read (the server could not be reached or asks for credentials)"
+
+
+def compare_pins(pins: Iterable[Mapping], probes: Iterable[ProbeReport], servers: frozenset[str]
+                 ) -> tuple[set[tuple[str, str]], set[tuple[str, str]], list[Notice]]:
+    """`scan --probe --locked` (owner O2): the pins whose server is no longer locked (removed), the pins a kind of which
+    differs (changed), and a `tools_not_compared` notice for each pinned server or kind the run could not read. A server
+    that cannot be read never makes the lock stale: a remote party must not fail a build by not answering."""
+    by_item = {report.item: report for report in probes}
+    changed: set[tuple[str, str]] = set()
+    removed: set[tuple[str, str]] = set()
+    notices: list[Notice] = []
+    for pin in pins:
+        path = pin["path"]
+        if path not in servers:
+            removed.add((PIN_KIND, path))
+            continue
+        report = by_item.get(path)
+        listing = report.listing if report is not None and report.status == "probed" else None
+        if listing is None or "tools" not in listing.kinds:
+            notices.append(Notice("tools_not_compared", path,
+                                  f"the tools pinned in {LOCK_PATH} were not compared: {_not_read_reason(report)}"))
+            continue
+        differ, unread = _kinds_against(pin, listing)
+        if differ:
+            changed.add((PIN_KIND, path))
+        if unread:
+            notices.append(Notice("tools_not_compared", path, f"these lists pinned in {LOCK_PATH} were not read in full and "
+                                  f"were not compared: {', '.join(unread)}"))
+    return changed, removed, notices
+
+
+def compare_lock(root: str, computed: Mapping, *, probes: Iterable[ProbeReport] | None = None,
+                 notices: list[Notice] | None = None) -> LockState:
+    """The stored lock against `computed` (which never holds pins). The `mcp-tools` pins take part only when the run probed
+    (`probes` is not None); their notices are appended to `notices`."""
     stored = _read(root)
     if stored is None:
         return LockState(status="absent")
-    old, new = _grouped(stored["items"]), _grouped(computed["items"])
-    added = _changes(new.keys() - old.keys())
-    removed = _changes(old.keys() - new.keys())
-    changed = _changes(key for key in old.keys() & new.keys() if old[key] != new[key])
+    old = _grouped(item for item in stored["items"] if item["kind"] != PIN_KIND)
+    new = _grouped(computed["items"])
+    added_keys = set(new.keys() - old.keys())
+    removed_keys = set(old.keys() - new.keys())
+    changed_keys = {key for key in old.keys() & new.keys() if old[key] != new[key]}
+    if probes is not None:
+        servers = frozenset(path for kind, path in new if kind == "mcp-server")
+        pin_changed, pin_removed, pin_notices = compare_pins(_pins(stored), probes, servers)
+        changed_keys |= pin_changed
+        removed_keys |= pin_removed
+        if notices is not None:
+            notices.extend(pin_notices)
+    added, removed, changed = _changes(added_keys), _changes(removed_keys), _changes(changed_keys)
     return LockState(status="stale" if added or removed or changed else "ok", added=added, removed=removed, changed=changed)
+
+
+def changed_pin_notices(root: str, probes: Iterable[ProbeReport]) -> list[Notice]:
+    """`scan --probe` without `--locked`: a `tools_changed` notice for each pinned server whose kinds read in full differ now.
+    The exit code does not change, and a lock file that is absent or cannot be read gives no notice here."""
+    try:
+        stored = _read(root)
+    except LockUnreadable:
+        return []
+    if stored is None:
+        return []
+    by_item = {report.item: report for report in probes}
+    notices: list[Notice] = []
+    for pin in _pins(stored):
+        report = by_item.get(pin["path"])
+        listing = report.listing if report is not None and report.status == "probed" else None
+        if listing is None or "tools" not in listing.kinds:
+            continue
+        differ, _unread = _kinds_against(pin, listing)
+        if differ:
+            notices.append(Notice("tools_changed", pin["path"], f"the server's {', '.join(differ)} differ from the pins in "
+                                  f"{LOCK_PATH}; a run with --locked fails on this, and `spellwarden lock --probe` pins the "
+                                  "lists the server sends now"))
+    return notices
+
+
+def with_pins(computed: Mapping, pins: Iterable[Mapping]) -> dict:
+    """`computed` plus each pin whose `mcp-server` item it holds (the same path), every item sorted as `compute_lock` sorts."""
+    servers = {item["path"] for item in computed["items"] if item["kind"] == "mcp-server"}
+    items = [*computed["items"], *(dict(pin) for pin in pins if pin["path"] in servers)]
+    items.sort(key=_item_key)
+    return {"lock_version": LOCK_VERSION, "items": items}
+
+
+def _warn(message: str) -> None:
+    print(f"spellwarden: warning: {escape.terminal(message)}", file=sys.stderr)
+
+
+def _remote_servers(found: Discovery) -> list[tuple[str, str]]:
+    """`(item, url)` of every remote server entry of a judged configuration document."""
+    servers: list[tuple[str, str]] = []
+    for document in found.documents:
+        if document.error not in (None, "truncated"):
+            continue
+        for server in document.servers:
+            if server.transport in ("http", "sse") and server.url:
+                servers.append((f"{document.path}#{server.name}", server.url))
+    return sorted(servers)
+
+
+def probe_pins(found: Discovery, stored: Mapping[str, dict], *, now_iso: str,
+               fetcher_factory: Callable[[], object] | None = None) -> dict[str, dict]:
+    """`lock --probe`: the pins to write, by item. Each configured remote server is probed with the scan's probe rules,
+    public `https` only (`--probe-private` is not offered); a server whose tools were read is pinned with the kinds read in
+    full; a server that could not be read keeps the pin already stored for it (a server that does not answer never removes
+    its own pin). Every server or kind not pinned is a warning on stderr; nothing here changes the exit code."""
+    from spellwarden_cli import net, probing  # here, not at the top: the probe phase is needed only with --probe
+
+    targets, skipped = probing.probe_targets(found)
+    phase = probing.run_combined(targets, RuleSet.baseline(), fetcher_factory=fetcher_factory or net.Fetcher, now_iso=now_iso)
+    reports = {report.item: report for report in [*skipped, *phase.reports]}
+    pins = dict(stored)
+    for item, url in _remote_servers(found):
+        report = reports.get(item)
+        if report is None:
+            reason = "only https:// servers are probed" if not url.startswith("https://") else "the server was not probed"
+        else:
+            pin, partial = pin_of(item, report.listing if report.status == "probed" else None)
+            for kind in partial:
+                _warn(f"{item}: the server sent part of its {kind}; that list is not pinned")
+            if pin is not None:
+                pins[item] = pin
+                continue
+            reason = _not_read_reason(report)
+        kept = " (the pin already stored is kept)" if item in stored else ""
+        _warn(f"{item}: not pinned{kept}: {reason}")
+    return pins
+
+
+def _stored_pins(root: str) -> dict[str, dict]:
+    try:
+        stored = _read(root)
+    except LockUnreadable as exc:
+        _warn(f"{exc}; no stored mcp-tools pin is kept")
+        return {}
+    return {} if stored is None else {pin["path"]: pin for pin in _pins(stored)}
 
 
 def describe(state: LockState) -> list[str]:
@@ -177,7 +362,10 @@ def describe(state: LockState) -> list[str]:
 def add_parser(commands_: argparse._SubParsersAction) -> None:
     parser = commands_.add_parser("lock", help="Write .spellwarden/lock.json, or compare it with --check.")
     parser.add_argument("path", nargs="?", default=".", help="The scan root (default: the current directory).")
-    parser.add_argument("--check", action="store_true", help="Compare without writing; exit 3 when absent or stale.")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--check", action="store_true", help="Compare without writing; exit 3 when absent or stale.")
+    mode.add_argument("--probe", action="store_true", help="Also probe the configured remote servers (public https only) "
+                      "and pin the hashes of the tool lists they send.")
     parser.set_defaults(handler=cmd_lock)
 
 
@@ -200,6 +388,11 @@ def cmd_lock(args: argparse.Namespace) -> int:
             return commands.fail(str(exc))
         print("\n".join(describe(state)))
         return 0 if state.status == "ok" else 3
+    pins = _stored_pins(root)
+    if args.probe:
+        now_iso = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        pins = probe_pins(found, pins, now_iso=now_iso)
+    computed = with_pins(computed, pins.values())
     try:
         commands.write_in_root(root, LOCK_PATH, render_lock(computed))
     except (commands.CommandError, OSError) as exc:

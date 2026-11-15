@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from spellwarden_scan import __version__
-
 ROOT = Path(__file__).resolve().parents[1]
 NEW_CODES = ("user_instructions_limit", "user_skills_limit", "workstation_no_credential", "workstation_label_missing",
              "workstation_upload_too_large", "workstation_upload_failed", "workstation_uploaded", "client_not_found")
@@ -45,8 +43,8 @@ def test_the_reports_table_has_cyclonedx_and_the_releases_name_no_macos_runner()
 
 def test_the_changelog_has_the_1_14_0_entry_above_1_13_0():
     text = read("CHANGELOG.md")
-    assert text.index(f"## {__version__} (") < text.index("## 1.13.0 (")
-    entry = text[text.index(f"## {__version__} ("):text.index("## 1.13.0 (")]
+    assert text.index("## 1.14.0 (") < text.index("## 1.13.0 (")
+    entry = text[text.index("## 1.14.0 ("):text.index("## 1.13.0 (")]
     for needle in ("`spellwarden scan --user`", "--inventory", "SPELLWARDEN_WORKSTATION_KEY", "`--format cyclonedx`",
                    "`spellwarden_scan.cyclonedx`", "same reports as 1.13.0"):
         assert needle in entry, needle

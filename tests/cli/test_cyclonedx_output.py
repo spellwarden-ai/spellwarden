@@ -17,6 +17,7 @@ _spec = importlib.util.spec_from_file_location("record_1_14_0", ROOT / "tests" /
 record = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(record)
 TAGS = "utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+RECORDED_VERSION, RECORDED_RULES_VERSION = "1.14.0", "2026.11.6"
 
 
 @pytest.fixture
@@ -30,18 +31,29 @@ def repository(tmp_path, clean) -> dict:  # noqa: ARG001 -- `clean` runs first
     return json.loads(record.repository_document(tmp_path))
 
 
+def as_recorded(text: str) -> dict:
+    """A document as 1.14.0 recorded it: the scanner version of the tool component and the rules version property set back
+    to the recorded ones, and no serial number, which is derived from the content and so from both versions."""
+    document = json.loads(text)
+    del document["serialNumber"]
+    document["metadata"]["tools"]["components"][0]["version"] = RECORDED_VERSION
+    for prop in document["metadata"].get("properties", []):
+        if prop["name"] == "spellwarden:rules_version":
+            prop["value"] = RECORDED_RULES_VERSION
+    return document
+
+
 @pytest.mark.usefixtures("clean")
 def test_the_repository_document_is_the_recorded_one_and_valid(tmp_path):
     produced = record.repository_document(tmp_path)
-    assert produced == (GOLDEN / "repo.cdx.json").read_bytes().decode("utf-8")
+    assert as_recorded(produced) == as_recorded((GOLDEN / "repo.cdx.json").read_bytes().decode("utf-8"))
     assert cyclonedx_problems(json.loads(produced)) == []
 
 
 def _without_home(text: str) -> dict:
-    """A home document without what depends on where the fixture home was copied: `~/.claude.json` names the home's own path
-    (its projects), so its hash and therefore the serial number differ from copy to copy."""
-    document = json.loads(text)
-    del document["serialNumber"]
+    """A home document as recorded (`as_recorded`) and without what depends on where the fixture home was copied:
+    `~/.claude.json` names the home's own path (its projects), so its hash differs from copy to copy."""
+    document = as_recorded(text)
     for component in document.get("components", []):
         if component["bom-ref"].startswith("document:~/.claude.json"):
             component.pop("hashes", None)

@@ -57,7 +57,7 @@ def kong_rule(number: int, pattern: str, *, case_sensitive: bool = False) -> dic
 # --- dispatch and the coverage table ----------------------------------------------------------------------------
 
 def test_targets_and_modes():
-    assert EXPORT_TARGETS == ("claude-code-hooks", "kong", "zuplo")
+    assert EXPORT_TARGETS == ("claude-code-hooks", "kong", "zuplo", "toolhive", "docker-mcp-gateway")
     assert PLANNED_TARGETS == ("agentcore-policy", "cloudflare-egress")
     assert EXPORT_MODES == ("project", "managed")
 

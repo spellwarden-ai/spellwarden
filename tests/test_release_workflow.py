@@ -120,3 +120,31 @@ def test_the_build_job_runs_the_node_checks_of_the_zuplo_guard_before_anything_i
     assert len(node) == 1 and node[0]["with"]["node-version"] == "24"
     assert re.fullmatch(r"actions/setup-node@[0-9a-f]{40}", node[0]["uses"])
     assert node[0]["uses"] == next(s["uses"] for s in _steps("check.yml", "zuplo") if str(s.get("uses", "")).startswith("actions/setup-node@"))
+
+
+# --- the gateway exports (1.15.0, phase 3 batch 2b spec 10.9) --------------------------------------------------------------
+
+def test_the_gateway_exports_job_runs_both_gateways_on_linux_after_build():
+    job = _release()["jobs"]["gateway-exports"]
+    assert job["needs"] == "build" and job["runs-on"] == "ubuntu-latest"
+    run = "\n".join(step.get("run", "") for step in job["steps"])
+    assert 'tests/gateway_ci.py toolhive "$RUNNER_TEMP/toolhive"' in run
+    assert 'tests/gateway_ci.py docker "$RUNNER_TEMP/docker" --capture "$RUNNER_TEMP/captured/docker-v0.44.3"' in run
+    upload = [step for step in job["steps"] if str(step.get("uses", "")).startswith("actions/upload-artifact@")]
+    assert len(upload) == 1 and upload[0]["if"] == "always()" and upload[0]["with"]["name"] == "gateway-captures"
+
+
+def test_nothing_is_published_before_the_gateway_exports_pass():
+    jobs = _release()["jobs"]
+    for name in ("publish", "image"):
+        assert "gateway-exports" in jobs[name]["needs"], name
+
+
+def test_the_gateway_exports_job_pins_every_action_by_commit_and_names_no_macos_runner():
+    text = (WORKFLOWS / "release.yml").read_text(encoding="utf-8")
+    block = text[text.index("\n  gateway-exports:\n"):text.index("\n  publish:\n")]
+    uses = [line for line in block.splitlines() if line.strip().startswith(("- uses:", "uses:"))]
+    assert len(uses) == 3
+    for line in uses:
+        assert re.search(r"uses: [\w./-]+@[0-9a-f]{40}  # v\d+\.\d+\.\d+$", line), line
+    assert "macos" not in text

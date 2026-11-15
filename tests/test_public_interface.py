@@ -71,7 +71,7 @@ def test_1_2_0_adds_the_names_of_o3_spec_5_4():
 
 def test_build_export_is_exports_build_and_the_target_lists_are_the_spec_s():
     assert spellwarden_scan.build_export is exports.build
-    assert spellwarden_scan.EXPORT_TARGETS == ("claude-code-hooks", "kong", "zuplo")
+    assert spellwarden_scan.EXPORT_TARGETS == ("claude-code-hooks", "kong", "zuplo", "toolhive", "docker-mcp-gateway")
     assert spellwarden_scan.PLANNED_TARGETS == ("agentcore-policy", "cloudflare-egress")
     assert spellwarden_scan.EXPORT_MODES == ("project", "managed")
 
@@ -131,3 +131,18 @@ def test_1_14_0_adds_the_cyclonedx_module_and_no_package_name():
         assert hasattr(cyclonedx, name), name
     assert (cyclonedx.SPEC_VERSION, cyclonedx.PROPERTY_PREFIX) == ("1.7", "spellwarden:")
     assert "cyclonedx" not in spellwarden_scan.__all__
+
+
+# Phase 3 batch 2b spec 10.2: the public module `spellwarden_scan.toolhash` (1.15.0), which the hosted product imports; `__all__`
+# of the package is unchanged.
+TOOLHASH_NAMES = ("KINDS", "FORMAT", "ITEM_PREFIX", "ToolListing", "KindListing", "ListedItem", "Baseline", "ToolDiff", "ItemChange",
+                  "listing_of", "diff", "change_details", "adopt", "carry", "kinds_digest", "normalise_text")
+
+
+def test_1_15_0_adds_the_toolhash_module_and_no_package_name():
+    from spellwarden_scan import toolhash
+
+    assert spellwarden_scan.toolhash is toolhash
+    for name in TOOLHASH_NAMES:
+        assert hasattr(toolhash, name) and name in toolhash.__all__, name
+    assert "toolhash" not in spellwarden_scan.__all__

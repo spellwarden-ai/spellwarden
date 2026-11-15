@@ -1,6 +1,6 @@
 [project]
 name = "spellwarden"
-version = "1.14.0"
+version = "1.15.0"
 description = "Spellwarden: the scan engine for agent skills, MCP servers and Claude Code configuration and A2A agent cards (spellwarden_scan, pure code, no I/O) and the spellwarden command that does the I/O (spellwarden_cli)."
 readme = "README.md"
 license = "Apache-2.0"
@@ -27,6 +27,9 @@ Source = "https://github.com/spellwarden-ai/spellwarden"
 
 [dependency-groups]
 dev = [
+    # Cedar's reference implementation: tests/test_export_toolhive.py evaluates the ToolHive export's policies with it (1.15.0);
+    # never imported by the package (tests/test_pure.py)
+    "cedarpy==4.12.2",
     "jsonschema>=4.23",
     # the reference OTLP decoder of tests/otel (runtime traces spec 4.9); never imported by the package (tests/test_pure.py)
     "opentelemetry-proto==1.45.1",

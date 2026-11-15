@@ -30,7 +30,9 @@ RULES_OF_1_7_1 = frozenset({
     "SW-SKL-009", "SW-SKL-010", "SW-SKL-011", "SW-SKL-012", "SW-SKL-013", "SW-SKL-014", "SW-SKL-015", "SW-SKL-019",
     "SW-SKL-031",
 })
-NEW_IDS = frozenset(rule.id for rule in BASELINE) - RULES_OF_1_7_1
+# Rules added after the 1.8.0 batch: SW-MCP-012 (1.15.0), which a probe alone never raises (tests/test_rules_mcp_012.py).
+ADDED_AFTER_1_8_0 = frozenset({"SW-MCP-012"})
+NEW_IDS = frozenset(rule.id for rule in BASELINE) - RULES_OF_1_7_1 - ADDED_AFTER_1_8_0
 
 
 def test_the_batch_is_exactly_the_five_new_ids():

@@ -29,7 +29,7 @@ from dataclasses import dataclass, field
 from typing import Any, ClassVar, Protocol
 from urllib.parse import urlsplit
 
-from spellwarden_scan import Location, OrgRuleBudget, ProbeResult, RuleSet, evaluate_probe
+from spellwarden_scan import Location, OrgRuleBudget, ProbeResult, RuleSet, evaluate_probe, toolhash
 from spellwarden_scan.version import __version__
 
 from spellwarden_cli import escape
@@ -179,15 +179,15 @@ def _probe_one(target: ProbeTarget, rules: RuleSet, budget: _Budget, fetcher_fac
         return ProbeReport(target.item, "skipped", "budget", None), [], None
     if result.error in REFUSALS and not result.reachable:
         return ProbeReport(target.item, "skipped", "refused", None), [], result.error
-    evaluated = evaluate_probe(bounded_result(result), rules,
-                               **({"org_rule_budget": org_budget()} if org_budget is not None else {}))
+    bounded = bounded_result(result)
+    evaluated = evaluate_probe(bounded, rules, **({"org_rule_budget": org_budget()} if org_budget is not None else {}))
     findings = [ReportFinding(dataclasses.replace(finding, location=Location(target.path, target.line)), target.item)
                 for finding in evaluated.findings]
     # The server decides how much it sends, so a list longer than the probe reads is shown, never a failed scan (README
     # "Limits"); SW-MCP-011 judged what was read. Tools keep their 1.9.0 rule: a list not read whole keeps SW-MCP-001 high.
     incomplete = tuple(name for name in result.lists_read if not getattr(result, f"{name}_complete"))
     tools = tuple(tool.name for tool in result.tools)[:MAX_TOOL_NAMES]
-    return ProbeReport(target.item, "probed", None, evaluated, incomplete, tools), findings, None
+    return ProbeReport(target.item, "probed", None, evaluated, incomplete, tools, toolhash.listing_of(bounded)), findings, None
 
 
 class ProbeTask(Protocol):

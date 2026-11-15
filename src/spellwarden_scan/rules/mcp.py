@@ -1,17 +1,20 @@
-"""The 11 MCP rules of spec 5.4. Each `detect(probe)` yields `Finding`s whose
-location is the endpoint (or the repository), or, for SW-MCP-011, the place of the text: `tool:<name>`, `prompt:<name>`,
-`resource:<uri>`, `resource_template:<uriTemplate>` or `server_instructions`."""
+"""The 12 MCP rules of spec 5.4. Each `detect(probe)` yields `Finding`s whose
+location is the endpoint (or the repository), or, for SW-MCP-011 and SW-MCP-012, the place of the text: `tool:<name>`,
+`prompt:<name>`, `resource:<uri>`, `resource_template:<uriTemplate>` or `server_instructions`. SW-MCP-012 (1.15.0) compares a
+probe with an approved list, which only `evaluate_probe(..., baseline=...)` supplies (`tool_change_findings`); on a probe
+alone it finds nothing."""
 from __future__ import annotations
 
 import bisect
 import re
 from collections.abc import Iterator
 
+from spellwarden_scan import toolhash
 from spellwarden_scan.evidence import bounded_evidence, fingerprint
-from spellwarden_scan.evidence import excerpt_around
+from spellwarden_scan.evidence import excerpt_around, mask_credentials
 from spellwarden_scan.evidence import redacted_url as _redacted
 from spellwarden_scan.model import Finding, Location, ProbeResult, ToolInfo
-from spellwarden_scan.probe import probe_texts, text_of
+from spellwarden_scan.probe import LOCATION_CUT, _address, probe_texts, text_of
 from spellwarden_scan.probe import auth_mode_of, classify, deprecated_capabilities, initialize_only, spec_version_of, transport_of
 from spellwarden_scan.rules import Rule, make_rule
 from spellwarden_scan.rules import patterns as P
@@ -987,6 +990,126 @@ def _mcp_011(probe: ProbeResult) -> Iterator[Finding]:
             yield _finding("SW-MCP-011", "high", probe, text, path=path, shown=excerpt_around(seen, _first_match))
 
 
+TOOL_CHANGE_RULE = "SW-MCP-012"
+WINDOW = 120  # each side of a changed text in the evidence, `...` included (1.15.0)
+WINDOW_LEAD = 30  # how far before the first difference a window may start
+ADDED_CUT = 220  # the text of an added or removed item in the evidence
+
+
+def _mcp_012(_probe: ProbeResult) -> Iterator[Finding]:
+    """A probe alone holds no approved list: `evaluate_probe(..., baseline=...)` runs `tool_change_findings` instead."""
+    return iter(())
+
+
+def _item_location(kind: str, key: str) -> str:
+    """The location form SW-MCP-011 uses for the same place: a prompt name masked and cut, a resource address redacted."""
+    name = toolhash.name_of(key)
+    if kind == "tools":
+        return f"tool:{name}"
+    if kind == "prompts":
+        return f"prompt:{mask_credentials(name)[:LOCATION_CUT]}"
+    if kind == "resources":
+        return f"resource:{_address(name)}"
+    if kind == "resource_templates":
+        return f"resource_template:{_address(name)}"
+    return "server_instructions"
+
+
+def _change_text(kind: str, fields: dict | None) -> str:
+    """The words of an item the evidence shows, normalised as the hash reads them: a tool's description; a prompt's title,
+    description and each argument as `name: description`; a resource's or template's name, title and description; the
+    instructions."""
+    if fields is None:
+        return ""
+    if kind == "tools":
+        parts = [fields.get("description")]
+    elif kind == "prompts":
+        parts = [fields.get("title"), fields.get("description"),
+                 *(f"{argument['name']}: {argument['description']}" for argument in fields.get("arguments", ()))]
+    elif kind in ("resources", "resource_templates"):
+        parts = [fields.get("name"), fields.get("title"), fields.get("description")]
+    else:
+        parts = [fields.get("text")]
+    return " ".join(text for text in (toolhash.normalise_text(part) for part in parts) if text)
+
+
+def _first_difference(old: str, new: str) -> int:
+    for index, (left, right) in enumerate(zip(old, new, strict=False)):
+        if left != right:
+            return index
+    return min(len(old), len(new))
+
+
+def _window(text: str, start: int) -> str:
+    """At most WINDOW characters of `text`, the `...` marks included, starting at most WINDOW_LEAD before `start`."""
+    begin = max(0, start - WINDOW_LEAD)
+    head = "..." if begin else ""
+    room = WINDOW - len(head)
+    body = text[begin:begin + room]
+    if begin + room < len(text):
+        body = body[:room - 3] + "..."
+    return head + body
+
+
+def _cut(text: str, size: int) -> str:
+    return text if len(text) <= size else text[:size - 3] + "..."
+
+
+def _change_evidence(change: toolhash.ItemChange) -> str:
+    """The texts are masked whole before any window or cut, as `excerpt_around` does (r0:F1): no window can cut a credential
+    in two and leave half of it unmasked."""
+    def shown(text: str) -> str:
+        return mask_credentials(" ".join(text.split()))
+
+    old_text = shown(_change_text(change.kind, change.old_fields))
+    new_text = shown(_change_text(change.kind, change.new_fields))
+    if change.change == "added":
+        return f'added: "{_cut(new_text, ADDED_CUT)}"'
+    if change.change == "removed":
+        return f'removed: "{_cut(old_text, ADDED_CUT)}"'
+    if not change.description_changed:
+        return "input schema changed"
+    label = "description and input schema changed" if change.schema_changed else "description changed"
+    if old_text == new_text:
+        return label
+    start = _first_difference(old_text, new_text)
+    return f'{label}: was "{_window(old_text, start)}" now "{_window(new_text, start)}"'
+
+
+def _change_severity(change: str, pinned: bool) -> str:
+    """Changed: high on a server the organisation relies on (`pinned`), else medium; added: medium; removed: low (the lowest
+    severity stands for "informational")."""
+    if change == "changed":
+        return "high" if pinned else "medium"
+    return "medium" if change == "added" else "low"
+
+
+def tool_change_findings(baseline: toolhash.Baseline, listing: toolhash.ToolListing | None,
+                         pinned: bool) -> Iterator[Finding]:
+    """SW-MCP-012: one finding per item `toolhash.diff(baseline, listing)` found added, removed or changed, at the item's
+    location; one finding at `server_tools` when the baseline's snapshot is gone and a compared kind differs. The
+    fingerprint is over the old and new item hashes, so the same change probed again keeps it and a new change gets a new
+    one. No listing (the probe read nothing) finds nothing."""
+    if listing is None:
+        return
+    found = toolhash.diff(baseline, listing)
+    if found.baseline_lost:
+        when = f" on {baseline.approved_at[:10]}" if isinstance(baseline.approved_at, str) and baseline.approved_at else ""
+        evidence = (f"The tool list changed since it was approved{when}. The approved list is no longer stored, so the changes "
+                    "cannot be listed.")
+        matched = f"{toolhash.kinds_digest(baseline.kinds)}>{listing.digest}"
+        yield Finding(TOOL_CHANGE_RULE, _change_severity("changed", pinned), TITLES[TOOL_CHANGE_RULE],
+                      Location("server_tools", None), bounded_evidence(evidence),
+                      fingerprint(TOOL_CHANGE_RULE, "server_tools", matched), False)
+        return
+    for change in found.changes:
+        path = _item_location(change.kind, change.key)
+        matched = f"{change.old_hash or '-'}>{change.new_hash or '-'}"
+        yield Finding(TOOL_CHANGE_RULE, _change_severity(change.change, pinned), TITLES[TOOL_CHANGE_RULE],
+                      Location(path, None), bounded_evidence(_change_evidence(change)),
+                      fingerprint(TOOL_CHANGE_RULE, path, matched), False)
+
+
 TITLES = {
     "SW-MCP-001": "Server lists tools without authentication",
     "SW-MCP-002": "Static key authentication instead of OAuth",
@@ -999,6 +1122,7 @@ TITLES = {
     "SW-MCP-009": "Endpoint not served over HTTPS",
     "SW-MCP-010": "No protected resource metadata, or issuer not validated",
     "SW-MCP-011": "MCP server text contains instruction-like text",
+    "SW-MCP-012": "MCP server's tools changed since they were approved",
 }
 
 RULES: tuple[Rule, ...] = (
@@ -1013,6 +1137,7 @@ RULES: tuple[Rule, ...] = (
     make_rule("SW-MCP-009", TITLES["SW-MCP-009"], "high", "mcp", owasp=(), nist=("SC-7",), atlas=(), detect=_mcp_009, targets=("kong", "registry")),
     make_rule("SW-MCP-010", TITLES["SW-MCP-010"], "medium", "mcp", owasp=("MCP07",), nist=("IA-5",), atlas=(), detect=_mcp_010, targets=("registry",)),
     make_rule("SW-MCP-011", TITLES["SW-MCP-011"], "high", "mcp", owasp=("ASI01", "MCP03"), nist=("SI-10",), atlas=("AML.T0110.000", "AML.T0051.001"), detect=_mcp_011, targets=("kong",)),
+    make_rule("SW-MCP-012", TITLES["SW-MCP-012"], "high", "mcp", owasp=("ASI04", "MCP03"), nist=("SI-7",), atlas=("AML.T0109", "AML.T0110.000"), detect=_mcp_012),
 )
 
-__all__ = ["RULES", "TITLES", "classify"]
+__all__ = ["RULES", "TITLES", "TOOL_CHANGE_RULE", "classify", "tool_change_findings"]
