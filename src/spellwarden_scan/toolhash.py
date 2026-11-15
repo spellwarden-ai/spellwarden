@@ -153,21 +153,31 @@ class ListedItem:
 
 @dataclass(frozen=True)
 class KindListing:
-    """One kind the probe read. `complete` is false when the server sent only part of it (the probe's caps)."""
+    """One kind the probe read. `complete` is false when the server sent only part of it (the probe's caps) or when the
+    probe cut a text or dropped a schema in it (a change past a cut is not seen). `entries_complete` says whether every
+    entry was read, cut or not; None means the same as `complete`. A list whose entries are all present proves that an
+    entry is new or gone even when a text in it was cut."""
     read: bool
     complete: bool
     hash: str
     items: tuple[ListedItem, ...]
+    entries_complete: bool | None = None
+
+    @property
+    def entries_whole(self) -> bool:
+        return self.complete if self.entries_complete is None else self.entries_complete
 
 
 def _item(key: str, fields: dict) -> ListedItem:
     return ListedItem(key=key, hash=item_hash(fields), fields=fields)
 
 
-def _kind(items: Iterable[ListedItem], *, complete: bool) -> KindListing:
+def _kind(items: Iterable[ListedItem], *, complete: bool, cut: bool = False) -> KindListing:
+    """`complete`: every entry was read; `cut`: a text in it was cut or a schema dropped."""
     ordered = tuple(sorted(items, key=lambda item: (item.key, item.hash)))
     pairs = [[item.key, item.hash] for item in ordered]
-    return KindListing(read=True, complete=complete, hash=_sha256(jcs_canonicalize(pairs)), items=ordered)
+    return KindListing(read=True, complete=complete and not cut, hash=_sha256(jcs_canonicalize(pairs)), items=ordered,
+                       entries_complete=complete if cut else None)
 
 
 def kinds_digest(kinds: Mapping[str, str]) -> str:
@@ -186,13 +196,16 @@ class ToolListing:
 
     def to_json(self) -> bytes:
         """The snapshot the hosted product stores: the JCS of `{"format": 1, "digest", "kinds": {kind: {"complete",
-        "hash", "items": [{"key", "hash", "fields"}]}}}`. Equal listings give equal bytes."""
-        return jcs_canonicalize({
-            "format": FORMAT, "digest": self.digest,
-            "kinds": {kind: {"complete": listed.complete, "hash": listed.hash,
-                             "items": [{"key": item.key, "hash": item.hash, "fields": item.fields} for item in listed.items]}
-                      for kind, listed in self.kinds.items()},
-        })
+        "hash", "items": [{"key", "hash", "fields"}]}}}`, plus `"entries_complete"` in a kind only when it differs from
+        `complete` (a list with a cut text). Equal listings give equal bytes."""
+        def kind_of(listed: KindListing) -> dict:
+            value = {"complete": listed.complete, "hash": listed.hash,
+                     "items": [{"key": item.key, "hash": item.hash, "fields": item.fields} for item in listed.items]}
+            if listed.entries_complete is not None and listed.entries_complete != listed.complete:
+                value["entries_complete"] = listed.entries_complete
+            return value
+        return jcs_canonicalize({"format": FORMAT, "digest": self.digest,
+                                 "kinds": {kind: kind_of(listed) for kind, listed in self.kinds.items()}})
 
     @classmethod
     def from_json(cls, data: bytes) -> ToolListing:
@@ -208,7 +221,9 @@ class ToolListing:
                 listed = document["kinds"][kind]
                 items = tuple(ListedItem(key=entry["key"], hash=entry["hash"], fields=entry["fields"])
                               for entry in listed["items"])
-                kinds[kind] = KindListing(read=True, complete=bool(listed["complete"]), hash=listed["hash"], items=items)
+                entries = listed.get("entries_complete")
+                kinds[kind] = KindListing(read=True, complete=bool(listed["complete"]), hash=listed["hash"], items=items,
+                                          entries_complete=None if entries is None else bool(entries))
         except (UnicodeDecodeError, AttributeError, KeyError, TypeError, RecursionError) as exc:
             raise ValueError("not a tool listing snapshot of format 1") from exc
         return cls(digest=document["digest"], kinds=kinds)
@@ -249,16 +264,16 @@ def listing_of(probe: ProbeResult) -> ToolListing | None:
     kinds: dict[str, KindListing] = {}
     cut = set(getattr(probe, "lists_cut", ()) or ())  # a text cut at the prober's cap hides any change past the cut
     if probe.tools_source == "probe":
-        kinds["tools"] = _kind((_tool(tool) for tool in probe.tools), complete=probe.tools_complete and "tools" not in cut)
+        kinds["tools"] = _kind((_tool(tool) for tool in probe.tools), complete=probe.tools_complete, cut="tools" in cut)
     if "prompts" in probe.lists_read:
-        kinds["prompts"] = _kind((_prompt(prompt) for prompt in probe.prompts),
-                                 complete=probe.prompts_complete and "prompts" not in cut)
+        kinds["prompts"] = _kind((_prompt(prompt) for prompt in probe.prompts), complete=probe.prompts_complete,
+                                 cut="prompts" in cut)
     if "resources" in probe.lists_read:
-        kinds["resources"] = _kind((_resource(resource) for resource in probe.resources),
-                                   complete=probe.resources_complete and "resources" not in cut)
+        kinds["resources"] = _kind((_resource(resource) for resource in probe.resources), complete=probe.resources_complete,
+                                   cut="resources" in cut)
     if "resource_templates" in probe.lists_read:
         kinds["resource_templates"] = _kind((_template(template) for template in probe.resource_templates),
-                                            complete=probe.resource_templates_complete and "resource_templates" not in cut)
+                                            complete=probe.resource_templates_complete, cut="resource_templates" in cut)
     if probe.reachable and (probe.discover is not None or probe.initialize is not None):
         kinds["instructions"] = _kind([_item("instructions", {"text": clean(probe.instructions)})],
                                       complete=not probe.instructions_truncated)
@@ -349,10 +364,10 @@ def _change(kind: str, key: str, old: list[ListedItem] | None, new: list[ListedI
 
 def diff(baseline: Baseline, current: ToolListing) -> ToolDiff:
     """`current` against the approved list. A kind is compared when both sides read it; in a kind sent in part on either side
-    a key present on both sides is compared, a key present now is an addition only when the baseline's list was whole, and a
-    key missing now is a removal only when the current list is whole (a list read in part proves presence, never absence);
-    a kind read only now is adopted; a kind
-    read only in the baseline is not compared. Keys whose multisets of item hashes differ are one change of that key."""
+    a key present on both sides is compared, a key present now is an addition only when the baseline held every entry, and
+    a key missing now is a removal only when the current list holds every entry (a list missing entries proves presence,
+    never absence; a cut text does not make an entry missing); a kind read only now is adopted; a kind read only in the
+    baseline is not compared. Keys whose multisets of item hashes differ are one change of that key."""
     changes: list[ItemChange] = []
     not_compared: list[str] = []
     incomplete: list[str] = []
@@ -384,9 +399,9 @@ def diff(baseline: Baseline, current: ToolListing) -> ToolDiff:
             if before is not None and after is not None:
                 if [item.hash for item in before] != [item.hash for item in after]:
                     changes.append(_change(kind, key, before, after))
-            elif after is not None and old.complete:  # present now and absent from a whole baseline: added
+            elif after is not None and old.entries_whole:  # present now, absent from a baseline with every entry: added
                 changes.append(_change(kind, key, before, after))
-            elif before is not None and now.complete:  # absent from a whole current list: removed
+            elif before is not None and now.entries_whole:  # absent from a current list with every entry: removed
                 changes.append(_change(kind, key, before, after))
     if lost:
         changes = []

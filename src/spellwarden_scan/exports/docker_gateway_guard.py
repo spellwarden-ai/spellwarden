@@ -76,22 +76,30 @@ def strings(value, found):
     return found
 
 
-# Content fields that hold data, not words a model reads: base64 payloads, MIME types and addresses.
-_NOT_TEXT = frozenset({"data", "blob", "mimeType", "uri", "type"})
+# Binary payloads and addresses, skipped only in the content types that define them; any other content item, a type this
+# guard does not know included, is read whole, keys and every string, so the guard never passes words it did not read.
+_BINARY = {"image": frozenset({"data", "mimeType", "type"}), "audio": frozenset({"data", "mimeType", "type"})}
+_RESOURCE_BINARY = frozenset({"blob", "mimeType", "uri"})
 
 
-def _content_texts(value, found):
-    """The strings of one content item, the text of an embedded resource included, without its binary payloads."""
-    if isinstance(value, str):
-        found.append(value)
-    elif isinstance(value, dict):
-        for key, inner in value.items():
-            if key not in _NOT_TEXT:
-                _content_texts(inner, found)
-    elif isinstance(value, list):
-        for inner in value:
-            _content_texts(inner, found)
-    return found
+def _content_texts(item, found):
+    """The strings of one content item a model may read."""
+    if not isinstance(item, dict):
+        return strings(item, found)
+    kind = item.get("type")
+    if kind == "text":
+        text = item.get("text")
+        if isinstance(text, str):
+            found.append(text)
+        rest = {key: value for key, value in item.items() if key not in ("type", "text")}
+        return strings(rest, found)
+    if kind in _BINARY:
+        return strings({key: value for key, value in item.items() if key not in _BINARY[kind]}, found)
+    if kind == "resource" and isinstance(item.get("resource"), dict):
+        resource = {key: value for key, value in item["resource"].items() if key not in _RESOURCE_BINARY}
+        rest = {key: value for key, value in item.items() if key not in ("type", "resource")}
+        return strings(rest, strings(resource, found))
+    return strings(item, found)
 
 
 def result_texts(result):

@@ -125,3 +125,31 @@ def test_a_reordered_unchanged_server_still_raises_nothing():
     first = listing([READ, DELETE])
     second = listing([DELETE, dataclasses.replace(READ)])
     assert toolhash.diff(baseline_of(first), second).changes == ()
+
+
+def cut_listing(tools: list[ToolInfo], *, complete: bool = True) -> toolhash.ToolListing:
+    result = ProbeResult(endpoint=ENDPOINT, reachable=True, tools=tuple(tools), tools_source="probe", tools_complete=complete,
+                         lists_cut=("tools",))
+    value = toolhash.listing_of(result)
+    assert value is not None
+    return value
+
+
+def test_a_list_with_a_cut_text_but_every_entry_still_proves_additions_and_removals():
+    baseline = baseline_of(cut_listing([READ]))
+    assert baseline.listing.kinds["tools"].complete is False and baseline.listing.kinds["tools"].entries_whole is True
+    added = toolhash.diff(baseline, cut_listing([READ, DELETE]))
+    assert [(c.key, c.change) for c in added.changes] == [("tool:delete_order", "added")]
+    removed = toolhash.diff(baseline_of(listing([READ, DELETE])), cut_listing([READ]))
+    assert [(c.key, c.change) for c in removed.changes] == [("tool:delete_order", "removed")]
+    missing_entries = toolhash.diff(baseline_of(cut_listing([READ], complete=False)), listing([READ, DELETE]))
+    assert missing_entries.changes == ()
+
+
+def test_the_snapshot_keeps_entries_complete_only_for_a_cut_list():
+    import json
+    whole, cut = listing([READ]), cut_listing([READ])
+    assert "entries_complete" not in json.loads(whole.to_json())["kinds"]["tools"]
+    assert json.loads(cut.to_json())["kinds"]["tools"]["entries_complete"] is True
+    assert toolhash.ToolListing.from_json(cut.to_json()) == cut
+    assert toolhash.ToolListing.from_json(whole.to_json()) == whole

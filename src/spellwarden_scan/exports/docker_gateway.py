@@ -105,8 +105,9 @@ LIMITS = [
     "name is answered with an error result instead of going on.",
     "SW-GW-006 asks a person to approve destructive tools. The gateway cannot ask, so the guard denies them; tool names are "
     "matched in any case.",
-    "SW-GW-004 is checked on the text of every content item of a tool result (embedded resources included, binary data "
-    "left out) and on its structured content, after removing invisible characters and normalising to NFKC. Prompts are "
+    "SW-GW-004 is checked on the text of every content item of a tool result (embedded resources included; only the "
+    "binary data of images, audio and resources is left out, and a content type the guard does not know is read whole) "
+    "and on its structured content, after removing invisible characters and normalising to NFKC. Prompts are "
     "not checked.",
     "The guard writes one line on standard error when it blocks (the rule and the tool name), never an argument or a result.",
 ]
