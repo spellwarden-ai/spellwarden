@@ -185,3 +185,44 @@ def test_a_resource_location_has_no_userinfo_query_or_fragment():
     new = with_resource("https://user:pass@files.example/b.csv?token=abc123#part")
     paths = {f.location.path for f in own(evaluate_probe(new, RULES, baseline=baseline_of(old)))}
     assert paths == {"resource:https://files.example/a.csv", "resource:https://files.example/b.csv"}
+
+
+# --- r0:F1: the texts are masked whole before any window or cut, so no window can cut a credential in two -----------------
+
+TOKEN = "ghp_" + "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8"
+
+
+def _leaks(evidence: str) -> bool:
+    secret = TOKEN[4:]
+    return any(secret[i:i + 8] in evidence for i in range(len(secret) - 7))
+
+
+def _evidence_of(old_text: str | None, new_text: str | None) -> str:
+    old = probe([ToolInfo("t", old_text)] if old_text is not None else [ToolInfo("other", "Other.")])
+    new = probe([ToolInfo("t", new_text)] if new_text is not None else [ToolInfo("other", "Other.")])
+    findings = own(evaluate_probe(new, RULES, baseline=baseline_of(old)))
+    (finding,) = [f for f in findings if f.location.path == "tool:t"]
+    return finding.evidence
+
+
+def test_a_credential_straddling_the_right_edge_of_the_window_is_masked():
+    old = "Z" * 99 + f" {TOKEN} tail"
+    evidence = _evidence_of(old, "Y" + old[1:])
+    assert "ghp_" in evidence and not _leaks(evidence)
+
+
+def test_a_credential_straddling_the_left_edge_of_the_window_is_masked():
+    old = f"{TOKEN} " + "a" * 21 + " tail"
+    new = f"{TOKEN} " + "a" * 21 + "X tail"
+    evidence = _evidence_of(old, new)
+    assert not _leaks(evidence)
+
+
+def test_a_credential_straddling_the_cut_of_an_added_item_is_masked():
+    evidence = _evidence_of(None, "Z" * 200 + f" {TOKEN} tail")
+    assert evidence.startswith("added:") and not _leaks(evidence)
+
+
+def test_a_credential_straddling_the_cut_of_a_removed_item_is_masked():
+    evidence = _evidence_of("Z" * 200 + f" {TOKEN} tail", None)
+    assert evidence.startswith("removed:") and not _leaks(evidence)

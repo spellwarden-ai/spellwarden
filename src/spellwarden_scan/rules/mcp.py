@@ -1056,7 +1056,13 @@ def _cut(text: str, size: int) -> str:
 
 
 def _change_evidence(change: toolhash.ItemChange) -> str:
-    old_text, new_text = _change_text(change.kind, change.old_fields), _change_text(change.kind, change.new_fields)
+    """The texts are masked whole before any window or cut, as `excerpt_around` does (r0:F1): no window can cut a credential
+    in two and leave half of it unmasked."""
+    def shown(text: str) -> str:
+        return mask_credentials(" ".join(text.split()))
+
+    old_text = shown(_change_text(change.kind, change.old_fields))
+    new_text = shown(_change_text(change.kind, change.new_fields))
     if change.change == "added":
         return f'added: "{_cut(new_text, ADDED_CUT)}"'
     if change.change == "removed":
