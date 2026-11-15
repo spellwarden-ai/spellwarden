@@ -181,7 +181,7 @@
     "change": {
       "type": "object",
       "required": ["kind", "path"],
-      "properties": {"kind": {"enum": ["document", "mcp-server", "plugin", "plugin-dir", "skill", "instructions"]}, "path": {"type": "string"}}
+      "properties": {"kind": {"enum": ["document", "mcp-server", "plugin", "plugin-dir", "skill", "instructions", "mcp-tools"]}, "path": {"type": "string"}}
     },
     "lock": {
       "type": "object",

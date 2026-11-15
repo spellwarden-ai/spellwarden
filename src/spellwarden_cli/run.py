@@ -151,7 +151,7 @@ def scan(options: ScanOptions) -> Report:
             errors.append(Notice(failed.code, "", failed.message))
     findings = apply_baseline(options, findings, notices, errors, base_gate=state is not None and context is not None
                               and context.is_request)
-    lock = check_lock(options, found, errors)
+    lock = check_lock(options, found, errors, probes=probes if options.settings.probe else None, notices=notices)
     report = Report(
         scanner_version=__version__, rules_version=RULES_VERSION, as_of=options.as_of.isoformat(),
         fail_on=options.settings.fail_on, items=found.items, findings=tuple(findings), probes=tuple(probes), lock=lock,
@@ -260,15 +260,20 @@ def apply_baseline(options: ScanOptions, findings: list[ReportFinding], notices:
     return [*kept, *kept_gate]
 
 
-def check_lock(options: ScanOptions, found: Discovery, errors: list[Notice]) -> LockState:
+def check_lock(options: ScanOptions, found: Discovery, errors: list[Notice], *, probes: list[ProbeReport] | None = None,
+               notices: list[Notice] | None = None) -> LockState:
     """Spec 6.6: under `--locked`, the computed lock is compared with `.spellwarden/lock.json`; an unreadable lock
-    file is an error (exit 2)."""
+    file is an error (exit 2). `probes` (1.15.0) are the probe phase's reports when the run probed, None when it did not:
+    only then do the lock's `mcp-tools` pins take part, under `--locked` as a stale lock or `tools_not_compared` notices,
+    without it as `tools_changed` notices, both appended to `notices`."""
     from spellwarden_cli import lockfile  # here, not at the top: lockfile's command imports this module
 
     if not options.locked:
+        if probes is not None and notices is not None:
+            notices.extend(lockfile.changed_pin_notices(options.root, probes))
         return LockState()
     try:
-        return lockfile.compare_lock(options.root, lockfile.compute_lock(found))
+        return lockfile.compare_lock(options.root, lockfile.compute_lock(found), probes=probes, notices=notices)
     except lockfile.LockUnreadable as exc:
         errors.append(Notice("lock_unreadable", lockfile.LOCK_PATH, str(exc)))
         return LockState()

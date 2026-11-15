@@ -6,7 +6,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING
 
-from spellwarden_scan import SEVERITY_RANK, A2aScanResult, Finding, McpScanResult, Rule, RuleSet
+from spellwarden_scan import SEVERITY_RANK, A2aScanResult, Finding, McpScanResult, Rule, RuleSet, toolhash
 from spellwarden_scan.agentconfig import DOCUMENT_ERRORS
 
 if TYPE_CHECKING:
@@ -47,13 +47,15 @@ NOTICE_CODES = ("no_agent_content", "git_unavailable", "exec_bits_unknown", "sym
                 # 1.13.0: a probed server answered a list with more than the probe reads (README "Limits")
                 "probe_list_incomplete",
                 # Phase 3 batch 2a spec 11.6: the upload succeeded; a client of the table has no file (verbose text only)
-                "workstation_uploaded", "client_not_found")
+                "workstation_uploaded", "client_not_found",
+                # 1.15.0: the probed tool hashes pinned in the lock file (`mcp-tools`) differ, or could not be compared
+                "tools_changed", "tools_not_compared")
 # The notices that say a run continued in free mode after connected mode could not start (O3 spec 6.4); the text and
 # Markdown outputs derive their "unavailable" line from them.
 FREE_MODE_NOTICES = ("connected_fallback", "fork_free_mode", "dependabot_free_mode")
 PROBE_SKIP_REASONS = ("unresolved", "limit", "budget", "fork", "refused")
 LOCK_STATUSES = ("ok", "stale", "absent", "not_checked")
-LOCK_ITEM_KINDS = ("document", "mcp-server", "plugin", "plugin-dir", "skill", "instructions")
+LOCK_ITEM_KINDS = ("document", "mcp-server", "plugin", "plugin-dir", "skill", "instructions", "mcp-tools")
 
 
 @dataclass(frozen=True)
@@ -107,6 +109,9 @@ class ProbeReport:
     # 1.14.0: the names of the tools the server listed (at most 200), the CycloneDX `spellwarden:tool` properties (spec 11.5);
     # not part of the report's probe entry
     tools: tuple[str, ...] = field(default=(), compare=False)
+    # 1.15.0: the canonical listing of what the server advertised (`toolhash.listing_of`), which `--locked` compares with the
+    # lock file's `mcp-tools` pins and `lock --probe` pins; not part of the report's probe entry
+    listing: toolhash.ToolListing | None = field(default=None, compare=False)
 
     def to_dict(self) -> dict:
         extra = self.result.to_dict() if self.result is not None else {}
