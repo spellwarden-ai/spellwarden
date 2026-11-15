@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.15.0 (2026-11-NN)
+## 1.15.0 (2026-11-15)
 
 Rules version 2026.11.7. A new rule that only the hosted product raises, probed tool hashes in the lock file and two new
 export targets. A scan without --probe gives the same findings, items, lock and exit code as on 1.14.0; each report names
