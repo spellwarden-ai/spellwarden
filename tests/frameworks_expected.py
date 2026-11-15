@@ -48,6 +48,7 @@ EXPECTED: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
     "SW-MCP-009": ((), ()),
     "SW-MCP-010": ((), ()),
     "SW-MCP-011": (("AML.T0110.000", "AML.T0051.001"), ()),
+    "SW-MCP-012": (("AML.T0109", "AML.T0110.000"), ()),
     "SW-REG-001": (("AML.T0010.005",), ("AST09",)),
     "SW-REG-002": (("AML.T0010.005",), ("AST09",)),
     "SW-REG-003": (("AML.T0010.005",), ("AST09",)),

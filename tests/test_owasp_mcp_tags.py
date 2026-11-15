@@ -22,6 +22,8 @@ MCP_TAGS = {
     "SW-CFG-013": ("MCP02",),
     # MCP03 Tool Poisoning: instructions hidden in a tool's description (the entry's "Detection Indicators").
     "SW-MCP-011": ("MCP03",),
+    # MCP03 also: a tool definition changed after it was approved (a rug pull), the entry's "tool definitions are modified".
+    "SW-MCP-012": ("MCP03",),
     # MCP04 Software Supply Chain Attacks & Dependency Tampering: MCP servers, plug-ins and code from floating references
     # without an integrity check.
     "SW-SKL-007": ("MCP04",),

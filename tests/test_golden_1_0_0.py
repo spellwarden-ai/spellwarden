@@ -137,7 +137,9 @@ A2A_IDS = tuple(f"SW-A2A-{number:03d}" for number in range(1, 20))
 # The 1.8.0 batch: SW-CFG-012, SW-CFG-013, SW-SKL-032, SW-SKL-036 and SW-SKL-037. Two sort after the existing SW-CFG ids, three after SW-SKL-031,
 # so every `ruleIndex` from SW-SKL-032 on moves too; the normalisation drops them like the others.
 GROWTH_IDS = ("SW-CFG-012", "SW-CFG-013", "SW-SKL-032", "SW-SKL-036", "SW-SKL-037")
-ADDED_IDS = (*REGISTRY_IDS, *A2A_IDS, *GROWTH_IDS)
+# 1.15.0: SW-MCP-012 (tool changes since the approved list) sorts after SW-MCP-011.
+TOOL_CHANGE_IDS = ("SW-MCP-012",)
+ADDED_IDS = (*REGISTRY_IDS, *A2A_IDS, *GROWTH_IDS, *TOOL_CHANGE_IDS)
 # 1.9.1 retagged these 1.0.0 rules to the OWASP MCP Top 10 entry each detects (tests/test_owasp_mcp_tags.py pins the new
 # tags), so the `MCP` tags of their SARIF descriptors are dropped on both sides; every other tag must still match.
 RETAGGED_1_9_1 = ("SW-SKL-007", "SW-SKL-009", "SW-SKL-019", "SW-MCP-001", "SW-MCP-002", "SW-MCP-003", "SW-MCP-009",
@@ -174,7 +176,7 @@ def _normalised_sarif(text: str, *, produced: bool) -> dict:
         table = driver["rules"]
         assert [r["id"] for r in table] == sorted(r["id"] for r in table)
         kept = [r for r in table if r["id"] not in ADDED_IDS]
-        assert len(table) - len(kept) == 27
+        assert len(table) - len(kept) == 28
         new_index = {old: kept.index(rule) for old, rule in enumerate(table) if rule in kept}
         for result in document["runs"][0]["results"]:
             assert result["ruleIndex"] in new_index, result

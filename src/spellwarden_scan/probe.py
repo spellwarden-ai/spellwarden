@@ -6,7 +6,7 @@ import re
 from collections.abc import Iterator
 from datetime import date
 
-from spellwarden_scan import checklist
+from spellwarden_scan import checklist, toolhash
 from spellwarden_scan.evidence import mask_credentials, redacted_address, redacted_url
 from spellwarden_scan.model import McpScanResult, ProbeResult
 from spellwarden_scan.orgrules import BudgetMeter, OrgRuleBudget
@@ -212,12 +212,30 @@ def migration_status_of(spec_version: str | None, auth_mode: str, deprecated_fea
     return "to_migrate"
 
 
+def _with_tool_changes(ordered: tuple, baseline: toolhash.Baseline, listing: toolhash.ToolListing | None,
+                       pinned: bool) -> tuple:
+    """`ordered` with SW-MCP-012's detector comparing `listing` with `baseline`; a rule set without SW-MCP-012 is unchanged."""
+    from spellwarden_scan.rules.mcp import TOOL_CHANGE_RULE, tool_change_findings  # here: rules.mcp imports this module
+
+    def detect(_probe: ProbeResult):
+        return tool_change_findings(baseline, listing, pinned)
+
+    return tuple(dataclasses.replace(rule, detect=detect) if rule.id == TOOL_CHANGE_RULE else rule for rule in ordered)
+
+
 def evaluate_probe(probe: ProbeResult, rules: RuleSet, *, max_findings: int = 500, max_per_rule: int = 100,
-                   org_rule_budget: OrgRuleBudget | None = None) -> McpScanResult:
+                   org_rule_budget: OrgRuleBudget | None = None, baseline: toolhash.Baseline | None = None,
+                   listing: toolhash.ToolListing | None = None, pinned: bool = False) -> McpScanResult:
+    """The classification, the findings and the checklist of one probe. With `baseline` (1.15.0, the hosted product's approved
+    list) SW-MCP-012 compares `listing` with it, or `toolhash.listing_of(probe)` when no listing is given (the hosted
+    product gives the listing with the kinds it carried from an earlier probe); `pinned` grades a changed item high. Without
+    `baseline` the result is the one 1.14.0 gave, and `listing` and `pinned` change nothing."""
     spec_version, transport, auth_mode, deprecated = classify(probe)
     meter = BudgetMeter(org_rule_budget)
-    findings, truncated = run_rules(rules.ordered_for_scan("mcp"), probe, max_findings=max_findings, max_per_rule=max_per_rule,
-                                    meter=meter)
+    ordered = rules.ordered_for_scan("mcp")
+    if baseline is not None:
+        ordered = _with_tool_changes(ordered, baseline, listing if listing is not None else toolhash.listing_of(probe), pinned)
+    findings, truncated = run_rules(ordered, probe, max_findings=max_findings, max_per_rule=max_per_rule, meter=meter)
     result = McpScanResult(
         findings=tuple(findings), truncated=truncated, spec_version=spec_version, transport=transport, auth_mode=auth_mode,
         deprecated_features=deprecated, migration_status=migration_status_of(spec_version, auth_mode, deprecated, transport),

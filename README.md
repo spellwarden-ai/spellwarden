@@ -103,6 +103,7 @@ Ids are `SW-SKL-NNN` (skill packages), `SW-MCP-NNN` (probed MCP servers), `SW-CF
 | SW-MCP-009 | Endpoint not served over HTTPS | high |  | SC-7 |  |  |
 | SW-MCP-010 | No protected resource metadata, or issuer not validated | medium | MCP07 | IA-5 |  |  |
 | SW-MCP-011 | MCP server text contains instruction-like text | high | ASI01, MCP03 | SI-10 | AML.T0110.000, AML.T0051.001 |  |
+| SW-MCP-012 | MCP server's tools changed since they were approved | high | ASI04, MCP03 | SI-7 | AML.T0109, AML.T0110.000 |  |
 | SW-CFG-001 | Remote MCP server over plain HTTP | high |  | SC-7 |  |  |
 | SW-CFG-002 | Credential written into an MCP server configuration | critical | MCP01, MCP07 | IA-5 | AML.T0055, AML.T0083 |  |
 | SW-CFG-003 | MCP server launched from an unpinned package | medium | ASI04, MCP04 | SR-3 | AML.T0010.005 | AST02, AST07 |
@@ -366,7 +367,7 @@ followed by one entry that joins the nine prompt-injection patterns, `(?i:ignore
             "version": "1.0",
             "built_at": "2026-12-01T00:00:00Z",
             "engine": "<engine version>",
-            "rules_version": "2026.11.6",
+            "rules_version": "2026.11.7",
             "guard_sha256": "<sha256 of the guard file>",
             "options_sha256": "<sha256 of the canonical options>"
           },

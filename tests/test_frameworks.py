@@ -67,7 +67,7 @@ def test_the_frameworks_list_every_identifier_a_rule_may_use():
 
 
 def test_every_rule_has_atlas_ids_or_a_no_technique_entry_never_both_never_neither():
-    assert len(RULES) == 65
+    assert len(RULES) == 66
     without = {rule.id for rule in RULES if not rule.atlas}
     assert without == set(frameworks.NO_ATLAS)
     assert all(frameworks.NO_ATLAS[rule_id].strip() for rule_id in without)

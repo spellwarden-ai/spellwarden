@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from spellwarden_scan import RULES_VERSION, __version__
 from spellwarden_cli import instruction_files
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -35,9 +34,9 @@ def test_the_readme_says_how_the_probe_and_the_tags_changed():
 
 def test_the_changelog_has_the_1_13_0_entry_above_1_12_0():
     text = read("CHANGELOG.md")
-    assert text.index(f"## {__version__} (") < text.index("## 1.12.0 (")
-    entry = text[text.index(f"## {__version__} ("):text.index("## 1.12.0 (")]
-    assert f"Rules version {RULES_VERSION}." in entry
+    assert text.index("## 1.13.0 (") < text.index("## 1.12.0 (")
+    entry = text[text.index("## 1.13.0 ("):text.index("## 1.12.0 (")]
+    assert "Rules version 2026.11.6." in entry
     for needle in ("MCP probe.", "Framework tags.", "Instruction files.", "resources/read, prompts/get or\ntools/call",
                    "Precision on these four places has not been measured", "can fail after upgrading",
                    "unreadable to 1.12.0 and older", "`instructions: false`", "The report's `schema` stays 1"):

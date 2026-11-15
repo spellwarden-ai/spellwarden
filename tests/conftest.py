@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from spellwarden_scan.agentconfig import parse_document
+from spellwarden_scan import toolhash
 from spellwarden_scan.model import ConfigDocument, ProbeResult
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
@@ -163,6 +164,17 @@ def load_probe_fixture(name: str) -> tuple[ProbeResult, dict]:
     """`fixtures/probes/<name>.json`: `{"probe": <ProbeResult.to_dict()>, "expected": {...}}`."""
     document = json.loads((PROBE_FIXTURES / f"{name}.json").read_text())
     return ProbeResult.from_dict(document["probe"]), document["expected"]
+
+
+def load_probe_fixture_baseline(name: str) -> tuple[toolhash.Baseline | None, bool]:
+    """The approved list of `fixtures/probes/<name>.json` (1.15.0, SW-MCP-012): the listing of its `baseline_probe`, approved
+    on 2026-11-01, and its `pinned` flag; `(None, False)` for a fixture without a `baseline_probe`."""
+    document = json.loads((PROBE_FIXTURES / f"{name}.json").read_text())
+    if "baseline_probe" not in document:
+        return None, False
+    listing = toolhash.listing_of(ProbeResult.from_dict(document["baseline_probe"]))
+    baseline = toolhash.Baseline(kinds=listing.kind_hashes(), listing=listing, approved_at="2026-11-01T00:00:00Z")
+    return baseline, bool(document.get("pinned", False))
 
 
 @pytest.fixture

@@ -9,7 +9,8 @@ import json
 import pytest
 from a2a_cards import card_bytes
 from a2a_rule_cases import CASES as A2A_CASES
-from conftest import CONFIG_FIXTURES, PROBE_FIXTURES, SKILL_FIXTURES, config_documents, load_config_fixture, load_probe_fixture, load_skill_fixture
+from conftest import (CONFIG_FIXTURES, PROBE_FIXTURES, SKILL_FIXTURES, config_documents, load_config_fixture, load_probe_fixture,
+                      load_probe_fixture_baseline, load_skill_fixture)
 
 from spellwarden_scan.rules import RuleSet
 
@@ -51,14 +52,16 @@ def test_skill_rule_has_both_fixtures_and_they_match(rule_id):
 @pytest.mark.parametrize("rule_id", MCP_IDS)
 def test_mcp_rule_has_both_fixtures_and_they_match(rule_id):
     """`expected.findings` is the complete finding set of the evaluation (rule id, severity, path, line),
-    compared as a set like the skill fixtures (claim P2), plus the classification keys."""
+    compared as a set like the skill fixtures (claim P2), plus the classification keys. A fixture with a `baseline_probe`
+    (SW-MCP-012, 1.15.0) is evaluated against the listing of that probe as the approved list, `pinned` as it says."""
     from spellwarden_scan.probe import evaluate_probe
 
     for side in ("positive", "negative"):
         path = PROBE_FIXTURES / "rules" / f"{rule_id}-{side}.json"
         assert path.is_file(), f"{rule_id} lacks a {side} probe fixture"
         probe, expected = load_probe_fixture(f"rules/{rule_id}-{side}")
-        result = evaluate_probe(probe, RULES)
+        baseline, pinned = load_probe_fixture_baseline(f"rules/{rule_id}-{side}")
+        result = evaluate_probe(probe, RULES, baseline=baseline, pinned=pinned)
         assert _normalised(result) == _expected(expected), f"{rule_id} {side}"
         fired = {entry[0] for entry in _normalised(result)}
         assert (rule_id in fired) == (side == "positive"), f"{rule_id} {side}"

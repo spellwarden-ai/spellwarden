@@ -7,6 +7,7 @@ It scans a committed copy of tests/golden/1.13.0/repo and writes the five report
 tests/test_golden_1_13_0.py imports `build_repo`, `scan` and `as_recorded` from here."""
 from __future__ import annotations
 
+import json
 import shutil
 import subprocess
 import sys
@@ -17,6 +18,9 @@ GOLDEN = Path(__file__).resolve().parent / "1.13.0"
 ROOT = GOLDEN.parents[2]
 AS_OF = "2026-11-14"
 RECORDED_VERSION = "1.13.0"
+RECORDED_RULES_VERSION = "2026.11.6"
+# Rules added after 1.13.0. A scan of the golden repository raises none of them, but the SARIF rule table lists every rule.
+ADDED_AFTER_1_13_0 = ("SW-MCP-012",)
 OUTPUTS = (("json", "report.json"), ("sarif", "report.sarif"), ("markdown", "report.md"),
            ("gitlab-codequality", "gl-code-quality-report.json"), ("text", "report.txt"))
 
@@ -44,12 +48,29 @@ def scan(repo: Path, out: Path) -> int:
     return main(argv)
 
 
-def as_recorded(text: str, version: str) -> str:
+def as_recorded(text: str, version: str, rules_version: str) -> str:
     """`text` with the three places a report names the scanner version (the JSON field, the SARIF driver and the Markdown
-    footer) set back to 1.13.0; the text and Code Quality reports name no version."""
+    footer) and the two places it names the rules version (the JSON field and the Markdown footer) set back to 1.13.0's;
+    the text and Code Quality reports name neither."""
     for template in ('"scanner_version": "{}"', '"semanticVersion": "{}"', "Spellwarden {}, rules"):
         text = text.replace(template.format(version), template.format(RECORDED_VERSION))
+    for template in ('"rules_version": "{}"', ", rules {}."):
+        text = text.replace(template.format(rules_version), template.format(RECORDED_RULES_VERSION))
     return text
+
+
+def sarif_as_recorded(text: str) -> str:
+    """The SARIF report without the descriptors of the rules added after 1.13.0 and with every `ruleIndex` renumbered
+    through the reduced table, written the way the SARIF output writes it."""
+    document = json.loads(text)
+    driver = document["runs"][0]["tool"]["driver"]
+    table = driver["rules"]
+    kept = [rule for rule in table if rule["id"] not in ADDED_AFTER_1_13_0]
+    renumbered = {old: kept.index(rule) for old, rule in enumerate(table) if rule["id"] not in ADDED_AFTER_1_13_0}
+    for result in document["runs"][0]["results"]:
+        result["ruleIndex"] = renumbered[result["ruleIndex"]]
+    driver["rules"] = kept
+    return json.dumps(document, indent=2, sort_keys=True, ensure_ascii=True) + "\n"
 
 
 def record() -> None:

@@ -34,8 +34,8 @@ def fired(p: ProbeResult) -> dict[str, str]:
     return {f.rule_id: f.evidence for f in evaluate_probe(p, RULES).findings}
 
 
-def test_rule_table_has_11_rules_with_the_spec_ids():
-    assert [r.id for r in RULES.by_area("mcp")] == [f"SW-MCP-{n:03d}" for n in range(1, 12)]
+def test_rule_table_has_12_rules_with_the_spec_ids():
+    assert [r.id for r in RULES.by_area("mcp")] == [f"SW-MCP-{n:03d}" for n in range(1, 13)]
     assert RULES.get("SW-MCP-011").owasp_mcp == ("MCP03",) and RULES.get("SW-MCP-009").nist == ("SC-7",)
     assert all(not r.malicious_indicator for r in RULES.by_area("mcp"))
 
