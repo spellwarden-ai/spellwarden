@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from spellwarden_scan.model import SEVERITY_RANK
 from spellwarden_scan.rules import ALLOWED_NIST, ALLOWED_OWASP
 
-TARGET_IDS = ("claude-code-hooks", "kong", "zuplo", "agentcore-policy", "cloudflare-egress", "registry")
+TARGET_IDS = ("claude-code-hooks", "kong", "zuplo", "toolhive", "agentcore-policy", "cloudflare-egress", "registry")
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,8 +71,8 @@ ENFORCEMENT_RULES: tuple[EnforcementRule, ...] = (
     _rule("SW-EG-005", "Sandbox egress only to registry-admitted hosts", "medium",
           owasp=("ASI10",), nist=("SC-7",), targets=("cloudflare-egress",), enforced_by=()),
     _rule("SW-GW-006", "Destructive tool verbs require human approval", "high",
-          owasp=("ASI10",), nist=("AC-6",), targets=("agentcore-policy", "claude-code-hooks"),
-          enforced_by=("claude-code-hooks",)),
+          owasp=("ASI10",), nist=("AC-6",), targets=("agentcore-policy", "claude-code-hooks", "toolhive"),
+          enforced_by=("claude-code-hooks", "toolhive")),
     _rule("SW-RG-007", "Registry admits only curated, auth-enabled entries on spec 2026-07-28 (or grace-flagged before "
           "the deadline) with no open critical or high finding", "medium",
           owasp=("ASI04",), nist=("SR-3",), targets=("registry",), enforced_by=("registry",)),

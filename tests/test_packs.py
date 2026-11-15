@@ -63,13 +63,14 @@ def test_the_eight_enforcement_rules_of_the_spec_table():
         "SW-GW-003": ("high", ("MCP07",), ("AC-3",), ("kong", "zuplo", "agentcore-policy"), ()),
         "SW-GW-004": ("medium", ("ASI01", "MCP06"), ("SI-10",), ("kong", "zuplo"), ("kong", "zuplo")),
         "SW-EG-005": ("medium", ("ASI10",), ("SC-7",), ("cloudflare-egress",), ()),
-        "SW-GW-006": ("high", ("ASI10",), ("AC-6",), ("agentcore-policy", "claude-code-hooks"), ("claude-code-hooks",)),
+        "SW-GW-006": ("high", ("ASI10",), ("AC-6",), ("agentcore-policy", "claude-code-hooks", "toolhive"),
+                      ("claude-code-hooks", "toolhive")),
         "SW-RG-007": ("medium", ("ASI04",), ("SR-3",), ("registry",), ("registry",)),
         "SW-OB-008": ("low", ("MCP08",), ("AU-2",), ("claude-code-hooks", "kong", "zuplo", "agentcore-policy", "cloudflare-egress"), ()),
     }
     assert ENFORCEMENT_IDS == ("SW-HK-001", "SW-HK-002", "SW-GW-003", "SW-GW-004", "SW-EG-005", "SW-GW-006",
                                "SW-RG-007", "SW-OB-008")
-    assert TARGET_IDS == ("claude-code-hooks", "kong", "zuplo", "agentcore-policy", "cloudflare-egress", "registry")
+    assert TARGET_IDS == ("claude-code-hooks", "kong", "zuplo", "toolhive", "agentcore-policy", "cloudflare-egress", "registry")
 
 
 def test_enforcement_rules_use_only_allowed_mappings_and_serialise_like_rules():

@@ -228,14 +228,14 @@ A policy pack is a JSON document (schema 1, `schemas/pack.schema.json`) naming w
 
 The enforcement rules (`ENFORCEMENT_RULES`), and what an export of this release enforces:
 
-| Id | Rule | Enforced by (1.6.0) |
+| Id | Rule | Enforced by (1.15.0) |
 |---|---|---|
 | `SW-HK-001` | Block remote scripts piped to a shell in agent shell tools | Claude Code hooks |
 | `SW-HK-002` | Block reads of credential files (`~/.aws`, `~/.ssh`, `.env`) | Claude Code hooks |
 | `SW-GW-003` | Deny MCP upstreams without OAuth | Not enforced by an export in this version (needs Kong's MCP plugins); the Zuplo export includes a script that checks it at deploy when your pipeline runs it |
 | `SW-GW-004` | Prompt-injection deny patterns on prompts and tool results | Kong, prompts only; Zuplo, MCP server responses |
 | `SW-EG-005` | Sandbox egress only to registry-admitted hosts | Not enforced by an export in this version |
-| `SW-GW-006` | Destructive tool verbs require human approval | Claude Code hooks (asks for approval) |
+| `SW-GW-006` | Destructive tool verbs require human approval | Claude Code hooks (asks for approval); ToolHive (deny: the gateway cannot ask a person) |
 | `SW-RG-007` | Registry admits only curated, auth-enabled entries on spec 2026-07-28 with no open critical or high finding | The hosted private registry's admission policy, not an export |
 | `SW-OB-008` | Emit an audit record for every tool call | Not enforced: the Claude Code export writes a local activity log, which is not an audit trail |
 
@@ -243,7 +243,7 @@ The enforcement rules (`ENFORCEMENT_RULES`), and what an export of this release 
 
 ### Exports
 
-`build_export(pack, target, built_at=..., mode=...)` returns the files of an export as `{path: bytes}`; `target` is one of `EXPORT_TARGETS` (`claude-code-hooks`, `kong`, `zuplo`), and `PLANNED_TARGETS` (`agentcore-policy`, `cloudflare-egress`) are not available yet. Every export holds `SPELLWARDEN-README.md`, which lists what the target enforces, what it cannot enforce and why, how to install it and the limits of its mode, and ends with: Validate field names against the vendor's current documentation before use.
+`build_export(pack, target, built_at=..., mode=...)` returns the files of an export as `{path: bytes}`; `target` is one of `EXPORT_TARGETS` (`claude-code-hooks`, `kong`, `zuplo`, `toolhive`), and `PLANNED_TARGETS` (`agentcore-policy`, `cloudflare-egress`) are not available yet. Every export holds `SPELLWARDEN-README.md`, which lists what the target enforces, what it cannot enforce and why, how to install it and the limits of its mode, and the line: Validate field names against the vendor's current documentation before use. The ToolHive README ends with a link to the target's guide after that line.
 
 **Claude Code hooks.** One guard script, `spellwarden_guard.py` (Python 3.8 or newer, standard library only, the pack's checks compiled in, never opening the network), run by a `PreToolUse` hook for Bash, PowerShell (Claude Code's shell tool on Windows), Read, Grep, Glob and MCP tools, and by a `PostToolUse` hook when SW-OB-008 is on. It denies piped remote scripts and credential-file reads, asks before destructive commands and destructive MCP tool verbs, and applies org rules with the `claude-code-hooks` target (deny for critical or high, ask for medium or low); when one command matches both, the deny wins. The command patterns are written for POSIX shells and read PowerShell commands as text. Windows paths are checked as given and with `\` read as `/`. On unreadable input, including an event larger than 1 MiB, it prints nothing and exits 0: the guard never blocks on its own failure, and a missing interpreter or a timeout lets the tool call proceed. An agent can therefore pass every check by making one tool call larger than 1 MiB. A missing or unreadable script is different: Python exits with status 2, which Claude Code reads as a block, so every matched tool call is refused until the script is restored. Every hook runs it as `python3 -I`, so the checkout cannot plant a module it imports. `SHA256SUMS` lists the script's SHA-256.
 
@@ -386,6 +386,8 @@ followed by one entry that joins the nine prompt-injection patterns, `(?i:ignore
 <!-- zuplo-example:end -->
 
 The three values in angle brackets are the engine version and the two SHA-256 digests; the rest is what the baseline pack exports.
+
+**ToolHive.** Three files: `toolhive/spellwarden-authz.json`, `SPELLWARDEN-README.md` and `SHA256SUMS` (it lists the other two). `spellwarden-authz.json` is an authorization file for Stacklok ToolHive's `thv run --authz-config`, in the format ToolHive v0.65.0 documents (`"version": "1.0"`, `"type": "cedarv1"`, Cedar policies): it permits every request, then, while SW-GW-006 is on, forbids every `call_tool` request for a tool whose name starts with one of the verbs of the Claude Code hooks export (`delete`, `drop`, `destroy`, `remove`, `purge`, `truncate`, `terminate`, `wipe`, `reset`, `force`) or holds one as a `_`- or `-`-separated word. A `forbid` wins over every `permit`, so a server that already has an authorization file takes only the `forbid` policies into it; ToolHive hides the denied tools from `tools/list` and answers a call to one with HTTP 403. The gateway cannot ask a person, so SW-GW-006 is a deny here. Cedar's `like` is case-sensitive: the lower case, Capitalised and UPPER spellings of each verb are matched, a mixed-case spelling such as `dElete_row` is not. Only `tools/call` is restricted. The release workflow runs ToolHive v0.65.0 on the baseline pack's export at every engine release.
 
 ## The `spellwarden` command
 

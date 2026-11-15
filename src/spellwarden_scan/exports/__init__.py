@@ -13,12 +13,12 @@ from collections.abc import Sequence
 from spellwarden_scan.packs import ENFORCEMENT_RULES, PackDocument
 from spellwarden_scan.text import comment_safe
 
-EXPORT_TARGETS = ("claude-code-hooks", "kong", "zuplo")
+EXPORT_TARGETS = ("claude-code-hooks", "kong", "zuplo", "toolhive")
 PLANNED_TARGETS = ("agentcore-policy", "cloudflare-egress")
 EXPORT_MODES = ("project", "managed")
 README_NAME = "SPELLWARDEN-README.md"
 VENDOR_LINE = "Validate field names against the vendor's current documentation before use."
-TARGET_NAMES = {"claude-code-hooks": "Claude Code hooks", "kong": "Kong", "zuplo": "Zuplo",
+TARGET_NAMES = {"claude-code-hooks": "Claude Code hooks", "kong": "Kong", "zuplo": "Zuplo", "toolhive": "ToolHive",
                 "agentcore-policy": "AWS AgentCore Policy", "cloudflare-egress": "Cloudflare sandbox egress",
                 "registry": "Private registry"}
 # Escaped text may be longer than what it escapes (`é` for one letter): user text in generated files is cut
@@ -52,10 +52,20 @@ CANNOT_ENFORCE: dict[tuple[str, str], str] = {
     ("SW-GW-006", "zuplo"): _HOOKS_EXPORT,
     ("SW-RG-007", "zuplo"): _REGISTRY,
     ("SW-OB-008", "zuplo"): "Zuplo's audit logs are an Enterprise add-on set up in the Zuplo portal, not by this export",
+    # 1.15.0: the ToolHive export (exports/toolhive.py)
+    ("SW-HK-001", "toolhive"): _HOOKS_EXPORT,
+    ("SW-HK-002", "toolhive"): _HOOKS_EXPORT,
+    ("SW-GW-003", "toolhive"): "needs ToolHive's authentication settings on thv run, which this export does not write",
+    ("SW-GW-004", "toolhive"): "the authorization file decides on requests, not on tool results",
+    ("SW-EG-005", "toolhive"): _EGRESS,
+    ("SW-RG-007", "toolhive"): _REGISTRY,
+    ("SW-OB-008", "toolhive"): "ToolHive's audit log is configured on thv run, not by this export",
 }
 # (rule id, target) -> the qualifier shown after the id of an enforced rule.
+_CANNOT_ASK = "denied: the gateway cannot ask a person"
 ENFORCED_NOTES: dict[tuple[str, str], str] = {("SW-GW-004", "kong"): "prompts only",
-                                              ("SW-GW-004", "zuplo"): "MCP server responses"}
+                                              ("SW-GW-004", "zuplo"): "MCP server responses",
+                                              ("SW-GW-006", "toolhive"): _CANNOT_ASK}
 _PACK_ID = re.compile(r"baseline|[0-9a-f]{32}")
 _VERSION = re.compile(r"[0-9]{1,3}\.[0-9]{1,4}")
 
@@ -94,10 +104,11 @@ def _safe(text: object) -> str:
 
 def readme_text(doc: PackDocument, *, target: str, mode: str | None, built_at: str, enforced: Sequence[str],
                 cannot_enforce: Sequence[tuple[str, str]], not_included: Sequence[str], install: Sequence[str],
-                limits: Sequence[str]) -> bytes:
+                limits: Sequence[str], guide: str | None = None) -> bytes:
     """`SPELLWARDEN-README.md` of an export (spec 5.5). Each entry of `enforced` starts with a rule id (a label of
     `coverage`); `install` and `limits` are the target's own sentences. ASCII only: every value from the pack goes
-    through `comment_safe`."""
+    through `comment_safe`. `guide` (1.15.0, the gateway targets) is the target's guide, with its campaign tags, written as
+    the last line after the vendor line; without it the README ends with the vendor line, as before."""
     titles = _titles(doc)
 
     def entry(label: str) -> str:
@@ -124,12 +135,14 @@ def readme_text(doc: PackDocument, *, target: str, mode: str | None, built_at: s
     lines += ["", "## Limits", ""]
     lines += [f"- {limit}" for limit in limits]
     lines += ["", VENDOR_LINE, ""]
+    if guide is not None:
+        lines += [f"Guide: {guide}", ""]
     return "\n".join(lines).encode("ascii")
 
 
 def build(doc: PackDocument, target: str, *, built_at: str, mode: str = "project") -> dict[str, bytes]:
     """The files of the export of `doc` to `target` (spec 5.5), README included. `mode` matters only for
-    `claude-code-hooks` (`kong` and `zuplo` ignore it). Raises ValueError for a target outside EXPORT_TARGETS, a mode
+    `claude-code-hooks` (the other targets ignore it). Raises ValueError for a target outside EXPORT_TARGETS, a mode
     outside EXPORT_MODES, or a document whose id or version could not have passed `validate_pack` (they name files)."""
     if target not in EXPORT_TARGETS:
         raise ValueError(f"unknown export target {target!r}")
@@ -145,6 +158,10 @@ def build(doc: PackDocument, target: str, *, built_at: str, mode: str = "project
         from spellwarden_scan.exports.zuplo import zuplo_files
 
         return zuplo_files(doc, built_at=built_at)
+    if target == "toolhive":
+        from spellwarden_scan.exports.toolhive import toolhive_files
+
+        return toolhive_files(doc, built_at=built_at)
     from spellwarden_scan.exports.hooks import hooks_files  # Task 6 (spec 5.5.1)
 
     return hooks_files(doc, built_at=built_at, mode=mode)
