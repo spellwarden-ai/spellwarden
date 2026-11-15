@@ -189,13 +189,16 @@ def test_a_kind_not_read_now_is_not_compared_and_a_kind_read_only_now_is_adopted
 
 
 @pytest.mark.parametrize("side", ["old", "new"])
-def test_a_kind_sent_in_part_compares_only_the_items_on_both_sides(side):
+def test_a_kind_sent_in_part_proves_presence_never_absence(side):
     full = [ToolInfo("a", "A."), ToolInfo("b", "B.")]
     part = [ToolInfo("a", "A changed."), ToolInfo("c", "C.")]
     old = listing(tools=full, tools_complete=side != "old")
     new = listing(tools=part, tools_complete=side != "new")
     found = toolhash.diff(baseline_of(old), new)
-    assert [(c.key, c.change) for c in found.changes] == [("tool:a", "changed")]
+    # A key on both sides is compared; `c`, present now, is an addition only against a whole baseline; `b`, missing now,
+    # is a removal only from a whole current list.
+    expected = {"old": [("tool:a", "changed"), ("tool:b", "removed")], "new": [("tool:a", "changed"), ("tool:c", "added")]}
+    assert sorted((c.key, c.change) for c in found.changes) == expected[side]
     assert found.incomplete == ("tools",)
 
 

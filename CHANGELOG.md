@@ -9,7 +9,9 @@ the new versions, and the rule listings and the SARIF rule table hold SW-MCP-012
 - New public module `spellwarden_scan.toolhash`: one canonical listing of what a probed MCP server advertised (tools,
   prompts, resources, resource templates and instructions) with a hash per item, per kind and for the whole, the same
   whatever order the server sent. It ignores only line endings, trailing blanks, outer whitespace and the NFC form of
-  descriptions, titles and instructions, and never fails on what a server sent (README "Tool lists and SW-MCP-012").
+  descriptions, titles and instructions, and never fails on what a server sent (README "Tool lists and SW-MCP-012"). A
+  list read in part proves that an item exists, never that it is gone; a list in which the probe cut a text at its cap or
+  dropped a schema counts as read in part (the new probe result field `lists_cut`), because a change past the cut is not seen.
 - New rule SW-MCP-012, "MCP server's tools changed since they were approved" (OWASP MCP03 and ASI04, NIST SI-7, ATLAS
   AML.T0109 and AML.T0110.000): one finding per added (medium), removed (low) or changed tool, prompt, resource,
   resource template or instructions (high on a server the organisation relies on, medium otherwise), with the old and new
@@ -24,7 +26,8 @@ the new versions, and the rule listings and the SARIF rule table hold SW-MCP-012
 - New export targets `toolhive` (a Cedar authorization file for ToolHive's thv run, checked against ToolHive v0.65.0) and
   `docker-mcp-gateway` (an interceptor guard with a Dockerfile, pinned to Docker MCP Gateway v0.44.3; the gateway image
   needs Python 3, and the gateway must run with --transport=sse or over stdio). Both deny the destructive tool verbs of
-  SW-GW-006; the Docker guard also replaces tool results that hold SW-GW-004's injection patterns. Obot is not offered: it
+  SW-GW-006; the Docker guard also replaces tool results that hold SW-GW-004's injection patterns in any text a model reads
+  (embedded resources included), and its compose example publishes the gateway on the loopback address only. Obot is not offered: it
   has no documented configuration file for its policies.
 - The release workflow runs both gateways on the baseline pack's exports before it publishes (the `gateway-exports` job).
 

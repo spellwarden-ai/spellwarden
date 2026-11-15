@@ -75,7 +75,7 @@ services:
       - {interceptor_flags(IMAGE_GUARD)[0]}
       - {interceptor_flags(IMAGE_GUARD)[1]}
     ports:
-      - "8811:8811"
+      - "127.0.0.1:8811:8811"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
 """
@@ -89,8 +89,10 @@ INSTALL = [
     f"Run the gateway with the two --interceptor flags of {COMPOSE_PATH}, which shows a whole service. For docker mcp gateway "
     f"run on a host with Python 3, use the flags of {FLAGS_PATH} and replace /path/to with the directory of the guard.",
     "Keep --block-secrets on, as it is by default.",
-    "Connect your clients over SSE (http://<host>:8811/sse) or run the gateway over stdio. Do not use --transport=streaming with "
-    "this guard: see Limits.",
+    "Connect your clients over SSE (http://127.0.0.1:8811/sse) or run the gateway over stdio. Do not use --transport=streaming "
+    "with this guard: see Limits.",
+    "The example publishes the gateway on the loopback address only, because it mounts the Docker socket. Before you publish "
+    "it on another address, put authentication or network isolation in front of it.",
 ]
 LIMITS = [
     f"Docker describes the interceptor contract only in an examples README, and this export was checked against "
@@ -103,8 +105,9 @@ LIMITS = [
     "name is answered with an error result instead of going on.",
     "SW-GW-006 asks a person to approve destructive tools. The gateway cannot ask, so the guard denies them; tool names are "
     "matched in any case.",
-    "SW-GW-004 is checked on the text content and the structured content of tool results, after removing invisible "
-    "characters and normalising to NFKC. Prompts are not checked.",
+    "SW-GW-004 is checked on the text of every content item of a tool result (embedded resources included, binary data "
+    "left out) and on its structured content, after removing invisible characters and normalising to NFKC. Prompts are "
+    "not checked.",
     "The guard writes one line on standard error when it blocks (the rule and the tool name), never an argument or a result.",
 ]
 

@@ -208,6 +208,11 @@ class ProbeResult(_Model):
     resource_templates: tuple[ResourceTemplateInfo, ...] = ()
     resource_templates_complete: bool = False
     lists_read: tuple[str, ...] = ()
+    # 1.15.0: the lists (`tools`, `prompts`, `resources`, `resource_templates`) in which the prober cut a text at its cap or
+    # dropped an input schema over MAX_SCHEMA_BYTES. Their `*_complete` flags keep their 1.9.0 and 1.13.0 meaning (entries,
+    # not texts), so no rule changes; `spellwarden_scan.toolhash` treats such a list as read in part, because a change past
+    # a cut is invisible to its hash. Left out of `to_dict` when empty.
+    lists_cut: tuple[str, ...] = ()
 
     def to_dict(self) -> dict:
         data = _Model.to_dict(self)
@@ -221,6 +226,7 @@ class ProbeResult(_Model):
 _LISTING_DEFAULTS: dict[str, Any] = {
     "instructions": None, "instructions_truncated": False, "prompts": [], "prompts_complete": False, "resources": [],
     "resources_complete": False, "resource_templates": [], "resource_templates_complete": False, "lists_read": [],
+    "lists_cut": [],
 }
 
 
@@ -470,4 +476,4 @@ _NESTED: dict[tuple[str, str], tuple[str, type]] = {
 }
 _TUPLE_FIELDS = frozenset({"problems", "grant_types_supported", "deprecated_features", "long_running_tools", "args",
                            "references", "documents", "org_rules_incomplete", "protocol_versions",
-                           "unsigned_members", "lists_read"})
+                           "unsigned_members", "lists_read", "lists_cut"})

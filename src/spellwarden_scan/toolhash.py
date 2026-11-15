@@ -247,15 +247,18 @@ def _template(template) -> ListedItem:
 def listing_of(probe: ProbeResult) -> ToolListing | None:
     """The listing of `probe` (the module docstring says which kinds are read), or None when it read no kind."""
     kinds: dict[str, KindListing] = {}
+    cut = set(getattr(probe, "lists_cut", ()) or ())  # a text cut at the prober's cap hides any change past the cut
     if probe.tools_source == "probe":
-        kinds["tools"] = _kind((_tool(tool) for tool in probe.tools), complete=probe.tools_complete)
+        kinds["tools"] = _kind((_tool(tool) for tool in probe.tools), complete=probe.tools_complete and "tools" not in cut)
     if "prompts" in probe.lists_read:
-        kinds["prompts"] = _kind((_prompt(prompt) for prompt in probe.prompts), complete=probe.prompts_complete)
+        kinds["prompts"] = _kind((_prompt(prompt) for prompt in probe.prompts),
+                                 complete=probe.prompts_complete and "prompts" not in cut)
     if "resources" in probe.lists_read:
-        kinds["resources"] = _kind((_resource(resource) for resource in probe.resources), complete=probe.resources_complete)
+        kinds["resources"] = _kind((_resource(resource) for resource in probe.resources),
+                                   complete=probe.resources_complete and "resources" not in cut)
     if "resource_templates" in probe.lists_read:
         kinds["resource_templates"] = _kind((_template(template) for template in probe.resource_templates),
-                                            complete=probe.resource_templates_complete)
+                                            complete=probe.resource_templates_complete and "resource_templates" not in cut)
     if probe.reachable and (probe.discover is not None or probe.initialize is not None):
         kinds["instructions"] = _kind([_item("instructions", {"text": clean(probe.instructions)})],
                                       complete=not probe.instructions_truncated)
@@ -292,9 +295,10 @@ class ItemChange:
 @dataclass(frozen=True)
 class ToolDiff:
     """What `diff` found. `not_compared`: kinds the baseline read and the current listing did not; `incomplete`: kinds
-    sent in part on either side (only items present on both sides were compared); `adopted`: kinds read now and not in
-    the baseline, with their hash (the hosted product adds them to the baseline without a finding); `baseline_lost`: a
-    compared kind differs and the baseline's snapshot is not available, so the changes cannot be listed."""
+    sent in part on either side (a list read in part proves presence, never absence: see `diff`); `adopted`: kinds read
+    now and not in the baseline, with their hash (the hosted product adds them to the baseline without a finding);
+    `baseline_lost`: a compared kind differs and the baseline's snapshot is not available, so the changes cannot be
+    listed."""
     changes: tuple[ItemChange, ...]
     not_compared: tuple[str, ...]
     incomplete: tuple[str, ...]
@@ -313,8 +317,13 @@ def _joined(group: list[ListedItem] | None) -> str | None:
     return "+".join(item.hash for item in group) if group else None
 
 
-def _first(group: list[ListedItem] | None) -> dict | None:
-    return group[0].fields if group else None
+def _first(group: list[ListedItem] | None, other: list[ListedItem] | None = None) -> dict | None:
+    """The fields shown for one side of a change: with duplicate names, the first item whose hash the other side lacks, so
+    the body that changed is the one shown; else the first item."""
+    if not group:
+        return None
+    seen = {item.hash for item in other or ()}
+    return next((item.fields for item in group if item.hash not in seen), group[0].fields)
 
 
 def _schema_of_fields(fields: Mapping) -> tuple:
@@ -322,7 +331,7 @@ def _schema_of_fields(fields: Mapping) -> tuple:
 
 
 def _change(kind: str, key: str, old: list[ListedItem] | None, new: list[ListedItem] | None) -> ItemChange:
-    old_fields, new_fields = _first(old), _first(new)
+    old_fields, new_fields = _first(old, new), _first(new, old)
     if old_fields is None or new_fields is None:
         description_changed = schema_changed = False
     else:
@@ -339,8 +348,10 @@ def _change(kind: str, key: str, old: list[ListedItem] | None, new: list[ListedI
 
 
 def diff(baseline: Baseline, current: ToolListing) -> ToolDiff:
-    """`current` against the approved list. A kind is compared when both sides read it; a kind sent in part on either side
-    compares only the keys present on both (changes, never additions or removals); a kind read only now is adopted; a kind
+    """`current` against the approved list. A kind is compared when both sides read it; in a kind sent in part on either side
+    a key present on both sides is compared, a key present now is an addition only when the baseline's list was whole, and a
+    key missing now is a removal only when the current list is whole (a list read in part proves presence, never absence);
+    a kind read only now is adopted; a kind
     read only in the baseline is not compared. Keys whose multisets of item hashes differ are one change of that key."""
     changes: list[ItemChange] = []
     not_compared: list[str] = []
@@ -373,7 +384,9 @@ def diff(baseline: Baseline, current: ToolListing) -> ToolDiff:
             if before is not None and after is not None:
                 if [item.hash for item in before] != [item.hash for item in after]:
                     changes.append(_change(kind, key, before, after))
-            elif not partial:
+            elif after is not None and old.complete:  # present now and absent from a whole baseline: added
+                changes.append(_change(kind, key, before, after))
+            elif before is not None and now.complete:  # absent from a whole current list: removed
                 changes.append(_change(kind, key, before, after))
     if lost:
         changes = []

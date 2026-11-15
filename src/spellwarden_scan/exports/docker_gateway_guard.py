@@ -76,14 +76,32 @@ def strings(value, found):
     return found
 
 
+# Content fields that hold data, not words a model reads: base64 payloads, MIME types and addresses.
+_NOT_TEXT = frozenset({"data", "blob", "mimeType", "uri", "type"})
+
+
+def _content_texts(value, found):
+    """The strings of one content item, the text of an embedded resource included, without its binary payloads."""
+    if isinstance(value, str):
+        found.append(value)
+    elif isinstance(value, dict):
+        for key, inner in value.items():
+            if key not in _NOT_TEXT:
+                _content_texts(inner, found)
+    elif isinstance(value, list):
+        for inner in value:
+            _content_texts(inner, found)
+    return found
+
+
 def result_texts(result):
-    """The text content and the strings of `structuredContent` of a `CallToolResult`."""
+    """Every string a model may read in a `CallToolResult`: the text of each content item of any type (text, an embedded
+    resource's text, the words of a type this guard does not know) and the strings of `structuredContent`."""
     texts = []
     content = result.get("content")
     if isinstance(content, list):
         for item in content:
-            if isinstance(item, dict) and item.get("type") == "text" and isinstance(item.get("text"), str):
-                texts.append(item["text"])
+            _content_texts(item, texts)
     strings(result.get("structuredContent"), texts)
     return texts
 
