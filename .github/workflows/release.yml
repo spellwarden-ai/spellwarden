@@ -376,8 +376,40 @@ jobs:
           test "$code" = 1 || { echo "exit code $code, expected 1 (the findings of the fixture and the gate)"; exit 1; }
           python fixtures/ci/check_connected.py "$RUNNER_TEMP/key-record.json" "$RUNNER_TEMP/key-report.json" --credential key
 
+  gateway-exports:
+    # Phase 3 batch 2b spec 10.9 (claims T-13, T-15): the gateway exports of the baseline pack, run by the gateways themselves
+    # in front of tests/fixtures/gateways/server.py. ToolHive v0.65.0 must hide and refuse delete_order and answer read_order;
+    # Docker MCP Gateway v0.44.3, built from the export's Dockerfile, must answer delete_order with the guard's error result,
+    # answer read_order and replace a result that holds an injection phrase. Linux with Docker; a check of each release, not
+    # of every pull request. The interceptor input the gateway sent is kept as an artifact, from which
+    # tests/fixtures/gateways/docker-v0.44.3 is refreshed.
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5.4.2
+        with:
+          python-version: "3.13"
+      - name: ToolHive v0.65.0 runs the ToolHive export
+        run: |
+          mkdir "$RUNNER_TEMP/toolhive"
+          uv run --locked python tests/gateway_ci.py toolhive "$RUNNER_TEMP/toolhive"
+      - name: Docker MCP Gateway v0.44.3 runs the Docker MCP Gateway export
+        run: |
+          mkdir "$RUNNER_TEMP/docker" "$RUNNER_TEMP/captured"
+          uv run --locked python tests/gateway_ci.py docker "$RUNNER_TEMP/docker" --capture "$RUNNER_TEMP/captured/docker-v0.44.3"
+      - name: Keep the interceptor input of v0.44.3
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: gateway-captures
+          path: ${{ runner.temp }}/captured
+          if-no-files-found: ignore
+
   publish:
-    needs: [build, e2e, e2e-no-python, e2e-permissions, e2e-telemetry, e2e-connected]
+    needs: [build, e2e, e2e-no-python, e2e-permissions, e2e-telemetry, e2e-connected, gateway-exports]
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
@@ -405,7 +437,7 @@ jobs:
           attestations: true
 
   image:
-    needs: [build, e2e, e2e-no-python, e2e-permissions, e2e-telemetry, e2e-connected]
+    needs: [build, e2e, e2e-no-python, e2e-permissions, e2e-telemetry, e2e-connected, gateway-exports]
     runs-on: ubuntu-latest
     permissions:
       contents: read
