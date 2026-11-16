@@ -44,7 +44,8 @@ def test_the_lock_section_names_the_kind_the_commands_and_the_notices():
 
 def test_the_limits_section_records_the_remote_rule_for_the_pins_and_the_export_limits():
     text = section("### Limits", "### Settings:")
-    for needle in ("`tools_not_compared`", "one page of at most 200 entries", "16 KiB", "nested deeper than 128 levels",
+    for needle in ("`tools_not_compared`", "more than 200 entries, a page not read", "16 KiB", "nested deeper than 128 levels",
+                   "at most 10 pages of one list", "Pins written by 1.15.0 and 1.16.0 compare as before",
                    "120 characters", "1 MiB", "Capitalised and UPPER"):
         assert needle in text, needle
 

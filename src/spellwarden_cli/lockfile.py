@@ -8,7 +8,11 @@ read, as an `mcp-tools` item (`{"kind": "mcp-tools", "path": "<document>#<server
 `scan --probe --locked` makes the lock stale when a kind read in full both then and now has another hash, and says
 `tools_not_compared` for a pinned server or kind it could not read; `scan --probe` without `--locked` says `tools_changed`.
 Every comparison without a probe, `lock --check` included, leaves the pins out on both sides, and `lock` without `--probe`
-keeps the stored pin of every server it locks again."""
+keeps the stored pin of every server it locks again.
+
+1.16.1 (review High 3): "read in full" means every entry was read (`KindListing.entries_whole`), whether or not the probe cut
+a text or dropped a schema in it, as the hosted product compares; such a kind is pinned and compared over the texts as the
+probe keeps them, with the notice `probe_list_incomplete` (a change past the cut is not seen)."""
 from __future__ import annotations
 
 import argparse
@@ -172,15 +176,31 @@ def _changes(keys: Iterable[tuple[str, str]]) -> tuple[dict, ...]:
 
 
 def pin_of(path: str, listing: toolhash.ToolListing | None) -> tuple[dict | None, tuple[str, ...]]:
-    """The `mcp-tools` item of a probed server and the kinds its probe read only in part (never pinned: a partial list
-    cannot be compared for additions and removals). No item when the probe did not read `tools` or read no kind in full."""
+    """The `mcp-tools` item of a probed server and the kinds its probe read only in part (never pinned: a list with missing
+    entries cannot be compared for additions and removals). A kind whose entries were all read is pinned even when the probe
+    cut a text in it (1.16.1, review High 3): the hash over the texts as the probe keeps them is deterministic, so padding one
+    description past the cut changes the hash instead of taking the list out of the comparison (`cut_kinds` names these).
+    No item when the probe did not read `tools` or read no kind's entries whole."""
     if listing is None or "tools" not in listing.kinds:
         return None, ()
-    whole = {kind: listed.hash for kind, listed in listing.kinds.items() if listed.complete}
-    partial = tuple(kind for kind, listed in listing.kinds.items() if not listed.complete)
+    whole = {kind: listed.hash for kind, listed in listing.kinds.items() if listed.entries_whole}
+    partial = tuple(kind for kind, listed in listing.kinds.items() if not listed.entries_whole)
     if not whole:
         return None, partial
     return {"kind": PIN_KIND, "path": path, "format": PIN_FORMAT, "kinds": whole}, partial
+
+
+def cut_kinds(listing: toolhash.ToolListing, kinds: Iterable[str]) -> list[str]:
+    """Those of `kinds` whose entries were all read but in which the probe cut a text or dropped a schema: pinned and
+    compared as the probe keeps them, so a change past the cut is not seen."""
+    return [kind for kind in kinds if (listed := listing.kinds.get(kind)) is not None and listed.entries_whole
+            and not listed.complete]
+
+
+def _cut_notice(path: str, kinds: list[str]) -> Notice:
+    return Notice("probe_list_incomplete", path, f"a text in these lists pinned in {LOCK_PATH} is longer than the probe reads "
+                  "(a description 1,000 characters, a schema 16 KiB; README \"Limits\"): they were compared as the probe keeps "
+                  f"them, so a change past the cut is not seen: {', '.join(kinds)}")
 
 
 def _pins(document: Mapping) -> list[dict]:
@@ -188,14 +208,16 @@ def _pins(document: Mapping) -> list[dict]:
 
 
 def _kinds_against(pin: Mapping, listing: toolhash.ToolListing) -> tuple[list[str], list[str]]:
-    """The pinned kinds whose hash differs now, and the pinned kinds this probe did not read in full."""
+    """The pinned kinds whose hash differs now, and the pinned kinds this probe did not read or read with entries missing.
+    A kind whose entries were all read is compared even when a text in it was cut (1.16.1): pins written by 1.15.0 and
+    1.16.0 hold the same hash of a list read whole, so a list padded past a cut now differs from them."""
     differ: list[str] = []
     unread: list[str] = []
     for kind in toolhash.KINDS:
         if kind not in pin["kinds"]:
             continue
         now = listing.kinds.get(kind)
-        if now is None or not now.complete:
+        if now is None or not now.entries_whole:
             unread.append(kind)
         elif now.hash != pin["kinds"][kind]:
             differ.append(kind)
@@ -236,6 +258,9 @@ def compare_pins(pins: Iterable[Mapping], probes: Iterable[ProbeReport], servers
         if unread:
             notices.append(Notice("tools_not_compared", path, f"these lists pinned in {LOCK_PATH} were not read in full and "
                                   f"were not compared: {', '.join(unread)}"))
+        cut = cut_kinds(listing, (kind for kind in toolhash.KINDS if kind in pin["kinds"]))
+        if cut:
+            notices.append(_cut_notice(path, cut))
     return changed, removed, notices
 
 
@@ -330,6 +355,10 @@ def probe_pins(found: Discovery, stored: Mapping[str, dict], *, now_iso: str,
             pin, partial = pin_of(item, report.listing if report.status == "probed" else None)
             for kind in partial:
                 _warn(f"{item}: the server sent part of its {kind}; that list is not pinned")
+            if pin is not None and report.listing is not None:
+                for kind in cut_kinds(report.listing, pin["kinds"]):
+                    _warn(f"{item}: a text in its {kind} is longer than the probe reads; the list is pinned as the probe "
+                          "keeps it, so a change past the cut is not seen")
             if pin is not None:
                 pins[item] = pin
                 continue

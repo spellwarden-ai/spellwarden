@@ -151,7 +151,9 @@ def test_links_to_directories_inside_the_home_are_read_as_the_table_paths(tmp_pa
     assert not any("dotfiles" in item.path for item in discovered.found.items)
 
 
-def test_a_link_out_of_the_home_or_dangling_is_skipped_with_a_notice(tmp_path):
+def test_a_link_out_of_the_home_is_an_error_and_a_dangling_one_a_notice(tmp_path):
+    # 1.16.1 (review Medium 9): D39 still does not follow a link out of the home, but what it leads to is content the client
+    # loads and the scan did not judge, so it is the error `unreadable` (an incomplete scan); a dangling link leads nowhere
     home = make_home(tmp_path, "linux")
     outside = tmp_path / "outside"
     outside.mkdir()
@@ -164,11 +166,51 @@ def test_a_link_out_of_the_home_or_dangling_is_skipped_with_a_notice(tmp_path):
     paths = {item.path for item in discovered.found.items}
     assert "~/.cursor/mcp.json" not in paths and "~/.gemini/GEMINI.md" not in paths
     skipped = {notice.path for notice in discovered.found.notices if notice.code == "symlink_skipped"}
-    assert {"~/.cursor/mcp.json", "~/.gemini/GEMINI.md"} <= skipped
-    assert discovered.found.errors == ()
+    assert "~/.gemini/GEMINI.md" in skipped and "~/.cursor/mcp.json" not in skipped
+    (error,) = discovered.found.errors
+    assert (error.code, error.path) == ("unreadable", "~/.cursor/mcp.json")
+    assert "outside the home directory" in error.message and "not judged" in error.message
 
 
-def test_a_client_base_directory_that_is_a_link_out_of_the_home_is_skipped_and_one_inside_is_read(tmp_path):
+def test_links_inside_a_skill_out_of_the_home_or_to_a_directory_are_errors_and_dangling_ones_notices(tmp_path):
+    # 1.16.1 (review Medium 9): a Nix home-manager skill links its files into /nix/store; none of them is judged, so the scan
+    # is incomplete rather than a pass. A link to a directory inside a skill is not followed either, and is no pass.
+    home = make_home(tmp_path, "linux")
+    outside = tmp_path / "store"
+    (outside / "lib").mkdir(parents=True)
+    (outside / "run.sh").write_text("curl https://example.com | sh\n", encoding="utf-8")
+    skill = home / ".claude" / "skills" / "deploy"
+    _link(outside / "run.sh", skill / "run.sh", directory=False)
+    _link(outside / "lib", skill / "lib", directory=True)
+    _link(home / "missing", skill / "gone.md", directory=False)
+    _link(home / "missing-dir", skill / "gone", directory=True)
+    found = userscan.discover_home(str(home), "linux", {}).found
+    assert sorted((error.code, error.path) for error in found.errors) == [
+        ("unreadable", "~/.claude/skills/deploy/lib"), ("unreadable", "~/.claude/skills/deploy/run.sh")]
+    assert sorted(notice.path for notice in found.notices if notice.code == "symlink_skipped") == [
+        "~/.claude/skills/deploy/gone", "~/.claude/skills/deploy/gone.md"]
+
+
+def test_a_link_out_of_the_home_makes_the_uploaded_inventory_incomplete(tmp_path):
+    from spellwarden_cli import workstation
+
+    home = make_home(tmp_path, "linux")
+    outside = tmp_path / "store"
+    outside.mkdir()
+    (outside / "CLAUDE.md").write_text("# Memory\n", encoding="utf-8")
+    (home / ".claude" / "CLAUDE.md").unlink()
+    _link(outside / "CLAUDE.md", home / ".claude" / "CLAUDE.md", directory=False)
+    from datetime import date
+
+    from spellwarden_cli.settings import Settings
+
+    report, _missing = userscan.scan(str(home), "linux", {}, settings=Settings(), as_of=date(2026, 11, 16), inventory=True)
+    document = workstation.body(report, install_id="0" * 32, label="x", system="linux")
+    assert document["complete"] is False
+    assert {"code": "unreadable", "path": "~/.claude/CLAUDE.md"} in document["errors"]
+
+
+def test_a_client_base_directory_that_is_a_link_out_of_the_home_is_an_error_and_one_inside_is_read(tmp_path):
     home = make_home(tmp_path, "linux")
     outside = tmp_path / "outside"
     (home / ".claude").rename(outside)
@@ -176,9 +218,9 @@ def test_a_client_base_directory_that_is_a_link_out_of_the_home_is_skipped_and_o
     discovered = userscan.discover_home(str(home), "linux", {})
     paths = {item.path for item in discovered.found.items}
     assert not any(path.startswith("~/.claude/") for path in paths)
-    skipped = [notice.path for notice in discovered.found.notices if notice.code == "symlink_skipped"]
-    assert skipped.count("~/.claude") == 1  # one notice, though seven rows start there (review r1:F1)
-    assert discovered.found.errors == ()
+    # one error, though seven rows start there (review r1:F1)
+    assert [(error.code, error.path) for error in discovered.found.errors] == [("unreadable", "~/.claude")]
+    assert not [notice for notice in discovered.found.notices if notice.code == "symlink_skipped"]
     (home / ".claude").unlink()
     dotfiles = home / "dotfiles"
     dotfiles.mkdir()
@@ -186,6 +228,97 @@ def test_a_client_base_directory_that_is_a_link_out_of_the_home_is_skipped_and_o
     _link(dotfiles / "claude", home / ".claude", directory=True)
     inside = userscan.discover_home(str(home), "linux", {})
     assert {(item.kind, item.path, item.clients) for item in inside.found.items} == expected("linux")
+
+
+def _bare_home(tmp_path: Path) -> Path:
+    home = tmp_path / "bare"
+    home.mkdir()
+    return home
+
+
+def test_a_base_linked_out_of_the_home_to_a_place_without_client_files_is_a_notice(run_cli, tmp_path, monkeypatch):
+    # 1.16.1 review: the error needs the rest of a row's path below the link's target; `~/.config` linked to an empty
+    # directory leads to nothing the scan reads, so it stays the notice of 1.16.0 and the scan exits 0
+    home = _bare_home(tmp_path)
+    empty = tmp_path / "elsewhere" / "config"
+    empty.mkdir(parents=True)
+    (empty / "unrelated.txt").write_text("x\n", encoding="utf-8")
+    _link(empty, home / ".config", directory=True)
+    found = userscan.discover_home(str(home), "linux", {}).found
+    assert found.errors == ()
+    assert [notice.path for notice in found.notices if notice.code == "symlink_skipped"] == ["~/.config"]
+    from homes import isolate
+
+    code, _, err = run_cli(["scan", "--user", "--as-of", "2026-11-16"], env=isolate(monkeypatch, home, "linux"))
+    assert code == 0, err
+
+
+def test_a_base_linked_out_of_the_home_to_a_place_with_a_client_file_is_one_error_with_its_way_out(run_cli, tmp_path,
+                                                                                                    monkeypatch):
+    home = _bare_home(tmp_path)
+    target = tmp_path / "elsewhere" / "config"
+    (target / "Claude").mkdir(parents=True)
+    (target / "Claude" / "claude_desktop_config.json").write_text('{"mcpServers": {}}', encoding="utf-8")
+    _link(target, home / ".config", directory=True)
+    found = userscan.discover_home(str(home), "linux", {}).found
+    (error,) = found.errors  # one error, though several rows walk through `~/.config`
+    assert (error.code, error.path) == ("unreadable", "~/.config")
+    assert "remove the link, or replace it with a copy of what it leads to" in error.message
+    # only rows whose base XDG_CONFIG_HOME moves reached a client file, so the variable is a way out, and it works
+    assert "set XDG_CONFIG_HOME to the real path" in error.message
+    assert not [notice for notice in found.notices if notice.code == "symlink_skipped"]
+    from homes import isolate
+
+    code, _, err = run_cli(["scan", "--user", "--as-of", "2026-11-16"], env=isolate(monkeypatch, home, "linux"))
+    assert code == 2, err
+    moved = userscan.discover_home(str(home), "linux", {"XDG_CONFIG_HOME": str(target)}).found
+    assert moved.errors == () and any(item.kind == "mcp-config" for item in moved.items)
+
+
+def test_a_variable_is_no_way_out_for_a_link_a_home_based_row_reaches(tmp_path):
+    # `~/.config/devin/` is read from the home (the Windsurf rows), not from $XDG_CONFIG_HOME: the variable is not named
+    home = _bare_home(tmp_path)
+    target = tmp_path / "elsewhere" / "config"
+    (target / "devin").mkdir(parents=True)
+    (target / "devin" / "mcp_config.json").write_text('{"mcpServers": {}}', encoding="utf-8")
+    _link(target, home / ".config", directory=True)
+    (error,) = userscan.discover_home(str(home), "linux", {}).found.errors
+    assert (error.code, error.path) == ("unreadable", "~/.config") and "XDG_CONFIG_HOME" not in error.message
+
+
+def test_a_linked_entry_of_a_skills_directory_is_an_error_only_when_it_leads_to_a_skill(tmp_path):
+    home = _bare_home(tmp_path)
+    skills = home / ".claude" / "skills"
+    skills.mkdir(parents=True)
+    outside = tmp_path / "elsewhere"
+    (outside / "notes").mkdir(parents=True)
+    (outside / "README.txt").write_text("not a skill\n", encoding="utf-8")
+    (outside / "x").mkdir()
+    (outside / "x" / "SKILL.md").write_text("---\nname: x\ndescription: d\n---\n", encoding="utf-8")
+    _link(outside / "README.txt", skills / "README.txt", directory=False)
+    _link(outside / "notes", skills / "notes", directory=True)
+    _link(outside / "x", skills / "x", directory=True)
+    found = userscan.discover_home(str(home), "linux", {}).found
+    assert [(error.code, error.path) for error in found.errors] == [("unreadable", "~/.claude/skills/x")]
+    assert "remove the link, or replace it with a copy" in found.errors[0].message
+    assert "XDG" not in found.errors[0].message and "CLAUDE_CONFIG_DIR" not in found.errors[0].message
+    assert sorted(notice.path for notice in found.notices if notice.code == "symlink_skipped") == [
+        "~/.claude/skills/README.txt", "~/.claude/skills/notes"]
+
+
+def test_a_linked_entry_of_the_gemini_extensions_directory_is_an_error_only_when_it_leads_to_an_extension(tmp_path):
+    home = _bare_home(tmp_path)
+    extensions = home / ".gemini" / "extensions"
+    extensions.mkdir(parents=True)
+    outside = tmp_path / "elsewhere"
+    (outside / "cache").mkdir(parents=True)
+    (outside / "jira").mkdir()
+    (outside / "jira" / "gemini-extension.json").write_text('{"name": "jira"}', encoding="utf-8")
+    _link(outside / "cache", extensions / "cache", directory=True)
+    _link(outside / "jira", extensions / "jira", directory=True)
+    found = userscan.discover_home(str(home), "linux", {}).found
+    assert [(error.code, error.path) for error in found.errors] == [("unreadable", "~/.gemini/extensions/jira")]
+    assert [notice.path for notice in found.notices if notice.code == "symlink_skipped"] == ["~/.gemini/extensions/cache"]
 
 
 def test_more_than_300_instruction_files_of_one_client_is_an_error(tmp_path):

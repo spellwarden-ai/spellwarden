@@ -6,8 +6,13 @@ What is read: each row of the table for the system, at its base (`clients.resolv
 nothing is ever written, started or fetched (a remote server is probed only under `--probe`, by `run.run_probes`). A symbolic
 link at a table path, at a directory the table lists entries of, or inside a skill is followed when its target is a regular
 file or a directory inside the home (11.3, D39); the item keeps the path it was reached by. Each real file and directory is
-read once: a second row that reaches it adds its client to the items it gave. A link that is not followed is the notice
-`symlink_skipped`.
+read once: a second row that reaches it adds its client to the items it gave. A link to a place outside the home is not followed
+(D39); it is the error `unreadable` (one per link) when what the scan looks for below it exists below its target, checked by
+`os.stat` only, since that is content an agent loads and the scan did not judge, so the scan is incomplete (1.16.1, README
+"Limits"): the rest of the row's path, `SKILL.md` for an entry of a skills directory, `gemini-extension.json` for one of the
+Gemini CLI extensions directory, the target itself inside a skill. A link to a directory inside a skill is not followed either
+and is the same error when its target exists. Every other link that is not followed (a target missing, a loop, or out of the
+home holding nothing the scan reads) is the notice `symlink_skipped`.
 
 A client is found when a path that only it reads exists. The items of a directory that several clients read (a `shared` row)
 name the clients found that way, or every client that reads the directory when none of them was found: a shared directory
@@ -28,7 +33,7 @@ import hashlib
 import os
 import posixpath
 import stat
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import date
 
@@ -55,6 +60,29 @@ _WAY_OUT = "remove what is not used, or scan without --user"
 
 def _silent(_line: str) -> None:
     return None
+
+
+def _holds(target: str, rest: Sequence[str]) -> bool:
+    """Whether the path `rest` exists below the real path `target`, by `os.stat` only (D39: nothing out of the home is read or
+    listed). Where `rest` holds a `*`, only the directory it would be matched in can be checked without listing it."""
+    fixed: list[str] = []
+    for part in rest:
+        if "*" in part:
+            return os.path.isdir(os.path.join(target, *fixed))
+        fixed.append(part)
+    return os.path.exists(os.path.join(target, *fixed))
+
+
+def _linked_out_message(variables: set[str | None]) -> str:
+    """The error `unreadable` of a link out of the home that leads to content the scan looks for (1.16.1). A variable is named
+    as a way out only when every row that reached the link starts at a base it moves: `start` reads a base outside the home
+    that an absolute variable names as it is, but a row whose base is the home itself is not moved by any."""
+    text = ("symbolic link to a place outside the home directory that holds files the scan reads; not followed, so they were "
+            "not judged and the scan is incomplete: remove the link, or replace it with a copy of what it leads to")
+    if variables and None not in variables:
+        text += (f", or set {' or '.join(sorted(v for v in variables if v))} to the real path of the directory it stands for "
+                 "(a directory outside the home that the variable names is read as it is)")
+    return text
 
 
 @dataclass(frozen=True)
@@ -84,6 +112,9 @@ class _Home:
         self.own: set[str] = set()  # the clients for which a path that only they read exists
         self.instruction_counts: dict[str, int] = {}
         self.instruction_left: dict[str, int] = {}
+        # each link out of the home that leads to content the scan looks for -> the variable that moves the base it is on, for
+        # each row that reached it (None: none does)
+        self.linked_out: dict[str, set[str | None]] = {}
 
     # -- paths ----------------------------------------------------------------------------------------------------------
 
@@ -91,9 +122,13 @@ class _Home:
         shown = clients.display(path, self.home, self.system, self.env)
         return shown if shown is not None else posixpath.basename(path.replace("\\", "/"))
 
-    def step(self, real: str, name: str, shown: str) -> str | None:
+    def step(self, real: str, name: str, shown: str, rest: Sequence[str] = (), variable: str | None = None) -> str | None:
         """The real path of `name` inside the real directory `real`: None when it does not exist, or when it is a link that is
-        not followed (its target missing, a loop, or outside the home: the notice `symlink_skipped`)."""
+        not followed: its target missing or a loop (the notice `symlink_skipped`), or outside the home (D39). A link out of the
+        home is the error `unreadable` (once per link, `run`) when `rest`, what the scan looks for below `name`, exists below
+        the link's target (`_holds`, stat only: nothing out of the home is read or listed): that is content the client loads
+        and the scan did not judge (1.16.1). Otherwise it leads to nothing the scan reads and stays the notice
+        `symlink_skipped`. `variable`: the absolute variable that moves the base the link is on, named as a way out."""
         candidate = os.path.join(real, name)
         try:
             info = os.lstat(candidate)
@@ -110,17 +145,23 @@ class _Home:
             self.notices.append(Notice("symlink_skipped", shown, "symbolic link whose target is missing or a loop; not followed"))
             return None
         if clients.relative_to(target, self.real_home) is None:
-            self.notices.append(Notice("symlink_skipped", shown, "symbolic link to a place outside the home directory; not "
-                                                                 "followed"))
+            if _holds(target, rest):
+                self.linked_out.setdefault(shown, set()).add(variable)
+            else:
+                self.notices.append(Notice("symlink_skipped", shown, "symbolic link to a place outside the home directory; not "
+                                                                     "followed"))
             return None
         return target
 
-    def resolve(self, real: str, relative: str, shown_base: str) -> str | None:
-        """`relative` (`/`-separated) below the real directory `real`, each component by `step`."""
+    def resolve(self, real: str, relative: str, shown_base: str, tail: Sequence[str] = (),
+                variable: str | None = None) -> str | None:
+        """`relative` (`/`-separated) below the real directory `real`, each component by `step`; `tail` is what the scan looks
+        for below `relative` (a row's path below its base), `variable` as for `step`."""
         current, shown = real, shown_base
-        for part in relative.split("/"):
+        parts = relative.split("/")
+        for index, part in enumerate(parts):
             shown = f"{shown}/{part}"
-            found = self.step(current, part, shown)
+            found = self.step(current, part, shown, (*parts[index + 1:], *tail), variable)
             if found is None:
                 return None
             current = found
@@ -224,19 +265,22 @@ class _Home:
             if base is None:
                 continue
             for pattern in row.paths:
-                for real, shown in self.expand(base, pattern):
+                for real, shown in self.expand(base, pattern, clients.base_variable(row, self.env)):
                     self.roots[row.client].add(shown)
                     if not row.shared:
                         self.own.add(row.client)
                     self.read_row(row, real, shown)
+        for shown, variables in self.linked_out.items():  # one error per link, however many rows reached it
+            self.errors.append(Notice("unreadable", shown, _linked_out_message(variables)))
         for client, left in self.instruction_left.items():
             if left:
                 self.errors.append(Notice("user_instructions_limit", "", f"{left} more instruction files of "
                                           f"{clients.CLIENT_NAMES[client]} were not read: the scanner reads at most "
                                           f"{MAX_INSTRUCTIONS} per client, so the scan is incomplete; {_WAY_OUT}"))
 
-    def expand(self, base: str, pattern: str) -> list[tuple[str, str]]:
-        """`(real path, shown path)` of each existing path the pattern names below `base` (`*` matches one name)."""
+    def expand(self, base: str, pattern: str, variable: str | None = None) -> list[tuple[str, str]]:
+        """`(real path, shown path)` of each existing path the pattern names below `base` (`*` matches one name); `variable`
+        is the absolute variable that moves `base`, if any."""
         found: list[tuple[str, str]] = []
 
         def walk(real: str, shown: str, rest: list[str]) -> None:
@@ -251,23 +295,25 @@ class _Home:
             else:
                 names = [segment]
             for name in names:
-                target = self.step(real, name, f"{shown}/{name}")
+                target = self.step(real, name, f"{shown}/{name}", more)
                 if target is not None:
                     walk(target, f"{shown}/{name}", more)
 
-        start = self.start(base)
+        start = self.start(base, pattern.split("/"), variable)
         if start is not None:
             walk(start, self.show(base), pattern.split("/"))
         return found
 
-    def start(self, base: str) -> str | None:
+    def start(self, base: str, tail: Sequence[str] = (), variable: str | None = None) -> str | None:
         """The real directory a row's walk starts at. A base inside the home (the default of a client, or a variable that
-        names a place there) is walked from the real home by `step`, so a link on it that leaves the home is skipped with the
-        notice `symlink_skipped`; a base outside the home was named by an absolute variable and is trusted as it is."""
+        names a place there) is walked from the real home by `step`, so a link on it that leaves the home is not followed: the
+        error `unreadable` when the row's path `tail` exists below the link's target, else the notice `symlink_skipped`. A base
+        outside the home was named by an absolute variable and is trusted as it is, which is why setting `variable` to the
+        real path is a way out of that error."""
         inside = clients.relative_to(base, self.home)
         if inside is None:
             return os.path.realpath(base)
-        return self.resolve(self.real_home, inside, "~") if inside else self.real_home
+        return self.resolve(self.real_home, inside, "~", tail, variable) if inside else self.real_home
 
     def read_row(self, row: clients.Row, real: str, shown: str) -> None:
         if not self.once(real, row.client):
@@ -392,7 +438,8 @@ class _Home:
             return
         directories = []
         for name in self.names(real, shown):
-            target = self.step(real, name, f"{shown}/{name}")
+            # a link out of the home is an error only when it leads to an extension (its manifest exists, by `os.stat`)
+            target = self.step(real, name, f"{shown}/{name}", ("gemini-extension.json",))
             if target is None or not os.path.isdir(target):
                 continue
             manifest = self.step(target, "gemini-extension.json", f"{shown}/{name}/gemini-extension.json")
@@ -453,7 +500,9 @@ class _Home:
         """Each `<name>/SKILL.md` below a skills directory, in name order, at most `MAX_SKILLS`."""
         found = []
         for name in self.names(real, shown):
-            target = self.step(real, name, f"{shown}/{name}")
+            # a link out of the home is an error only when it leads to a skill (`SKILL.md`, by `os.stat`, so in each case form
+            # the file system matches it, as for a skill inside the home); any other is the notice `symlink_skipped`
+            target = self.step(real, name, f"{shown}/{name}", (SKILL_FILE,))
             if target is not None and os.path.isdir(target) and os.path.isfile(os.path.join(target, SKILL_FILE)):
                 found.append((name, target))
         if len(found) > MAX_SKILLS:
@@ -465,8 +514,9 @@ class _Home:
 
     def skill(self, real: str, shown: str, client: str, plugin: str | None) -> None:
         """One skill package: every file below its directory (`SKIP_DIRS` left out, as a repository walk does), each link to a
-        regular file inside the home read under the link's path, every other link the notice `symlink_skipped`. A member
-        over 10 MiB and a directory that cannot be listed are the error `unreadable`: the scan is then incomplete."""
+        regular file inside the home read under the link's path. A link out of the home or to a directory, a member over 10 MiB
+        and a directory that cannot be listed are the error `unreadable`: the scan is then incomplete. A link whose target is
+        missing or a loop is the notice `symlink_skipped`."""
         if not self.once(real, client):
             return
         members: list[tuple[str, str, bool]] = []  # (shown path, real path, executable)
@@ -483,8 +533,13 @@ class _Home:
                 if name in SKIP_DIRS:
                     continue
                 if os.path.islink(os.path.join(directory, name)):
-                    self.notices.append(Notice("symlink_skipped", prefix + name, "symbolic link to a directory inside a skill; "
-                                                                                 "not followed"))
+                    if os.path.exists(os.path.join(directory, name)):  # files an agent loads with the skill, not judged
+                        self.errors.append(Notice("unreadable", prefix + name, "symbolic link to a directory inside a skill; "
+                                                  "not followed, so not judged, and the scan is incomplete: remove the link, "
+                                                  "or replace it with a copy of the directory"))
+                    else:  # its target is missing or a loop: nothing an agent could load
+                        self.notices.append(Notice("symlink_skipped", prefix + name, "symbolic link whose target is missing "
+                                                   "or a loop; not followed"))
                     continue
                 kept.append(name)
             directories[:] = kept
@@ -536,7 +591,8 @@ class _Home:
             self.notices.append(Notice("no_agent_content", "", "No agent content found in the home directory"))
         # A link several rows start at or walk through (`~/.claude` is the base of seven rows) is one notice, not one per
         # row: the first notice of each code and path is kept, in the order found (review r1:F1).
-        seen: set[tuple[str, str]] = set()
+        # A link out of the home that one row found leading to content and another to nothing is the error alone.
+        seen: set[tuple[str, str]] = {("symlink_skipped", path) for path in self.linked_out}
         self.notices = [notice for notice in self.notices
                         if (notice.code, notice.path) not in seen and not seen.add((notice.code, notice.path))]
         found = Discovery(tuple(items), tuple(self.skills[path] for path in sorted(self.skills)),

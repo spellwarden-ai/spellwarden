@@ -1,5 +1,8 @@
-"""The current release is 1.16.0, in which `spellwarden scan --user --upload` uploads before it writes its reports, every report
-carries the upload's outcome, and the machine-wide scan reads VS Code's user and profile `mcp.json` without changing a rule (1.15.0
+"""The current release is 1.16.1, in which unread agent content no longer looks like a pass (an oversize repository file of agent
+content and a `scan --user` link out of the home are errors, the probe follows `nextCursor`, and `--locked` compares a list with a
+cut text) without changing a rule (1.16.0: `spellwarden scan --user --upload` uploads before it writes its reports, every report
+except a GitLab Code Quality file carries the upload's outcome, and the machine-wide scan reads VS Code's user and profile
+`mcp.json` without changing a rule; 1.15.0
 added SW-MCP-012 (a probed server's tools changed since they were approved, raised only with an
 approved list), `spellwarden_scan.toolhash`, the lock file's probed tool pins and the ToolHive and Docker MCP Gateway exports (1.14.0
 added `spellwarden scan --user` (the agent clients' configuration in a home directory,
@@ -18,7 +21,7 @@ PYPROJECT = Path(__file__).resolve().parents[1] / "pyproject.toml"
 
 
 def test_the_versions():
-    assert __version__ == "1.16.0"
+    assert __version__ == "1.16.1"
     assert tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))["project"]["version"] == __version__
     assert RULES_VERSION == "2026.11.7"
     assert len(RuleSet.baseline()) == 66
@@ -29,7 +32,19 @@ def test_the_changelog_has_the_1_16_0_entry_above_1_15_0():
     text = (PYPROJECT.parent / "CHANGELOG.md").read_text(encoding="utf-8").replace("\r\n", "\n")
     assert text.index("## 1.16.0 (") < text.index("## 1.15.0 (")
     entry = " ".join(text[text.index("## 1.16.0 ("):text.index("## 1.15.0 (")].split())
-    for needle in ("`scan --user --upload` sends the upload before writing the reports", "every report carries its outcome",
-                   "exit code 2 in every format", "it was printed on stderr only", "VS Code's user and profile `mcp.json` files",
+    # 1.16.1 made the sentence say which format carries no outcome (review Low, batch 2c)
+    for needle in ("`scan --user --upload` sends the upload before writing the reports",
+                   "every report except a GitLab Code Quality file carries its outcome", "exit code 2 in each of them",
+                   "it was printed on stderr only", "VS Code's user and profile `mcp.json` files",
                    "stable and Insiders, on Linux, macOS and Windows", "a run can find servers it did not read before"):
+        assert needle in entry, needle
+
+
+def test_the_changelog_has_the_1_16_1_entry_above_1_16_0():
+    """1.16.1: the phase 3 review fixes (High 1 to 3, Medium 9)."""
+    text = (PYPROJECT.parent / "CHANGELOG.md").read_text(encoding="utf-8").replace("\r\n", "\n")
+    assert text.index("## 1.16.1 (2026-11-16)") < text.index("## 1.16.0 (")
+    entry = " ".join(text[text.index("## 1.16.1 ("):text.index("## 1.16.0 (")].split())
+    for needle in ("Rules version 2026.11.7, unchanged", "`unreadable`", "`file_too_large`", "`symlink_skipped`", "`nextCursor`",
+                   "`tools_not_compared`", "`probe_list_incomplete`", "exit 2", "exit 3"):
         assert needle in entry, needle

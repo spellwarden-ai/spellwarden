@@ -54,6 +54,10 @@ class FileSet:
     # so it records none); `deselected`: every path `include` or `exclude` dropped. Scan-root paths, sorted.
     skipped_dirs: tuple[str, ...] = ()
     deselected: tuple[str, ...] = ()
+    # 1.16.1: the regular files over `FILE_MAX` that `include` and `exclude` keep, sorted. They are not read and not
+    # entries; discovery decides what each one is: agent content left unread is the error `unreadable` (an incomplete
+    # scan, README "Limits"), any other file the notice `file_too_large`.
+    too_large: tuple[str, ...] = ()
 
     def paths(self) -> frozenset[str]:
         return frozenset(entry.path for entry in self.entries)
@@ -117,15 +121,18 @@ def list_files(root: str, settings: Settings, *, git: str | None = None, platfor
         notices.append(Notice("upload_paths_scan_root", ".", "not inside a git repository: SARIF and Code Quality "
                                                              "paths are relative to the scan root, and code scanning or "
                                                              "Code Quality uploads need a scan inside a repository"))
-    entries, links = _entries(root, listed, platform, notices, errors)
-    deselected = sorted({item.path for item in (*entries, *links) if not _selected(item.path, settings)})
+    entries, links, large = _entries(root, listed, platform, notices, errors)
+    deselected = sorted({*(item.path for item in (*entries, *links) if not _selected(item.path, settings)),
+                         *(path for path in large if not _selected(path, settings))})
     entries = [e for e in entries if _selected(e.path, settings)]
     links = [link for link in links if _selected(link.path, settings)]
+    large = [path for path in large if _selected(path, settings)]
     if platform == "win32" and any(not entry.tracked for entry in entries):
         notices.append(Notice("exec_bits_unknown", "", "Windows records no executable bit; untracked files were "
                                                        "judged not executable"))
     return FileSet(root, tuple(sorted(entries, key=lambda e: e.path)), prefix, tuple(notices), tuple(errors),
-                   tuple(sorted(links, key=lambda link: link.path)), tuple(sorted(skipped)), tuple(deselected))
+                   tuple(sorted(links, key=lambda link: link.path)), tuple(sorted(skipped)), tuple(deselected),
+                   tuple(sorted(large)))
 
 
 def _selected(path: str, settings: Settings) -> bool:
@@ -212,7 +219,7 @@ def _walk(root: str, notices: list[Notice], skipped: list[str]) -> list[tuple[st
 
 
 def _entries(root: str, listed: list[tuple[str, str | None]], platform: str, notices: list[Notice],
-             errors: list[Notice]) -> tuple[list[FileEntry], list[LinkEntry]]:
+             errors: list[Notice]) -> tuple[list[FileEntry], list[LinkEntry], list[str]]:
     folded: dict[str, list[str]] = {}
     for path, _ in listed:
         folded.setdefault(unicodedata.normalize("NFC", path).casefold(), []).append(path)
@@ -222,6 +229,7 @@ def _entries(root: str, listed: list[tuple[str, str | None]], platform: str, not
                                                      "a macOS or Windows checkout holds only one of them"))
     entries: list[FileEntry] = []
     links: list[LinkEntry] = []
+    large: list[str] = []
     for path, mode in listed:
         if path in colliding:
             continue
@@ -239,15 +247,15 @@ def _entries(root: str, listed: list[tuple[str, str | None]], platform: str, not
             continue
         if not stat.S_ISREG(info.st_mode):
             continue
-        if info.st_size > FILE_MAX:
-            notices.append(Notice("file_too_large", path, f"larger than {FILE_MAX // 2**20} MiB; skipped"))
+        if info.st_size > FILE_MAX:  # not read; discovery says whether it is agent content (1.16.1)
+            large.append(path)
             continue
         if mode is not None:
             executable = mode == "100755"  # the index decides for tracked files, on every OS
         else:
             executable = platform != "win32" and bool(info.st_mode & 0o111)
         entries.append(FileEntry(path, info.st_size, executable, mode is not None))
-    return entries, links
+    return entries, links, large
 
 
 __all__ = ["FILE_MAX", "LINK_MAX", "SKIP_DIRS", "FileEntry", "FileSet", "LinkEntry", "list_files", "work_tree_top"]

@@ -200,6 +200,14 @@ def resolve_base(row: Row, home: str, system: str, env: Mapping[str, str]) -> st
     return _join(home, _DEFAULTS[row.base])
 
 
+def base_variable(row: Row, env: Mapping[str, str]) -> str | None:
+    """The variable that decides where the row's base is (`resolve_base`): its `moved_by` when that is set, else the variable
+    of its base token; None for a base no variable moves (`~`, `~/Library/Application Support`)."""
+    if row.moved_by is not None and _absolute(env.get(row.moved_by, "")):
+        return row.moved_by
+    return _VARIABLES.get(row.base)
+
+
 def _absolute(value: str) -> bool:
     return bool(value) and os.path.isabs(value)
 
@@ -255,5 +263,5 @@ def readme_block() -> str:
     return f"{table_markdown()}\nNot read:\n\n{not_read_markdown()}"
 
 
-__all__ = ["BASES", "CLIENTS", "CLIENT_NAMES", "NOT_READ", "READERS", "ROWS", "SYSTEMS", "Row", "display", "platform_of",
-           "readme_block", "relative_to", "resolve_base", "rows_for"]
+__all__ = ["BASES", "CLIENTS", "CLIENT_NAMES", "NOT_READ", "READERS", "ROWS", "SYSTEMS", "Row", "base_variable", "display",
+           "platform_of", "readme_block", "relative_to", "resolve_base", "rows_for"]

@@ -129,6 +129,10 @@ def test_read_and_complete_follow_the_probe():
     assert list(value.kinds) == ["tools", "prompts", "instructions"]
     assert [value.kinds[k].complete for k in value.kinds] == [False, False, False]
     assert all(listed.read for listed in value.kinds.values())
+    # 1.16.1: instructions cut at the prober's cap are a cut text in the one entry, which is present: the lock pins and compares
+    # them (review High 3), while `complete` still says that a change past the cut is not seen
+    assert value.kinds["instructions"].entries_whole is True
+    assert b'"entries_complete":true' in value.to_json()
 
 
 def test_a_pasted_list_and_an_unanswered_probe_read_nothing():

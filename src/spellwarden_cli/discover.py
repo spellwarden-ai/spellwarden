@@ -28,7 +28,7 @@ from spellwarden_scan.identity import is_skill_name_variant as _is_skill_name_va
 from spellwarden_scan.relpath import UnsafePath, contain
 
 from spellwarden_cli import instruction_files, paths
-from spellwarden_cli.files import FileEntry, FileSet
+from spellwarden_cli.files import FILE_MAX, FileEntry, FileSet
 from spellwarden_cli.report import Notice
 
 SKILL_FILE = "SKILL.md"
@@ -270,7 +270,8 @@ class _Builder:
         self.skipped: set[str] = set()  # member links of an accepted package whose target is outside the scan root
         self.own: dict[str, str] = {}  # member links followed to the lock itself -> the lock's path
         self.targets: dict[str, str] = {}  # every link followed -> the file it names
-        self.directories = {posixpath.dirname(p) for p in (*self.paths, *self.links)}
+        # an oversize file's directory is one of the set too, so a link through it names the file (1.16.1)
+        self.directories = {posixpath.dirname(p) for p in (*self.paths, *self.links, *fileset.too_large)}
         for directory in list(self.directories):
             while directory:
                 directory = posixpath.dirname(directory)
@@ -285,6 +286,8 @@ class _Builder:
         self.errors: list[Notice] = []
         self.contents: dict[str, bytes] = {}  # each file is read at most once, whoever asks
         self.card_failures: dict[str, tuple[str, str]] = {}  # card links that could not be followed or read -> (code, message)
+        self.too_large = frozenset(fileset.too_large)  # files over `FILE_MAX`: not read, never entries (1.16.1)
+        self.too_large_links: set[str] = set()  # links refused because their target is one of them
 
     def read(self, path: str) -> bytes | None:
         if path in self.contents:
@@ -342,10 +345,11 @@ class _Builder:
     def follow_card(self, path: str) -> bool:
         """`follow` for a `well_known` or `listed` card: a link that cannot be followed is not a run error but a failure of that
         card, kept in `card_failures` (the first one, whoever asks first) for SW-A2A-018. The link stays marked followed, so it is
-        no `symlink_skipped` either (r1:F2, invariant 10)."""
+        no `symlink_skipped` either (r1:F2, invariant 10). A link to a file over `FILE_MAX` stays the run error `unreadable`, as
+        for every agent-content path: repository content left unread makes the scan incomplete (1.16.1)."""
         mark = len(self.errors)
         followed = self.follow(path)
-        if len(self.errors) > mark:
+        if len(self.errors) > mark and path not in self.too_large_links:
             refusal = self.errors[mark]
             self.card_failures.setdefault(path, (refusal.code, refusal.message))
             del self.errors[mark:]
@@ -401,6 +405,9 @@ class _Builder:
             return _Resolution(None, raw, Notice("unsafe_path", path, f"symbolic link to {target!r}, which names "
                                                  f"{twin!r} only in another case or Unicode form; use the exact name"),
                                False)
+        if target in self.too_large:  # repository content an agent loads through the link, left unread (1.16.1)
+            self.too_large_links.add(path)
+            return _Resolution(None, raw, Notice("unreadable", path, f"symbolic link to {target!r}, {_TOO_LARGE}"), False)
         if target not in self.entries:
             return _Resolution(None, raw, Notice("unsafe_path", path, f"symbolic link to {target!r}, not a file of the "
                                                  "file set"), False)
@@ -584,6 +591,10 @@ _DOCUMENT_MESSAGES = {
 }
 
 
+_TOO_LARGE = (f"larger than {FILE_MAX // 2**20} MiB; not read, so the scan is incomplete: make the file smaller, or leave it "
+              "out with `exclude` in .spellwarden/config.yml")
+
+
 def _follow_references(builder: _Builder, manifest: ConfigDocument, directory: str, plugin: str) -> None:
     """Every reference of a plugin manifest that the containment rule accepts and that names a file of the set is
     followed, whatever its name; the JSON shape picks the parser (`reference_kind`). A referenced manifest's own
@@ -602,7 +613,7 @@ def _follow_references(builder: _Builder, manifest: ConfigDocument, directory: s
                                          "another case or Unicode form; use the exact name"))
             continue
         if not builder.follow(target):
-            if target not in builder.links:  # a link that could not be followed is already an error
+            if target not in builder.links and target not in builder.too_large:  # either is already an error
                 builder.notices.append(Notice("file_missing", target, f"referenced by {manifest.path} but not in the file set"))
             continue
         content = builder.read(target)
@@ -693,15 +704,38 @@ def discover(fileset: FileSet, *, listed_cards: Sequence[str] = (), agents_confi
                                                                    "package's lock hash like that file"))
         elif path not in builder.followed:
             builder.notices.append(Notice("symlink_skipped", path, "symbolic link; skipped"))
+    unread = _oversize_files(builder, frozenset(skill.path for skill in skills), plugin_dirs, listed_cards, instructions)
     items = _items(builder, skills, plugin_items)
     items = sorted([*items, *(Item("instructions", f.path, f.name, None, f.format, f.front_matter) for f in instruction_list)],
                    key=lambda item: (item.kind, item.path))
     # a look-alike file that is not a card is no agent content (r0:F3)
-    if not items and not any(is_card(card) for card in cards) and not agents_configured:
+    if not items and not any(is_card(card) for card in cards) and not agents_configured and not unread:
         builder.notices.append(Notice("no_agent_content", "", "No agent content found"))
     return Discovery(tuple(items), tuple(skills), tuple(builder.documents[p] for p in sorted(builder.documents)),
                      tuple(dirs), tuple(builder.notices), tuple(builder.errors), fileset, tuple(cards),
                      instruction_files=tuple(instruction_list))
+
+
+def _oversize_files(builder: _Builder, skill_directories: frozenset[str], plugin_dirs: dict[str, str],
+                    listed_cards: Sequence[str], instructions: bool) -> bool:
+    """The files over `FILE_MAX` (1.16.1, README "Limits"). One that is agent content by the rules discovery reads it by (a
+    configuration document's name, a skill file or any file of a skill, any file of a local plugin directory, an instruction
+    file while they are on, a file named like an agent card or listed in `a2a.cards`) is the error `unreadable`: what the
+    repository holds and the scanner leaves unread makes the scan incomplete (exit 2), and `exclude` is the way out. Any other
+    file is the notice `file_too_large`, as before. Returns whether one was agent content."""
+    listed = frozenset(listed_cards)
+    unread = False
+    for path in sorted(builder.too_large):
+        agent = (_global_kind(path) is not None or _is_skill_file(path) or _owned_by_a_skill(path, skill_directories)
+                 or any(_under(path, directory) for directory in plugin_dirs)
+                 or (instructions and instruction_files.format_of(path) is not None)
+                 or _card_form(path) is not None or path in listed)
+        if agent:
+            unread = True
+            builder.errors.append(Notice("unreadable", path, _TOO_LARGE))
+        else:
+            builder.notices.append(Notice("file_too_large", path, f"larger than {FILE_MAX // 2**20} MiB; skipped"))
+    return unread
 
 
 def _owned_by_a_skill(path: str, skill_directories: frozenset[str]) -> bool:
@@ -772,6 +806,8 @@ def _agent_cards(builder: _Builder, listed: Sequence[str]) -> list[CardFile]:
             forms[path] = form
     for path in dict.fromkeys(listed):
         if not builder.follow_card(path) and path not in builder.card_failures:
+            if path in builder.too_large or path in builder.too_large_links:  # the error `unreadable`, not a missing file
+                continue
             builder.notices.append(Notice("file_missing", path, "listed in a2a.cards but not in the file set"))
             continue
         if forms.get(path) != "well_known":
@@ -807,6 +843,8 @@ def _follow_quietly(builder: _Builder, path: str) -> bool:
     mark = len(builder.errors)
     if builder.follow(path):
         return True
+    if path in builder.too_large_links:  # its target is repository content left unread: the error stays (1.16.1)
+        return False
     del builder.errors[mark:]
     builder.followed.discard(path)
     return False

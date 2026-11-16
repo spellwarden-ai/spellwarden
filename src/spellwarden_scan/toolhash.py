@@ -275,8 +275,9 @@ def listing_of(probe: ProbeResult) -> ToolListing | None:
         kinds["resource_templates"] = _kind((_template(template) for template in probe.resource_templates),
                                             complete=probe.resource_templates_complete, cut="resource_templates" in cut)
     if probe.reachable and (probe.discover is not None or probe.initialize is not None):
+        # one entry, always present: instructions cut at the prober's cap are a cut text, not a missing entry (1.16.1)
         kinds["instructions"] = _kind([_item("instructions", {"text": clean(probe.instructions)})],
-                                      complete=not probe.instructions_truncated)
+                                      complete=True, cut=probe.instructions_truncated)
     return _listing(kinds) if kinds else None
 
 
