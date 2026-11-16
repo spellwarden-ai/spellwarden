@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.16.0 (2026-11-NN)
+
+Rules version 2026.11.7, unchanged. A repository scan gives the same reports as on 1.15.0, apart from the version.
+
+- `scan --user --upload` sends the upload before writing the reports, and every report carries its outcome: a failed upload
+  is an error with exit code 2 in every format (it was printed on stderr only). The text, JSON and Markdown reports list the
+  error, the JSON report's `exit_code` is 2, a CycloneDX document counts it (`spellwarden:errors`, with `spellwarden:complete`
+  `false` and `spellwarden:exit_code` `2`), a SARIF file names the errors in its run's `invocations`, and a GitLab Code
+  Quality file still lists findings only. A crash while uploading is `workstation_upload_failed` with the detail `crash` and
+  still writes every report. A successful upload is the notice `workstation_uploaded` in the text and JSON reports, without
+  the server's time of the upload, which stays on stderr: a report holds no timestamp.
+- The machine-wide scan reads VS Code's user and profile `mcp.json` files, stable and Insiders, on Linux, macOS and Windows;
+  a run can find servers it did not read before. The `mcp.json` files of VS Code's remote and WSL servers are not read.
+
 ## 1.15.0 (2026-11-15)
 
 Rules version 2026.11.7. A new rule that only the hosted product raises, probed tool hashes in the lock file and two new
