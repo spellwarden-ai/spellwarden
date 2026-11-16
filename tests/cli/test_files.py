@@ -125,7 +125,11 @@ def test_symlinks_and_oversized_files_are_skipped_with_notices(make_repo, tmp_pa
         handle.truncate(FILE_MAX + 1)
     fileset = list_files(str(repo), Settings())
     assert _paths(fileset) == ["a.md"]
-    assert _codes(fileset.notices) == ["file_too_large"]
+    # 1.16.1: the file set keeps the oversize path aside, and discovery decides: no agent content, so the notice
+    assert fileset.too_large == ("big.bin",)
+    assert _codes(fileset.notices) == []
+    assert [(n.code, n.path) for n in discover(fileset).notices if n.code == "file_too_large"] == [
+        ("file_too_large", "big.bin")]
     # a listed link is kept aside, never read as a file; discovery follows a link at an agent-content path only and
     # gives every other link the notice (owner decision on symbolic links)
     assert fileset.links == (files.LinkEntry("link.md", False),)

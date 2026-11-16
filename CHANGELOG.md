@@ -1,11 +1,56 @@
 # Changelog
 
+## 1.16.1 (2026-11-16)
+
+Rules version 2026.11.7, unchanged. Four places where content the scanner left unread could still read as a pass now follow
+the rule of README "Limits". Each can turn a passing run into exit 2 or exit 3; no output schema, error code or notice code
+is added.
+
+- A repository file over 10 MiB that is agent content (a configuration file, `SKILL.md` or any file of a skill, any file
+  of a local plugin directory, an instruction file, a file named like an agent card or listed in `a2a.cards`, or the
+  target of a link at such a path, an agent-card path included) is the error `unreadable` and an incomplete scan (exit
+  2); it was the notice `file_too_large` and the scan could pass, so an 11 MB `AGENTS.md` starting with an injection
+  passed. Make the file smaller, or leave it out with `exclude` in .spellwarden/config.yml; in connected mode a skill
+  with an excluded file has no identity for the registry check (`unhashable`), as on 1.16.0 for any file `exclude`
+  leaves out of a skill. Any other file over 10 MiB stays the notice `file_too_large`, now only when `include` and
+  `exclude` keep it.
+- `scan --user`: a symbolic link to a place outside the home directory that leads to files the scan reads, and a link to
+  a directory inside a skill, are still not followed, and are now the error `unreadable` (exit 2, and `complete` false
+  in the workstation upload) instead of the notice `symlink_skipped`, one error per link. With Nix home-manager and
+  similar dotfile managers every client file is such a link, so the inventory read Complete while nothing was judged. A
+  link out of the home is the error only when what the scan looks for below it exists below its target, checked by
+  `stat` alone (nothing out of the home is read or listed): the rest of a table path (up to a `*`), a `SKILL.md` for an
+  entry of a skills directory, a `gemini-extension.json` for an entry of Gemini CLI's extensions directory, the target
+  itself inside a skill. The error names the way out: remove the link, or replace it with a copy of what it leads to,
+  and for a link on a client's base directory the variable that moves it (`XDG_CONFIG_HOME`, `CLAUDE_CONFIG_DIR`,
+  `CODEX_HOME`, `COPILOT_HOME`, `APPDATA`) when every row that reached the link starts there. A link out of the home
+  that leads to nothing the scan reads, and a link whose target is missing or a loop, stay the notice `symlink_skipped`.
+- The MCP probe follows `nextCursor` for tools, prompts, resources and resource templates, as clients do, up to the
+  existing 200 entries per list, at most 10 pages of one list and 12 later-page requests per server on top of its first
+  nine. A later page starts only while the probe's time so far, plus 10 s for that page and 10 s for each first-page
+  request it may still send, stays within 90 s, the longest a 1.16.0 probe could take, and a later page the run's budget
+  refuses ends that list without discarding the probe or its findings: a slow server cannot hold the run longer than
+  before or have its own probe thrown away. An entry identical to one already read in the list is read once, so a server
+  that ignores the cursor and repeats a page gives each tool, finding and fingerprint once. A list is whole only when
+  its last page names no further page; a repeated cursor or page, a cursor that is not a string, a page that cannot be
+  read or a limit reached leaves it read in part, as before. A server that split its tools over pages had SW-MCP-001
+  kept high and every tool past the first page unjudged; a server that sends no cursor gets the same requests and result
+  as on 1.16.0. The notice `probe_list_incomplete` names the new bounds.
+- `lock --probe` pins, and `scan --probe --locked` compares, every list whose entries were all read, also when the probe
+  cut a text or dropped a schema in it, as the hosted product does; the instructions cut at 16,000 characters count the
+  same way. Padding one description past 1,000 characters no longer turns a changed list into the notice
+  `tools_not_compared`: the lock is stale (exit 3), and a compared list with a cut text gives the notice
+  `probe_list_incomplete`, because a change past the cut is still not seen. `tools_not_compared` stays for a list with
+  entries missing or not read. Locks written by 1.15.0 and 1.16.0 compare as before; 1.16.0 reading a pin that 1.16.1
+  wrote for a list with a cut text gives `tools_not_compared` for it. In `spellwarden_scan.toolhash`, instructions cut
+  at the prober's cap are now a cut text (`entries_complete` true) rather than a list read in part.
+
 ## 1.16.0 (2026-11-16)
 
 Rules version 2026.11.7, unchanged. A repository scan gives the same reports as on 1.15.0, apart from the version.
 
-- `scan --user --upload` sends the upload before writing the reports, and every report carries its outcome: a failed upload
-  is an error with exit code 2 in every format (it was printed on stderr only). The text, JSON and Markdown reports list the
+- `scan --user --upload` sends the upload before writing the reports, and every report except a GitLab Code Quality file
+  carries its outcome: a failed upload is an error with exit code 2 in each of them (it was printed on stderr only). The text, JSON and Markdown reports list the
   error, the JSON report's `exit_code` is 2, a CycloneDX document counts it (`spellwarden:errors`, with `spellwarden:complete`
   `false` and `spellwarden:exit_code` `2`), a SARIF file names the errors in its run's `invocations`, and a GitLab Code
   Quality file still lists findings only. A crash while uploading is `workstation_upload_failed` with the detail `crash` and

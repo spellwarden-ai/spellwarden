@@ -1,10 +1,13 @@
 """The MCP probe (spec 6.8; moved from the hosted backend's `spellwarden/mcpservers/probe.py`, Phase B spec 6.6,
-behaviour unchanged): at most nine requests through the fetcher, no credential ever sent, a `ProbeResult` always
-returned. `on_event` receives what the backend logged (`probe_failed`). Python 3.11 or newer."""
+behaviour unchanged): at most nine requests through the fetcher, plus at most `MAX_PAGE_REQUESTS` for the later pages of
+the lists, each started only inside `PAGE_SECONDS` (1.16.1), no credential ever sent, a `ProbeResult` always returned. `on_event` receives what the backend logged
+(`probe_failed`). Python 3.11 or newer."""
 from __future__ import annotations
 
 import json
 import re
+import threading
+import time
 from collections.abc import Callable
 from dataclasses import replace
 from urllib.parse import urlsplit
@@ -19,10 +22,21 @@ PROBE_NAME = "spellwarden-probe"
 DISCOVER_VERSION = "2026-07-28"
 INITIALIZE_VERSION = "2025-11-25"
 MAX_REQUESTS = 9
+# 1.16.1 (review High 2): a list's later pages are read by following `nextCursor`, as clients do, so a server cannot keep a
+# tool out of the probe's sight on page 2. At most MAX_PAGES pages of one list (the first included) and MAX_PAGE_REQUESTS
+# later-page requests per probe, on top of MAX_REQUESTS, so a server that pages endlessly is bounded and the first page of
+# every list is still asked for; the entry caps below stay the same.
+MAX_PAGES = 10
+MAX_PAGE_REQUESTS = 12
+# 1.16.1 review: a later page starts only while the probe's time so far, plus one request deadline for that page and one for
+# each first-page request the probe may still send, stays within PAGE_SECONDS: MAX_REQUESTS request deadlines, the longest a
+# 1.16.0 probe could take. So a server that answers its pages slowly cannot hold the phase longer than before, nor
+# use up its budget so that its own probe is thrown away; it only gets the list read in part.
+PAGE_SECONDS = MAX_REQUESTS * net.TIMEOUT_SECONDS
 MAX_TOOLS = 200
 MAX_DESCRIPTION = 1000
 MAX_SCHEMA_BYTES = 16 * 1024  # Phase C spec 5.6: the largest `inputSchema` recorded, as canonical JSON
-# Phase 3 batch 1 spec 8.1, 8.2, 11.2: the wider reading. One page of each list, at most MAX_LISTED entries, every text cut.
+# Phase 3 batch 1 spec 8.1, 8.2, 11.2: the wider reading. Each list at most MAX_LISTED entries (since 1.16.1 over its pages), every text cut.
 MAX_LISTED = MAX_TOOLS
 MAX_INSTRUCTIONS = 16000
 MAX_NAME = 128
@@ -42,9 +56,14 @@ class MethodNotAllowed(ValueError):
 
 
 class _Probe:
-    def __init__(self, fetcher, endpoint: str, release: str) -> None:
+    def __init__(self, fetcher, endpoint: str, release: str, clock: Callable[[], float] = time.monotonic,
+                 paging: threading.Event | None = None) -> None:
         self.fetcher, self.endpoint, self.release = fetcher, endpoint, release
         self.requests = 0
+        self.page_requests = 0
+        self.clock, self.started = clock, clock()
+        self.first_pages_left = MAX_REQUESTS  # at most this many requests besides later pages can still follow
+        self.paging = paging  # set while a later-page request is in flight (the phase's budget gate reads it)
         self.session_id: str | None = None
         self.negotiated_version: str | None = None
         self.state: dict = {"endpoint": endpoint, "reachable": False}
@@ -60,20 +79,37 @@ class _Probe:
             headers["Mcp-Session-Id"] = self.session_id
         return headers
 
-    def _post(self, method: str, params: dict, *, notification: bool = False):
+    def _post(self, method: str, params: dict, *, notification: bool = False, page: bool = False):
+        """One request. `page`: a later page of a list, counted against MAX_PAGE_REQUESTS and sent only inside PAGE_SECONDS;
+        its failure, a refusal by the phase's budget included, only ends the list (read in part), never sets the probe's
+        `error`."""
         if method not in ALLOWED_METHODS:
             raise MethodNotAllowed(f"the probe never sends {method}")
-        if self.requests >= MAX_REQUESTS:
-            return None
-        self.requests += 1
+        if page:
+            if self.page_requests >= MAX_PAGE_REQUESTS:
+                return None
+            left = min(MAX_REQUESTS - self.requests, self.first_pages_left)
+            if self.clock() - self.started + net.TIMEOUT_SECONDS * (1 + left) > PAGE_SECONDS:
+                return None
+            self.page_requests += 1
+        else:
+            if self.requests >= MAX_REQUESTS:
+                return None
+            self.requests += 1
         body: dict = {"jsonrpc": "2.0", "method": method, "params": params}
         if not notification:
-            body["id"] = self.requests
+            body["id"] = self.requests + self.page_requests
+        if page and self.paging is not None:
+            self.paging.set()
         try:
             response = self.fetcher.post_json(self.endpoint, body, self._headers(method), max_bytes=net.JSON_MAX)
         except net.FetchError as exc:
-            self.state.setdefault("error", exc.code)
+            if not page:
+                self.state.setdefault("error", exc.code)
             return None
+        finally:
+            if page and self.paging is not None:
+                self.paging.clear()
         self.state["reachable"] = True
         session = _header(response.headers, "Mcp-Session-Id")
         if session:
@@ -134,17 +170,18 @@ class _Probe:
             _note_auth(state, listed)
             state["unauthenticated_status"] = listed.status
         if list_result is not None:
+            if state.get("unauthenticated_status") not in (401, 403):  # only `_read_listings` can follow, one request a list
+                self.first_pages_left = len(_LISTINGS)
             listed_tools = list_result.get("tools")
-            tools = listed_tools if isinstance(listed_tools, list) else []
+            tools, whole = (self._later_pages("tools/list", "tools", listed_tools, list_result.get("nextCursor"), MAX_TOOLS)
+                            if isinstance(listed_tools, list) else ([], False))
             state["tools"] = tuple(_tool_of(tool) for tool in tools[:MAX_TOOLS] if isinstance(tool, dict) and isinstance(tool.get("name"), str))
             if any(_tool_cut(tool) for tool in tools[:MAX_TOOLS] if isinstance(tool, dict) and isinstance(tool.get("name"), str)):
                 state["lists_cut"] = (*state.get("lists_cut", ()), "tools")
             state["tools_source"] = "probe"
-            cursor = list_result.get("nextCursor")
-            # 1.9.0: the whole list, or SW-MCP-001 stays high (a later page, an entry past the cap or a dropped entry may
-            # be the dangerous one).
-            state["tools_complete"] = (isinstance(listed_tools, list) and len(state["tools"]) == len(listed_tools)
-                                       and not (isinstance(cursor, str) and cursor))
+            # 1.9.0: the whole list, or SW-MCP-001 stays high (a page not read, an entry past the cap or a dropped entry may
+            # be the dangerous one). 1.16.1: every page is followed (`_later_pages`).
+            state["tools_complete"] = whole and len(state["tools"]) == len(tools)
             meta = {key: list_result[key] for key in ("ttlMs", "cacheScope") if key in list_result}
             state["list_result_meta"] = meta or None
         self._note_instructions()
@@ -169,7 +206,7 @@ class _Probe:
 
     def _read_listings(self) -> None:
         """Spec 8.1: after `tools/list`, one request each of `prompts/list`, `resources/list` and `resources/templates/list`, in
-        that order, one page, and only for a capability the server declared (a JSON object under `prompts` or `resources`).
+        that order (and since 1.16.1 the later pages of each, `_later_pages`), and only for a capability the server declared (a JSON object under `prompts` or `resources`).
         The caller has checked that `tools/list` was answered and not refused with 401 or 403, the sign that the server wants a
         credential the probe never sends. A list is recorded when the answer is a list; it is complete only when nothing was
         dropped (a cursor, the cap, an entry without a name or address)."""
@@ -179,21 +216,57 @@ class _Probe:
             return
         read: list[str] = []
         for capability, method, key, field, complete_field, build in _LISTINGS:
+            self.first_pages_left -= 1
             if not isinstance(capabilities.get(capability), dict):
                 continue
             result = _rpc_result(self._post(method, {}))
             entries = result.get(key) if result is not None else None
             if result is None or not isinstance(entries, list):
                 continue
+            entries, whole = self._later_pages(method, key, entries, result.get("nextCursor"), MAX_LISTED)
             kept = tuple(item for item in (build(entry) for entry in entries[:MAX_LISTED]) if item is not None)
-            cursor = result.get("nextCursor")
             state[field] = kept
-            state[complete_field] = len(kept) == len(entries) and not (isinstance(cursor, str) and cursor)
+            state[complete_field] = whole and len(kept) == len(entries)
             if any(_entry_cut(entry) for entry in entries[:MAX_LISTED]):
                 state["lists_cut"] = (*state.get("lists_cut", ()), field)
             read.append(field)
         if read:
             state["lists_read"] = tuple(read)
+
+    def _later_pages(self, method: str, key: str, entries: list, cursor: object, cap: int) -> tuple[list, bool]:
+        """The entries of a list's first page (`entries`, its `nextCursor` `cursor`) with those of its later pages (1.16.1):
+        `nextCursor` is followed with `{"cursor": ...}` while it is a non-empty string not seen before in this list, until the
+        list holds `cap` entries, MAX_PAGES pages were read or MAX_PAGE_REQUESTS later-page requests were sent. The second
+        value says the list was read whole: the last page read named no further page (no `nextCursor`, null or ""), and no
+        cursor was repeated or not a string, no page went unanswered or unread, and nothing past `cap` was left. An entry of a
+        later page identical (the whole JSON value) to one already read in the list is dropped, and a page that adds nothing
+        new while it names a further page ends the list, read in part: a server that ignores the cursor and repeats a page
+        gives each entry once. Two different entries with the same name are both kept. A later page is also not asked for
+        outside PAGE_SECONDS (`_post`). A server that sends no cursor gets the requests and the result of 1.16.0."""
+        collected = list(entries)
+        known = {_canonical(entry) for entry in collected}
+        seen: set[str] = set()
+        pages = 1
+        while cursor is not None and cursor != "":
+            if not isinstance(cursor, str) or cursor in seen or len(collected) >= cap or pages >= MAX_PAGES:
+                return collected, False
+            seen.add(cursor)
+            result = _rpc_result(self._post(method, {"cursor": cursor}, page=True))
+            more = result.get(key) if result is not None else None
+            if not isinstance(more, list):
+                return collected, False
+            new = []
+            for entry in more:  # an entry identical to one already read is a repeat, not a second entry (1.16.1 review)
+                text = _canonical(entry)
+                if text not in known:
+                    known.add(text)
+                    new.append(entry)
+            collected.extend(new)
+            pages += 1
+            cursor = result.get("nextCursor")
+            if not new and cursor is not None and cursor != "":  # a page with nothing new names no real further page
+                return collected, False
+        return collected, True
 
     def _auth_metadata(self) -> None:
         state = self.state
@@ -264,6 +337,11 @@ def _json_of(response):
         return json.loads(response.body.decode("utf-8"))
     except (ValueError, UnicodeDecodeError):
         return None
+
+
+def _canonical(entry: object) -> str:
+    """A list entry as one text, so that a repeated entry is told by its whole value (`_later_pages`)."""
+    return json.dumps(entry, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
 def _rpc_result(response) -> dict | None:
@@ -387,10 +465,12 @@ _LISTINGS = (
 
 
 def probe(fetcher, endpoint: str, *, release: str, now_iso: str,
-          on_event: Callable[[str, dict], None] | None = None) -> ProbeResult:
-    """Phase B spec 6.6; never raises."""
+          on_event: Callable[[str, dict], None] | None = None, clock: Callable[[], float] = time.monotonic,
+          paging: threading.Event | None = None) -> ProbeResult:
+    """Phase B spec 6.6; never raises. `clock` times the probe for PAGE_SECONDS; `paging` is set while a later-page request
+    is in flight, so the probe phase's budget gate can tell that request's refusal from a first-page one (1.16.1)."""
     try:
-        result = _Probe(fetcher, endpoint, release).run()
+        result = _Probe(fetcher, endpoint, release, clock, paging).run()
     except Exception as exc:  # noqa: BLE001 -- a probe failure is a result, never an exception (spec 6.6)
         if on_event is not None:
             on_event("probe_failed", {"error_class": type(exc).__name__})

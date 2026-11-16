@@ -11,7 +11,9 @@ whole-phase budget, the workers, and the bounds on what an answer may put in a r
 - Budget: four tasks at a time; at most 300 connections and 120 s of wall
   clock for the whole phase. Once either is spent no new connection starts (the fetcher's gate), requests in
   flight end at their own 10 s deadline, and every task that was refused a connection or not started is `budget`
-  with no partial result kept.
+  with no partial result kept. An MCP probe's request for a later page of a list (1.16.1) is the exception: it starts only
+  while the probe stays within the time a 1.16.0 probe could take (`probe.PAGE_SECONDS`), and its refusal by the budget
+  only ends that list, read in part; the probe and its findings are kept.
 - A probe refused by the SSRF rules (`private_address`, `not_https`) records the refusal code only.
 - Every string an answer puts in a result is cut to 1000 characters (the server's instructions to 16,000 and a resource
   address to 2,048), every list to 200 items, every mapping to 200 keys and 8 levels before the engine evaluates it; the output
@@ -96,6 +98,10 @@ class _Budget:
         self._lock = threading.Lock()
         self.spent = False
 
+    @property
+    def clock(self) -> Callable[[], float]:
+        return self._clock
+
     def take(self) -> bool:
         with self._lock:
             if not self.spent and (self._left <= 0 or self._clock() >= self._deadline):
@@ -153,14 +159,17 @@ def event_logger(log: Callable[[str], None]) -> Callable[[str, dict], None]:
     return on_event
 
 
-def gated_fetcher(fetcher_factory: Callable[[], Fetcher], budget: _Budget) -> tuple[Fetcher, threading.Event]:
+def gated_fetcher(fetcher_factory: Callable[[], Fetcher], budget: _Budget,
+                  paging: threading.Event | None = None) -> tuple[Fetcher, threading.Event]:
     """A fetcher whose every connection first takes one from the phase's `budget`; `refused` is set when it was refused
-    one (the task then keeps nothing and is `budget`)."""
+    one (the task then keeps nothing and is `budget`). A refusal while `paging` is set (an MCP probe's request for a later
+    page of a list, 1.16.1) is not: it only ends that list, read in part, and the probe keeps what it read."""
     refused = threading.Event()
 
     def gate() -> None:
         if not budget.take():
-            refused.set()
+            if paging is None or not paging.is_set():
+                refused.set()
             raise FetchError("budget")
 
     fetcher = fetcher_factory()
@@ -173,8 +182,9 @@ def _probe_one(target: ProbeTarget, rules: RuleSet, budget: _Budget, fetcher_fac
                ) -> tuple[ProbeReport, list[ReportFinding], str | None]:
     if budget.spent:
         return ProbeReport(target.item, "skipped", "budget", None), [], None
-    fetcher, refused = gated_fetcher(fetcher_factory, budget)
-    result = prober.probe(fetcher, target.url, release=__version__, now_iso=now_iso)
+    paging = threading.Event()
+    fetcher, refused = gated_fetcher(fetcher_factory, budget, paging)
+    result = prober.probe(fetcher, target.url, release=__version__, now_iso=now_iso, clock=budget.clock, paging=paging)
     if refused.is_set():  # the budget ran out during this probe: nothing of it is kept
         return ProbeReport(target.item, "skipped", "budget", None), [], None
     if result.error in REFUSALS and not result.reachable:
@@ -260,8 +270,10 @@ def run_combined(targets: Sequence[ProbeTarget], rules: RuleSet, *, agent_tasks:
                 notices.append(Notice("probe_skipped", report.item, f"not probed ({reason})"))
             for name in report.incomplete_lists:
                 notices.append(Notice("probe_list_incomplete", report.item,
-                                      f"the server listed more {name.replace('_', ' ')} than the probe reads (one page of at "
-                                      f"most {prober.MAX_LISTED}); only those were checked"))
+                                      f"the server's {name.replace('_', ' ')} were not read whole (the probe reads at most "
+                                      f"{prober.MAX_LISTED} entries over at most {prober.MAX_PAGES} pages, and stops at a page "
+                                      "it cannot read, a repeated cursor or page, or its time limit); only those read were "
+                                      "checked"))
     reports.sort(key=lambda report: report.item)
     agent_outcomes = outcomes[len(chosen):len(chosen) + len(agents)] + [task.skipped() for task in agents_over]
     keyset_outcomes = outcomes[len(chosen) + len(agents):] + [task.skipped() for task in keysets_over]

@@ -158,7 +158,11 @@ def test_a_list_is_capped_at_200_entries_and_is_then_incomplete():
 
 
 def test_a_next_cursor_or_a_dropped_entry_makes_a_list_incomplete():
-    cursor = run(server(ALL, prompts={"prompts": [{"name": "p"}], "nextCursor": "page-2"}))
+    # 1.16.1 follows the cursor: a page 2 that cannot be read leaves the list incomplete with what page 1 held
+    fetcher = server(ALL)
+    fetcher.add("POST", f"{ENDPOINT}#prompts/list", body=rpc({"prompts": [{"name": "p"}], "nextCursor": "page-2"}), queue=True)
+    fetcher.add("POST", f"{ENDPOINT}#prompts/list", status=500, body=b"", queue=True)
+    cursor = run(fetcher)
     assert cursor.prompts_complete is False and [p.name for p in cursor.prompts] == ["p"]
     empty_cursor = run(server(ALL, prompts={"prompts": [{"name": "p"}], "nextCursor": ""}))
     assert empty_cursor.prompts_complete is True

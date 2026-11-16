@@ -265,6 +265,7 @@ def test_a_list_longer_than_the_probe_reads_is_a_notice_never_a_failed_scan(monk
     reports, _ = probing.run_phase(targets_of(1), RULES, fetcher_factory=Server().factory(), now_iso=NOW, notices=notices)
     assert reports[0].status == "probed" and reports[0].incomplete_lists == ("prompts",)
     listed = [(n.path, n.message) for n in notices if n.code == "probe_list_incomplete"]
-    assert listed == [(reports[0].item, "the server listed more prompts than the probe reads (one page of at most 200); only "
-                                        "those were checked")]
+    assert listed == [(reports[0].item, "the server's prompts were not read whole (the probe reads at most 200 entries over at "
+                                        "most 10 pages, and stops at a page it cannot read, a repeated cursor or page, or its time "
+                                        "limit); only those read were checked")]
     assert "incomplete_lists" not in reports[0].to_dict()

@@ -245,13 +245,16 @@ def cyclonedx_schema_bytes(name: str) -> bytes:
 
 
 def cyclonedx_validator():
-    """A Draft 7 validator of `bom-1.7.schema.json` whose `$ref`s resolve to the vendored files only (no network)."""
+    """A Draft 7 validator of `bom-1.7.schema.json` whose `$ref`s resolve to the vendored files only (no network), checking
+    `format` too (1.16.1, review Low of batch 2a). jsonschema checks only the formats whose libraries are installed: with the
+    locked dependencies that is `date`, `email`, `idn-email`, `ipv4`, `ipv6` and `regex`, not `date-time` or `iri-reference`,
+    which need the `rfc3339-validator` and `rfc3987` packages."""
     from jsonschema import Draft7Validator
     from referencing import Registry, Resource
 
     schemas = {name: json.loads(cyclonedx_schema_bytes(name)) for name in CYCLONEDX_FILES}
     registry = Registry().with_resources((schema["$id"], Resource.from_contents(schema)) for schema in schemas.values())
-    return Draft7Validator(schemas["bom-1.7.schema.json"], registry=registry)
+    return Draft7Validator(schemas["bom-1.7.schema.json"], registry=registry, format_checker=Draft7Validator.FORMAT_CHECKER)
 
 
 def cyclonedx_problems(document: dict) -> list[str]:
