@@ -48,3 +48,15 @@ def test_the_changelog_has_the_1_14_0_entry_above_1_13_0():
     for needle in ("`spellwarden scan --user`", "--inventory", "SPELLWARDEN_WORKSTATION_KEY", "`--format cyclonedx`",
                    "`spellwarden_scan.cyclonedx`", "same reports as 1.13.0"):
         assert needle in entry, needle
+
+
+def test_the_upload_paragraph_says_the_request_comes_before_the_reports():
+    """Phase 3 batch 2c spec 11.2 (F1): the request is sent before the reports are written, and every report carries it."""
+    text = read("README.md")
+    section = text[text.index("#### Uploading a workstation inventory"):text.index("### The usage ping")]
+    assert "the reports were written before the request" not in section
+    for needle in ("before any report is written", "Every report carries the outcome", "`exit_code` is 2 after a failure",
+                   "the code `crash`", "`invocations` when the upload failed", "the Markdown report lists the error",
+                   "`spellwarden:errors`", "a GitLab Code Quality file lists findings only",
+                   "The reports hold no timestamp", "printed on stderr, after the reports are written"):
+        assert needle in section, needle

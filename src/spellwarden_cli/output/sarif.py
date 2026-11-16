@@ -1,5 +1,6 @@
 """SARIF 2.1.0 (spec 6.9): one run, every rule of the set, one result per finding with the engine's fingerprint;
-accepted findings carry an external suppression. No timestamps, no invocations: the file is byte-deterministic."""
+accepted findings carry an external suppression. No timestamps, and an invocation only after a failed workstation upload
+(phase 3 batch 2c spec 11.2, F1), with no time in it: the file is byte-deterministic."""
 from __future__ import annotations
 
 import json
@@ -18,6 +19,8 @@ HELP_URI = "https://github.com/spellwarden-ai/spellwarden#the-rules"
 SECURITY_SEVERITY = {"critical": "9.5", "high": "8.0", "medium": "5.5", "low": "3.0"}
 LEVEL = {"critical": "error", "high": "error", "medium": "warning", "low": "note"}
 _WORD = re.compile(r"[A-Za-z0-9]+")
+# Phase 3 batch 2c spec 11.2 (F1): a report holding one of these errors names every error of the run in the invocation.
+UPLOAD_ERRORS = ("workstation_upload_failed", "workstation_upload_too_large")
 
 
 def _name(rule: Rule) -> str:
@@ -68,6 +71,13 @@ def _result(report: Report, item: ReportFinding, index: dict[str, int], instruct
     return result
 
 
+def _invocation(report: Report) -> dict:
+    """The run did not complete: one tool execution notification per error, its code as the descriptor id."""
+    return {"executionSuccessful": False,
+            "toolExecutionNotifications": [{"descriptor": {"id": error.code}, "level": "error",
+                                            "message": {"text": escape.message(error.message)}} for error in report.errors]}
+
+
 def render(report: Report) -> str:
     rules = list(report.rules)
     index = {rule.id: position for position, rule in enumerate(rules)}
@@ -84,4 +94,6 @@ def render(report: Report) -> str:
             "results": [_result(report, item, index, instructions, clients_of) for item in report.findings],
         }],
     }
+    if any(error.code in UPLOAD_ERRORS for error in report.errors):  # absent otherwise, so every other SARIF file is unchanged
+        document["runs"][0]["invocations"] = [_invocation(report)]
     return json.dumps(document, indent=2, sort_keys=True, ensure_ascii=True) + "\n"
