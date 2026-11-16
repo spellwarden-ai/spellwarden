@@ -1,0 +1,1 @@
+{"servers": {"memory": {"type": "stdio", "command": "npx", "args": ["-y", "@modelcontextprotocol/server-memory@2025.1.1"]}}}

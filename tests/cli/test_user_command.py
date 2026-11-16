@@ -66,8 +66,8 @@ def test_inventory_lists_every_item_without_judging_it(run_cli, tmp_path, monkey
     assert code == 0, err
     assert "  mcp-server ~/.cursor/mcp.json#search (http, https://search.example.com/sse)" in out.splitlines()
     assert "  skill ~/.agents/skills/shared (also Windsurf (Devin Desktop), Codex, Gemini CLI)" in out.splitlines()
-    # 53 with the VS Code user files; Task 5 dropped that row, which gave 2 documents and 2 servers
-    assert out.splitlines()[-1] == "49 items listed, not judged (--inventory)"
+    # 1.16.0 reads the six VS Code user and profile files of the fixture home, 6 documents and 6 servers (batch 2c spec 11.3)
+    assert out.splitlines()[-1] == "61 items listed, not judged (--inventory)"
     code, out, _ = run_cli(["scan", "--user", "--inventory", "--as-of", "2026-11-14", "--format", "json"], env=env)
     assert json.loads(out)["findings"] == [] and json.loads(out)["probes"] == []
 

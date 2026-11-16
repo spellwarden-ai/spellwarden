@@ -1,0 +1,1 @@
+{"servers": {"time": {"type": "stdio", "command": "npx", "args": ["-y", "@modelcontextprotocol/server-time@2025.1.1"]}}}

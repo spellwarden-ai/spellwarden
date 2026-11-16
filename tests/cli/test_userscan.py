@@ -66,6 +66,15 @@ def by_system(system: str) -> list:
         ("mcp-server", f"{place}/Code/User/mcp.json#fs", [f"vscode/{system}"]),
         ("mcp-config", f"{place}/Code/User/profiles/work/mcp.json", [f"vscode/{system}"]),
         ("mcp-server", f"{place}/Code/User/profiles/work/mcp.json#jira", [f"vscode/{system}"]),
+        # phase 3 batch 2c spec 11.3 (F2): the four paths of the VS Code rows, with two profile folders each
+        ("mcp-config", f"{place}/Code/User/profiles/personal/mcp.json", [f"vscode/{system}"]),
+        ("mcp-server", f"{place}/Code/User/profiles/personal/mcp.json#memory", [f"vscode/{system}"]),
+        ("mcp-config", f"{place}/Code - Insiders/User/mcp.json", [f"vscode/{system}"]),
+        ("mcp-server", f"{place}/Code - Insiders/User/mcp.json#git", [f"vscode/{system}"]),
+        ("mcp-config", f"{place}/Code - Insiders/User/profiles/work/mcp.json", [f"vscode/{system}"]),
+        ("mcp-server", f"{place}/Code - Insiders/User/profiles/work/mcp.json#fetch", [f"vscode/{system}"]),
+        ("mcp-config", f"{place}/Code - Insiders/User/profiles/personal/mcp.json", [f"vscode/{system}"]),
+        ("mcp-server", f"{place}/Code - Insiders/User/profiles/personal/mcp.json#time", [f"vscode/{system}"]),
     ]
 
 
@@ -287,3 +296,28 @@ def test_a_codex_marketplace_shadowed_by_a_server_id_is_an_error_not_a_merge(tmp
     assert "source" not in discovered.details.get("~/.codex/config.toml#marketplaces.github", {})
     errors = [error for error in discovered.found.errors if error.path == "~/.codex/config.toml"]
     assert [error.code for error in errors] == ["unreadable"]
+
+
+@pytest.mark.parametrize("system", SYSTEMS)
+def test_the_vs_code_user_and_profile_mcp_json_files_are_read_once_each_for_vs_code(tmp_path, system):
+    """Phase 3 batch 2c spec 11.3 and T-61 (F2): every planted `mcp.json` of the four paths, stable and Insiders, two profile
+    folders each, is one `mcp-config` item of VS Code alone, at its home-relative path, with its server."""
+    place = _PLACES[system]
+    discovered = userscan.discover_home(str(make_home(tmp_path, system)), system, {})
+    configs = sorted(item.path for item in discovered.found.items
+                     if item.kind == "mcp-config" and "/Code" in item.path and item.path.startswith(place))
+    assert configs == sorted(f"{place}/{flavour}/User/{middle}mcp.json" for flavour in ("Code", "Code - Insiders")
+                             for middle in ("", "profiles/work/", "profiles/personal/"))
+    servers = [item for item in discovered.found.items if item.kind == "mcp-server" and item.path.split("#")[0] in configs]
+    assert len(servers) == 6 and all(item.clients == ("vscode",) for item in servers)
+    assert discovered.found.errors == () and discovered.found.notices == ()
+
+
+def test_a_vs_code_profile_folder_set_by_xdg_config_home_is_shown_under_the_variable(tmp_path):
+    home = make_home(tmp_path, "linux")
+    moved = tmp_path / "xdg"
+    (home / ".config").rename(moved)
+    discovered = userscan.discover_home(str(home), "linux", {"XDG_CONFIG_HOME": str(moved)})
+    paths = {item.path for item in discovered.found.items}
+    assert "$XDG_CONFIG_HOME/Code/User/profiles/work/mcp.json#jira" in paths
+    assert "$XDG_CONFIG_HOME/Code - Insiders/User/mcp.json#git" in paths

@@ -1,0 +1,1 @@
+{"servers": {"git": {"type": "stdio", "command": "npx", "args": ["-y", "@modelcontextprotocol/server-git@2025.1.1"]}}}

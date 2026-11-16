@@ -8,6 +8,7 @@ import stat
 import sys
 from pathlib import Path
 
+import jsonschema
 import pytest
 from conftest import credential
 from homes import isolate, make_home
@@ -161,3 +162,111 @@ def test_upload_without_the_workstation_variables_stops_before_any_client_file_i
     code, out, _ = run_cli(["scan", "--user", "--upload", "--format", "json"],
                            env={**env, "SPELLWARDEN_WORKSTATION_ORG": "acme"})
     assert code == 2 and "SPELLWARDEN_WORKSTATION_KEY" in json.loads(out)["errors"][0]["message"]
+
+
+# --- phase 3 batch 2c spec 11.2 and T-60 (F1): the upload runs before the reports are written, and every report carries it ---
+
+FORMATS = ("text", "json", "sarif", "markdown", "gitlab-codequality", "cyclonedx")
+SARIF_SCHEMA = Path(__file__).resolve().parents[1] / "schemas" / "sarif-schema-2.1.0.json"
+
+
+def _every_format(tmp_path: Path) -> tuple[list[str], dict[str, Path]]:
+    paths = {fmt: tmp_path / "out" / f"report.{fmt}" for fmt in FORMATS}
+    args = ["scan", "--user", "--upload", "--device-label", "x", "--as-of", "2026-11-14"]
+    for fmt, path in paths.items():
+        args += ["--format", fmt, "--output", str(path)]
+    return args, paths
+
+
+def _refused(fake, _monkeypatch) -> None:
+    answered(fake, 403, {"error": "plan_required", "message": "Workstation inventories are part of the Enterprise plan.",
+                         "plan_needed": "enterprise"})
+
+
+def _too_large(_fake, monkeypatch) -> None:
+    monkeypatch.setattr(workstation, "ITEMS_MAX", 3)
+
+
+def _crashed(_fake, monkeypatch) -> None:
+    def boom(*_args, **_kwargs):
+        raise RuntimeError("CANARY-EXCEPTION-TEXT")
+
+    monkeypatch.setattr(workstation, "upload", boom)
+
+
+@pytest.mark.parametrize("failure, code, detail", [
+    (_refused, "workstation_upload_failed", "plan_required"),
+    (_too_large, "workstation_upload_too_large", None),
+    (_crashed, "workstation_upload_failed", "crash"),
+])
+def test_a_failed_upload_is_an_error_of_every_report_and_exits_2(run_cli, tmp_path, monkeypatch, api_double, failure, code,
+                                                                  detail):
+    fake, _ = api_double
+    failure(fake, monkeypatch)
+    args, paths = _every_format(tmp_path)
+    exit_code, _, err = run_cli(args, env=upload_env(monkeypatch, make_home(tmp_path, "linux")))
+    assert exit_code == 2, err
+    texts = {fmt: path.read_text(encoding="utf-8") for fmt, path in paths.items()}  # a crash in the upload writes them all
+    report = json.loads(texts["json"])
+    (error,) = [entry for entry in report["errors"] if entry["code"] == code]
+    assert report["exit_code"] == 2 and error["path"] == "" and error.get("detail") == detail
+    assert f"error {code} " in texts["text"] and f"- {code}: " in texts["markdown"]
+    sarif = json.loads(texts["sarif"])
+    schema = json.loads(SARIF_SCHEMA.read_bytes().replace(b"\r\n", b"\n"))
+    jsonschema.validators.validator_for(schema)(schema).validate(sarif)
+    (invocation,) = sarif["runs"][0]["invocations"]
+    assert invocation["executionSuccessful"] is False
+    # one notification per error of the run, and this run has the one error (batch 2c spec 11.2)
+    assert [entry["descriptor"]["id"] for entry in invocation["toolExecutionNotifications"]] == [code]
+    properties = {entry["name"]: entry["value"] for entry in json.loads(texts["cyclonedx"])["metadata"]["properties"]}
+    assert properties["spellwarden:exit_code"] == "2" and properties["spellwarden:complete"] == "false"
+    assert properties["spellwarden:errors"] == "1"  # a CycloneDX document counts the error and names none (P21)
+    # Code Quality lists findings only and makes no issue for the upload: the exit code 2 says it (batch 2c spec 11.2)
+    assert isinstance(json.loads(texts["gitlab-codequality"]), list) and code not in texts["gitlab-codequality"]
+    assert "CANARY-EXCEPTION-TEXT" not in "".join(texts.values()) + err  # the exception's class, never its text
+    assert f"error {code}" in err  # the stderr line of 1.14.0, after the "wrote" lines
+    assert err.index("wrote the json report") < err.index(f"error {code}")
+
+
+def test_the_request_is_sent_before_any_report_is_written(run_cli, tmp_path, monkeypatch, api_double):
+    fake, _ = api_double
+    answered(fake)
+    args, paths = _every_format(tmp_path)
+    existed = []
+    real = workstation.upload
+
+    def spy(document, **kwargs):
+        existed.append([path.exists() for path in paths.values()])
+        return real(document, **kwargs)
+
+    monkeypatch.setattr(workstation, "upload", spy)
+    exit_code, _, err = run_cli(args, env=upload_env(monkeypatch, make_home(tmp_path, "linux")))
+    assert exit_code == 1, err  # the findings decide the exit code; the upload succeeded
+    assert existed == [[False] * len(FORMATS)] and all(path.exists() for path in paths.values())
+
+
+def test_a_successful_upload_is_a_notice_of_the_reports(run_cli, tmp_path, monkeypatch, api_double):
+    fake, _ = api_double
+    answered(fake)
+    args, paths = _every_format(tmp_path)
+    exit_code, _, err = run_cli(args, env=upload_env(monkeypatch, make_home(tmp_path, "linux")))
+    texts = {fmt: path.read_text(encoding="utf-8") for fmt, path in paths.items()}
+    report = json.loads(texts["json"])
+    (notice,) = [entry for entry in report["notices"] if entry["code"] == "workstation_uploaded"]
+    assert exit_code == 1 and report["exit_code"] == 1, err
+    assert notice == {"code": "workstation_uploaded", "path": "", "message": "uploaded the inventory of x"}
+    assert "notice workstation_uploaded " in texts["text"]
+    assert not any(error["code"].startswith("workstation_upload") for error in report["errors"])
+    assert "invocations" not in json.loads(texts["sarif"])["runs"][0]
+    # a report holds no timestamp (README "Reports"): the server's time of the upload is in the stderr line only (P20)
+    assert "10:00:00Z" not in "".join(texts.values())
+    assert "notice workstation_uploaded: uploaded the inventory of x (2026-11-14T10:00:00Z)" in err
+
+
+def test_a_run_without_upload_writes_what_it_wrote_before(run_cli, tmp_path, monkeypatch):
+    env = isolate(monkeypatch, make_home(tmp_path, "linux"), "linux")
+    _, out, _ = run_cli(["scan", "--user", "--as-of", "2026-11-14", "--format", "json"], env=env)
+    report = json.loads(out)
+    assert not any(entry["code"].startswith("workstation_") for entry in report["notices"] + report["errors"])
+    _, out, _ = run_cli(["scan", "--user", "--as-of", "2026-11-14", "--format", "sarif"], env=env)
+    assert "invocations" not in json.loads(out)["runs"][0]

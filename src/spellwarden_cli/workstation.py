@@ -2,20 +2,25 @@
 
 The run: the usage checks are `main`'s; then, with `--upload`, the organisation and the key (`SPELLWARDEN_WORKSTATION_ORG`,
 `SPELLWARDEN_WORKSTATION_KEY`, never the repository variables, D33) and the device label are checked before any client file is
-read; the scan (`userscan.scan`); every requested output; and last the upload. A `--user` run sends no usage ping and starts no
-connected mode, whatever `SPELLWARDEN_ORG` and `SPELLWARDEN_API_KEY` say.
+read; the scan (`userscan.scan`); with `--upload` the upload; and last every requested output, which carries the upload's
+outcome (phase 3 batch 2c spec 11.2, F1). A `--user` run sends no usage ping and starts no connected mode, whatever
+`SPELLWARDEN_ORG` and `SPELLWARDEN_API_KEY` say.
 
 The upload is one `POST {api}/v1/orgs/{slug}/workstations/inventory` through `api.ApiClient` (HTTPS, public addresses, no
 redirect, 10 s, one retry on a 429 or a 5xx). Its body is the closed shape of 6.3, built from the report: the item facts of
 `Report.details` (already reduced, D40), no message, no evidence, no environment value, header or argument. Over the caps
-(1 MiB, 2,000 items, 1,000 findings) nothing is sent. The outcome is printed after the outputs are written (they already exist
-when the upload starts) and a failure exits 2 (D12).
+(1 MiB, 2,000 items, 1,000 findings) nothing is sent. The outcome is a notice (`workstation_uploaded`) or an error
+(`workstation_upload_too_large`, `workstation_upload_failed`) of the report, so each output carries it as it carries any notice
+or error, and a failure exits 2 (D12, batch 2c spec 11.2); a crash while uploading is `workstation_upload_failed` with the detail
+`crash` and still writes every output. The report's notice holds no time (a report holds no timestamp); the stderr line,
+printed after the outputs are written, keeps the server's time of the upload.
 
 The state file `workstation.json` in the user configuration directory holds the random install id and the label, written with
 mode 0600 where modes exist, by an upload run only, before its request, so a failed request keeps the device's identity."""
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import json
 import os
 import re
@@ -197,6 +202,47 @@ def upload(document: dict, *, org: str, key, env: Mapping[str, str], log=_silent
     return Notice("workstation_uploaded", "", f"uploaded the inventory of {document['device_label']} ({when})")
 
 
+# --- the outcome ------------------------------------------------------------------------------------------------------
+
+def upload_outcome(report: Report, *, install_id: str, label: str, org: str, key, env: Mapping[str, str], home: str,
+                   log=_silent) -> Notice:
+    """Phase 3 batch 2c spec 11.2 (F1): the body from the report, then the caps, the state file and the request. The notice
+    `workstation_uploaded`, or the error `workstation_upload_too_large` (nothing sent) or `workstation_upload_failed` (the
+    server's code in `detail`, or `crash` with the exception's class when anything here raised). Never raises."""
+    try:
+        document = body(report, install_id=install_id, label=label, system=clients.platform_of(_platform()))
+        reason = too_large(document)
+        if reason is not None:
+            return Notice("workstation_upload_too_large", "",
+                          f"nothing was uploaded: the inventory has {reason}. Report this as a bug.")
+        save_state(state_directory(_platform(), env, home), install_id, label)
+        return upload(document, org=org, key=key, env=env, log=log)
+    except Exception as exc:  # a crash in the upload still writes every report (11.2); the class only, never its text
+        return Notice("workstation_upload_failed", "",
+                      f"the workstation inventory was not uploaded: internal error: {type(exc).__name__}", detail="crash")
+
+
+def with_outcome(report: Report, outcome: Notice, *, label: str) -> Report:
+    """The report with the upload's outcome among its notices (success) or its errors (exit 2), in the order of spec 6.9.
+    The notice of a success names the device and not the server's time of the upload, which `upload` puts in its message
+    for the stderr line: a report holds no timestamp (README "Reports")."""
+    if outcome.code == "workstation_uploaded":
+        listed = Notice("workstation_uploaded", "", f"uploaded the inventory of {label}")
+        return dataclasses.replace(report, notices=(*report.notices, listed)).sorted()
+    return dataclasses.replace(report, errors=(*report.errors, outcome)).sorted()
+
+
+def _print_outcome(outcome: Notice, *, quiet: bool) -> None:
+    """The stderr line of 1.14.0, after the outputs are written."""
+    if outcome.code == "workstation_uploaded":
+        if not quiet:
+            _stderr(f"notice workstation_uploaded: {outcome.message}")
+    elif outcome.detail is None:
+        _stderr(f"error {outcome.code}: {outcome.message}")
+    else:
+        _stderr(f"error {outcome.code} ({outcome.detail}): {outcome.message}")
+
+
 # --- the command -----------------------------------------------------------------------------------------------------
 
 def _error_report(as_of: str, fail_on: str, code: str, message: str) -> Report:
@@ -253,28 +299,20 @@ def cmd_user(args: argparse.Namespace, outputs: list[tuple[str, str | None]], cr
         report, not_found = _error_report(as_of.isoformat(), fail_on, "crash", f"internal error: {type(exc).__name__}: {exc}"), ()
     for client in not_found:
         log(f"notice client_not_found: {clients.CLIENT_NAMES[client]}: no file of the client table was found")
+    outcome = None
+    if args.upload:  # before the outputs, so that every output carries the outcome (batch 2c spec 11.2, F1)
+        outcome = upload_outcome(report, install_id=install_id, label=label, org=credentials.workstation_org,
+                                 key=credentials.workstation_key, env=env, home=home, log=log)
+        report = with_outcome(report, outcome, label=label)
     write_outputs(report, outputs, stdout=sys.stdout)
     if not args.quiet:
         for fmt, path in outputs:
             if path is not None:
                 _stderr(f"wrote the {fmt} report to {path}")
-    code = report.exit_code()
-    if not args.upload:
-        return code  # no usage ping from --user, whatever `telemetry` says (11.3)
-    document = body(report, install_id=install_id, label=label, system=clients.platform_of(_platform()))
-    reason = too_large(document)
-    if reason is not None:
-        _stderr(f"error workstation_upload_too_large: nothing was uploaded: the inventory has {reason}. Report this as a bug.")
-        return 2
-    save_state(state_directory(_platform(), env, home), install_id, label)
-    outcome = upload(document, org=credentials.workstation_org, key=credentials.workstation_key, env=env, log=log)
-    if outcome.code == "workstation_uploaded":
-        if not args.quiet:
-            _stderr(f"notice workstation_uploaded: {outcome.message}")
-        return code
-    _stderr(f"error workstation_upload_failed ({outcome.detail}): {outcome.message}")
-    return 2
+    if outcome is not None:
+        _print_outcome(outcome, quiet=args.quiet)
+    return report.exit_code()  # no usage ping from --user, whatever `telemetry` says (11.3)
 
 
 __all__ = ["BODY_MAX", "FINDINGS_MAX", "ITEMS_MAX", "LISTED_MAX", "STATE_FILE", "body", "clean", "cmd_user", "load_state",
-           "save_state", "state_directory", "too_large", "upload"]
+           "save_state", "state_directory", "too_large", "upload", "upload_outcome", "with_outcome"]
