@@ -609,6 +609,9 @@ A symbolic link at a path of the table, at a directory the table lists entries o
 | VS Code | all | `$COPILOT_HOME/skills` | skills (`<name>/SKILL.md`) | <https://code.visualstudio.com/docs/copilot/customization/agent-skills> | 2026-11-14 |
 | VS Code | all | `~/.claude/skills` | skills (`<name>/SKILL.md`) | <https://code.visualstudio.com/docs/copilot/customization/agent-skills> | 2026-11-14 |
 | VS Code | all | `~/.agents/skills` | skills (`<name>/SKILL.md`) | <https://code.visualstudio.com/docs/copilot/customization/agent-skills> | 2026-11-14 |
+| VS Code | Linux | `$XDG_CONFIG_HOME/Code/User/mcp.json`<br>`$XDG_CONFIG_HOME/Code/User/profiles/*/mcp.json`<br>`$XDG_CONFIG_HOME/Code - Insiders/User/mcp.json`<br>`$XDG_CONFIG_HOME/Code - Insiders/User/profiles/*/mcp.json` | MCP servers (`servers`) | <https://code.visualstudio.com/docs/copilot/reference/mcp-configuration> (the folder from <https://code.visualstudio.com/docs/configure/settings> and <https://code.visualstudio.com/docs/configure/profiles>) | 2026-11-15 |
+| VS Code | macOS | `~/Library/Application Support/Code/User/mcp.json`<br>`~/Library/Application Support/Code/User/profiles/*/mcp.json`<br>`~/Library/Application Support/Code - Insiders/User/mcp.json`<br>`~/Library/Application Support/Code - Insiders/User/profiles/*/mcp.json` | MCP servers (`servers`) | <https://code.visualstudio.com/docs/copilot/reference/mcp-configuration> (the folder from <https://code.visualstudio.com/docs/configure/settings> and <https://code.visualstudio.com/docs/configure/profiles>) | 2026-11-15 |
+| VS Code | Windows | `%APPDATA%/Code/User/mcp.json`<br>`%APPDATA%/Code/User/profiles/*/mcp.json`<br>`%APPDATA%/Code - Insiders/User/mcp.json`<br>`%APPDATA%/Code - Insiders/User/profiles/*/mcp.json` | MCP servers (`servers`) | <https://code.visualstudio.com/docs/copilot/reference/mcp-configuration> (the folder from <https://code.visualstudio.com/docs/configure/settings> and <https://code.visualstudio.com/docs/configure/profiles>) | 2026-11-15 |
 | Windsurf (Devin Desktop) | all | `~/.config/devin/mcp_config.json` | MCP servers (`mcpServers`, remote ones by `serverUrl` or `url`) | <https://docs.devin.ai/desktop/cascade/mcp> | 2026-11-14 |
 | Windsurf (Devin Desktop) | all | `~/.devin/global_rules.md` | instruction file (`devin-rules`) | <https://docs.devin.ai/desktop/cascade/memories> | 2026-11-14 |
 | Windsurf (Devin Desktop) | all | `~/.devin/rules/*.md` | instruction files (`devin-rules`) | <https://docs.devin.ai/desktop/cascade/memories> | 2026-11-14 |
@@ -628,7 +631,7 @@ Not read:
 
 - Windsurf's `~/.codeium/windsurf/mcp_config.json` and `~/.codeium/windsurf/memories/global_rules.md`: the Windsurf documentation now leads to Devin Desktop's, which names `~/.config/devin/` and `~/.devin/` instead.
 - Codex's `$CODEX_HOME/skills/`: the Codex skills guide names `~/.agents/skills/` only.
-- VS Code's user and profile `mcp.json` files (`Code/User/mcp.json`, `Code/User/profiles/*/mcp.json`, also of VS Code Insiders): the profiles and MCP documentation name no path for the file.
+- The `mcp.json` files of VS Code's remote and WSL servers (under `~/.vscode-server/` and `~/.vscode-server-insiders/`): the documentation names no path for them.
 - VS Code's user instruction files (`*.instructions.md` of the user profile): the documentation names no path.
 - The files of installed Codex plugins: only the `[plugins]` and `[marketplaces]` entries of `config.toml` are listed.
 - Claude Code's plugins when `CLAUDE_CODE_PLUGIN_CACHE_DIR` moves them out of `$CLAUDE_CONFIG_DIR/plugins/`, the components a plugin declares outside its standard layout, and MCP bundles (`.mcpb`, `.dxt`).
@@ -638,7 +641,7 @@ Not read:
 - Claude Code subagents, commands and output styles, and Claude Desktop extensions.
 <!-- clients:end -->
 
-The table follows each client's own documentation: a row stays only while its source names the path, and carries the date it was checked; when a client moves its files (Windsurf became Devin Desktop), the old place moves to "Not read" until a release reads the new one. The tests read a fixture home for each system; CI runs on Linux and Windows, so macOS is covered by its fixture home.
+The table follows each client's own documentation: a row stays only while its source names the path, or names the file while the pages in the row give its folder (VS Code's user and profile `mcp.json`), and carries the date it was checked; when a client moves its files (Windsurf became Devin Desktop), the old place moves to "Not read" until a release reads the new one. The tests read a fixture home for each system; CI runs on Linux and Windows, so macOS is covered by its fixture home.
 
 #### Uploading a workstation inventory
 

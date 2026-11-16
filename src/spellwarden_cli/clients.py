@@ -31,6 +31,8 @@ _ONLY_ON = {"$XDG_CONFIG_HOME": ("linux",), "%APPDATA%": ("windows",), "~/Librar
 READERS = ("mcp", "windsurf-mcp", "gemini-settings", "claude-json", "settings", "hooks", "cursor-hooks", "codex-config",
            "skills", "instructions", "claude-plugins", "claude-marketplaces", "gemini-extensions")
 CHECKED = "2026-11-14"
+# Phase 3 batch 2c spec 11.3 (F2): the date the VS Code user `mcp.json` rows' three sources were read.
+CHECKED_VSCODE_USER = "2026-11-15"
 
 
 @dataclass(frozen=True)
@@ -47,6 +49,8 @@ class Row:
     format: str | None = None   # the instruction format, for the reader `instructions`
     moved_by: str | None = None  # a variable that, when set, holds the file instead of the base (`.claude.json`)
     shared: bool = False  # a directory other clients read too: finding it does not show that this client is installed
+    # Batch 2c spec 11.3: the pages the path is derived from, when the source names the file but not where it is
+    path_from: tuple[str, ...] = ()
 
 
 _CLAUDE_DIRECTORY = "https://code.claude.com/docs/en/claude-directory"
@@ -55,6 +59,12 @@ _CLAUDE_PLUGINS = "https://code.claude.com/docs/en/plugins/loading"
 _DESKTOP = "https://modelcontextprotocol.io/docs/develop/connect-local-servers"
 _VSCODE_MCP = "https://code.visualstudio.com/docs/copilot/reference/mcp-configuration"
 _VSCODE_SKILLS = "https://code.visualstudio.com/docs/copilot/customization/agent-skills"
+# VS Code's MCP reference names the "user-profile `mcp.json`" without a path: the folder is the user settings folder of
+# `settings.json` and its `profiles/<profile id>/` folders (batch 2c spec 11.3, F2).
+_VSCODE_USER_FOLDER = ("https://code.visualstudio.com/docs/configure/settings",
+                       "https://code.visualstudio.com/docs/configure/profiles")
+_VSCODE_USER_MCP = ("Code/User/mcp.json", "Code/User/profiles/*/mcp.json", "Code - Insiders/User/mcp.json",
+                    "Code - Insiders/User/profiles/*/mcp.json")
 _DEVIN_MCP = "https://docs.devin.ai/desktop/cascade/mcp"
 _DEVIN_MEMORIES = "https://docs.devin.ai/desktop/cascade/memories"
 _CODEX_CONFIG = "https://learn.chatgpt.com/docs/config-file/config-reference"
@@ -101,6 +111,12 @@ ROWS: tuple[Row, ...] = (
         _VSCODE_SKILLS, CHECKED, shared=True),
     Row("vscode/agents-skills", "vscode", ALL, "~", (".agents/skills",), "skills", "skills (`<name>/SKILL.md`)",
         _VSCODE_SKILLS, CHECKED, shared=True),
+    Row("vscode/linux", "vscode", ("linux",), "$XDG_CONFIG_HOME", _VSCODE_USER_MCP, "mcp", "MCP servers (`servers`)",
+        _VSCODE_MCP, CHECKED_VSCODE_USER, path_from=_VSCODE_USER_FOLDER),
+    Row("vscode/macos", "vscode", ("macos",), "~/Library/Application Support", _VSCODE_USER_MCP, "mcp",
+        "MCP servers (`servers`)", _VSCODE_MCP, CHECKED_VSCODE_USER, path_from=_VSCODE_USER_FOLDER),
+    Row("vscode/windows", "vscode", ("windows",), "%APPDATA%", _VSCODE_USER_MCP, "mcp", "MCP servers (`servers`)",
+        _VSCODE_MCP, CHECKED_VSCODE_USER, path_from=_VSCODE_USER_FOLDER),
     Row("windsurf/mcp", "windsurf", ALL, "~", (".config/devin/mcp_config.json",), "windsurf-mcp",
         "MCP servers (`mcpServers`, remote ones by `serverUrl` or `url`)", _DEVIN_MCP, CHECKED),
     Row("windsurf/global-rules", "windsurf", ALL, "~", (".devin/global_rules.md",), "instructions",
@@ -137,8 +153,8 @@ NOT_READ: tuple[str, ...] = (
     "Windsurf's `~/.codeium/windsurf/mcp_config.json` and `~/.codeium/windsurf/memories/global_rules.md`: the Windsurf "
     "documentation now leads to Devin Desktop's, which names `~/.config/devin/` and `~/.devin/` instead.",
     "Codex's `$CODEX_HOME/skills/`: the Codex skills guide names `~/.agents/skills/` only.",
-    "VS Code's user and profile `mcp.json` files (`Code/User/mcp.json`, `Code/User/profiles/*/mcp.json`, also of VS Code "
-    "Insiders): the profiles and MCP documentation name no path for the file.",
+    "The `mcp.json` files of VS Code's remote and WSL servers (under `~/.vscode-server/` and `~/.vscode-server-insiders/`): "
+    "the documentation names no path for them.",
     "VS Code's user instruction files (`*.instructions.md` of the user profile): the documentation names no path.",
     "The files of installed Codex plugins: only the `[plugins]` and `[marketplaces]` entries of `config.toml` are listed.",
     "Claude Code's plugins when `CLAUDE_CODE_PLUGIN_CACHE_DIR` moves them out of `$CLAUDE_CONFIG_DIR/plugins/`, the "
@@ -223,7 +239,10 @@ def table_markdown() -> str:
         paths = "<br>".join(f"`{row.base}/{path}`" for path in row.paths)
         if row.moved_by is not None:
             paths += f" (`${row.moved_by}/{posixpath.basename(row.paths[0])}` when `{row.moved_by}` is set)"
-        lines.append(f"| {CLIENT_NAMES[row.client]} | {systems} | {paths} | {row.reads} | <{row.source}> | {row.checked} |")
+        source = f"<{row.source}>"
+        if row.path_from:
+            source += " (the folder from " + " and ".join(f"<{page}>" for page in row.path_from) + ")"
+        lines.append(f"| {CLIENT_NAMES[row.client]} | {systems} | {paths} | {row.reads} | {source} | {row.checked} |")
     return "\n".join(lines) + "\n"
 
 

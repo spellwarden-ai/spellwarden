@@ -8,6 +8,7 @@ tests/cli/test_cyclonedx_output.py imports `repository_document` and `home_docum
 from __future__ import annotations
 
 import importlib.util
+import shutil
 import sys
 import tempfile
 from datetime import date
@@ -18,6 +19,9 @@ ROOT = GOLDEN.parents[2]
 AS_OF = "2026-11-14"
 HOME_DOCUMENTS = (("linux", False), ("macos", False), ("windows", False), ("linux", True))
 PLATFORMS = {"linux": "linux", "macos": "darwin", "windows": "win32"}
+# 1.16.0 reads VS Code's user and profile `mcp.json` (phase 3 batch 2c spec 11.3), which 1.14.0 left unread: the documents are
+# made from each fixture home without those folders, so the recorded ones still prove every other part unchanged.
+VSCODE_USER = {"linux": (".config",), "macos": ("Library", "Application Support"), "windows": ("AppData", "Roaming")}
 
 
 def _module(name: str, path: Path):
@@ -46,6 +50,10 @@ def home_document(base: Path, system: str, inventory: bool) -> str:
 
     homes = _module("homes", ROOT / "tests" / "cli" / "homes.py")
     home = homes.make_home(base, system)
+    for flavour in ("Code", "Code - Insiders"):
+        folder = home.joinpath(*VSCODE_USER[system], flavour)
+        if folder.exists():
+            shutil.rmtree(folder)
     report, _ = userscan.scan(str(home), PLATFORMS[system], {}, settings=Settings(telemetry=False),
                               as_of=date.fromisoformat(AS_OF), inventory=inventory)
     return cyclonedx.render(report)
