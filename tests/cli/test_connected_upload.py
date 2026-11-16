@@ -415,8 +415,10 @@ def test_the_body_validates_against_the_field_table_fixture(run_cli, tmp_path, a
     (request,) = posts(fake)
     body = request[3]
     assert validate_fields(body) == [] and "upload" not in body["report"]["connected"]
+    assert unlisted_fields(body) <= DROPPED_BY_THE_SERVER, unlisted_fields(body) - DROPPED_BY_THE_SERVER
     recorded = json.loads((FIXTURES / "upload-1.2.0.json").read_text(encoding="utf-8"))
     assert validate_fields(recorded) == []
+    assert unlisted_fields(recorded) <= DROPPED_BY_THE_SERVER
     assert normalised(body) == normalised(recorded)
     # a richer body, with every kind of member the table knows, is valid too
     rich = json.loads(json.dumps(recorded))
@@ -468,25 +470,146 @@ def test_the_notice_texts_hold_no_dash_and_no_exclamation_mark():
 
 # --- the field table (tests/fixtures/ci/upload-fields.json) ----------------------------------------------------------------
 
+# The fields the scanner sends that the table has no row for: the server ignores unknown fields at every level and these
+# on purpose (it keeps the lock status only, reads no date, path or indicator of these lists, and the run's head ref is
+# for the request links of the report). Any other field the scanner sends outside the table fails `unlisted_fields`: add
+# its row to the shared table (and the hosted copy, byte-equal) or, if the server must not keep it, list it here.
+DROPPED_BY_THE_SERVER = frozenset({
+    "run.head_ref", "report.as_of", "report.lock.added", "report.lock.removed", "report.lock.changed",
+    "report.findings[].malicious_indicator", "report.notices[].path", "report.errors[].path",
+})
+
+
 def fields_table() -> list[dict]:
     return json.loads((FIXTURES / "upload-fields.json").read_text(encoding="utf-8"))
 
 
-def _walk(node: object, parts: list[str]) -> list[tuple[bool, object]]:
-    """Every value the dotted path with `[]` for list members reaches, as `(present, value)`."""
-    if not parts:
-        return [(True, node)]
+def unlisted_fields(body: dict) -> set[str]:
+    """The paths (`[]` for list members) of the fields in `body` that no row of the table names, nor any row below. A row with
+    no row below it is a leaf (`report.connected`, an object the server checks on its own) and is not entered."""
+    rows = {entry["path"] for entry in fields_table()}
+
+    def has_rows_below(path: str) -> bool:
+        return any(row.startswith((path + ".", path + "[]")) for row in rows)
+
+    found: set[str] = set()
+
+    def visit(node: object, path: str) -> None:
+        if isinstance(node, dict):
+            for key, value in node.items():
+                child = f"{path}.{key}" if path else key
+                if not has_rows_below(child):
+                    if child not in rows:
+                        found.add(child)
+                    continue
+                visit(value, child)
+        elif isinstance(node, list):
+            for member in node:
+                visit(member, path + "[]")
+
+    visit(body, "")
+    return found
+
+
+INSTRUCTION_FILES = {
+    "AGENTS.md": "# Agents\n\nRun the tests before you push.\n",
+    ".cursor/rules/style.mdc": "---\ndescription: House style for TypeScript\nglobs: src/**/*.ts, tests/**/*.ts\n"
+                               "alwaysApply: false\n---\n\nUse two spaces.\n",
+    ".cursor/rules/always.mdc": "---\nalwaysApply: true\n---\n\nBe brief.\n",
+    ".windsurf/rules/review.md": "---\ntrigger: model_decision\nglobs:\n  - '*.py'\ndescription: Review rules\n---\n\nCheck types.\n",
+    ".cursor/rules/broken.mdc": "---\ndescription: never closed\n",
+}
+NEW_ITEM_ROWS = ("report.items[].format", "report.items[].front_matter", "report.items[].front_matter.description",
+                 "report.items[].front_matter.globs", "report.items[].front_matter.globs[]",
+                 "report.items[].front_matter.always_apply", "report.items[].front_matter.trigger")
+
+
+def test_instruction_file_items_travel_with_the_table_fields_and_no_other(make_repo, run_cli, tmp_path, api_double):
+    """1.13.0 sends each instruction file as an item with its `format` and `front_matter`; the table's rows for them (in the
+    engine's copy since 1.16.2) accept what the scanner sends, and the scanner sends no item field outside the table."""
+    fake, _ = api_double
+    serve(fake)
+    code, report, _, err = scan_json(run_cli, repo_of(make_repo, tmp_path, INSTRUCTION_FILES), env_of())
+    assert code == 0, err
+    (request,) = posts(fake)
+    body = request[3]
+    assert validate_fields(body) == []
+    assert unlisted_fields(body) <= DROPPED_BY_THE_SERVER, unlisted_fields(body) - DROPPED_BY_THE_SERVER
+    items = {item["path"]: item for item in body["report"]["items"] if item["kind"] == "instructions"}
+    assert set(items) == set(INSTRUCTION_FILES)
+    assert all(set(item) == {"kind", "path", "name", "plugin", "format", "front_matter"} for item in items.values())
+    assert items[".cursor/rules/style.mdc"]["front_matter"] == {
+        "description": "House style for TypeScript", "globs": ["src/**/*.ts", "tests/**/*.ts"], "always_apply": False,
+        "trigger": None}
+    assert items[".windsurf/rules/review.md"]["front_matter"] == {
+        "description": "Review rules", "globs": ["*.py"], "always_apply": None, "trigger": "model_decision"}
+    assert items["AGENTS.md"]["front_matter"] is None and items[".cursor/rules/broken.mdc"]["front_matter"] is None
+    assert (items["AGENTS.md"]["format"], items[".windsurf/rules/review.md"]["format"]) == ("agents-md", "windsurf-rules")
+    rows = {entry["path"] for entry in fields_table()}
+    for row in NEW_ITEM_ROWS:  # each row is in the table and reached by a value the scanner sent
+        assert row in rows, row
+        assert any(present and value is not None for present, value in _walk(body, row.split("."))), row
+
+
+def test_the_instruction_rows_of_the_table_hold_the_scanner_s_limits():
+    """The bounds the scanner keeps (instruction_files: a description of 300 characters, 20 globs of 200, a trigger of 32, the
+    longest repository format 20 characters) are within the rows; past the rows a body is refused."""
+    from spellwarden_cli import instruction_files
+
+    assert instruction_files.MAX_DESCRIPTION <= 500 and instruction_files.MAX_GLOBS <= 20
+    assert instruction_files.MAX_GLOB <= 200 and instruction_files.MAX_TRIGGER <= 32
+    assert max(len(name) for name in instruction_files.FORMATS) <= 24
+    item = {"kind": "instructions", "path": ".cursor/rules/a.mdc", "name": "a.mdc", "plugin": None, "format": "cursor-mdc",
+            "front_matter": {"description": "d" * 300, "globs": ["g" * 200] * 20, "always_apply": True, "trigger": "t" * 32}}
+    body = json.loads((FIXTURES / "upload-1.2.0.json").read_text(encoding="utf-8"))
+    body["report"]["items"] = [item, {**item, "path": "AGENTS.md", "format": "agents-md", "front_matter": None}]
+    assert validate_fields(body) == [] and unlisted_fields(body) <= DROPPED_BY_THE_SERVER
+    for path, value in (("format", "f" * 25), ("front_matter", "text"), ("front_matter.description", "d" * 501),
+                        ("front_matter.globs", ["g"] * 21), ("front_matter.globs", ["g" * 201]),
+                        ("front_matter.always_apply", "yes"), ("front_matter.trigger", "t" * 33)):
+        broken = json.loads(json.dumps(body))
+        set_path(broken, f"report.items[0].{path}", value)
+        assert validate_fields(broken) != [], path
+
+
+def test_a_field_outside_the_table_is_caught():
+    body = json.loads((FIXTURES / "upload-1.2.0.json").read_text(encoding="utf-8"))
+    body["report"]["items"][0]["front_matter"] = {"description": None, "globs": None, "always_apply": None, "trigger": None,
+                                                  "paths": ["x"]}
+    body["report"]["items"][0]["scope"] = "~/work"
+    body["report"]["findings"][0]["tags"] = ["owasp"]
+    assert unlisted_fields(body) - DROPPED_BY_THE_SERVER == {"report.items[].front_matter.paths", "report.items[].scope",
+                                                             "report.findings[].tags"}
+
+
+_ABSENT = object()
+
+
+def _walk(node: object, parts: list[str], done: str = "") -> list[tuple[bool, object]]:
+    """Every value the dotted path with `[]` for list members reaches, as `(present, value)`, as the hosted validator walks
+    it (`scans/ci_upload.py` `_visit`): the members of a list that is absent or not a list are not there (the list's own row
+    checks its type), and below a parent that may be null (a row of type `object|null` with rows below it, such as
+    `report.items[].front_matter`) that is null or absent there is nothing to check (1.16.2: the walk entered an item without
+    `front_matter` and a null `globs`, and reported their members missing)."""
     head, rest = parts[0], parts[1:]
     many = head.endswith("[]")
     name = head[:-2] if many else head
-    if not isinstance(node, dict):
-        return []
-    if name not in node:
-        return [] if many else [(False, None)]  # the members of an absent list are not there either (an optional list: `array|null`)
-    value = node[name]
+    template = f"{done}{head}"
+    value = node.get(name, _ABSENT) if isinstance(node, dict) else _ABSENT
     if many:
-        return [found for item in value for found in _walk(item, rest)] if isinstance(value, list) else [(True, value)]
-    return _walk(value, rest)
+        if not isinstance(value, list):
+            return []
+        return [(True, item) for item in value] if not rest else [
+            found for item in value for found in _walk(item, rest, template + ".")]
+    if not rest:
+        return [(False, None)] if value is _ABSENT else [(True, value)]
+    if template in _nullable_parents() and (value is None or value is _ABSENT):
+        return []
+    return _walk(value, rest, template + ".")
+
+
+def _nullable_parents() -> frozenset[str]:
+    return frozenset(entry["path"] for entry in fields_table() if {"null", "object"} <= set(entry["type"].split("|")))
 
 
 def validate_fields(body: dict) -> list[str]:

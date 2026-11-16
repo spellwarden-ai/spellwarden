@@ -246,9 +246,11 @@ def cyclonedx_schema_bytes(name: str) -> bytes:
 
 def cyclonedx_validator():
     """A Draft 7 validator of `bom-1.7.schema.json` whose `$ref`s resolve to the vendored files only (no network), checking
-    `format` too (1.16.1, review Low of batch 2a). jsonschema checks only the formats whose libraries are installed: with the
-    locked dependencies that is `date`, `email`, `idn-email`, `ipv4`, `ipv6` and `regex`, not `date-time` or `iri-reference`,
-    which need the `rfc3339-validator` and `rfc3987` packages."""
+    `format` too (1.16.1, review Low of batch 2a). jsonschema checks only the formats whose libraries are installed: since
+    1.16.2 the development dependencies hold `rfc3339-validator` and `rfc3987-syntax` (jsonschema's `format-nongpl` route,
+    never the GPL `rfc3987`), so `date-time` and `iri-reference` are checked with `date`, `email`, `idn-email`, `ipv4`,
+    `ipv6` and `regex` (tests/test_cyclonedx.py proves both are). rfc3987-syntax 1.1.0 refuses a compressed IPv6 literal
+    (`http://[::1]/`, valid by RFC 3987), so a test document should not hold one; the scanner writes it as the URL had it."""
     from jsonschema import Draft7Validator
     from referencing import Registry, Resource
 

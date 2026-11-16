@@ -128,33 +128,46 @@ def test_each_change_makes_the_lock_stale_and_names_the_item(case, tmp_path, mak
     repo = _repo(tmp_path, make_repo)
     assert run_cli(["lock", str(repo)])[0] == 0
     (repo / path).write_text(text, encoding="utf-8")
-    code, out, _err = run_cli(["lock", str(repo), "--check"])
-    assert code == 3
-    assert item_path in out
+    code, out, err = run_cli(["lock", str(repo), "--check"])
+    if scan_exit == 2:  # 1.16.2: a document the scanner refused or cut short leaves the lock unconfirmed (exit 2)
+        assert (code, out) == (2, "")
+        assert f"{item_path}:" in err and "was not compared" in err
+    else:
+        assert code == 3
+        assert item_path in out
     code, report = _scan(run_cli, repo, "--locked")
     assert code == scan_exit
     assert report["lock"]["status"] == "stale"
     assert {"kind": kind, "path": item_path} in report["lock"]["changed"]
 
 
-def test_a_truncated_document_is_locked_as_truncated_and_its_kept_servers_are_judged(tmp_path, make_repo, run_cli):
+def test_a_truncated_document_stops_the_lock_and_its_kept_servers_are_judged(tmp_path, make_repo, run_cli):
+    # 1.16.2: a document cut short leaves servers unread, so `lock` writes no lock (exit 2), as the scan is incomplete; the
+    # lock computed for the scan still records the document as `truncated` with the 200 servers it kept.
     repo = _repo(tmp_path, make_repo, **{".mcp.json": _servers(201, first_url="http://plain.example.com/mcp")})
-    assert run_cli(["lock", str(repo)])[0] == 0
-    items = _items(repo)
+    code, out, err = run_cli(["lock", str(repo)])
+    assert (code, out) == (2, "")
+    assert "spellwarden: error: truncated .mcp.json:" in err and "was not written" in err
+    assert not (repo / lockfile.LOCK_PATH).exists()
+    items = lockfile.compute_lock(_discovery(repo))["items"]
     document = next(i for i in items if i["kind"] == "document" and i["path"] == ".mcp.json")
     assert document["status"] == "truncated"
     assert sum(1 for i in items if i["kind"] == "mcp-server" and i["path"].startswith(".mcp.json#")) == 200
     code, report = _scan(run_cli, repo, "--locked")
     assert code == 2
-    assert report["lock"]["status"] == "ok"
+    assert report["lock"]["status"] == "absent"
     assert any(e["code"] == "truncated" and e["path"] == ".mcp.json" for e in report["errors"])
     assert any(f["rule_id"] == "SW-CFG-001" for f in report["findings"])
 
 
-def test_a_malformed_document_is_locked_with_its_error_status(tmp_path, make_repo, run_cli):
+def test_a_malformed_document_stops_the_lock(tmp_path, make_repo, run_cli):
+    # 1.16.2: a document the scanner refused is not judged, so it is not locked either (exit 2, no lock written); the lock
+    # computed for `scan --locked` still records it with its error status.
     repo = _repo(tmp_path, make_repo, **{".mcp.json": '{"mcpServers": {"a": {}, "a": {}}}'})
-    assert run_cli(["lock", str(repo)])[0] == 0
-    document = next(i for i in _items(repo) if i["path"] == ".mcp.json")
+    code, _out, err = run_cli(["lock", str(repo)])
+    assert code == 2 and "duplicate_key .mcp.json:" in err
+    assert not (repo / lockfile.LOCK_PATH).exists()
+    document = next(i for i in lockfile.compute_lock(_discovery(repo))["items"] if i["path"] == ".mcp.json")
     assert document["status"] == "error:duplicate_key"
 
 

@@ -1,6 +1,8 @@
-"""The current release is 1.16.1, in which unread agent content no longer looks like a pass (an oversize repository file of agent
+"""The current release is 1.16.2, in which `spellwarden lock` and `lock --check` exit 2 and write or confirm no lock when content was
+left unread, the workstation upload counts each client's roots and the CI upload's field table names the instruction file fields,
+without changing a rule (1.16.1: unread agent content no longer looks like a pass (an oversize repository file of agent
 content and a `scan --user` link out of the home are errors, the probe follows `nextCursor`, and `--locked` compares a list with a
-cut text) without changing a rule (1.16.0: `spellwarden scan --user --upload` uploads before it writes its reports, every report
+cut text) without changing a rule; 1.16.0: `spellwarden scan --user --upload` uploads before it writes its reports, every report
 except a GitLab Code Quality file carries the upload's outcome, and the machine-wide scan reads VS Code's user and profile
 `mcp.json` without changing a rule; 1.15.0
 added SW-MCP-012 (a probed server's tools changed since they were approved, raised only with an
@@ -21,7 +23,7 @@ PYPROJECT = Path(__file__).resolve().parents[1] / "pyproject.toml"
 
 
 def test_the_versions():
-    assert __version__ == "1.16.1"
+    assert __version__ == "1.16.2"
     assert tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))["project"]["version"] == __version__
     assert RULES_VERSION == "2026.11.7"
     assert len(RuleSet.baseline()) == 66
@@ -47,4 +49,14 @@ def test_the_changelog_has_the_1_16_1_entry_above_1_16_0():
     entry = " ".join(text[text.index("## 1.16.1 ("):text.index("## 1.16.0 (")].split())
     for needle in ("Rules version 2026.11.7, unchanged", "`unreadable`", "`file_too_large`", "`symlink_skipped`", "`nextCursor`",
                    "`tools_not_compared`", "`probe_list_incomplete`", "exit 2", "exit 3"):
+        assert needle in entry, needle
+
+
+def test_the_changelog_has_the_1_16_2_entry_above_1_16_1():
+    """1.16.2: the lock refuses unread content, `roots_total`, the field table's instruction file rows, the format checks."""
+    text = (PYPROJECT.parent / "CHANGELOG.md").read_text(encoding="utf-8").replace("\r\n", "\n")
+    assert text.index("## 1.16.2 (2026-11-16)") < text.index("## 1.16.1 (")
+    entry = " ".join(text[text.index("## 1.16.2 ("):text.index("## 1.16.1 (")].split())
+    for needle in ("Rules version 2026.11.7, unchanged", "`spellwarden lock`", "`lock --check`", "exit 2", "exit 3",
+                   "`roots_total`", "upload-fields.json", "`date-time`", "`iri-reference`"):
         assert needle in entry, needle

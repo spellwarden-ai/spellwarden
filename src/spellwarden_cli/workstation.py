@@ -44,8 +44,9 @@ ITEMS_MAX = 2000
 FINDINGS_MAX = 1000
 BODY_MAX = 1_048_576
 LISTED_MAX = 50  # errors and notices listed in the body; the totals count all (4.8: an output cap)
-# client roots sent per client: an output cap, since every report on the workstation lists them all (README "Limits"); the
-# server reduces the body to a closed table of fields and has no field for the count left out
+# client roots sent per client: an output cap, since every report on the workstation lists them all (README "Limits"); each
+# client entry carries `roots_total`, the number of its roots before the cut (1.16.2), so the count left out is shown. A server
+# that does not know the field drops it with the other fields outside its closed table.
 ROOTS_MAX = 8
 ORG_RE = re.compile(r"[a-z0-9-]{2,64}")
 KEY_RE = re.compile(r"swk_[A-Za-z0-9_-]{40}")
@@ -156,8 +157,8 @@ def body(report: Report, *, install_id: str, label: str, system: str) -> dict:
         "schema": 1, "install_id": install_id, "device_label": label, "os": system,
         "scanner": {"version": report.scanner_version, "rules_version": report.rules_version},
         "mode": report.user or "scan", "complete": not report.errors,
-        "clients": [{"client": entry["client"], "found": entry["found"], "roots": list(entry["roots"])[:ROOTS_MAX]}
-                    for entry in report.clients or ()],
+        "clients": [{"client": entry["client"], "found": entry["found"], "roots": list(entry["roots"])[:ROOTS_MAX],
+                     "roots_total": len(entry["roots"])} for entry in report.clients or ()],
         "items": items, "findings": findings,
         "errors": _listed(report.errors), "notices": _listed(report.notices),
         "errors_total": len(report.errors), "notices_total": len(report.notices),

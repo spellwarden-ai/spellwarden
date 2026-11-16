@@ -1019,7 +1019,8 @@ def test_a_proc_self_cwd_link_cannot_hide_repository_content(make_repo, tmp_path
     # and `payload.sh`, which an agent working in a subdirectory reads, was neither scanned nor locked.
     repo = make_repo(tmp_path / "repo", {"skills/x/SKILL.md": SKILL, "payload.sh": EVIL_SCRIPT, "app/README.md": "x\n"})
     _symlink("/proc/self/cwd/../payload.sh", repo / "skills" / "x" / "run.sh")
-    assert run_cli(["lock", str(repo)])[0] == 0
+    assert run_cli(["lock", str(repo)])[0] == 2  # 1.16.2: content left unread is never locked
+    assert not (repo / ".spellwarden" / "lock.json").exists()
     out = tmp_path / "report.json"
     code, _out, _err = run_cli(["scan", str(repo), "--no-telemetry", "--locked", "--format", "json", "--output", str(out)])
     report = json.loads(out.read_text(encoding="utf-8"))

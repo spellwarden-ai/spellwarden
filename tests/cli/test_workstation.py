@@ -21,6 +21,7 @@ TOP = {"schema", "install_id", "device_label", "os", "scanner", "mode", "complet
 ITEM = {"n", "clients", "kind", "name", "path", "scope", "transport", "endpoint", "command_identity", "command_reason", "plugin",
         "marketplace", "format"}
 FINDING = {"item", "rule_id", "severity", "line", "suppressed"}
+CLIENT = {"client", "found", "roots", "roots_total"}
 
 
 def upload_env(monkeypatch, home: Path) -> dict[str, str]:
@@ -57,6 +58,10 @@ def test_the_body_has_the_documented_shape_and_the_key_goes_in_the_header(run_cl
     assert by_path["~/.claude/plugins/installed_plugins.json#lint@tools"]["marketplace"] == "https://git.example.com/tools.git"
     assert {f["item"] for f in body["findings"]} <= set(by_path[path]["n"] for path in by_path)
     assert all(root.startswith("~/") for entry in body["clients"] for root in entry["roots"])
+    assert all(set(entry) == CLIENT for entry in body["clients"])
+    counts = {entry["client"]: (len(entry["roots"]), entry["roots_total"]) for entry in body["clients"]}
+    assert counts["vscode"] == (8, 10)  # VS Code's ten roots in the fixture home, over the cap of 8 (1.16.2: the total is sent)
+    assert all(total == sent for client, (sent, total) in counts.items() if client != "vscode")
 
 
 def test_the_state_file_keeps_the_install_id_and_the_label(run_cli, tmp_path, monkeypatch, api_double):
@@ -117,6 +122,26 @@ def test_at_most_50_errors_and_notices_are_listed_with_their_totals(run_cli, tmp
     assert len(body["errors"]) == 50 and body["errors_total"] == 60
     assert body["errors"] == sorted(body["errors"], key=lambda error: (error["code"], error["path"]))
     assert set(body["errors"][0]) == {"code", "path"}
+
+
+def test_the_roots_cut_per_client_carry_their_total(run_cli, tmp_path, monkeypatch, api_double):
+    # 1.16.2 (README "Limits": an output cap shows the count left out): `roots` holds at most ROOTS_MAX roots of a client,
+    # and `roots_total`, always present, the number before the cut, as the report on the workstation lists them all
+    fake, _ = api_double
+    answered(fake)
+    monkeypatch.setattr(workstation, "ROOTS_MAX", 1)
+    home = make_home(tmp_path, "linux")
+    out = tmp_path / "report.json"
+    run_cli(["scan", "--user", "--upload", "--device-label", "x", "--format", "json", "--output", str(out)],
+            env=upload_env(monkeypatch, home))
+    listed = {entry["client"]: entry["roots"] for entry in json.loads(out.read_text(encoding="utf-8"))["clients"]}
+    sent = {entry["client"]: entry for entry in fake.requests[0][3]["clients"]}
+    assert set(sent) == set(listed)
+    assert any(len(roots) > 1 for roots in listed.values())  # the fixture home has a client over the patched cap
+    for client, roots in listed.items():
+        assert sent[client]["roots"] == roots[:1]
+        assert sent[client]["roots_total"] == len(roots)
+        assert type(sent[client]["roots_total"]) is int
 
 
 def test_clean_applies_the_servers_rules():

@@ -166,6 +166,18 @@ class Discovery:
     instruction_files: tuple[InstructionFile, ...] = ()
 
 
+def _lock_path() -> str:
+    from spellwarden_cli.lockfile import LOCK_PATH  # lockfile imports this module
+
+    return LOCK_PATH
+
+
+def _lexical(link: str, text: str) -> str:
+    """The scan-root path a relative link target names when read lexically from the link's directory (`..` at the top stays
+    there): used only to tell a link written to the lock file before `.spellwarden/` exists in the file set."""
+    return posixpath.normpath(posixpath.join(posixpath.dirname(link), text)).lstrip("/")
+
+
 def _named(path: str, suffix: str) -> bool:
     return path == suffix or path.endswith("/" + suffix)
 
@@ -269,6 +281,10 @@ class _Builder:
         self.resolved: dict[str, _Resolution] = {}  # package member links, resolved once, adopted only when accepted
         self.skipped: set[str] = set()  # member links of an accepted package whose target is outside the scan root
         self.own: dict[str, str] = {}  # member links followed to the lock itself -> the lock's path
+        # links whose target text names the lock while the file set holds none (`_resolve`); a package member among them is
+        # the package's own, like a member link followed to the lock (`member`, 1.16.2), any other stays `unsafe_path`
+        self.to_lock: set[str] = set()
+        self.lock_links: set[str] = set()  # package member links to the lock before it exists: members left out of the hash
         self.targets: dict[str, str] = {}  # every link followed -> the file it names
         # an oversize file's directory is one of the set too, so a link through it names the file (1.16.1)
         self.directories = {posixpath.dirname(p) for p in (*self.paths, *self.links, *fileset.too_large)}
@@ -368,6 +384,10 @@ class _Builder:
             return None
         if path not in self.resolved:
             resolution = self._resolve(path)
+            if path in self.to_lock:  # the lock file before the first `spellwarden lock` (1.16.2): no content, no error
+                self.lock_links.add(path)
+                self.followed.add(path)
+                return None
             if resolution.refusal is not None and not (resolution.outside and resolution.text is not None):
                 self.errors.append(resolution.refusal)
                 self.followed.add(path)
@@ -393,6 +413,10 @@ class _Builder:
         except _Escape as exc:
             return _Resolution(None, raw, Notice("unsafe_path", path, f"symbolic link: {exc}"), True)
         except UnsafePath as exc:
+            # before the first lock `.spellwarden/` may not be a directory of the file set yet (1.16.2): a target written
+            # as the lock's path is still a link to the lock (`member` decides whether that is allowed)
+            if not _absolute(text) and _lexical(path, text) == _lock_path() and _lock_path() not in self.entries:
+                self.to_lock.add(path)
             return _Resolution(None, raw, Notice("unsafe_path", path, f"symbolic link: {exc}"), False)
         if target in self.links:
             return _Resolution(None, raw, Notice("unsafe_path", path, f"symbolic link to {target!r}, itself a symbolic "
@@ -409,6 +433,8 @@ class _Builder:
             self.too_large_links.add(path)
             return _Resolution(None, raw, Notice("unreadable", path, f"symbolic link to {target!r}, {_TOO_LARGE}"), False)
         if target not in self.entries:
+            if target == _lock_path():  # before the first `spellwarden lock`: a package member is its own (`member`)
+                self.to_lock.add(path)
             return _Resolution(None, raw, Notice("unsafe_path", path, f"symbolic link to {target!r}, not a file of the "
                                                  "file set"), False)
         return _Resolution(target, raw, None, False)
@@ -698,6 +724,10 @@ def discover(fileset: FileSet, *, listed_cards: Sequence[str] = (), agents_confi
             builder.notices.append(Notice("symlink_skipped", path, f"{refusal.message if refusal else 'symbolic link'}; "
                                                                    "not followed, and its target text is in the "
                                                                    "package's lock hash"))
+        elif path in builder.lock_links:  # 1.16.2: as `own`, before the lock exists
+            builder.notices.append(Notice("symlink_skipped", path, "symbolic link to the scanner's own file "
+                                                                   "'.spellwarden/lock.json', which does not exist yet: left "
+                                                                   "out of the package's lock hash like that file"))
         elif path in builder.own:  # r3 nit: hashing the lock into itself would make every lock stale
             builder.notices.append(Notice("symlink_skipped", path, f"symbolic link to the scanner's own file "
                                                                    f"{builder.own[path]!r}: scanned, but left out of the "

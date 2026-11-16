@@ -51,8 +51,12 @@ def _component(report: Report, item, ref: str) -> dict:
                              properties=[*properties, cdx.prop("format", item.format)])
     if item.kind in ("plugin", "marketplace"):
         source = facts.get("source")
-        if isinstance(source, str) and source.startswith("https://"):
-            external.append(("vcs" if item.kind == "plugin" else "distribution", source))
+        # the canonical repository URL (no user name, no query) keeps its path as the marketplace wrote it, unmasked as on
+        # 1.16.1; only a `<` or `|` in it is percent-encoded, so the reference stays a valid `iri-reference` (1.16.2)
+        reference = (cdx.reduce_url(source, masking="none") if isinstance(source, str) and source.startswith("https://")
+                     else None)
+        if reference is not None:
+            external.append(("vcs" if item.kind == "plugin" else "distribution", reference))
         elif isinstance(source, str):
             properties.append(cdx.prop("source", source))
         if "commit" in facts:
