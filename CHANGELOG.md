@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.16.0 (2026-11-NN)
+## 1.16.0 (2026-11-16)
 
 Rules version 2026.11.7, unchanged. A repository scan gives the same reports as on 1.15.0, apart from the version.
 
