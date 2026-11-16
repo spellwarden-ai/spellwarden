@@ -5,6 +5,7 @@ lock that silently lacked the item. A clean repository behaves as before (0, and
 from __future__ import annotations
 
 import json
+import sys
 
 import pytest
 
@@ -166,7 +167,8 @@ def test_a_directory_link_collapsed_by_dot_dot_cannot_pass_for_the_lock(make_rep
                                          "evil/.spellwarden/lock.json": PAYLOAD})
     _link("evil/a", repo / "lnk")
     _link("../../lnk/../.spellwarden/lock.json", repo / "skills" / "x" / "state.json")
-    assert (repo / "skills" / "x" / "state.json").read_text(encoding="utf-8") == PAYLOAD  # what an agent reads
+    if sys.platform != "win32":  # Windows does not open a link whose text passes through another link and `..`
+        assert (repo / "skills" / "x" / "state.json").read_text(encoding="utf-8") == PAYLOAD  # what an agent reads
     code, _out, err = run_cli(["lock", str(repo)])
     assert code == 2 and "unsafe_path skills/x/state.json:" in err
     assert not (repo / lockfile.LOCK_PATH).exists()
