@@ -147,3 +147,39 @@ def test_a_probed_server_carries_its_tools_auth_mode_and_migration_status(auth_m
     assert service.get("authenticated") is authenticated
     assert service["endpoints"] == ["https://mcp.example.com/mcp"]
 
+
+
+@pytest.mark.usefixtures("clean")
+def test_urls_holding_iri_breaking_characters_give_a_valid_document(make_repo, run_cli, tmp_path):
+    """1.16.2: an endpoint and a marketplace plugin source whose path holds `<{|^"` are percent-encoded (`reduce_url`), so the
+    document still validates with the `iri-reference` format checked."""
+    mcp = {"mcpServers": {"odd": {"type": "http", "url": 'https://mcp.example.com/a<{|^"b/mcp'}}}
+    marketplace = {"name": "tools", "owner": {"name": "o"}, "plugins": [
+        {"name": "lint", "source": {"source": "url", "url": 'https://git.example.com/acme/li<{|^"nt.git'}}]}
+    repo = make_repo(tmp_path / "repo", {".mcp.json": json.dumps(mcp), ".claude-plugin/marketplace.json": json.dumps(marketplace)})
+    out = tmp_path / "bom.cdx.json"
+    code, _out, err = run_cli(["scan", str(repo), "--no-telemetry", "--format", "cyclonedx", "--output", str(out)])
+    assert code in (0, 1), err
+    document = json.loads(out.read_text(encoding="utf-8"))
+    assert cyclonedx_problems(document) == []
+    endpoints = [url for service in document.get("services", []) for url in service.get("endpoints", [])]
+    assert "https://mcp.example.com/a%3C%7B%7C%5E%22b/mcp" in endpoints
+    references = [ref["url"] for component in document.get("components", []) for ref in component.get("externalReferences", [])]
+    assert "https://git.example.com/acme/li%3C%7B%7C%5E%22nt" in references
+
+
+@pytest.mark.usefixtures("clean")
+def test_plugin_repository_links_are_kept_whole(make_repo, run_cli, tmp_path):
+    """Review of 1.16.2, Major 2: a canonical repository URL is only escaped, never masked, so a long name with letters and
+    digits stays the link 1.16.1 wrote."""
+    links = ["https://github.com/acme/mcp-server-2024-edition-v2", "https://git.example.com/acme/Tools2024ForTheWholeTeamV3"]
+    marketplace = {"name": "tools", "owner": {"name": "o"}, "plugins": [
+        {"name": f"p{index}", "source": {"source": "url", "url": link}} for index, link in enumerate(links)]}
+    repo = make_repo(tmp_path / "repo", {".claude-plugin/marketplace.json": json.dumps(marketplace)})
+    out = tmp_path / "bom.cdx.json"
+    code, _out, err = run_cli(["scan", str(repo), "--no-telemetry", "--format", "cyclonedx", "--output", str(out)])
+    assert code in (0, 1), err
+    document = json.loads(out.read_text(encoding="utf-8"))
+    assert cyclonedx_problems(document) == []
+    references = [ref["url"] for component in document.get("components", []) for ref in component.get("externalReferences", [])]
+    assert all(link in references for link in links), references

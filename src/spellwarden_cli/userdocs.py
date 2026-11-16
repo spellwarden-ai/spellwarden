@@ -168,16 +168,17 @@ class Listing:
 
 def _source_url(value: object) -> str | None:
     """A marketplace source as a reduced URL: `github` `owner/repo` is `https://github.com/owner/repo`; `git` and `url` sources
-    and a bare URL string are reduced (11.4)."""
+    and a bare URL string are reduced (11.4), masked as 1.16.1 masked them (`masking="evidence"`: a source never gains the
+    `name=value` masking of endpoints) and, since 1.16.2, escaped for an IRI."""
     if isinstance(value, str):
-        return reduce_url(value)
+        return reduce_url(value, masking="evidence")
     if not isinstance(value, dict):
         return None
     if value.get("source") == "github" and isinstance(value.get("repo"), str):
-        return reduce_url("https://github.com/" + value["repo"])
+        return reduce_url("https://github.com/" + value["repo"], masking="evidence")
     for key in ("url", "repo"):
         if isinstance(value.get(key), str):
-            return reduce_url(value[key])
+            return reduce_url(value[key], masking="evidence")
     return None
 
 

@@ -12,7 +12,10 @@ keeps the stored pin of every server it locks again.
 
 1.16.1 (review High 3): "read in full" means every entry was read (`KindListing.entries_whole`), whether or not the probe cut
 a text or dropped a schema in it, as the hosted product compares; such a kind is pinned and compared over the texts as the
-probe keeps them, with the notice `probe_list_incomplete` (a change past the cut is not seen)."""
+probe keeps them, with the notice `probe_list_incomplete` (a change past the cut is not seen).
+
+1.16.2 (README "Limits"): a discovery error (the errors that make `scan` exit 2) leaves `lock` without a lock written and
+`lock --check` without a comparison, both exit 2 (`_incomplete`); a remote server under `--probe` stays a warning."""
 from __future__ import annotations
 
 import argparse
@@ -398,6 +401,26 @@ def add_parser(commands_: argparse._SubParsersAction) -> None:
     parser.set_defaults(handler=cmd_lock)
 
 
+def _incomplete(errors: Iterable[Notice], *, check: bool) -> int:
+    """1.16.2 (README "Limits"): repository content that discovery could not read or judge (the errors that make a scan exit
+    2) leaves the lock unwritten and unchecked, with exit 2. A lock written without an item would pass `--locked` while the
+    item changes unseen, and a lock cannot be confirmed against content that was not read. Each error is printed with its
+    message; the last line names the way out. A remote server under `--probe` is never such an error (`probe_pins`)."""
+    for problem in errors:
+        print(f"spellwarden: error: {problem.code} {escape.terminal(problem.path)}: {escape.terminal(problem.message)}",
+              file=sys.stderr)
+    if check:
+        what = (f"{LOCK_PATH} was not compared: the repository was read in part, and a lock cannot be confirmed against "
+                "content that was not read")
+        again = "spellwarden lock --check"
+    else:
+        what = (f"{LOCK_PATH} was not written (a lock file already there is left as it was): the repository was read in part, "
+                "and a lock of what was read would leave out what was not")
+        again = "spellwarden lock"
+    return commands.fail(f"{what}. Fix each error above, or leave its path out with `exclude` in {CONFIG_PATH}, then run "
+                         f"`{again}` again (README \"Limits\").")
+
+
 def cmd_lock(args: argparse.Namespace) -> int:
     try:
         root = commands.scan_root(args.path)
@@ -406,9 +429,9 @@ def cmd_lock(args: argparse.Namespace) -> int:
     except commands.CommandError as exc:
         return commands.fail(str(exc))
     found = discover.discover(fileset, instructions=settings.instructions)
-    for problem in (*fileset.errors, *found.errors):
-        print(f"spellwarden: warning: {problem.code} {escape.terminal(problem.path)}: {escape.terminal(problem.message)}",
-              file=sys.stderr)
+    errors = (*fileset.errors, *found.errors)
+    if errors:
+        return _incomplete(errors, check=args.check)
     computed = compute_lock(found)
     if args.check:
         try:

@@ -454,3 +454,13 @@ def test_a_vs_code_profile_folder_set_by_xdg_config_home_is_shown_under_the_vari
     paths = {item.path for item in discovered.found.items}
     assert "$XDG_CONFIG_HOME/Code/User/profiles/work/mcp.json#jira" in paths
     assert "$XDG_CONFIG_HOME/Code - Insiders/User/mcp.json#git" in paths
+
+
+def test_a_workstation_marketplace_source_is_masked_as_on_1_16_1_and_escaped():
+    """Review of 1.16.2, Major 2: `userdocs._source_url` masks as 1.16.1 did (evidence masking only, no `name=value` masking)
+    and escapes for an IRI."""
+    from spellwarden_cli import userdocs
+
+    assert userdocs._source_url("https://git.example.com/acme/to<ols.git") == "https://git.example.com/acme/to%3Cols.git"
+    assert userdocs._source_url({"source": "url", "url": "https://git.example.com/key=v/x"}) == "https://git.example.com/key=v/x"
+    assert userdocs._source_url({"source": "github", "repo": "acme/tools"}) == "https://github.com/acme/tools"

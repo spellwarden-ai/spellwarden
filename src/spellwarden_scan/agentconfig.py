@@ -424,7 +424,8 @@ class UrlParts(NamedTuple):
 
 def url_parts(url: object) -> UrlParts | None:
     """An absolute URL split without `urllib` (the engine imports no `urllib`): scheme and host lower-cased,
-    IPv6 brackets removed; None when `url` is not a string of that shape or holds whitespace."""
+    IPv6 brackets removed; None when `url` is not a string of that shape or holds whitespace, or when a bracketed host holds
+    no `:` (no IP literal, so no host every client reads the same way)."""
     if not isinstance(url, str):
         return None
     match = _URL.fullmatch(url)
@@ -437,6 +438,8 @@ def url_parts(url: object) -> UrlParts | None:
         if end < 0:
             return None
         host, rest = hostport[1:end], hostport[end + 1:]
+        if ":" not in host:  # 1.16.2: an IP literal holds `:`; `[evil.example]` would otherwise read as the host `evil.example`
+            return None
     else:
         host, colon, port = hostport.partition(":")
         rest = colon + port

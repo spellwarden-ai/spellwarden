@@ -3,9 +3,11 @@ against the vendored CycloneDX 1.7.2 schema, for every case of the hosted column
 from __future__ import annotations
 
 import hashlib
+import json
+from pathlib import Path
 
 import pytest
-from conftest import CYCLONEDX_FILES, CYCLONEDX_SCHEMAS, cyclonedx_problems, cyclonedx_schema_bytes
+from conftest import CYCLONEDX_FILES, CYCLONEDX_SCHEMAS, cyclonedx_problems, cyclonedx_schema_bytes, cyclonedx_validator
 
 from spellwarden_scan import cyclonedx as cdx
 
@@ -136,3 +138,208 @@ def test_reduce_url_is_idempotent_on_a_masked_path():
 def test_a_workstation_subject_carries_no_identifier():
     subject = cdx.component(ref=None, type="device", name="workstation")
     assert subject == {"type": "device", "name": "workstation"}
+
+
+GOLDEN_DOCUMENTS = sorted((Path(__file__).resolve().parent / "golden").rglob("*.cdx.json"))
+
+
+def test_the_validator_checks_date_time_and_iri_reference():
+    """1.16.2: with `rfc3339-validator` and `rfc3987-syntax` installed (development dependencies only) the validator checks
+    the two formats the CycloneDX schema uses most, which 1.16.1's locked dependencies left unchecked."""
+    checker = cyclonedx_validator().format_checker
+    assert {"date-time", "iri-reference"} <= set(checker.checkers)
+    assert checker.conforms("2026-11-16T10:00:00Z", "date-time") and checker.conforms(RULE_PAGE, "iri-reference")
+    assert not checker.conforms("2026-11-16 10:00", "date-time") and not checker.conforms("16 Nov 2026", "date-time")
+    assert not checker.conforms("https://exa mple.com/<x>", "iri-reference")
+    document = hosted_document()
+    assert cyclonedx_problems(document) == []
+    bad_time = hosted_document(timestamp="2026-11-14 10:00")
+    assert any("date-time" in problem for problem in cyclonedx_problems(bad_time)), cyclonedx_problems(bad_time)
+    bad_url = json.loads(json.dumps(document))
+    bad_url["components"][0]["externalReferences"][0]["url"] = "https://github.com/example/<tools> here"
+    (error,) = cyclonedx_validator().iter_errors(bad_url)  # `url` is an iri-reference or a BOM-Link: neither matches
+    assert list(error.absolute_path) == ["components", 0, "externalReferences", 0, "url"]
+    assert any(sub.validator == "format" and sub.validator_value == "iri-reference" for sub in error.context)
+
+
+@pytest.mark.parametrize("path", GOLDEN_DOCUMENTS, ids=lambda path: path.name)
+def test_every_recorded_cyclonedx_document_validates_with_the_format_checks(path):
+    assert GOLDEN_DOCUMENTS  # the recorded documents of 1.14.0 (repository and homes)
+    assert cyclonedx_problems(json.loads(path.read_text(encoding="utf-8"))) == []
+
+
+# --- 1.16.2: `reduce_url` writes a valid IRI reference and masks `name=value` credential segments as the backend does --------
+
+# The hosted backend's `util.mask_path_credentials` expression, copied: the engine's must be the same, so the two never disagree.
+BACKEND_PATH_CREDENTIAL = r"^((?:[A-Za-z0-9]+[_-])*(?:key|apikey|token|secret|password|passwd|sig|signature))=.+$"
+
+
+def _iri(text: str) -> bool:
+    return cyclonedx_validator().format_checker.conforms(text, "iri-reference")
+
+
+@pytest.mark.parametrize("char, escaped", [("<", "%3C"), (">", "%3E"), ('"', "%22"), ("{", "%7B"), ("}", "%7D"), ("|", "%7C"),
+                                           ("\\", "%5C"), ("^", "%5E"), ("`", "%60"), ("[", "%5B"), ("]", "%5D"),
+                                           ("\x9f", "%C2%9F"), ("", "%EE%80%80"), ("﷐", "%EF%B7%90")])
+def test_reduce_url_percent_encodes_what_an_iri_reference_does_not_allow_in_the_path(char, escaped):
+    reduced = cdx.reduce_url(f"https://mcp.example.com/a{char}b/mcp")
+    assert reduced == f"https://mcp.example.com/a{escaped}b/mcp"
+    assert _iri(reduced) and cdx.reduce_url(reduced) == reduced
+
+
+@pytest.mark.parametrize("given", ["https://mcp.example.com/a b", "https://mcp.example.com/a\tb", "https://mcp.example.com/a\x7fb",
+                                   "https://mcp.example.com/a\x00b", "https://mcp.example.com/a\x85b"])
+def test_reduce_url_still_refuses_whitespace_and_ascii_control_characters(given):
+    assert cdx.reduce_url(given) is None
+
+
+def test_reduce_url_escapes_a_mixed_url_keeps_valid_escapes_and_non_ascii_and_drops_query_and_fragment():
+    given = 'https://User:pw@Mcp.Example.com:8443/café/日本/a<{|^"b/%3Cok%3e/50%/x%zz?q=<1>#<frag>'
+    reduced = cdx.reduce_url(given)
+    assert reduced == "https://mcp.example.com:8443/café/日本/a%3C%7B%7C%5E%22b/%3Cok%3e/50%25/x%25zz"
+    assert _iri(reduced) and cdx.reduce_url(reduced) == reduced
+
+
+def test_reduce_url_escapes_the_host_too_and_refuses_a_bracketed_host_that_is_no_ipv6_address():
+    assert cdx.reduce_url("https://ex<am{ple.com/mcp") == "https://ex%3Cam%7Bple.com/mcp"
+    assert cdx.reduce_url("https://a%5db/") == "https://a%5Db/"  # the host is lower-cased: its escapes keep upper-case digits
+    assert cdx.reduce_url(cdx.reduce_url("https://a]b/")) == "https://a%5Db/"
+    assert cdx.reduce_url("https://[fe80::1%25eth0]/mcp") is None and cdx.reduce_url("https://[::g]/mcp") is None
+    # review of 1.16.2, Minor 1: a bracketed host without `:` is no IP literal, and never reads as another host
+    for given in ("https://[evil.example]/mcp", "https://[v1.x]/mcp", "https://[1.2.3.4]/"):
+        assert cdx.reduce_url(given) is None, given
+    assert cdx.reduce_url("http://[::1]:9000/sse") == "http://[::1]:9000/sse"
+
+
+def test_reduce_url_is_idempotent_and_never_raises():
+    pieces = ["a", "Z", "9", "-", ".", "_", "~", "!", "$", "&", "'", "(", ")", "*", "+", ",", ";", "=", ":", "@", "/", "%", "%3C",
+              "%zz", "%4", "<", ">", '"', "{", "}", "|", "\\", "^", "`", "[", "]", "é", "\u0085", "\ud800", "",
+              "\U000f0000", "﷐", "￿", "key=", "sig=", "api_key=", "token=", "q8F3kZ7vR2mX9pL4tW6yB1nC5dH0jA",
+              "ghp_abcdefghijklmnopqrstuvwxyz0123456789", "Bearer", "user:pw@"]
+    import random
+
+    rng = random.Random(1162)
+    for _ in range(4000):
+        host = rng.choice(["mcp.example.com", "ex<am{ple.com", "[::1]", "[v1.x]", "h%41st", "a]b", "Hé.example", "x\u0085y"])
+        url = f"https://{host}/" + "".join(rng.choice(pieces) for _ in range(rng.randint(0, 12))) + rng.choice(["", "?q=<", "#<"])
+        once = cdx.reduce_url(url)
+        if once is not None:
+            assert cdx.reduce_url(once) == once, url
+            assert "[::1]" in once or _iri(once), url  # rfc3987-syntax 1.1.0 refuses compressed IPv6 literals (see conftest)
+    for value in (None, 1, b"https://x.example/", "", "https://", "https://:80/", "http://[/", "https://x.example/\ud800"):
+        cdx.reduce_url(value)
+
+
+@pytest.mark.parametrize("segment, masked", [
+    ("key=abc123", "key=***"), ("sig=AbC%2Bdef", "sig=***"), ("signature=deadbeef", "signature=***"),
+    ("x-api-key=v", "x-api-key=***"), ("API_KEY=v", "API_KEY=***"), ("apikey=v", "apikey=***"), ("access_token=v", "access_token=***"),
+    ("client-secret=v", "client-secret=***"), ("db_password=v", "db_password=***"), ("passwd=v", "passwd=***"), ("Sig=v", "Sig=***"),
+    # not credential names: the backend leaves these, and so does the engine
+    ("monkey=1", "monkey=1"), ("design=x", "design=x"), ("keys=1", "keys=1"), ("keyring=x", "keyring=x"),
+    ("signatures=2", "signatures=2"), ("key=", "key="), ("passkey", "passkey"),
+    # review of 1.16.2, Minor 2: the name is judged percent-decoded, once
+    ("k%65y=secret", "key=***"), ("%6Bey=secret", "key=***"), ("x-key%3Dsecret", "x-key=***"), ("API%5FKEY=v", "API_KEY=***"),
+    ("%2565y=secret", "%2565y=secret"), ("mon%6Bey=1", "mon%6Bey=1"),
+])
+def test_reduce_url_masks_name_value_segments_as_the_backend_does(segment, masked):
+    reduced = cdx.reduce_url(f"https://hooks.example.com/v1/{segment}/run")
+    assert reduced == f"https://hooks.example.com/v1/{masked}/run"
+    assert _backend_mask(reduced) == reduced  # the backend's masking finds nothing left to do
+    assert cdx.reduce_url(reduced) == reduced
+
+
+def _backend_mask(url: str) -> str:
+    """`util.mask_path_credentials` of the hosted backend, as written there."""
+    import re
+
+    pattern = re.compile(BACKEND_PATH_CREDENTIAL, re.IGNORECASE)
+    scheme, _, rest = url.partition("://")
+    host, slash, path = rest.partition("/")
+    if not slash:
+        return url
+    return f"{scheme}://{host}/" + "/".join(pattern.sub(r"\1=***", segment) for segment in path.split("/"))
+
+
+def test_the_engine_s_path_credential_expression_is_the_backend_s():
+    import re
+
+    assert (cdx._PATH_CREDENTIAL.pattern, cdx._PATH_CREDENTIAL.flags & re.IGNORECASE) == (BACKEND_PATH_CREDENTIAL, re.IGNORECASE)
+
+
+def test_a_document_with_an_endpoint_and_a_reference_holding_iri_breaking_characters_validates():
+    endpoint = cdx.reduce_url('https://mcp.example.com/a<{|^"b/mcp')
+    source = cdx.reduce_url('https://git.example.com/acme/to<{|^"ols')
+    assert endpoint is not None and source is not None
+    document = cdx.document(
+        subject=cdx.component(ref="org:acme", type="application", name="Acme"), tool_version="1.16.2", tool_url=HOME,
+        timestamp="2026-11-16T10:00:00Z",
+        components=[cdx.component(ref="marketplace:m", type="data", name="tools", external=[("distribution", source)])],
+        services=[cdx.service(ref="mcp-server:s", name="odd", endpoints=[endpoint])], vulnerabilities=[], dependencies=[],
+        properties=[])
+    assert cyclonedx_problems(document) == []
+
+
+# review of 1.16.2, Major 1: a segment is masked as written, before it is escaped, so escaping never hides a credential
+
+
+@pytest.mark.parametrize("given, reduced", [
+    ('https://h.example/{"token":"Zq7Wv3Kp"}/x', 'https://h.example/%7B%22token%22:%22***%22%7D/x'),
+    ('https://h.example/a/token"="Zq7Wv3Kp', None),
+    ("https://h.example/a/<Authorization:Zq7Wv3Kp", None),
+])
+def test_escaping_never_unmasks_a_credential(given, reduced):
+    out = cdx.reduce_url(given)
+    assert out is not None and "Zq7Wv3Kp" not in out
+    assert reduced is None or out == reduced
+    assert _iri(out) and cdx.reduce_url(out) == out
+
+
+def _reduce_1_16_1(text: str) -> str | None:
+    """1.16.1's `reduce_url`, vendored for the differential test below."""
+    from spellwarden_scan.agentconfig import url_parts
+    from spellwarden_scan.evidence import mask_credentials
+
+    if any(ord(char) < 0x21 or ord(char) == 0x7F for char in text):
+        return None
+    parts = url_parts(text)
+    if parts is None:
+        return None
+    host = f"[{parts.host}]" if ":" in parts.host else parts.host
+    path = "/".join(mask_credentials(segment) for segment in parts.path.split("/"))
+    return f"{parts.scheme}://{host}{':' + parts.port if parts.port else ''}{path}"
+
+
+def test_nothing_1_16_1_masked_comes_out_unmasked():
+    import itertools
+    import random
+
+    secret = "Zq7Wv3Kp"
+    names = ["token", "password", "api_key", "secret", "key", "Authorization", "access_token", "pwd", "auth", "client_secret"]
+    ops = ["=", ":", "=\"", "%3D", ":\"", "='", "=%22", "\"=\"", "\":\"", "=\\\"", "\\\":\\\""]
+    pres = ["", "\"", "{", "<", "|", "%", "\u00e9", "^", "\\", "{\"", "`", "["]
+    posts = ["", "\"", "}", ">", "]"]
+    corpus = [f"https://h.example/a/{pre}{name}{op}{secret}{post}/b"
+              for pre, name, op, post in itertools.product(pres, names, ops, posts)]
+    rng = random.Random(20261116)
+    pieces = [*pres, *posts, *names, *ops, "Bearer ", "user:", "@", "-", "_"]
+    corpus += ["https://h.example/" + "".join(rng.choice(pieces) for _ in range(rng.randint(1, 6))) + secret
+               + "".join(rng.choice(posts) for _ in range(rng.randint(0, 2))) for _ in range(3000)]
+    checked = 0
+    for url in corpus:
+        old = _reduce_1_16_1(url)
+        if old is None or secret in old:
+            continue
+        checked += 1
+        new = cdx.reduce_url(url)
+        assert new is not None and secret not in new, (url, old, new)
+    assert checked > 1000
+
+
+def test_a_canonical_repository_url_is_escaped_and_never_masked():
+    for url in ("https://github.com/acme/mcp-server-2024-edition-v2", "https://git.example.com/acme/Tools2024ForTheWholeTeamV3"):
+        assert cdx.reduce_url(url, masking="none") == url
+        assert cdx.reduce_url(url) != url  # what `masking="full"` would have done to the link
+    assert cdx.reduce_url("https://git.example.com/a/b<c", masking="none") == "https://git.example.com/a/b%3Cc"
+    assert cdx.reduce_url("https://hooks.example.com/key=v", masking="evidence") == "https://hooks.example.com/key=v"
+    with pytest.raises(ValueError):
+        cdx.reduce_url("https://x.example/", masking="some")

@@ -1,6 +1,6 @@
 [project]
 name = "spellwarden"
-version = "1.16.1"
+version = "1.16.2"
 description = "Spellwarden: the scan engine for agent skills, MCP servers and Claude Code configuration and A2A agent cards (spellwarden_scan, pure code, no I/O) and the spellwarden command that does the I/O (spellwarden_cli)."
 readme = "README.md"
 license = "Apache-2.0"
@@ -34,6 +34,10 @@ dev = [
     # the reference OTLP decoder of tests/otel (runtime traces spec 4.9); never imported by the package (tests/test_pure.py)
     "opentelemetry-proto==1.45.1",
     "pytest>=8.3",
+    # jsonschema's `format-nongpl` checkers of `date-time` and `iri-reference` (MIT; never the GPL `rfc3987`): the CycloneDX
+    # validator of tests/conftest.py checks both formats with them (1.16.2); never imported by the package (tests/test_pure.py)
+    "rfc3339-validator>=0.1.4",
+    "rfc3987-syntax>=1.1.0",
     "ruff>=0.6",
 ]
 

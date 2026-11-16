@@ -87,7 +87,7 @@ jobs:
   # (spec 7.1). The Makefile's `check` target is spelled out: GNU make is not on every Windows image.
   check-os:
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:

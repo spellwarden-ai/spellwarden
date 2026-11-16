@@ -1,5 +1,52 @@
 # Changelog
 
+## 1.16.2 (2026-11-16)
+
+Rules version 2026.11.7, unchanged. A scan gives the same findings, items and exit code as on 1.16.1, apart from the version;
+a CycloneDX document and a workstation upload can write a URL differently (below). `spellwarden lock` and `lock --check`
+follow the rule of README "Limits" (content the scanner left unread never looks like a pass), and the workstation upload
+shows the count its roots cap leaves out.
+
+- `spellwarden lock` writes no lock file, and leaves one already there as it was, when discovery reports an error: the errors
+  that make `scan` exit 2, such as an `AGENTS.md` over 10 MiB (`unreadable`), a configuration document refused or cut short
+  (`duplicate_key`, `truncated`), over 300 instruction files or a link that cannot be followed. It prints each error and a
+  last line naming the way out (fix the content, or leave it out with `exclude` in .spellwarden/config.yml), and exits 2.
+  `lock --check` exits 2 likewise and compares nothing, because a lock cannot be confirmed against content that was not read;
+  without errors it gives exit 0, or exit 3 for a lock absent or stale, as before. 1.16.1 printed these errors as warnings
+  and exited 0, so it wrote or confirmed a lock that silently lacked the item, and a later change to it passed `--locked`
+  unseen. `scan --locked` already exited 2 for such a repository. A remote server `lock --probe` cannot read stays a warning
+  with exit 0. A repository whose lock was written over a refused or cut-short configuration document (status `error:...` or
+  `truncated`) can no longer refresh it with `lock` until the document is fixed or excluded.
+- A symbolic link inside a skill or a local plugin directory to `.spellwarden/lock.json` before that file exists, its target
+  passing through real directories only (no other link, `.spellwarden` no link) and nothing on disk at the lock's path, is a
+  member of its package, left out of the package's lock hash as the lock is once it exists (the notice `symlink_skipped`), so the
+  first `spellwarden lock` already holds the package and `lock --check` passes at once; it was the error `unsafe_path`. Any
+  other link to the lock file (`.mcp.json -> .spellwarden/lock.json`) stays the error `unsafe_path`, so `lock` exits 2.
+- `scan --user --upload`: each client entry of the upload body carries `roots_total`, the number of the client's roots before
+  the cut to 8, always present (VS Code commonly has more than 8). A server that does not know the field ignores it.
+- tests/fixtures/ci/upload-fields.json, the CI upload's field table that the hosted product holds a byte-equal copy of, has the
+  seven rows of the instruction file fields 1.13.0 started sending (`report.items[].format` and `report.items[].front_matter`
+  with its `description`, `globs`, `globs[]`, `always_apply` and `trigger`), as in the hosted copy; the upload itself is
+  unchanged. The tests now fail when the scanner sends a field outside the table.
+- Every URL the CycloneDX AI-BOM and the workstation upload write (`spellwarden_scan.cyclonedx.reduce_url`: an endpoint, a
+  marketplace or plugin source) percent-encodes the characters an IRI reference does not allow in the host or the path (`<`,
+  `>`, `"`, `{`, `}`, `|`, `\`, `^`, a backtick, `[`, `]`, a stray `%`, and characters above ASCII outside RFC 3987 `ucschar`
+  such as C1 controls), keeping valid escapes and other non-ASCII text as they are, so the URL is a valid `iri-reference`;
+  a URL holding ASCII whitespace or a control character is still left out. Each path segment is masked as written, before
+  it is escaped, so everything 1.16.1 masked stays masked. An endpoint's path segment `name=value` whose name, read
+  percent-decoded (`k%65y=`), ends (after `_` or `-`) in `key`, `apikey`, `token`, `secret`, `password`, `passwd`, `sig` or
+  `signature` is masked to `<name>=***`, as the hosted product's own masking does (`monkey=1`, `design=x`, `keys=1` are kept).
+  A marketplace source of `scan --user` is masked as on 1.16.1 and only escaped; the repository document's
+  `externalReferences` of a plugin or marketplace source, a canonical repository URL, are only escaped, never masked, as on
+  1.16.1. A bracketed host that holds no `:` (`https://[evil.example]/`) is no URL any more, in every place the engine reads
+  URLs, instead of reading as the host inside the brackets. `reduce_url` takes a keyword `masking` (`full`, the default,
+  `evidence` as on 1.16.1, or `none`), and reducing a reduced URL gives it back unchanged, which 1.16.1 did not always do.
+- Development only: the CycloneDX test validator checks the `date-time` and `iri-reference` formats, with
+  `rfc3339-validator` and `rfc3987-syntax` added as development dependencies (jsonschema's `format-nongpl` route, never the GPL
+  `rfc3987`). Every CycloneDX document of the tests, the recorded ones included, passes them; rfc3987-syntax 1.1.0 refuses a
+  compressed IPv6 literal (`https://[::1]/`, valid by RFC 3987), so a document with such an endpoint fails that validator.
+  The package's runtime dependencies are unchanged.
+
 ## 1.16.1 (2026-11-16)
 
 Rules version 2026.11.7, unchanged. Four places where content the scanner left unread could still read as a pass now follow

@@ -235,6 +235,39 @@
   "max": 255
  },
  {
+  "path": "report.items[].format",
+  "type": "string|null",
+  "max": 24
+ },
+ {
+  "path": "report.items[].front_matter",
+  "type": "object|null"
+ },
+ {
+  "path": "report.items[].front_matter.description",
+  "type": "string|null",
+  "max": 500
+ },
+ {
+  "path": "report.items[].front_matter.globs",
+  "type": "array|null",
+  "max": 20
+ },
+ {
+  "path": "report.items[].front_matter.globs[]",
+  "type": "string",
+  "max": 200
+ },
+ {
+  "path": "report.items[].front_matter.always_apply",
+  "type": "boolean|null"
+ },
+ {
+  "path": "report.items[].front_matter.trigger",
+  "type": "string|null",
+  "max": 32
+ },
+ {
   "path": "report.probes",
   "type": "array",
   "max": 200

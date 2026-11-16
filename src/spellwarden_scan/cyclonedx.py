@@ -9,7 +9,9 @@ canonical JSON of the document without `serialNumber` and `metadata.timestamp`. 
 from __future__ import annotations
 
 import hashlib
+import ipaddress
 import json
+import re
 import uuid
 from collections.abc import Iterable, Sequence
 
@@ -37,21 +39,126 @@ def prop(name: str, value: object) -> dict:
     return {"name": full, "value": text}
 
 
-def reduce_url(text: object) -> str | None:
-    """`scheme://host[:port]/path` of an absolute URL: user name and password, query and fragment removed, a credential in a
-    path segment masked, scheme and host lower-cased (the rule of `identity._reduce_source`). None for anything that is not
-    an absolute URL, or that holds a control character or whitespace. Used for every endpoint and every source URL an export
-    writes."""
+# A credential carried in a path segment as `name=value` whose name's last word (split on `_` or `-`) is one of these
+# (`/key=<secret>/`, `/sig=<signature>/`, `/x-api-key=...`): the value becomes `***`. The same expression as the hosted
+# backend's `util.mask_path_credentials`, so the two never disagree; `monkey=1`, `design=x` and `keys=1` are not names of it.
+_PATH_CREDENTIAL = re.compile(r"^((?:[A-Za-z0-9]+[_-])*(?:key|apikey|token|secret|password|passwd|sig|signature))=.+$",
+                              re.IGNORECASE)
+# The ASCII characters an IRI reference allows in a host (`ireg-name`: unreserved and sub-delims) and, with `:`, `@` and `/`,
+# in a path (RFC 3987 `ipath-abempty`); `%` only as the start of an escape `%XX`. Every other ASCII character (`<`, `>`, `"`,
+# `{`, `}`, `|`, `\`, `^`, a backtick, `[`, `]`, a stray `%`) is percent-encoded.
+_HOST_ASCII = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~!$&'()*+,;=")
+_PATH_ASCII = _HOST_ASCII | frozenset(":@/")
+_HEX = frozenset("0123456789abcdefABCDEF")
+_ESCAPE = re.compile(r"%[0-9a-fA-F]{2}")
+
+
+def _ucschar(code: int) -> bool:
+    """RFC 3987 `ucschar`: the characters above ASCII an IRI holds as they are outside its query. C1 controls, surrogates,
+    noncharacters and the private use areas are not among them."""
+    if 0xA0 <= code <= 0xD7FF or 0xF900 <= code <= 0xFDCF or 0xFDF0 <= code <= 0xFFEF:
+        return True
+    plane, low = code >> 16, code & 0xFFFF
+    if 1 <= plane <= 0xD:
+        return low <= 0xFFFD
+    return plane == 0xE and 0x1000 <= low <= 0xFFFD
+
+
+def _iri_escaped(text: str, allowed: frozenset[str]) -> str:
+    """`text` with every character an IRI reference does not allow there percent-encoded as its UTF-8 bytes (a lone surrogate
+    as the bytes `surrogatepass` gives, so nothing raises). A valid escape `%XX` and an allowed character stay as they are,
+    so escaping twice gives the same text."""
+    out: list[str] = []
+    for index, char in enumerate(text):
+        if char == "%" and text[index + 1:index + 2] in _HEX and text[index + 2:index + 3] in _HEX:
+            out.append(char)
+        elif char in allowed or (ord(char) > 0x7F and _ucschar(ord(char))):
+            out.append(char)
+        else:
+            out.append("".join(f"%{byte:02X}" for byte in char.encode("utf-8", "surrogatepass")))
+    return "".join(out)
+
+
+def _decoded_for_names(segment: str) -> str:
+    """The text a path segment's credential name is judged on (1.16.2): every `%` followed by two hex digits, either case,
+    becomes that byte and every other character its UTF-8 bytes (a lone surrogate as `surrogatepass` gives them); the bytes are
+    decoded as UTF-8 with an invalid sequence read as U+FFFD. One pass: `%2565` reads as `%65`, not `e`. So `k%65y=secret`,
+    `%6Bey=secret` and `x-key%3Dsecret` read as `key=secret` and `x-key=secret`."""
+    raw = bytearray()
+    index = 0
+    while index < len(segment):
+        if segment[index] == "%" and segment[index + 1:index + 2] in _HEX and segment[index + 2:index + 3] in _HEX:
+            raw.append(int(segment[index + 1:index + 3], 16))
+            index += 3
+        else:
+            raw += segment[index].encode("utf-8", "surrogatepass")
+            index += 1
+    return raw.decode("utf-8", "replace")
+
+
+def _mask_names(segment: str) -> str:
+    """`_PATH_CREDENTIAL` on the decoded segment (`_decoded_for_names`): when it matches, the segment becomes the decoded name
+    (group 1) and `=***`; otherwise the segment is left as it is, escapes included. On a segment without an escape this is the
+    backend's `_PATH_CREDENTIAL.sub(r"\1=***", segment)`."""
+    match = _PATH_CREDENTIAL.match(_decoded_for_names(segment))
+    return f"{match.group(1)}=***" if match else segment
+
+
+_MASKINGS = ("full", "evidence", "none")
+
+
+def _reduced_segment(segment: str, masking: str) -> str:
+    """A raw path segment masked, then escaped for an IRI, in rounds until a round changes nothing. The first round masks the
+    segment as it was written, so escaping never hides a credential from the masking (`{"token":"x"}` is masked before `"` is
+    `%22`); the result is valid in an IRI and a fixed point of the round, so `reduce_url` is idempotent. `mask_credentials`
+    alone is not always its own fixed point (`ghp_<36>-user:pw@x` becomes `ghp_***-user:pw@x`, which a second pass masks to
+    `ghp_***-user:***`). It settles in two or three rounds; the bound only backs that up."""
+    for _ in range(8):
+        masked = segment
+        if masking != "none":
+            masked = mask_credentials(masked)
+        if masking == "full":
+            masked = _mask_names(masked)
+        masked = _iri_escaped(masked, _PATH_ASCII)
+        if masked == segment:
+            break
+        segment = masked
+    return segment
+
+
+def reduce_url(text: object, *, masking: str = "full") -> str | None:
+    """`scheme://host[:port]/path` of an absolute URL: user name and password, query and fragment removed, scheme and host
+    lower-cased (the rule of `identity._reduce_source`), a credential in a path segment masked, and (1.16.2) every character an
+    IRI reference does not allow in the host or the path percent-encoded, so the result is a valid `iri-reference` (CycloneDX
+    `externalReferences[].url`, `services[].endpoints[]`). None for anything that is not an absolute URL, that holds an ASCII
+    control character or whitespace, or whose bracketed host is no IPv6 address. Idempotent. Used for every
+    endpoint and every source URL an export writes. Never raises for any `text`.
+
+    `masking` (1.16.2): `full`, the default, masks each path segment as evidence is masked (`mask_credentials`) and a
+    `name=value` segment named like a credential (`_PATH_CREDENTIAL`, as the hosted backend does); `evidence` only the first,
+    as 1.16.1 did; `none` masks nothing, for a canonical repository URL (no user name, no query) whose readable path is the
+    point of the link."""
+    if masking not in _MASKINGS:
+        raise ValueError(f"masking is one of {', '.join(_MASKINGS)}")
     if not isinstance(text, str) or any(ord(char) < 0x21 or ord(char) == 0x7F for char in text):
         return None
     parts = url_parts(text)
     if parts is None:
         return None
-    host = f"[{parts.host}]" if ":" in parts.host else parts.host
+    if ":" in parts.host:  # it came bracketed: an IPv6 address needs no escape; anything else (a zone, IPvFuture) is no host
+        try:
+            ipaddress.IPv6Address(parts.host)
+        except ValueError:
+            return None
+        if "%" in parts.host:
+            return None
+        host = f"[{parts.host}]"
+    else:  # the host came lower-cased, its escapes too: their hex digits are written in upper case, as they are made
+        host = _ESCAPE.sub(lambda match: match.group(0).upper(), _iri_escaped(parts.host, _HOST_ASCII))
     # A token carried in the path (`/api/mcp/s/<token>/mcp`, a webhook's secret segment) is masked like any evidence, segment
-    # by segment, as `evidence.redacted_url` does, so the host and the other segments stay readable. Idempotent, so the server
-    # reducing an address the engine already reduced writes the same text.
-    path = "/".join(mask_credentials(segment) for segment in parts.path.split("/"))
+    # by segment, as `evidence.redacted_url` does, so the host and the other segments stay readable, and a `name=value`
+    # segment named like a credential is masked whole (1.16.2, `_mask_names`). Each segment is masked as written, then escaped.
+    path = "/".join(_reduced_segment(segment, masking) for segment in parts.path.split("/"))
     return f"{parts.scheme}://{host}{':' + parts.port if parts.port else ''}{path}"
 
 
