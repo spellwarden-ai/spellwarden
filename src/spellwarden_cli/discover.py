@@ -8,6 +8,7 @@ import bisect
 import ntpath
 import os
 import posixpath
+import stat
 import sys
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field, replace
@@ -172,12 +173,6 @@ def _lock_path() -> str:
     return LOCK_PATH
 
 
-def _lexical(link: str, text: str) -> str:
-    """The scan-root path a relative link target names when read lexically from the link's directory (`..` at the top stays
-    there): used only to tell a link written to the lock file before `.spellwarden/` exists in the file set."""
-    return posixpath.normpath(posixpath.join(posixpath.dirname(link), text)).lstrip("/")
-
-
 def _named(path: str, suffix: str) -> bool:
     return path == suffix or path.endswith("/" + suffix)
 
@@ -218,6 +213,13 @@ def _join(directory: str, name: str) -> str:
 class _Escape(UnsafePath):
     """A relative link target refused because it resolves, lexically, outside the scan root (`_Builder._link_target`).
     Only such a target may be skipped (a member link); every other refusal is an error wherever it leads."""
+
+
+class _LockDirAbsent(UnsafePath):
+    """`_Builder._link_target`'s refusal of a target whose walk, through directories of the file set and no link, reaches
+    `.spellwarden` at the scan root, which is not a directory of the file set, with `lock.json` as its last segment: the lock
+    before the first `spellwarden lock` (1.16.2), if `_Builder._lock_absent` confirms nothing is there. Any other refusal of
+    the walk is raised as a plain `UnsafePath`."""
 
 
 # Case-insensitive by default: there the real scan root and a target that climbs out and back in are compared folded.
@@ -413,9 +415,10 @@ class _Builder:
         except _Escape as exc:
             return _Resolution(None, raw, Notice("unsafe_path", path, f"symbolic link: {exc}"), True)
         except UnsafePath as exc:
-            # before the first lock `.spellwarden/` may not be a directory of the file set yet (1.16.2): a target written
-            # as the lock's path is still a link to the lock (`member` decides whether that is allowed)
-            if not _absolute(text) and _lexical(path, text) == _lock_path() and _lock_path() not in self.entries:
+            # before the first lock `.spellwarden/` may not be a directory of the file set yet (1.16.2): a target the walk
+            # followed to it through real directories only is the lock not yet written, when nothing is there on disk
+            # (`member` decides whether that is allowed); the link text is never normalised across a segment
+            if isinstance(exc, _LockDirAbsent) and self._lock_absent(directory_too=True):
                 self.to_lock.add(path)
             return _Resolution(None, raw, Notice("unsafe_path", path, f"symbolic link: {exc}"), False)
         if target in self.links:
@@ -433,7 +436,9 @@ class _Builder:
             self.too_large_links.add(path)
             return _Resolution(None, raw, Notice("unreadable", path, f"symbolic link to {target!r}, {_TOO_LARGE}"), False)
         if target not in self.entries:
-            if target == _lock_path():  # before the first `spellwarden lock`: a package member is its own (`member`)
+            # before the first `spellwarden lock`, `.spellwarden/` a real directory of the file set: a package member is its
+            # own (`member`), when no file of any kind is at the lock's path
+            if target == _lock_path() and self._lock_absent(directory_too=False):
                 self.to_lock.add(path)
             return _Resolution(None, raw, Notice("unsafe_path", path, f"symbolic link to {target!r}, not a file of the "
                                                  "file set"), False)
@@ -496,15 +501,47 @@ class _Builder:
                 raise UnsafePath("target passes through a symbolic link")
             if inside not in self.directories:
                 twin = self.twin(inside)
-                raise UnsafePath(f"target passes through {inside!r}, " + (
+                message = f"target passes through {inside!r}, " + (
                     f"which names {twin!r} only in another case or Unicode form; use the exact name" if twin
-                    else "not a directory of the file set"))
+                    else "not a directory of the file set")
+                lock_dir, lock_name = _lock_path().split("/")
+                if twin is None and inside == lock_dir and index == len(segments) - 2 and segments[-1] == lock_name:
+                    raise _LockDirAbsent(message)  # every segment before it was a directory of the file set, no link
+                raise UnsafePath(message)
         inside = self._inside_root(stack, root)
         if inside is not None:
             return inside
         if self._ancestor(stack, root):
             raise UnsafePath("target names a directory above the scan root")
         raise _Escape("target leaves the scan root")
+
+    def _lock_absent(self, *, directory_too: bool) -> bool:
+        """Whether the lock file is not there at all (1.16.2), judged on the fixed paths `.spellwarden` and
+        `.spellwarden/lock.json` under the operator's scan root, never on link text: no entry, link, oversize file or path
+        the settings dropped at the lock's path or (`directory_too`) at `.spellwarden` or below it, and on disk nothing at
+        the lock's path (`lstat`) and `.spellwarden` absent (`directory_too`) or a real directory, never a link."""
+        lock = _lock_path()
+        lock_dir = lock.split("/")[0]
+        listed = (self.entries.keys() | self.links | set(self.too_large) | set(self.fileset.deselected))
+        if lock in listed or lock_dir in self.links or lock_dir in self.paths:
+            return False
+        if directory_too and any(name == lock_dir or name.startswith(lock_dir + "/") for name in listed):
+            return False
+        try:
+            directory = os.lstat(os.path.join(self.fileset.root, lock_dir))
+        except FileNotFoundError:
+            return directory_too
+        except OSError:
+            return False
+        if not stat.S_ISDIR(directory.st_mode):
+            return False
+        try:
+            os.lstat(os.path.join(self.fileset.root, lock))
+        except FileNotFoundError:
+            return True
+        except OSError:
+            return False
+        return False
 
     def _root_parts(self) -> list[str]:
         """The components of the real path of the operator's scan root, computed once (never from repository text);

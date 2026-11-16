@@ -17,8 +17,9 @@ shows the count its roots cap leaves out.
   unseen. `scan --locked` already exited 2 for such a repository. A remote server `lock --probe` cannot read stays a warning
   with exit 0. A repository whose lock was written over a refused or cut-short configuration document (status `error:...` or
   `truncated`) can no longer refresh it with `lock` until the document is fixed or excluded.
-- A symbolic link inside a skill or a local plugin directory to `.spellwarden/lock.json` before that file exists is a member
-  of its package, left out of the package's lock hash as the lock is once it exists (the notice `symlink_skipped`), so the
+- A symbolic link inside a skill or a local plugin directory to `.spellwarden/lock.json` before that file exists, its target
+  passing through real directories only (no other link, `.spellwarden` no link) and nothing on disk at the lock's path, is a
+  member of its package, left out of the package's lock hash as the lock is once it exists (the notice `symlink_skipped`), so the
   first `spellwarden lock` already holds the package and `lock --check` passes at once; it was the error `unsafe_path`. Any
   other link to the lock file (`.mcp.json -> .spellwarden/lock.json`) stays the error `unsafe_path`, so `lock` exits 2.
 - `scan --user --upload`: each client entry of the upload body carries `roots_total`, the number of the client's roots before
