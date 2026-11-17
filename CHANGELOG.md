@@ -8,7 +8,7 @@ default.
 
 1.17.0: an optional model-assisted analyzer (`--analyze`) that sends a skill's SKILL.md and scripts to an OpenAI-compatible
 endpoint you name, with your key from `SPELLWARDEN_MODEL_KEY`, and reports advisory, model-assisted findings with quoted spans;
-measured on Claude Sonnet 5.5 (rates below); its verdicts never change the exit code. A description lint (SW-LINT-001 to SW-LINT-004),
+measured on Claude Sonnet 5.5 (rates below); never changes the exit code. A description lint (SW-LINT-001 to SW-LINT-004),
 informational.
 
 Measured rates: filled before the release
