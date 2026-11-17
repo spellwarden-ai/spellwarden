@@ -72,6 +72,8 @@ CATEGORY_RULES: dict[str, tuple[str, ...]] = {
 # canonical name: {"name": display name, "aliases": [names a gateway may use], "detection_rate", "false_positive_rate",
 # "held_out_size", "measured_on": "YYYY-MM-DD", "set": manifest sha256}. Empty until the measurement fills it.
 MEASURED_MODELS: dict[str, dict] = {}
+# The members of a `MEASURED_MODELS` entry, which `scripts/measure_analyzer.py` writes into its summary (spec 11.6).
+MEASURED_ENTRY_KEYS = ("name", "aliases", "detection_rate", "false_positive_rate", "held_out_size", "measured_on", "set")
 _BEDROCK_PREFIX = "eu.anthropic."
 
 
@@ -338,7 +340,7 @@ def measured_label(model_name: str) -> str | None:
 
 
 __all__ = ["ANALYZER_MAX_BYTES", "ANALYZER_MAX_TOKENS", "ANALYZER_VERSION", "CATEGORIES", "CATEGORY_RULES", "CONFIDENCE",
-           "LIMIT_CODES", "MAX_SPANS", "MEASURED_MODELS", "REPLY_REASONS", "SCHEMA", "SCRIPT_EXTENSIONS",
+           "LIMIT_CODES", "MAX_SPANS", "MEASURED_ENTRY_KEYS", "MEASURED_MODELS", "REPLY_REASONS", "SCHEMA", "SCRIPT_EXTENSIONS",
            "SPAN_MAX", "STATUSES", "SUMMARY_MAX", "SYSTEM", "VERDICTS", "AnalyzerRequest", "AnalyzerResult", "CategoryVerdict",
            "NotAnalyzed", "Span", "build_request", "canonical_model", "is_measured", "measured_label", "parse_reply",
            "rules_found"]
