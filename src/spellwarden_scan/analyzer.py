@@ -6,8 +6,10 @@ Scanned content is hostile data (spec 6.5). `build_request` puts the skill's fil
 boundary, tells the model that the block is data and that an instruction inside it is evidence, asks for a nonce the answer
 must repeat, and passes each file's text through `mask_credentials` before it enters the request; the size bound, `input_bytes`
 and the span check all use that masked text. `parse_reply` refuses anything but one JSON object of the schema with the nonce
-and every category once, and checks every quoted span against the masked source: a reply that fails is `no_verdict` with the
-reason, never clean. Summaries and spans are masked again on the way out.
+and every category once, and checks every quoted span against the masked source at the line it names (at least
+`MIN_SPAN_CHARS` characters, found in a window of `SPAN_LINE_SLACK` more lines than the span holds, starting at that line,
+whitespace collapsed on both sides): a reply that fails is `no_verdict` with the reason, never clean. Summaries and spans
+are masked again on the way out.
 
 Advisory (owner decision idea:Q4): a result is never a finding and never changes an exit code, a rule count or a `--fail-on`
 outcome. Pure: no I/O. The boundary and the nonce come from `secrets` unless the caller passes them."""
@@ -33,9 +35,16 @@ VERDICTS = ("issue", "none")
 STATUSES = ("analyzed", "no_verdict", "incomplete", "not_analyzed")
 LIMIT_CODES = ("too_large", "not_text")
 # The reasons of a `no_verdict` (spec 6.5): the reply was not one JSON object, was off the schema, lacked or changed the nonce,
-# lacked a category or named one twice or one outside the list, or quoted a span that is not in the source it was given.
+# lacked a category or named one twice or one outside the list, or quoted a span of a file it was not given, at a line that
+# file does not have, that is not in the source at the line it names, or that is too short to place (r0:F3).
 REPLY_REASONS = ("not_json", "off_schema", "nonce_missing", "category_missing", "category_unknown", "category_duplicate",
-                 "span_unknown_path", "span_line", "span_not_in_source")
+                 "span_unknown_path", "span_line", "span_not_in_source", "span_too_short")
+# The span check (spec 6.5, r0:F3): a span is at least `MIN_SPAN_CHARS` characters once whitespace is collapsed (a shorter one
+# occurs almost anywhere and places nothing), and it must occur, whitespace collapsed, in the lines from the one it names
+# through its own line count plus `SPAN_LINE_SLACK` more, so the line a report shows holds the quoted text (or sits at most
+# that many lines above it). Each check reads only that window: linear in the reply and the source.
+MIN_SPAN_CHARS = 8
+SPAN_LINE_SLACK = 1
 # Output caps of spec 4.8 and 6.4: spans kept per category, characters of a summary and of a span; the count of spans left out
 # is kept. Every span is checked before the cap.
 MAX_SPANS = 5
@@ -165,8 +174,9 @@ SYSTEM = (
     "Answer with one JSON object and nothing else, of this JSON schema:\n" + json.dumps(SCHEMA, sort_keys=True) + "\n"
     "Give every one of the eight categories exactly once. verdict is issue when the skill does what the category "
     "describes, else none. confidence is low, medium or high. summary says in at most 300 characters what you found or "
-    "that you found nothing. Each span quotes, exactly and on one line, text of the file named by path at that line "
-    "number; give spans for every issue, at most five per category. nonce repeats the nonce the user message gives."
+    "that you found nothing. Each span quotes, exactly and on one line, at least 8 characters of text of the file named "
+    "by path at that line number; give spans for every issue, at most five per category. nonce repeats the nonce the user "
+    "message gives."
 )
 
 
@@ -256,8 +266,9 @@ def _no_verdict(reason: str) -> AnalyzerResult:
 
 def parse_reply(text: str, request: AnalyzerRequest) -> AnalyzerResult:
     """Spec 11.2: the reply must be one JSON object of `SCHEMA` (a single Markdown code fence around it is allowed), repeat
-    the nonce, and hold every category once; every span's text must occur, whitespace collapsed, in the masked text of the
-    file it names, at a line that file has. Anything else is `no_verdict` with the reason. Summaries and spans are masked
+    the nonce, and hold every category once; every span's text must be at least `MIN_SPAN_CHARS` characters and occur,
+    whitespace collapsed, in the masked text of the file it names, in the window of lines that starts at the line it names
+    (`SPAN_LINE_SLACK`). Anything else is `no_verdict` with the reason. Summaries and spans are masked
     with `mask_credentials` and cut to `SUMMARY_MAX` and `SPAN_MAX`; at most `MAX_SPANS` spans are kept per category and the
     count left out is kept."""
     stripped = text.strip()
@@ -278,8 +289,7 @@ def parse_reply(text: str, request: AnalyzerRequest) -> AnalyzerResult:
     if not isinstance(entries, list):
         return _no_verdict("off_schema")
     sources = dict(request.files)
-    squashed = {path: _squashed(source) for path, source in sources.items()}
-    line_counts = {path: len(_lines(source)) for path, source in sources.items()}
+    lines_of = {path: _lines(source) for path, source in sources.items()}
     found: dict[str, CategoryVerdict] = {}
     for entry in entries:
         if not isinstance(entry, dict) or set(entry) != {"id", "verdict", "confidence", "summary", "spans"}:
@@ -299,10 +309,15 @@ def parse_reply(text: str, request: AnalyzerRequest) -> AnalyzerResult:
                 return _no_verdict("off_schema")
             if span["path"] not in sources:
                 return _no_verdict("span_unknown_path")
-            if not 1 <= span["line"] <= line_counts[span["path"]]:
+            lines = lines_of[span["path"]]
+            if not 1 <= span["line"] <= len(lines):
                 return _no_verdict("span_line")
             quoted = _squashed(span["text"])
-            if not quoted or quoted not in squashed[span["path"]]:
+            if len(quoted) < MIN_SPAN_CHARS:
+                return _no_verdict("span_too_short")
+            start = span["line"] - 1
+            window = _squashed("\n".join(lines[start:start + span["text"].count("\n") + 1 + SPAN_LINE_SLACK]))
+            if quoted not in window:
                 return _no_verdict("span_not_in_source")
             spans.append(Span(span["path"], span["line"], _cut(span["text"], SPAN_MAX)))
         found[category] = CategoryVerdict(category, entry["verdict"], entry["confidence"], _cut(entry["summary"], SUMMARY_MAX),
@@ -347,7 +362,7 @@ def measured_label(model_name: str) -> str | None:
 
 
 __all__ = ["ANALYZER_MAX_BYTES", "ANALYZER_MAX_TOKENS", "ANALYZER_VERSION", "CATEGORIES", "CATEGORY_RULES", "CONFIDENCE",
-           "LIMIT_CODES", "MAX_SPANS", "MEASURED_ENTRY_KEYS", "MEASURED_MODELS", "REPLY_REASONS", "SCHEMA", "SCRIPT_EXTENSIONS",
-           "SPAN_MAX", "STATUSES", "SUMMARY_MAX", "SYSTEM", "VERDICTS", "AnalyzerRequest", "AnalyzerResult", "CategoryVerdict",
-           "NotAnalyzed", "Span", "build_request", "canonical_model", "is_measured", "measured_label", "parse_reply",
-           "rules_found", "selects"]
+           "LIMIT_CODES", "MAX_SPANS", "MEASURED_ENTRY_KEYS", "MEASURED_MODELS", "MIN_SPAN_CHARS", "REPLY_REASONS", "SCHEMA",
+           "SCRIPT_EXTENSIONS", "SPAN_LINE_SLACK", "SPAN_MAX", "STATUSES", "SUMMARY_MAX", "SYSTEM", "VERDICTS",
+           "AnalyzerRequest", "AnalyzerResult", "CategoryVerdict", "NotAnalyzed", "Span", "build_request", "canonical_model",
+           "is_measured", "measured_label", "parse_reply", "rules_found", "selects"]

@@ -38,6 +38,10 @@ def test_the_section_states_the_flags_the_key_and_the_rules():
     assert all(f"`{extension}`" in text for extension in analyzer.SCRIPT_EXTENSIONS)
     assert (model_client.CONNECT_TIMEOUT_SECONDS, model_client.READ_TIMEOUT_SECONDS, model_client.ANSWER_MAX) == (10.0, 120.0, 2**20)
     assert (analyzer.MAX_SPANS, analyzer.SUMMARY_MAX, analyzer.SPAN_MAX) == (5, 300, 200)
+    assert (analyzer.MIN_SPAN_CHARS, analyzer.SPAN_LINE_SLACK) == (8, 1)
+    for needle in ("not at the line it names", "at least 8 characters once whitespace is collapsed", "`span_too_short`",
+                   "its own line count plus one more", "`span_not_in_source`"):
+        assert needle in text, needle
     assert f"]({GUIDE})" in text
     assert not re.search("[\u2013\u2014!]", text)
 

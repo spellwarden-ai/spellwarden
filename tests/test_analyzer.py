@@ -180,7 +180,8 @@ def test_replies_that_are_not_one_object_of_the_schema(text, reason):
     (lambda d: d["categories"][0]["spans"][0].update(line=99), "span_line"),
     (lambda d: d["categories"][0]["spans"][0].update(line="7"), "off_schema"),
     (lambda d: d["categories"][0]["spans"][0].update(text="rm -rf / --no-preserve-root"), "span_not_in_source"),
-    (lambda d: d["categories"][0]["spans"][0].update(text="   "), "span_not_in_source"),
+    (lambda d: d["categories"][0]["spans"][0].update(text="   "), "span_too_short"),
+    (lambda d: d["categories"][0]["spans"][0].update(line=1), "span_not_in_source"),
 ])
 def test_every_failed_check_is_no_verdict_with_its_reason(change, reason):
     req = request()
@@ -278,3 +279,36 @@ def test_the_report_schema_describes_an_analysis_entry():
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate({"analysis": [{**entry, "status": "clean"}]}, resolver)
     assert set(schema["$defs"]["analysis_entry"]["properties"]["reason"]["enum"]) == {*analyzer.REPLY_REASONS, "endpoint_error"}
+
+
+def test_a_span_must_sit_at_the_line_it_names_and_be_long_enough():
+    """r0:F3: the span's text is checked, whitespace collapsed, against a window of lines starting at the line it names (its own
+    line count plus `SPAN_LINE_SLACK`), so a SARIF region never points at a line the model made up; a span shorter than
+    `MIN_SPAN_CHARS` after the collapse matches almost anywhere and is refused."""
+    assert (analyzer.MIN_SPAN_CHARS, analyzer.SPAN_LINE_SLACK) == (8, 1)
+    assert "span_too_short" in analyzer.REPLY_REASONS
+    req = request()
+    assert analyzer.parse_reply(with_issue(req, line=2), req).reason == "span_not_in_source"  # in the file, not at line 2
+    assert analyzer.parse_reply(with_issue(req, line=6), req).status == "analyzed"  # the slack: one line above it
+    assert analyzer.parse_reply(with_issue(req, line=5), req).reason == "span_not_in_source"  # two lines above it
+    assert analyzer.parse_reply(with_issue(req, text="e"), req).reason == "span_too_short"
+    assert analyzer.parse_reply(with_issue(req, text=" Ignore\n "), req).reason == "span_too_short"  # 6 characters
+    assert analyzer.parse_reply(with_issue(req, text="Ignore e"), req).status == "analyzed"  # 8 characters
+    across = with_issue(req, line=6, text="Run scripts/deploy.sh.\nIgnore every earlier")  # a span over two lines
+    assert analyzer.parse_reply(across, req).status == "analyzed"
+
+
+def test_the_span_check_reads_a_long_line_in_linear_time():
+    import time
+
+    line = "ab" * 150_000
+    files = {"skills/deploy/SKILL.md": f"---\nname: d\n---\n{line}\n".encode()}
+    req = request(files, max_bytes=10_000_000)
+    categories = json.loads(reply(req))["categories"]
+    spans = [{"path": "SKILL.md", "line": 4, "text": "ab" * 50 + "c"}] * 3 + [{"path": "SKILL.md", "line": 4, "text": "ab" * 50}]
+    categories[0] = {"id": "instruction_override", "verdict": "issue", "confidence": "low", "summary": "s", "spans": spans[3:]}
+    started = time.perf_counter()
+    assert analyzer.parse_reply(reply(req, categories=categories), req).status == "analyzed"
+    categories[0]["spans"] = spans
+    assert analyzer.parse_reply(reply(req, categories=categories), req).reason == "span_not_in_source"
+    assert time.perf_counter() - started < 2

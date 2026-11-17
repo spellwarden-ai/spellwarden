@@ -55,7 +55,7 @@
         "cached": {"type": "boolean"},
         "categories": {"type": "array", "maxItems": 8, "items": {"$ref": "#/$defs/analysis_category"}},
         "reason": {"enum": ["not_json", "off_schema", "nonce_missing", "category_missing", "category_unknown", "category_duplicate",
-                            "span_unknown_path", "span_line", "span_not_in_source", "endpoint_error"]},
+                            "span_unknown_path", "span_line", "span_not_in_source", "span_too_short", "endpoint_error"]},
         "limit": {"type": "object", "required": ["code"],
                   "properties": {"code": {"enum": ["too_large", "not_text"]}, "bytes": {"type": "integer", "minimum": 0},
                                  "max": {"type": "integer", "minimum": 1}, "path": {"type": "string"}}},
