@@ -27,7 +27,10 @@ ERROR_CODES = (*DOCUMENT_ERRORS, "unsafe_path", "case_collision", "unreadable", 
                "a2a_cards_limit", "instructions_limit",
                # Phase 3 batch 2a spec 11.6: `scan --user` and the workstation upload
                "user_instructions_limit", "user_skills_limit", "workstation_no_credential", "workstation_label_missing",
-               "workstation_upload_too_large", "workstation_upload_failed")
+               "workstation_upload_too_large", "workstation_upload_failed",
+               # 1.17.0 (Phase 4 batch B spec:Q4, D23): written only when `analysis.incomplete_analysis_is_scan_error` says so,
+               # which it does not today
+               "analysis_incomplete")
 # The error codes whose message says what to fix (O3 spec 6.9); the Markdown report prints them whole.
 CONNECTED_ERRORS = ERROR_CODES[ERROR_CODES.index("connected_config"):ERROR_CODES.index("registry_check_too_large") + 1]
 NOTICE_CODES = ("no_agent_content", "git_unavailable", "exec_bits_unknown", "symlink_skipped", "file_too_large",
@@ -52,7 +55,9 @@ NOTICE_CODES = ("no_agent_content", "git_unavailable", "exec_bits_unknown", "sym
                 # 1.15.0: the probed tool hashes pinned in the lock file (`mcp-tools`) differ, or could not be compared
                 "tools_changed", "tools_not_compared",
                 # 1.17.0 (Phase 4 batch B spec 11.4): the description lint
-                "description_lint")
+                "description_lint",
+                # 1.17.0 (spec 11.3): the model-assisted analyzer
+                "model_assisted", "analysis_incomplete")
 # The notices that say a run continued in free mode after connected mode could not start (O3 spec 6.4); the text and
 # Markdown outputs derive their "unavailable" line from them.
 FREE_MODE_NOTICES = ("connected_fallback", "fork_free_mode", "dependabot_free_mode")

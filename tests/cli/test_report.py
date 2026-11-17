@@ -108,8 +108,8 @@ def test_notice_and_error_codes_are_todays_plus_the_closed_lists_of_spec_6_9():
         "instructions_front_matter", "probe_list_incomplete", "workstation_uploaded", "client_not_found",
         # 1.15.0: the probed tool hashes of the lock file
         "tools_changed", "tools_not_compared",
-        # 1.17.0: the description lint
-        "description_lint")
+        # 1.17.0: the description lint and the model-assisted analyzer
+        "description_lint", "model_assisted", "analysis_incomplete")
     assert ERROR_CODES == TODAYS_ERROR_CODES + (
         "connected_config", "connected_key_invalid", "connected_no_credential", "connected_auth", "connected_subscription",
         "connected_ci_key_required", "connected_forbidden", "connected_rate_limited", "connected_unavailable",
@@ -119,7 +119,9 @@ def test_notice_and_error_codes_are_todays_plus_the_closed_lists_of_spec_6_9():
         "a2a_cards_limit", "instructions_limit",
         # 1.14.0 (phase 3 batch 2a spec 11.6)
         "user_instructions_limit", "user_skills_limit", "workstation_no_credential", "workstation_label_missing",
-        "workstation_upload_too_large", "workstation_upload_failed")
+        "workstation_upload_too_large", "workstation_upload_failed",
+        # 1.17.0: spec:Q4, never written today
+        "analysis_incomplete")
     assert len(set(NOTICE_CODES)) == len(NOTICE_CODES) and len(set(ERROR_CODES)) == len(ERROR_CODES)
 
 
