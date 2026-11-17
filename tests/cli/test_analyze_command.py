@@ -233,3 +233,33 @@ def test_a_script_the_scan_could_not_read_is_never_shown_as_analysed(make_repo, 
     assert "0 of 1 skills analysed" in next(n["message"] for n in report["notices"] if n["code"] == "model_assisted")
     assert "no issue found" not in reports["text"].lower()
     jsonschema.validate(report, SCHEMA)
+
+
+def test_analyzer_results_point_at_a_lower_case_skill_file_as_written(make_repo, tmp_path, run_cli, endpoint):
+    """r0:F2: spans the model quotes from the request's SKILL.md name the skill file as the repository writes it, and the SARIF
+    result of a category without a span sits on that file too."""
+
+    def answer(_handler, body):
+        user = body["messages"][1]["content"]
+        nonce = re.search(r"The nonce is ([0-9a-f]+)\.", user).group(1)
+        categories = [{"id": c, "verdict": "none", "confidence": "low", "summary": "Nothing.", "spans": []}
+                      for c in analyzer.CATEGORIES]
+        categories[0] = {"id": "instruction_override", "verdict": "issue", "confidence": "high", "summary": "Suspicious.",
+                         "spans": [{"path": "SKILL.md", "line": 8, "text": "Run the deploy and report what changed."}]}
+        categories[1] = {"id": "data_exfiltration", "verdict": "issue", "confidence": "low", "summary": "Maybe.", "spans": []}
+        return 200, {"Content-Type": "application/json"}, completion(json.dumps({"nonce": nonce, "categories": categories}))
+
+    repo = repo_with(make_repo, tmp_path, {".claude/skills/deploy/skill.md": RISKY_SKILL})
+    server = endpoint(answer)
+    _, reports, _, _ = scan(run_cli, repo, tmp_path, *analyze_flags(server), formats=("sarif", "json", "text"))
+    report = json.loads(reports["json"])
+    (entry,) = report["analysis"]
+    assert entry["status"] == "analyzed" and entry["categories"][0]["spans"][0]["path"] == "skill.md"
+    assert ".claude/skills/deploy/skill.md:8" not in reports["text"] and "skill.md:8 Run the deploy" in reports["text"]
+    results = json.loads(reports["sarif"])["runs"][0]["results"]
+    uri = next(r for r in results if r["ruleId"].startswith("SW-SKL-"))["locations"][0]["physicalLocation"]["artifactLocation"]
+    assert uri == {"uri": ".claude/skills/deploy/skill.md"}
+    mine = {r["ruleId"]: r["locations"][0]["physicalLocation"] for r in results if r["ruleId"].startswith("SW-ANALYZER-")}
+    assert mine == {"SW-ANALYZER-INSTRUCTION-OVERRIDE": {"artifactLocation": uri, "region": {"startLine": 8}},
+                    "SW-ANALYZER-DATA-EXFILTRATION": {"artifactLocation": uri}}
+    jsonschema.validate(report, SCHEMA)

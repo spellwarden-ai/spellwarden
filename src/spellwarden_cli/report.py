@@ -160,10 +160,15 @@ class AgentReport:
 class SkillLint:
     """The description lint of one skill (Phase 4 batch B spec 11.4): `skill` is the skill's directory, `notes` at most
     `lint.MAX_NOTES_PER_SKILL` notes sorted by id, `left_out` the count of notes the cap left out. Informational: never a
-    finding, never part of the exit code."""
+    finding, never part of the exit code. `skill_file` is the skill file's scan-root path as the repository writes it (a case
+    variant such as `skills/x/skill.md` included, r0:F2), where SARIF puts the notes; not serialised."""
     skill: str
     notes: tuple[LintNote, ...]
     left_out: int = 0
+    skill_file: str | None = field(default=None, compare=False)
+
+    def skill_file_path(self) -> str:
+        return self.skill_file or ("SKILL.md" if self.skill == "." else f"{self.skill}/SKILL.md")
 
     def to_dict(self) -> dict:
         return {"skill": self.skill, "left_out": self.left_out,

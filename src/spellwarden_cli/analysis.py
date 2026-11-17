@@ -16,6 +16,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import posixpath
 import tempfile
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
@@ -124,7 +125,8 @@ def _write_cache(path: str, package_hash: str, model: str, categories: list[dict
 
 def _entry(skill: SkillPackage, package_hash: str | None, options: AnalyzeOptions, status: str, **extra) -> dict:
     measured = analyzer.is_measured(options.model)
-    entry = {"skill": skill.path, "status": status, "package_sha256": package_hash,
+    entry = {"skill": skill.path, "skill_file": skill.as_written(skill.engine_key()), "status": status,
+             "package_sha256": package_hash,
              "analyzer_version": analyzer.ANALYZER_VERSION, "model": options.model, "measured": measured is not None,
              "measured_on": measured_name(measured), "way": WAY, "run_id": None, "finished_at": None, "cached": False,
              "categories": []}
@@ -139,8 +141,16 @@ def measured_name(key: str | None) -> str | None:
     return analyzer.MEASURED_MODELS[key].get("name", key)
 
 
-def _with_rules(categories: list[dict], found: dict[str, bool]) -> list[dict]:
-    return [{**category, "rules_found": found[category["id"]]} for category in categories]
+def _with_rules(categories: list[dict], found: dict[str, bool], skill: SkillPackage) -> list[dict]:
+    """The categories as the report shows them: `rules_found` added, and a span of the request's SKILL.md named as the
+    repository writes the skill file (a case variant such as `skill.md`, r0:F2). The cache keeps the request's names."""
+    written = posixpath.basename(skill.variant) if skill.variant is not None else analyzer.SKILL_FILE
+
+    def span(one: dict) -> dict:
+        return {**one, "path": written} if one["path"] == analyzer.SKILL_FILE else one
+
+    return [{**category, "spans": [span(one) for one in category["spans"]], "rules_found": found[category["id"]]}
+            for category in categories]
 
 
 def limit_message(limit: analyzer.NotAnalyzed) -> str:
@@ -210,7 +220,8 @@ def analyse(found: Discovery, findings: Sequence[ReportFinding], options: Analyz
         cached_path = cache_path(options.cache_dir, package_hash, options.model) if options.cache_dir and package_hash else None
         cached = _read_cache(cached_path, package_hash, options.model) if cached_path else None
         if cached is not None:
-            entries.append(_entry(skill, package_hash, options, "analyzed", cached=True, categories=_with_rules(cached, rules)))
+            entries.append(_entry(skill, package_hash, options, "analyzed", cached=True,
+                                  categories=_with_rules(cached, rules, skill)))
             continue
         request = analyzer.build_request(skill.engine_files(), root=_root(skill), max_bytes=options.max_bytes,
                                          executable_paths=skill.engine_executable())
@@ -242,7 +253,7 @@ def _call(skill: SkillPackage, package_hash: str | None, options: AnalyzeOptions
     if cached_path is not None and package_hash is not None:
         if not _write_cache(cached_path, package_hash, options.model, categories):
             unwritten.append(skill.path)
-    return _entry(skill, package_hash, options, "analyzed", categories=_with_rules(categories, rules))
+    return _entry(skill, package_hash, options, "analyzed", categories=_with_rules(categories, rules, skill))
 
 
 def summary_notice(entries: Sequence[dict], options: AnalyzeOptions, *, cache_unwritable: bool = False) -> Notice:

@@ -70,7 +70,7 @@ def test_an_analysed_skill_carries_the_fields_of_spec_6_4():
     client = Scripted(good)
     (entry,), notices, errors = run(found(skill("skills/a", {"SKILL.md": SKILL})), client)
     assert entry["status"] == "analyzed" and errors == [] and len(client.calls) == 1
-    assert set(entry) == {"skill", "status", "package_sha256", "analyzer_version", "model", "measured", "measured_on", "way",
+    assert set(entry) == {"skill", "skill_file", "status", "package_sha256", "analyzer_version", "model", "measured", "measured_on", "way",
                           "run_id", "finished_at", "cached", "categories"}
     assert (entry["skill"], entry["model"], entry["way"], entry["run_id"], entry["finished_at"]) == (
         "skills/a", "test-model", "endpoint", None, None)

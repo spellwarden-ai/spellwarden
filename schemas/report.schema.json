@@ -42,6 +42,7 @@
                    "finished_at", "cached", "categories"],
       "properties": {
         "skill": {"type": "string"},
+        "skill_file": {"type": "string", "description": "The skill file's path as the repository writes it (a case variant included); span paths name it the same way."},
         "status": {"enum": ["analyzed", "no_verdict", "incomplete", "not_analyzed"]},
         "package_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
         "analyzer_version": {"type": "string"},

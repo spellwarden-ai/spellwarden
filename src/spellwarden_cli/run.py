@@ -233,6 +233,7 @@ def skill_lint(found: Discovery) -> tuple[SkillLint, ...] | None:
     if not found.skills:
         return None
     metas = []
+    skill_files = {skill.path: skill.as_written(skill.engine_key()) for skill in found.skills}  # r0:F2: as written
     for skill in found.skills:
         metadata = metadata_of(skill.engine_files(), "" if skill.path == "." else skill.path)
         metas.append(SkillMeta(skill.path, metadata.name, metadata.description))
@@ -240,7 +241,7 @@ def skill_lint(found: Discovery) -> tuple[SkillLint, ...] | None:
     by_path: dict[str, list] = {}
     for note in notes:
         by_path.setdefault(note.path, []).append(note)
-    return tuple(SkillLint(meta.path, tuple(by_path.get(meta.path, ())), left_out.get(meta.path, 0))
+    return tuple(SkillLint(meta.path, tuple(by_path.get(meta.path, ())), left_out.get(meta.path, 0), skill_files[meta.path])
                  for meta in sorted(metas, key=lambda meta: meta.path))
 
 

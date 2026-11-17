@@ -92,11 +92,11 @@ def _lint_rule(note_id: str) -> dict:
 
 
 def _lint_results(report: Report, first_index: int) -> list[dict]:
-    """One SARIF result of level `note` per lint note, on the skill's SKILL.md, with a fingerprint of the check, the skill and
-    the other skill. Never a finding: no `security-severity`."""
+    """One SARIF result of level `note` per lint note, on the skill's skill file as written (r0:F2), with a fingerprint of the
+    check, the skill and the other skill. Never a finding: no `security-severity`."""
     results = []
     for entry in report.lint or ():
-        skill_file = "SKILL.md" if entry.skill == "." else f"{entry.skill}/SKILL.md"
+        skill_file = entry.skill_file_path()
         for note in entry.notes:
             digest = hashlib.sha256(f"{note.id}\n{entry.skill}\n{note.other_path or ''}".encode()).hexdigest()
             results.append({
@@ -128,18 +128,20 @@ def _analyzer_rule(category: str) -> dict:
 
 def _analysis_results(report: Report, first_index: int) -> list[dict]:
     """One result of level `note` per category with the verdict `issue`, with `properties.model_assisted: true` (owner
-    decision idea:Q4: advisory in every output), at its first span or, without one, the skill's SKILL.md."""
+    decision idea:Q4: advisory in every output), at its first span or, without one, the skill file as written (`skill_file`,
+    r0:F2); span paths are already as written."""
     results = []
     for entry in report.analysis or ():
         if entry["status"] != "analyzed":
             continue
         base = "" if entry["skill"] == "." else f"{entry['skill']}/"
+        skill_file = entry.get("skill_file") or f"{base}SKILL.md"
         for category in entry["categories"]:
             if category["verdict"] != "issue":
                 continue
             spans = category["spans"]
-            physical: dict = {"artifactLocation": {"uri": quote(upload_path(report, base + (spans[0]["path"] if spans else
-                                                                                               "SKILL.md")), safe="/")}}
+            where = base + spans[0]["path"] if spans else skill_file
+            physical: dict = {"artifactLocation": {"uri": quote(upload_path(report, where), safe="/")}}
             if spans:
                 physical["region"] = {"startLine": spans[0]["line"]}
             digest = hashlib.sha256(f"{category['id']}\n{entry['skill']}".encode()).hexdigest()
