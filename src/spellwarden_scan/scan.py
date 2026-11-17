@@ -7,12 +7,14 @@ from __future__ import annotations
 
 from collections.abc import Collection, Iterable, Mapping, Sequence
 
+from spellwarden_scan import lint
 from spellwarden_scan.a2a import AgentCardDocument
 from spellwarden_scan.a2a_checklist import a2a_checklist
 from spellwarden_scan.canonical import canonical_sha256
 from spellwarden_scan.identity import package_files, package_sha256
 from spellwarden_scan.model import (
-    SEVERITY_RANK, A2aScanResult, CardOrigin, ConfigDocument, ConfigScanResult, Finding, SignatureOutcome, SkillScanResult,
+    SEVERITY_RANK, A2aScanResult, CardOrigin, ConfigDocument, ConfigScanResult, Finding, SignatureOutcome, SkillMeta,
+    SkillScanResult,
 )
 from spellwarden_scan.orgrules import BudgetMeter, OrgRuleBudget, is_org_rule
 from spellwarden_scan.package import Package
@@ -74,11 +76,14 @@ def scan_skill_package(files: Mapping[str, bytes], rules: RuleSet, *, root: str 
     retained, truncated = run_rules(ordered, package, max_findings=max_findings,
                                     max_per_rule=max_per_rule, meter=meter)
     identified = package_files(files, root, nested_roots)
+    # Phase 4 batch B spec 11.4: the single-skill notes of the description lint; an instruction file has no description to lint
+    notes = (tuple(lint.single(SkillMeta(root.strip("/"), package.metadata.name, package.metadata.description)))
+             if kind == "skill" else ())
     return SkillScanResult(
         findings=tuple(retained), truncated=truncated, sha256=canonical_sha256(files), metadata=package.metadata,
         files_scanned=package.files_scanned, rules_version=RULES_VERSION, scanner_version=__version__,
         package_sha256=None if identified.unhashable else package_sha256(identified.files),
-        org_rules_incomplete=tuple(sorted(meter.incomplete)),
+        org_rules_incomplete=tuple(sorted(meter.incomplete)), lint=notes,
     )
 
 
