@@ -84,3 +84,25 @@ def test_model_client_py_reaches_the_network_through_socket_and_http_client_only
     names = imported(dict(modules())["spellwarden_cli/model_client.py"])
     assert {"socket", "http.client"} <= names
     assert not reaches(names, ("urllib.request",)) and "ssl" not in names
+
+
+def _module_level_imports(tree: ast.AST) -> set[str]:
+    """The dotted names a module imports in statements at its top level (not inside a function, a class or an `if`)."""
+    names: set[str] = set()
+    for node in tree.body:
+        if isinstance(node, ast.Import):
+            names.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+            names.add(node.module)
+            names.update(f"{node.module}.{alias.name}" for alias in node.names)
+    return names
+
+
+def test_the_analyzer_modules_are_imported_only_inside_a_function():
+    """Phase 4 batch B spec 11.3: without `--analyze` no module of the model client is imported on the scan path. Every module
+    that imports `analysis` or `model_client` does it inside a function, which only `--analyze` reaches."""
+    lazy = ("spellwarden_cli.analysis", "spellwarden_cli.model_client")
+    for name, tree in modules():
+        found = {imported_name for imported_name in _module_level_imports(tree)
+                 if imported_name in lazy or imported_name.startswith(tuple(f"{module}." for module in lazy))}
+        assert not found, f"{name} imports {sorted(found)} at its top level"

@@ -8,7 +8,7 @@ import json
 import re
 from urllib.parse import quote
 
-from spellwarden_scan import Rule, lint
+from spellwarden_scan import Rule, analyzer, lint
 
 from spellwarden_cli import escape, instruction_files
 from spellwarden_cli.output.upload import upload_path
@@ -110,6 +110,52 @@ def _lint_results(report: Report, first_index: int) -> list[dict]:
     return results
 
 
+ANALYZER_HELP_URI = ("https://spellwarden.ai/docs/model-assisted-analyzer?utm_source=scanner&utm_medium=cli"
+                     "&utm_campaign=analyzer")
+
+
+def analyzer_rule_id(category: str) -> str:
+    """The SARIF rule id of an analyzer category (spec 11.3): `SW-ANALYZER-` and the category in capitals, hyphenated."""
+    return "SW-ANALYZER-" + category.upper().replace("_", "-")
+
+
+def _analyzer_rule(category: str) -> dict:
+    title = f"Model-assisted: {category.replace('_', ' ')} (advisory)"
+    return {"id": analyzer_rule_id(category), "name": "".join(word[:1].upper() + word[1:] for word in _WORD.findall(title)),
+            "shortDescription": {"text": title}, "helpUri": ANALYZER_HELP_URI, "defaultConfiguration": {"level": "note"},
+            "properties": {"tags": ["model-assisted"], "model_assisted": True}}
+
+
+def _analysis_results(report: Report, first_index: int) -> list[dict]:
+    """One result of level `note` per category with the verdict `issue`, with `properties.model_assisted: true` (owner
+    decision idea:Q4: advisory in every output), at its first span or, without one, the skill's SKILL.md."""
+    results = []
+    for entry in report.analysis or ():
+        if entry["status"] != "analyzed":
+            continue
+        base = "" if entry["skill"] == "." else f"{entry['skill']}/"
+        for category in entry["categories"]:
+            if category["verdict"] != "issue":
+                continue
+            spans = category["spans"]
+            physical: dict = {"artifactLocation": {"uri": quote(upload_path(report, base + (spans[0]["path"] if spans else
+                                                                                               "SKILL.md")), safe="/")}}
+            if spans:
+                physical["region"] = {"startLine": spans[0]["line"]}
+            digest = hashlib.sha256(f"{category['id']}\n{entry['skill']}".encode()).hexdigest()
+            results.append({
+                "ruleId": analyzer_rule_id(category["id"]),
+                "ruleIndex": first_index + analyzer.CATEGORIES.index(category["id"]), "level": "note",
+                "message": {"text": escape.message(f"Model-assisted, advisory ({entry['model']}, {category['confidence']} "
+                                                   f"confidence): {category['summary']}")},
+                "locations": [{"physicalLocation": physical}],
+                "partialFingerprints": {"spellwarden/v1": digest},
+                "properties": {"model_assisted": True, "confidence": category["confidence"], "model": entry["model"],
+                               "measured": entry["measured"], "rules_found": category["rules_found"]},
+            })
+    return results
+
+
 def render(report: Report) -> str:
     rules = list(report.rules)
     index = {rule.id: position for position, rule in enumerate(rules)}
@@ -130,6 +176,10 @@ def render(report: Report) -> str:
     if any(entry.notes for entry in report.lint or ()):  # absent otherwise, so a report without notes is unchanged
         run["tool"]["driver"]["rules"].extend(_lint_rule(note_id) for note_id in lint.LINT_IDS)
         run["results"].extend(_lint_results(report, len(rules)))
+    if report.analysis is not None:  # under --analyze only
+        first = len(run["tool"]["driver"]["rules"])
+        run["tool"]["driver"]["rules"].extend(_analyzer_rule(category) for category in analyzer.CATEGORIES)
+        run["results"].extend(_analysis_results(report, first))
     if any(error.code in UPLOAD_ERRORS for error in report.errors):  # absent otherwise, so every other SARIF file is unchanged
         document["runs"][0]["invocations"] = [_invocation(report)]
     return json.dumps(document, indent=2, sort_keys=True, ensure_ascii=True) + "\n"

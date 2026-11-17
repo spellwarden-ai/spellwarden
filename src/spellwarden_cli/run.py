@@ -26,6 +26,7 @@ from spellwarden_cli.secret import Credentials
 from spellwarden_cli.settings import Settings
 
 if TYPE_CHECKING:
+    from spellwarden_cli.analysis import AnalyzeOptions
     from spellwarden_cli.ci import CiContext, RevisionSource
 
 
@@ -53,6 +54,7 @@ class ScanOptions:
     as_of_given: bool = False  # `--as-of` was passed; refused in connected mode
     scope: str | None = ""  # the scan root below its work tree (`ci.scan_scope`, P41); None: outside the grammar of 8.4
     config: str | None = None  # the `--config` argument (O4 spec 6.5: where findings on remote agents point), None without it
+    analyze: AnalyzeOptions | None = None  # 1.17.0 (Phase 4 batch B spec 11.3): `--analyze` and its flags; None without it
 
 
 def connected_config_problem(options: ScanOptions) -> Notice | None:
@@ -157,13 +159,19 @@ def scan(options: ScanOptions) -> Report:
     skill_lints = skill_lint(found)
     if skill_lints is not None:
         notices.append(lint_notice(skill_lints))
+    analysed = None
+    if options.analyze is not None:
+        from spellwarden_cli import analysis  # here: a scan without --analyze imports neither it nor the model client
+
+        analysed = analysis.analyse(found, findings, options.analyze, notices, errors)
     report = Report(
         scanner_version=__version__, rules_version=RULES_VERSION, as_of=options.as_of.isoformat(),
         fail_on=options.settings.fail_on, items=found.items, findings=tuple(findings), probes=tuple(probes), lock=lock,
         notices=tuple(notices), errors=tuple(errors), repo_prefix=fileset.repo_prefix, rules=rules,
         agents=tuple(agent_reports), root_name=os.path.basename(options.root), details=details.item_details(found),
         connected=({**connected.report_block(state, context), "registry": registry}
-                   if state is not None and context is not None else None), lint=skill_lints)
+                   if state is not None and context is not None else None), lint=skill_lints,
+        analysis=analysed)
     report = report.sorted()
     if state is not None and context is not None and report.connected is not None:
         # O3 spec 6.7: after the exit code is decided and before any output is written, so every output carries the

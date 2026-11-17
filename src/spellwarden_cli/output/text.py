@@ -139,6 +139,40 @@ def lint_lines(report: Report) -> list[str]:
     return [*lines, ""]
 
 
+_NOT_DONE = {"no_verdict": "no verdict", "incomplete": "not analysed", "not_analyzed": "not analysed"}
+
+
+def analysis_lines(report: Report) -> list[str]:
+    """Phase 4 batch B spec 11.3: under `--analyze`, each skill's analysis: the categories with an issue (confidence,
+    summary, quoted spans), the categories where the rules found an issue and the model did not, the count of the rest; or
+    why there is no verdict. Advisory: the summary line and the exit code never count it. Nothing without `--analyze`."""
+    if report.analysis is None:
+        return []
+    lines = ["Model-assisted analysis (advisory, never changes the exit code)"]
+    for entry in report.analysis:
+        cached = ", cached" if entry["cached"] else ""
+        if entry["status"] != "analyzed":
+            why = entry.get("reason") or (entry.get("limit") or {}).get("code") or ""
+            lines.append(f"  {terminal(entry['skill'])}: {_NOT_DONE[entry['status']]} ({terminal(why)})")
+            continue
+        lines.append(f"  {terminal(entry['skill'])}: analysed by {terminal(entry['model'])}{cached}")
+        quiet = 0
+        for category in entry["categories"]:
+            if category["verdict"] == "issue":
+                lines.append(f"    issue {category['id']} ({category['confidence']}): {terminal(category['summary'])}")
+                for span in category["spans"]:
+                    lines.append(f"      {terminal(span['path'])}:{span['line']} {terminal(span['text'])}")
+                if category["spans_left_out"]:
+                    lines.append(f"      {category['spans_left_out']} more spans were not kept")
+            elif category["rules_found"]:
+                lines.append(f"    {category['id']}: rules found an issue; the model did not")
+            else:
+                quiet += 1
+        if quiet:
+            lines.append(f"    no issue found by the model in {quiet} {'category' if quiet == 1 else 'categories'} (advisory)")
+    return [*lines, ""]
+
+
 def render(report: Report) -> str:
     lines: list[str] = []
     if report.connected is None:
@@ -186,6 +220,7 @@ def render(report: Report) -> str:
             lines.append(f"  {agent_view.REMOTE_NOTE}")
         lines.append("")
     lines.extend(lint_lines(report))
+    lines.extend(analysis_lines(report))
     for notice in report.notices:
         lines.append(f"notice {notice.code} {terminal(notice.path)}: {terminal(notice.message)}")
     for error in report.errors:

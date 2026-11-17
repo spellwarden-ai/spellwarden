@@ -19,8 +19,12 @@ import dataclasses
 from spellwarden_cli import api, run
 from spellwarden_cli.output import FORMATS, write_stdout
 from spellwarden_cli.report import LockState, Notice, Report
-from spellwarden_cli.secret import Credentials, read_credentials
+from spellwarden_cli.secret import Credentials, Secret, read_credentials, take_secret
 from spellwarden_cli.settings import FAIL_ON, Flags, SettingsError, load_settings
+
+
+MODEL_KEY_VARIABLE = "SPELLWARDEN_MODEL_KEY"  # 1.17.0 (spec 11.3): the analyzer's key, from the environment only
+ANALYZE_MAX_BYTES_LIMIT = 10_000_000
 
 
 def _iso_date(text: str) -> date:
@@ -80,6 +84,15 @@ def _add_scan(commands) -> None:
                         help="in connected mode, upload the results in CI (default: on); with --user, upload the "
                              "workstation inventory (default: off)")
     upload.add_argument("--no-upload", dest="upload", action="store_false")
+    # 1.17.0 (Phase 4 batch B spec 11.3): the model-assisted analyzer, off by default; the key comes from
+    # SPELLWARDEN_MODEL_KEY only, never a flag
+    scan.add_argument("--analyze", action="store_true",
+                      help="also send each skill's SKILL.md and scripts to your model endpoint for an advisory review")
+    scan.add_argument("--model-endpoint", metavar="URL", help="with --analyze: your OpenAI-compatible endpoint")
+    scan.add_argument("--model", metavar="NAME", help="with --analyze: the model name the endpoint expects")
+    scan.add_argument("--analyze-max-bytes", type=int, metavar="N",
+                      help="with --analyze: the bound of what one skill may send (default 120000)")
+    scan.add_argument("--analyze-cache", metavar="DIR", help="with --analyze: keep analysed results in DIR and reuse them")
     talk = scan.add_mutually_exclusive_group()
     talk.add_argument("--quiet", action="store_true", help="print only the requested outputs and errors")
     talk.add_argument("--verbose", action="store_true", help="print network events and timings to stderr")
@@ -134,7 +147,7 @@ def _error_report(fail_on: str, as_of: date, code: str, path: str, message: str,
 
 
 def _scan_report(args: argparse.Namespace, context, credentials: Credentials,
-                 scope: str | None = "") -> tuple[Report, bool]:
+                 scope: str | None = "", model_key: Secret | None = None) -> tuple[Report, bool]:
     """The report and the effective telemetry setting (False when the settings were refused: no ping). On a pull or
     merge request in CI the settings file and the baseline come from the base revision (`ci.revision_source`, D35)."""
     from spellwarden_cli import ci
@@ -178,7 +191,7 @@ def _scan_report(args: argparse.Namespace, context, credentials: Credentials,
     options = run.ScanOptions(root=root, settings=settings, as_of=as_of, locked=args.locked, baseline=args.baseline,
                               env=dict(os.environ), log=log, context=context, revision=source, credentials=credentials,
                               api_url=api_url if overridden else None, as_of_given=args.as_of is not None, scope=scope,
-                              config=args.config)
+                              config=args.config, analyze=_analyze_options(args, model_key))
     started = time.monotonic()
     try:
         report = run.scan(options)
@@ -187,6 +200,17 @@ def _scan_report(args: argparse.Namespace, context, credentials: Credentials,
                              source.notices), telemetry
     options.log(f"scan took {time.monotonic() - started:.2f} s")
     return report, telemetry
+
+
+def _analyze_options(args: argparse.Namespace, key: Secret | None):
+    """The `AnalyzeOptions` of `--analyze`, None without it (then `analysis` is not imported: spec 11.3, off by default)."""
+    if not getattr(args, "analyze", False):
+        return None
+    from spellwarden_cli import analysis  # here: only a scan with --analyze imports it
+
+    return analysis.AnalyzeOptions(endpoint=args.model_endpoint, model=args.model, key=key,
+                                   max_bytes=args.analyze_max_bytes or analysis.analyzer.ANALYZER_MAX_BYTES,
+                                   cache_dir=args.analyze_cache)
 
 
 def _request_opts_out(root: str) -> bool:
@@ -226,9 +250,35 @@ def write_outputs(report: Report, outputs: list[tuple[str, str | None]], *, stdo
 USER_FORMATS_INVENTORY = ("text", "json", "cyclonedx")
 
 
+def _analyze_problem(args: argparse.Namespace) -> str | None:
+    """Phase 4 batch B spec 11.3: what `--analyze` and its flags need, as argparse would word a usage error."""
+    flags = (("--model-endpoint", args.model_endpoint is not None), ("--model", args.model is not None),
+             ("--analyze-max-bytes", args.analyze_max_bytes is not None), ("--analyze-cache", args.analyze_cache is not None))
+    if not args.analyze:
+        for flag, given in flags:
+            if given:
+                return f"{flag} needs --analyze"
+        return None
+    if args.user:
+        return "--analyze reads a repository's skills and cannot be used with --user"
+    if args.model_endpoint is None or not args.model:
+        return "--analyze needs --model-endpoint and --model"
+    from spellwarden_cli.model_client import endpoint_problem  # under --analyze only
+
+    problem = endpoint_problem(args.model_endpoint)
+    if problem is not None:
+        return problem
+    if args.analyze_max_bytes is not None and not 1 <= args.analyze_max_bytes <= ANALYZE_MAX_BYTES_LIMIT:
+        return f"--analyze-max-bytes must be between 1 and {ANALYZE_MAX_BYTES_LIMIT}"
+    return None
+
+
 def _usage_problem(args: argparse.Namespace, outputs: list[tuple[str, str | None]]) -> str | None:
     """Phase 3 batch 2a spec 11.3: the flags `--user`, `--inventory` and `--device-label` allow and refuse, as argparse would
-    word a usage error."""
+    word a usage error; then the flags of `--analyze` (1.17.0)."""
+    analyze = _analyze_problem(args)
+    if analyze is not None:
+        return analyze
     if not args.user:
         for flag, given in (("--inventory", args.inventory), ("--device-label", args.device_label is not None)):
             if given:
@@ -257,6 +307,7 @@ def cmd_scan(args: argparse.Namespace) -> int:
     from spellwarden_cli import ci, ping
 
     credentials = read_credentials(os.environ)  # first: the secrets leave the environment before anything else runs
+    model_key = take_secret(os.environ, MODEL_KEY_VARIABLE)  # 1.17.0: taken out with or without --analyze
     if args.user:
         from spellwarden_cli import workstation  # here: the user scan and the upload are this command's other mode
 
@@ -267,7 +318,7 @@ def cmd_scan(args: argparse.Namespace) -> int:
                         git_head=lambda: ci.git_head_of(root, env=os.environ),
                         git_branch=lambda: ci.git_branch_of(root, env=os.environ))  # once, for the scan and the ping
     scope = ci.scan_scope(root, git=None, env=os.environ)  # once (P41): the grammar of O3 spec 8.4 decides
-    report, telemetry = _scan_report(args, context, credentials, scope)
+    report, telemetry = _scan_report(args, context, credentials, scope, model_key)
     write_outputs(report, outputs, stdout=sys.stdout)
     if not args.quiet:
         for fmt, path in outputs:

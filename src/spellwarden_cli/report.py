@@ -213,6 +213,9 @@ class Report:
     # 1.17.0 (Phase 4 batch B spec 11.4): the description lint, one entry per skill in path order; None when the scan found no
     # skill (not serialised, so a report without skills is unchanged).
     lint: tuple[SkillLint, ...] | None = None
+    # 1.17.0 (spec 11.3): the analysis of each skill under `--analyze` (the fields of spec 6.4, `analysis.analyse`); None
+    # without it (not serialised). Advisory: never part of the exit code.
+    analysis: tuple[dict, ...] | None = None
     # Per item path, the facts a CycloneDX document and the workstation upload may carry, already free of secrets
     # (`details.item_details`): hashes, transports, reduced endpoints and sources, command identities. Not serialised.
     details: dict = field(default_factory=dict, compare=False, repr=False)
@@ -275,4 +278,6 @@ def to_json_dict(report: Report) -> dict:
         document["clients"] = [dict(entry) for entry in report.clients]
     if report.lint is not None:
         document["lint"] = [entry.to_dict() for entry in report.lint]
+    if report.analysis is not None:
+        document["analysis"] = [dict(entry) for entry in report.analysis]
     return document

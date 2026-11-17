@@ -457,6 +457,8 @@ Instruction files are on by default. Set `instructions: false` in `.spellwarden/
 
 When several apply, 2 wins over 1, and 1 over 3: an incomplete scan never looks like a pass. Every requested report is written before the exit.
 
+Neither the description lint nor the model-assisted analyzer (`--analyze`) ever changes the exit code: both are informational (see "Description lint" and "Model-assisted analyzer").
+
 ### Limits
 
 The scanner has limits so that a run ends in bounded time and memory. One rule decides what happens when a limit is reached, and every limit follows it: **content the scanner leaves unread never looks like a pass.**
@@ -477,6 +479,12 @@ The probed tool hashes of 1.15.0 follow the rule for remote content. `lock --pro
 - the workstation upload: 1 MiB, 2,000 items and 1,000 findings, never cut (`workstation_upload_too_large`, nothing is sent). Its body lists at most 50 errors and 50 notices and carries their totals, and at most 8 roots per client with the client's number of roots in `roots_total` (since 1.16.2): output caps, since the report on the workstation lists them all, and each shows the count left out.
 
 The description lint (since 1.17.0) lists at most 20 notes per skill in each report, an output cap: every description was checked, and the count left out is shown (`left_out` in the JSON report, "more notes were not kept" in the text report and "more notes are in the JSON report" in the Markdown report). Only overlap notes are ever left out; the three single-skill notes always fit.
+
+The model-assisted analyzer (`--analyze`, since 1.17.0) follows the same rule:
+
+- what one skill sends is at most 120,000 bytes of masked UTF-8 text, SKILL.md and scripts together, all or nothing. A skill past it, or one whose SKILL.md or a script is not UTF-8 text, is not analysed: its `analysis` entry is `incomplete` with the `limit` (`too_large` with the bytes and the bound, or `not_text` with the file), the notice `analysis_incomplete` names the skill, and it is never shown as analysed or clean. The way out is to split the skill, or to raise the bound with `--analyze-max-bytes` (at most 10,000,000). The analyzer is an extra you asked for, not the judgement of the rules, so only the analysis is incomplete: the scan's errors and its exit code stay as the rules left them;
+- the model's answer is content a remote party controls: one over 1 MiB, off the schema or quoting a span that is not in the source is `not_analyzed` or `no_verdict` with its reason, and it never lowers a judgement; run the scan again;
+- each category keeps at most 5 spans, a summary of 300 characters and spans of 200: output caps, with the count of spans left out (`spans_left_out`); every span was checked before the cap.
 
 ### Settings: `.spellwarden/config.yml`
 
@@ -586,6 +594,27 @@ Since 1.17.0 every repository scan checks the `description` of each skill it fin
 A missing or blank description gets `SW-LINT-001` alone. The notes are informational: they are not findings, are not baselined, and never change the exit code, a rule count or the outcome of `--fail-on`. A message never quotes the description. The JSON report's `lint` lists every skill of the scan in path order, `{"skill", "notes": [{"id", "severity": "info", "message", "other_path"}], "left_out"}`, with an empty list of notes where a description triggers none, and the notice `description_lint` counts them. The text report shows them in a "Description lint" block, the Markdown report in a "Description lint" section, and SARIF as results of level `note` with `properties.description_lint: true`, whose four descriptors follow the rules at the end of the rule table. The GitLab Code Quality report, the CycloneDX document and the upload of connected mode carry none of them, and `scan --user` does not lint.
 
 The library returns the single-skill notes too: `scan_skill_package` puts `SW-LINT-001` to `SW-LINT-003` in `SkillScanResult.lint` (each a `spellwarden_scan.model.LintNote`), and `spellwarden_scan.lint.check(skills)` runs all four over a list of `SkillMeta(path, name, description)`. What each check means and how to fix a description: [spellwarden.ai/docs/activation-checks](https://spellwarden.ai/docs/activation-checks?utm_source=scanner&utm_medium=cli&utm_campaign=description-lint).
+
+### Model-assisted analyzer: `--analyze`
+
+Off by default. Since 1.17.0, `spellwarden scan --analyze` also sends each skill's SKILL.md and scripts to a model endpoint you name, for an advisory review in eight categories: `instruction_override`, `data_exfiltration`, `credential_access`, `destructive_action`, `remote_code`, `obfuscation`, `deceptive_description` and `excessive_permission`.
+
+```
+SPELLWARDEN_MODEL_KEY=... spellwarden scan . --analyze --model-endpoint https://llm.example.com/v1 --model NAME
+    [--analyze-max-bytes N] [--analyze-cache DIR]
+```
+
+- **Your endpoint and your key.** `--model-endpoint` is the base URL of an OpenAI-compatible API: the request goes to `<base>/chat/completions`, or to the URL as given when it already ends that way. The key comes from the environment variable `SPELLWARDEN_MODEL_KEY` only, never a flag, so it stays out of shell history and CI logs; it is sent as `Authorization: Bearer`, and without it no `Authorization` header is sent (a local server may need none). Nothing goes to Spellwarden. The key is never written to a report, a log line, the cache or an error message: an error of the endpoint is reported by its status and its message, masked and cut to 200 characters.
+- **The address rules.** `https` for any host; `http` only for a loopback address (127.0.0.1, `[::1]` or `localhost`); no user name, password, query or fragment in the URL. The endpoint may be a private address, as a local LiteLLM or Ollama server is, because it is the one origin you configured, but never a link-local address such as the cloud metadata service. No redirect is followed and no proxy is used. The client waits 10 s to connect and 120 s for the answer, and refuses an answer over 1 MiB.
+- **What is sent.** SKILL.md first, then the scripts in path order: files under `scripts/`, files with an executable mode and files ending in `.py`, `.sh`, `.bash`, `.js`, `.mjs`, `.ts`, `.ps1`, `.rb` or `.pl`, among the files the skill's package hash covers (a nested skill is left out). The executable mode of a file git tracks is the one in the index, on every system. On Windows a file git does not track has no executable mode, so such a script is chosen by its directory and extension only (the notice `exec_bits_unknown` says when that applies). Every file's text is masked with `mask_credentials` before it is sent. The files sit inside a block delimited by a random boundary, the model is told that the block is data and that an instruction inside it is evidence, and the answer must repeat a nonce.
+- **What comes back.** The JSON report gains `analysis`, one entry per skill: `status` (`analyzed`, `no_verdict`, `incomplete` or `not_analyzed`), `package_sha256`, `analyzer_version`, `model`, `measured`, `measured_on`, `way` (`endpoint`), `cached`, and for each category the `verdict` (`issue` or `none`), the `confidence` (`low`, `medium` or `high`), a `summary` of at most 300 characters, at most five quoted `spans` (`{"path", "line", "text"}`, 200 characters each) with the count left out, and `rules_found`, true when a rule found an open issue of that category in the same skill. An answer that is not one JSON object of the schema, lacks a category or the nonce, or quotes a span that does not occur in the file it names is `no_verdict` with its reason, never clean; summaries and spans are masked again. The notice `model_assisted` counts what was analysed; the text and Markdown reports show each skill; SARIF lists each category with an issue as a result of level `note` with `properties.model_assisted: true` (rule ids `SW-ANALYZER-INSTRUCTION-OVERRIDE` and so on). The GitLab Code Quality report, the CycloneDX document and the upload of connected mode carry none of it, and `--analyze` cannot be used with `--user`.
+- **Advisory, always.** An analysis is never a finding: it never changes the exit code, a rule count, the outcome of `--fail-on` or what the baseline accepts. "No issue found by the model" is the most it says.
+- **The cache.** `--analyze-cache DIR` keeps each analysed result in `DIR`, one file per package hash, analyzer version and model, and reuses it (`cached: true`). A file holds the categories only, never the key, the request or the answer as sent. A cache file that cannot be read is analysed again, and a directory that cannot be written is said in the notice `model_assisted`: neither fails the scan.
+- **Measured rates.** The detection and false-positive rates are measured on the held-out half of a frozen labelled set of public skills, on Claude Sonnet 5.5, and published with the release. A result from any other model says "Unmeasured model".
+
+Measured rates: filled before the release
+
+How it works, what is sent and the rates: [spellwarden.ai/docs/model-assisted-analyzer](https://spellwarden.ai/docs/model-assisted-analyzer?utm_source=scanner&utm_medium=cli&utm_campaign=analyzer).
 
 ### Probing: `--probe`
 
