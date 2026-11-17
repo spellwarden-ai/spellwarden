@@ -8,10 +8,10 @@ default.
 
 1.17.0: an optional model-assisted analyzer (`--analyze`) that sends a skill's SKILL.md and scripts to an OpenAI-compatible
 endpoint you name, with your key from `SPELLWARDEN_MODEL_KEY`, and reports advisory, model-assisted findings with quoted spans;
-measured on Claude Sonnet 5.5 (rates below); never changes the exit code. A description lint (SW-LINT-001 to SW-LINT-004),
-informational.
+never changes the exit code. A description lint (SW-LINT-001 to SW-LINT-004), informational.
 
-Measured rates: filled before the release
+Measured rates: none are published for analyzer version 1 yet, so every result says "Unmeasured model". They follow with a
+later release.
 
 - `spellwarden scan --analyze --model-endpoint URL --model NAME [--analyze-max-bytes N] [--analyze-cache DIR]` sends one
   OpenAI chat completion per skill to your endpoint (`https` for any host, `http` for a loopback address only, a private

@@ -64,8 +64,8 @@ def test_the_changelog_has_the_1_16_2_entry_above_1_16_1():
 
 
 def test_the_changelog_has_the_1_17_0_entry_above_1_16_2():
-    """1.17.0 (Phase 4 batch B spec 11.7): the analyzer and the description lint. The date and the measured rates are filled
-    before the release, so the entry keeps `2026-11-NN` and one line saying so."""
+    """1.17.0 (Phase 4 batch B spec 11.7): the analyzer and the description lint. The date is filled at the release, so the
+    entry keeps `2026-11-NN`; no measured rate is published with this release, and one line says so."""
     text = (PYPROJECT.parent / "CHANGELOG.md").read_text(encoding="utf-8").replace("\r\n", "\n")
     assert text.index("## 1.17.0 (2026-11-NN)") < text.index("## 1.16.2 (")
     raw = text[text.index("## 1.17.0 ("):text.index("## 1.16.2 (")]
@@ -73,10 +73,10 @@ def test_the_changelog_has_the_1_17_0_entry_above_1_16_2():
     for needle in ("Rules version 2026.11.7, unchanged",
                    "1.17.0: an optional model-assisted analyzer (`--analyze`) that sends a skill's SKILL.md and scripts to an "
                    "OpenAI-compatible endpoint you name, with your key from `SPELLWARDEN_MODEL_KEY`, and reports advisory, "
-                   "model-assisted findings with quoted spans; measured on Claude Sonnet 5.5 (rates below); never changes the exit "
-                   "code. A description lint (SW-LINT-001 to SW-LINT-004), informational.",
+                   "model-assisted findings with quoted spans; never changes the exit code. A description lint (SW-LINT-001 to "
+                   "SW-LINT-004), informational.",
                    "`analysis_incomplete`", "`model_assisted`", "`description_lint`",
                    "the rule count stays 66", "`SkillScanResult.lint`", "fifth module"):
         assert needle in entry, needle
-    assert text.count("Measured rates: filled before the release") == 1
-    assert "\nMeasured rates: filled before the release\n" in raw
+    assert "filled before the release" not in text and raw.count("\nMeasured rates: ") == 1
+    assert 'Measured rates: none are published for analyzer version 1 yet, so every result says "Unmeasured model".' in entry

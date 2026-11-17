@@ -16,8 +16,7 @@ GUIDE = "https://spellwarden.ai/docs/model-assisted-analyzer?utm_source=scanner&
 # Spec 11.7: the CHANGELOG entry's headline, word for word (the one sentence the spec:Q4 check accepts as written).
 CHANGELOG_HEADLINE = ("1.17.0: an optional model-assisted analyzer (`--analyze`) that sends a skill's SKILL.md and scripts to an "
                       "OpenAI-compatible endpoint you name, with your key from `SPELLWARDEN_MODEL_KEY`, and reports advisory, "
-                      "model-assisted findings with quoted spans; measured on Claude Sonnet 5.5 (rates below); never changes the "
-                      "exit code.")
+                      "model-assisted findings with quoted spans; never changes the exit code.")
 
 
 def section(heading: str) -> str:
@@ -47,9 +46,15 @@ def test_the_section_states_the_flags_the_key_and_the_rules():
     assert not re.search("[\u2013\u2014!]", text)
 
 
-def test_the_measured_rates_line_is_there_once_for_the_release_to_fill():
-    assert README.count("Measured rates: filled before the release") == 1
-    assert "\nMeasured rates: filled before the release\n" in section("### Model-assisted analyzer: `--analyze`")
+def test_no_rate_is_published_while_no_model_is_measured():
+    """Spec 11.6: this release carries no measured model, so the README publishes no rate and says what every result says."""
+    from spellwarden_scan import analyzer
+    assert analyzer.MEASURED_MODELS == {}
+    text = section("### Model-assisted analyzer: `--analyze`")
+    assert "filled before the release" not in README and "\nMeasured rates:" not in text
+    bullet = text[text.index("- **Measured rates.**"):].split("\n", 1)[0]
+    assert "None are published for analyzer version 1 yet" in bullet and "published with a later release" in bullet
+    assert not re.search(r"\d\s*%|\d+ of \d+", bullet)
 
 
 def test_limits_records_the_analyzer_s_bounds_and_spec_q4():
