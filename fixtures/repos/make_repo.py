@@ -23,19 +23,21 @@ DEFAULTS: dict = {
     "env": {}, "exit_code": 0, "findings": 0, "accepted": 0, "report": "any", "notices": [], "errors": [],
     "sarif_prefix": None, "lock": None, "probes": None, "ping": False, "absent_files": [], "variants": {},
     "on_request": {}, "on_gitlab_request": {}, "on_fork_request": {}, "annotations": [], "connected": None,
-    "agents": None,
+    "agents": None, "analysis": None,
 }
 INPUT_DEFAULTS = {
     "path": ".", "fail-on": "high", "locked": "auto", "probe": "false", "probe-private": "false",
     "requirements-file": "", "comment": "false", "sarif-upload": "false", "telemetry": "false", "token": "",
     # connected mode (O3 spec 11): empty means off; `api-key` is a secret the workflow supplies, never a case value
     "org": "", "api-key": "", "upload": "", "default-branch": "",
+    # the model-assisted analyzer (scanner 1.17.0): off; its key, SPELLWARDEN_MODEL_KEY, is never a case value either
+    "analyze": "false", "model-endpoint": "", "model": "",
 }
 # The variables `spellwarden ci-run gitlab` reads (spec 10.2a), by Action input name.
 GITLAB_VARIABLES = {
     "path": "SW_PATH", "fail-on": "SW_FAIL_ON", "locked": "SW_LOCKED", "probe": "SW_PROBE",
     "probe-private": "SW_PROBE_PRIVATE", "comment": "SW_COMMENT", "telemetry": "SW_TELEMETRY", "org": "SW_ORG",
-    "upload": "SW_UPLOAD",
+    "upload": "SW_UPLOAD", "analyze": "SW_ANALYZE", "model-endpoint": "SW_MODEL_ENDPOINT", "model": "SW_MODEL",
 }
 MERGED_KEYS = ("files", "inputs", "env", "generated_files", "modes")
 BASELINE = ".spellwarden/baseline.yml"

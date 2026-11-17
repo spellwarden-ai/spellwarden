@@ -1,0 +1,31 @@
+{
+  "repo_from": "clean",
+  "inputs": {"analyze": "true", "model-endpoint": "https://127.0.0.1:9/v1", "model": "fixture-model"},
+  "exit_code": 2,
+  "findings": 0,
+  "report": "absent",
+  "on_fork_request": {"exit_code": 0, "report": "required", "annotations": ["analyzer_no_key"]},
+  "on_gitlab_request": {"exit_code": 0, "report": "required"},
+  "variants": {
+    "bad-value": {"inputs": {"analyze": "yes"}, "on_fork_request": {}, "on_gitlab_request": {}},
+    "no-endpoint": {"inputs": {"model-endpoint": ""}, "on_fork_request": {}, "on_gitlab_request": {}},
+    "no-model": {"inputs": {"model": ""}, "on_fork_request": {}, "on_gitlab_request": {}},
+    "http": {"inputs": {"model-endpoint": "http://127.0.0.1:9/v1"}, "on_fork_request": {}, "on_gitlab_request": {}},
+    "space": {"inputs": {"model": "fixture model"}, "on_fork_request": {}, "on_gitlab_request": {}},
+    "off": {
+      "inputs": {"analyze": "false"},
+      "exit_code": 0,
+      "report": "required",
+      "on_fork_request": {},
+      "on_gitlab_request": {}
+    },
+    "unreachable": {
+      "exit_code": 0,
+      "report": "required",
+      "notices": ["model_assisted"],
+      "analysis": [{"skill": ".claude/skills/hello", "status": "not_analyzed"}],
+      "on_fork_request": {},
+      "on_gitlab_request": {}
+    }
+  }
+}
