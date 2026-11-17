@@ -894,12 +894,78 @@ def _choice(env: Mapping[str, str], name: str, label: str, allowed: tuple[str, .
     return value
 
 
-def gitlab_argv(env: Mapping[str, str]) -> tuple[list[str], list[str], bool, dict[str, str]]:
+# 1.17.0: the component takes an https endpoint only (a runner has no loopback model to call), without spaces or line breaks.
+GITLAB_ENDPOINT_RE = re.compile(r"https://\S+")
+ANALYZER_NO_KEY = ("The model-assisted analyzer did not run (analyzer_no_key): a merge request from a fork gets no masked "
+                   "CI/CD variables, so SPELLWARDEN_MODEL_KEY is not set. This run applied the rules only; the analyzer's "
+                   "verdicts never change the exit code.")
+
+
+def _shown(value: str) -> str:
+    """An input as a usage error quotes it: masked with `mask_credentials` (a pasted key does not reach the job log), then
+    escaped for the terminal."""
+    return repr(escape.terminal(mask_credentials(value)))
+
+
+def _endpoint_problem(endpoint: str) -> str | None:
+    """Why `endpoint` cannot be the component's `model-endpoint`, or None. A value that holds a user name, a password, a
+    query or a fragment, or any of `@`, `?` and `#`, is never quoted: it could carry the key."""
+    if not endpoint:
+        return ("input analyze is true, but model-endpoint is empty: set it to the https:// address of your "
+                "OpenAI-compatible endpoint")
+    try:
+        parts = urlsplit(endpoint)
+        parts.port  # noqa: B018 -- a port out of range raises here
+    except ValueError:
+        parts = None
+    carrying = parts is not None and (parts.username is not None or parts.password is not None or bool(parts.query)
+                                      or bool(parts.fragment))
+    valid = parts is not None and bool(parts.hostname) and GITLAB_ENDPOINT_RE.fullmatch(endpoint) is not None
+    if carrying or (not valid and any(mark in endpoint for mark in "@?#")):
+        return ("input model-endpoint is not accepted and is not shown: it holds a user name, password, query or fragment, "
+                "any of which could carry a key; give the https:// address alone and the key as SPELLWARDEN_MODEL_KEY")
+    if not valid:
+        return f"input model-endpoint: {_shown(endpoint)} is not an https:// address without spaces or line breaks"
+    return None
+
+
+def _analyzer_argv(env: Mapping[str, str], problems: list[str], notices: list[Notice]) -> list[str]:
+    """1.17.0: the flags of the model-assisted analyzer from `SW_ANALYZE`, `SW_MODEL_ENDPOINT` and `SW_MODEL`; none when
+    `SW_ANALYZE` is false, empty or unset, so the command is as before. The key stays in `SPELLWARDEN_MODEL_KEY`, never an
+    argument. Without it a merge request `detect` judges to come from a fork (which gets no masked variables) scans
+    without the analyzer, with the notice `analyzer_no_key` in `notices`; anywhere else a missing key is a problem."""
+    analyze = env.get("SW_ANALYZE") or "false"
+    if analyze not in ("true", "false"):
+        problems.append(f"input analyze: {escape.terminal(analyze)!r} is not one of true, false")
+    if analyze != "true":
+        return []
+    endpoint, model, before = env.get("SW_MODEL_ENDPOINT", ""), env.get("SW_MODEL", ""), len(problems)
+    endpoint_problem = _endpoint_problem(endpoint)
+    if endpoint_problem is not None:
+        problems.append(endpoint_problem)
+    if not model:
+        problems.append("input analyze is true, but model is empty: set it to the model name your endpoint expects")
+    elif re.search(r"\s", model):
+        problems.append(f"input model: {_shown(model)} holds a space or a line break")
+    if not env.get("SPELLWARDEN_MODEL_KEY"):
+        ctx = detect(env, git_remote=lambda: None)
+        if not (ctx.is_request and ctx.fork):
+            problems.append("input analyze is true, but SPELLWARDEN_MODEL_KEY is not set: add the key as a masked CI/CD "
+                            "variable SPELLWARDEN_MODEL_KEY (Settings, CI/CD, Variables); no input takes the key")
+        elif len(problems) == before:
+            notices.append(Notice("analyzer_no_key", "", ANALYZER_NO_KEY))
+        return []
+    return [] if len(problems) > before else ["--analyze", "--model-endpoint", endpoint, "--model", model]
+
+
+def gitlab_argv(env: Mapping[str, str], notices: list[Notice] | None = None
+                ) -> tuple[list[str], list[str], bool, dict[str, str]]:
     """The `spellwarden scan` arguments of the component's job from its `SW_*` variables, the problems found (the
     same checks as step 1 of the Action, spec 9.2), whether a comment is wanted, and the environment variables the
     job sets for the scan (O3 spec 11, P12: `SW_ORG` becomes `SPELLWARDEN_ORG`; the component only passes
     variables). Every boolean is passed as an explicit positive or negative flag, so the scanned settings file cannot
-    change what an input chose (6.3)."""
+    change what an input chose (6.3). The notices the scan's report must carry (1.17.0: `analyzer_no_key`) are appended
+    to `notices`."""
     problems: list[str] = []
     path = env.get("SW_PATH") or "."
     fail_on = _choice(env, "SW_FAIL_ON", "fail-on", FAIL_ON, problems)
@@ -919,6 +985,7 @@ def gitlab_argv(env: Mapping[str, str]) -> tuple[list[str], list[str], bool, dic
         else:
             problems.append(f"input org: {escape.terminal(org)!r} is not an organisation slug (2 to 64 lower-case letters, "
                             "digits and hyphens)")
+    analyzer = _analyzer_argv(env, problems, notices if notices is not None else [])
     argv = ["scan", path, "--fail-on", fail_on]
     if locked == "true" or (locked == "auto" and os.path.isfile(os.path.join(path, ".spellwarden", "lock.json"))):
         argv.append("--locked")
@@ -928,6 +995,7 @@ def gitlab_argv(env: Mapping[str, str]) -> tuple[list[str], list[str], bool, dic
         argv.append("--no-telemetry")
     if upload in ("true", "false"):
         argv.append("--upload" if upload == "true" else "--no-upload")
+    argv += analyzer
     for fmt, output in GITLAB_OUTPUTS:
         argv += ["--format", fmt, "--output", output]
     argv += ["--format", "text"]
@@ -937,7 +1005,8 @@ def gitlab_argv(env: Mapping[str, str]) -> tuple[list[str], list[str], bool, dic
 def run_gitlab(env: Mapping[str, str]) -> int:
     """The component job's whole script (spec 10.2a): validate, scan, comment on a merge request when asked, and
     exit with the scan's code."""
-    argv, problems, comment, updates = gitlab_argv(env)
+    notices: list[Notice] = []
+    argv, problems, comment, updates = gitlab_argv(env, notices)
     if problems:
         for problem in problems:
             print(f"spellwarden: error: {problem}", file=sys.stderr)
@@ -955,7 +1024,7 @@ def run_gitlab(env: Mapping[str, str]) -> int:
     from spellwarden_cli import forge, main as cli
 
     os.environ.update(updates)  # SPELLWARDEN_ORG for the scan, which reads os.environ (O3 P12)
-    code = cli.main(argv)
+    code = cli.main(argv, notices=tuple(notices))  # in the report, and so in the text report of the job log
     if comment:
         ctx = detect(env)
         if not (ctx.is_request and ctx.request_number is not None):

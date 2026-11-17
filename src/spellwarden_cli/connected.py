@@ -831,6 +831,11 @@ def _cap(report: dict, name: str, limit: int, cut: list[str]) -> None:
         cut.append(name)
 
 
+# 1.17.0 (Phase 4 batch B spec 11.3, 11.4): the notices of the description lint and the analyzer stay with the report on the
+# machine, like their sections
+LOCAL_NOTICES = ("description_lint", "model_assisted", "analysis_incomplete", "analyzer_no_key")
+
+
 def reduce_report(report_dict: dict, limits: dict, envelope: dict | None = None) -> tuple[dict, int, list[str]]:
     """O3 spec 6.7, invariant 3: the report as the body carries it, `(body report, findings dropped, lists cut)`. No
     `connected.upload`; probes keep the seven fields of 8.4 (no findings, no checklist) and agents the nine of O4 spec 6.8 (at
@@ -840,7 +845,9 @@ def reduce_report(report_dict: dict, limits: dict, envelope: dict | None = None)
     probes, then the lowest findings are dropped. Every cut is in `upload_truncated` and `upload_truncated_fields`.
     `envelope` is the rest of the body (`schema`, `run`): the server caps the whole body, so the size is measured with
     it. `report_dict` is not changed."""
-    report = {**report_dict}
+    # 1.17.0 (Phase 4 batch B spec 11.3, 11.4): the description lint and the analysis are not uploaded: the hosted product lints
+    # on its own scan, and an analysis stays with whoever ran it
+    report = {key: value for key, value in report_dict.items() if key not in ("lint", "analysis")}
     cut: list[str] = []
     # `tags` (1.13.0) is derived from `rule_id`, which the server holds as well: leaving it out keeps the body, and so what the
     # size limit lets through, as it was
@@ -852,7 +859,7 @@ def reduce_report(report_dict: dict, limits: dict, envelope: dict | None = None)
         report["agents"] = [{name: agent.get(name) for name in AGENT_FIELDS} for agent in report_dict["agents"]]
     else:
         report.pop("agents", None)
-    report["notices"] = _entries(report_dict["notices"])
+    report["notices"] = _entries([notice for notice in report_dict["notices"] if notice["code"] not in LOCAL_NOTICES])
     report["errors"] = _entries(report_dict["errors"])
     if report_dict.get("connected") is not None:
         block = {key: _clip(value) for key, value in report_dict["connected"].items() if key != "upload"}

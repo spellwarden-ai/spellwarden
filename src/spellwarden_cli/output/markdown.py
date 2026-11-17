@@ -11,7 +11,7 @@ from spellwarden_scan.gate import GATE_REASONS
 
 from spellwarden_cli import escape, instruction_files
 from spellwarden_cli.output import agents as agent_view
-from spellwarden_cli.output.text import client_lines, connected_lines
+from spellwarden_cli.output.text import client_lines, connected_lines, not_done_why
 from spellwarden_cli.report import CONNECTED_ERRORS, Report, ReportFinding
 
 MARKER = "<!-- spellwarden-scan -->"
@@ -168,6 +168,52 @@ def _agents(report: Report) -> list[str]:
     return lines + [""]
 
 
+LINT_GUIDE_URL = ("https://spellwarden.ai/docs/activation-checks?utm_source=scanner&utm_medium=cli"
+                  "&utm_campaign=description-lint")
+
+
+def _lint(report: Report) -> list[str]:
+    """Phase 4 batch B spec 11.4: the section "Description lint": one row per note (at most 25), informational; nothing when
+    no skill has a note."""
+    rows = [(entry.skill, note) for entry in report.lint or () for note in entry.notes]
+    left_out = sum(entry.left_out for entry in report.lint or ())
+    if not rows and not left_out:
+        return []
+    lines = [f"**Description lint (informational, never changes the exit code):** {_plural(len(rows) + left_out, 'note')}. "
+             f"[What each check means]({LINT_GUIDE_URL})", "", "| Skill | Check | Note |", "|---|---|---|"]
+    for skill, note in rows[:MAX_ROWS]:
+        lines.append(f"| {_code_cell(skill)} | {note.id} | {_text(note.message)} |")
+    more = len(rows) - MAX_ROWS + left_out if len(rows) > MAX_ROWS else left_out
+    if more > 0:
+        lines += ["", f"{more} more notes are in the JSON report."]
+    return lines + [""]
+
+
+ANALYZER_GUIDE_URL = ("https://spellwarden.ai/docs/model-assisted-analyzer?utm_source=scanner&utm_medium=cli"
+                      "&utm_campaign=analyzer")
+
+
+def _analysis(report: Report) -> list[str]:
+    """Phase 4 batch B spec 11.3: the section "Model-assisted analysis" under `--analyze`: one row per skill (at most 25) with
+    its status and the categories with an issue; advisory. Nothing without `--analyze`."""
+    if report.analysis is None:
+        return []
+    lines = [f"**Model-assisted analysis (advisory, its verdicts never change the exit code):** "
+             f"[How it works and what it was measured on]({ANALYZER_GUIDE_URL})", "",
+             "| Skill | Model | Result |", "|---|---|---|"]
+    for entry in report.analysis[:MAX_ROWS]:
+        if entry["status"] == "analyzed":
+            issues = [f"{category['id']} ({category['confidence']})" for category in entry["categories"]
+                      if category["verdict"] == "issue"]
+            result = "issues: " + ", ".join(issues) if issues else "no issue found by the model"
+        else:
+            result = f"{entry['status']}: {not_done_why(entry)}"
+        lines.append(f"| {_code_cell(entry['skill'])} | {_text(entry['model'])} | {_text(result)} |")
+    if len(report.analysis) > MAX_ROWS:
+        lines += ["", f"{len(report.analysis) - MAX_ROWS} more skills are in the JSON report."]
+    return lines + [""]
+
+
 def _not_admitted(report: Report) -> list[str]:
     """The section of O3 spec 6.10 for the items of the registry gate that failed it: `Request admission` for an item the
     registry does not hold (the link is only ever one under the dashboard address, `connected.run_gate`), the reason
@@ -220,7 +266,8 @@ def render(report: Report) -> str:
     if report.clients is not None:  # `scan --user` (phase 3 batch 2a spec 11.3)
         lines += ["**Clients:**", "", *(f"- {_text(line)}" for line in client_lines(report)), ""]
     lines += _findings(open_findings) + _instruction_files(report)
-    lines += _errors(report) + _lock(report) + _probes(report) + _agents(report)
+    lines += _errors(report) + _lock(report) + _probes(report) + _agents(report) + _lint(report)
+    lines += _analysis(report)
     if accepted:
         lines += [f"{_plural(accepted, 'accepted finding')} with {'its' if accepted == 1 else 'their'} reasons "
                   f"{'is' if accepted == 1 else 'are'} listed in the baseline file.", ""]

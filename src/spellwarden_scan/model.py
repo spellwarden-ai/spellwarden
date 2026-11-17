@@ -93,6 +93,26 @@ class Metadata(_Model):
 
 
 @dataclass(frozen=True, slots=True)
+class SkillMeta(_Model):
+    """One skill as the description lint reads it (Phase 4 batch B spec 11.4): `path` is the skill's directory as the caller
+    names it ("" or "." for a skill at the root), `name` and `description` the frontmatter's, None when missing."""
+    path: str
+    name: str | None
+    description: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class LintNote(_Model):
+    """One note of the description lint (spec 11.4): informational, never a finding. `id` is SW-LINT-001 to SW-LINT-004,
+    `path` the skill's directory, `message` plain text that never quotes the description, `other_path` the other skill of
+    an SW-LINT-004 overlap and None for every other note."""
+    id: str
+    path: str
+    message: str
+    other_path: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class SkillScanResult(_Model):
     findings: tuple[Finding, ...]
     truncated: int
@@ -107,6 +127,9 @@ class SkillScanResult(_Model):
     # Phase C spec 5.2.2: the org rules the time budget stopped; written by `to_dict` only when non-empty, so every
     # 1.0.0 output stays byte-identical (plan decision P-ORG-3).
     org_rules_incomplete: tuple[str, ...] = ()
+    # Phase 4 batch B spec 11.4 (1.17.0): the single-skill notes of the description lint (SW-LINT-001 to SW-LINT-003), what the
+    # hosted scan stores; written by `to_dict` always, as a list. A dict written before 1.17.0 loads with ().
+    lint: tuple[LintNote, ...] = ()
 
     def to_dict(self) -> dict:
         return _without_empty_incomplete(_Model.to_dict(self))
@@ -451,6 +474,7 @@ _NESTED: dict[tuple[str, str], tuple[str, type]] = {
     ("Finding", "location"): ("one", Location),
     ("SkillScanResult", "findings"): ("many", Finding),
     ("SkillScanResult", "metadata"): ("one", Metadata),
+    ("SkillScanResult", "lint"): ("many", LintNote),
     ("ProbeResult", "auth_server_metadata"): ("one", AuthServerMetadata),
     ("ProbeResult", "tools"): ("many", ToolInfo),
     ("ProbeResult", "prompts"): ("many", PromptInfo),

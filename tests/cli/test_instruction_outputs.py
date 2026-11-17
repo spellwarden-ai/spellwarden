@@ -80,7 +80,9 @@ def test_sarif_results_of_an_instruction_file_carry_its_format_and_scope(make_re
                                                                               "scope": "Applied to files matching: src/**, tests/**"}}
     assert mine["AGENTS.md"]["properties"] == {"instructions": {"format": "agents-md", "scope": "Applied: always"}}
     assert all(result["properties"]["instructions"]["scope"] == SCOPES[uri] for uri, result in mine.items())
-    assert all("properties" not in result for result in results if result["ruleId"] != "SW-SKL-001")
+    # 1.17.0: a description lint note carries `properties.description_lint` (Phase 4 batch B spec 11.4)
+    assert all("properties" not in result for result in results if result["ruleId"] != "SW-SKL-001"
+               and not result["ruleId"].startswith("SW-LINT-"))
 
 
 def test_a_scope_that_holds_hostile_text_is_escaped_in_every_format(make_repo, tmp_path, run_cli):

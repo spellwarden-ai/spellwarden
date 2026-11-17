@@ -14,7 +14,7 @@ outputs or the exit code; with `--verbose` it prints one line.
 (`http://127.0.0.1:<port>/<path>`, `http://[::1]:<port>/<path>`, `http://localhost:<port>/<path>`, the last
 connected to 127.0.0.1), ignored otherwise.
 
-One of the four modules of `spellwarden_cli` that may reach the network (`tests/test_network_boundary.py`)."""
+One of the five modules of `spellwarden_cli` that may reach the network (`tests/test_network_boundary.py`)."""
 from __future__ import annotations
 
 import json

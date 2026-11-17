@@ -21,7 +21,7 @@ address is not checked. Probes and the ping ignore it.
 Credentials are `Secret`s and no message, event or repr holds one. `clock` is a callable returning seconds; its
 optional `sleep(seconds)` is how the client waits (the tests' clock moves instead of waiting).
 
-One of the four modules of `spellwarden_cli` that may reach the network (`tests/test_network_boundary.py`); it imports
+One of the five modules of `spellwarden_cli` that may reach the network (`tests/test_network_boundary.py`); it imports
 `socket`, `ssl` and `http.client`, and nothing from `urllib.request`."""
 from __future__ import annotations
 

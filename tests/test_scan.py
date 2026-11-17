@@ -113,9 +113,10 @@ def test_package_sha256_without_a_root_equals_sha256_for_a_plain_package():
     assert result.package_sha256 == result.sha256
 
 
-def test_scan_results_differ_from_1_1_1_only_by_package_sha256():
+def test_scan_results_differ_from_1_1_1_only_by_package_sha256_and_lint():
     """`tests/golden/scan-results-1.1.1.json` is every skill fixture's result recorded by 1.1.1 before `package_sha256`
-    existed. The two version stamps move with each release, so they are not compared."""
+    existed and before 1.17.0 added `lint` (Phase 4 batch B spec 11.4). The two version stamps move with each release, so
+    they are not compared."""
     import json
     from pathlib import Path
 
@@ -128,6 +129,7 @@ def test_scan_results_differ_from_1_1_1_only_by_package_sha256():
         files, expected = load_skill_fixture(rule_id, side)
         result = scan_skill_package(files, RULES, root=expected.get("root", "")).to_dict()
         assert "package_sha256" in result, key
+        assert isinstance(result.pop("lint"), list), key
         for stamp in ("package_sha256", "rules_version", "scanner_version"):
             result.pop(stamp), row["result"].pop(stamp, None)
         assert result == row["result"], key

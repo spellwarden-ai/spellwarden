@@ -1,5 +1,52 @@
 # Changelog
 
+## 1.17.0 (2026-11-17)
+
+Rules version 2026.11.7, unchanged. A scan gives the same findings, items and exit code as on 1.16.2, apart from the version.
+Its reports gain the description lint where the scan finds skills, and the analysis only with `--analyze`, which is off by
+default.
+
+1.17.0: an optional model-assisted analyzer (`--analyze`) that sends a skill's SKILL.md and scripts to an OpenAI-compatible
+endpoint you name, with your key from `SPELLWARDEN_MODEL_KEY`, and reports advisory, model-assisted findings with quoted spans;
+never changes the exit code. A description lint (SW-LINT-001 to SW-LINT-004), informational.
+
+Measured rates: none are published for analyzer version 1 yet, so every result says "Unmeasured model". They follow with a
+later release.
+
+- `spellwarden scan --analyze --model-endpoint URL --model NAME [--analyze-max-bytes N] [--analyze-cache DIR]` sends one
+  OpenAI chat completion per skill to your endpoint (`https` for any host, `http` for a loopback address only, a private
+  address allowed for that one origin, never a link-local one; no redirect followed, no proxy, 10 s to connect, 120 s to read,
+  1 MiB of answer). The key is read from `SPELLWARDEN_MODEL_KEY` only, sent as `Authorization: Bearer`, and never written to a
+  report, a log line, the cache or an error message.
+- What is sent: SKILL.md, then the scripts (under `scripts/`, with an executable mode, or with a script extension) of the
+  files the package hash covers, each masked with `mask_credentials`, inside a random boundary, with a nonce the answer must
+  repeat. At most 120,000 bytes a skill, all or nothing: past it (or with a file that is not UTF-8 text) the skill is
+  `incomplete` with its limit and the notice `analysis_incomplete`; the README's Limits says what that does to the exit code.
+- What comes back: the JSON report's `analysis` (status, model, the measured label, eight categories with a verdict, a
+  confidence, a masked summary and at most five quoted spans each, checked against the masked source, and `rules_found`), the
+  notice `model_assisted`, a section in the text and Markdown reports, and SARIF results of level `note` with
+  `properties.model_assisted: true`. A reply off the schema, without the nonce or quoting a span not in the source is
+  `no_verdict`, never clean. `--analyze-cache DIR` reuses results by package hash, analyzer version and model.
+- `spellwarden ci-run gitlab` reads the GitLab component's inputs `analyze`, `model-endpoint` and `model` (`SW_ANALYZE`,
+  `SW_MODEL_ENDPOINT`, `SW_MODEL`) and adds `--analyze --model-endpoint URL --model NAME` when `analyze` is `true`; the key comes
+  from the masked CI/CD variable `SPELLWARDEN_MODEL_KEY` only. A bad input or a missing key is a usage error (exit 2), and an
+  endpoint that holds a user name, password, query or fragment is refused without being shown. On a merge request from a fork,
+  which gets no masked variables, the scan runs without the analyzer, with the notice `analyzer_no_key` (not uploaded in
+  connected mode). With `analyze` unset or `false` the job's command is as before.
+- The description lint runs on every repository scan with skills: `SW-LINT-001` (a description shorter than 40 or longer than
+  1,024 characters), `SW-LINT-002` (no use-when clause), `SW-LINT-003` (no trigger phrase) and `SW-LINT-004` (two skills of
+  the scan whose descriptions overlap). Its notes are in the JSON report's `lint`, at most 20 a skill with the count left out,
+  the notice `description_lint`, the text and Markdown reports, and SARIF as level `note`; they are not findings, are not
+  rules (the rule count stays 66) and never change the exit code.
+- The library: the public modules `spellwarden_scan.analyzer` (`build_request`, `parse_reply`, `CATEGORY_RULES`,
+  `MEASURED_MODELS`, `is_measured`) and `spellwarden_scan.lint` (`check`), the models `LintNote` and `SkillMeta`, and
+  `SkillScanResult.lint` with the single-skill notes; the package's `__all__` is unchanged.
+- `schemas/report.schema.json` describes `analysis` and `lint`, and lists the error code `analysis_incomplete` (when a scan
+  writes it is in the README's Limits). Reports written by 1.16.2 still validate. Neither section, nor their notices, goes into the upload of
+  connected mode.
+- `spellwarden_cli.model_client` is the fifth module of the command that may reach the network, imported only under
+  `--analyze`. `scripts/measure_analyzer.py`, not part of the wheel, measures the analyzer on a labelled set.
+
 ## 1.16.2 (2026-11-16)
 
 Rules version 2026.11.7, unchanged. A scan gives the same findings, items and exit code as on 1.16.1, apart from the version;

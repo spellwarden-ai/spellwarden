@@ -146,3 +146,36 @@ def test_1_15_0_adds_the_toolhash_module_and_no_package_name():
     for name in TOOLHASH_NAMES:
         assert hasattr(toolhash, name) and name in toolhash.__all__, name
     assert "toolhash" not in spellwarden_scan.__all__
+
+
+# Phase 4 batch B spec 11.4: the public module `spellwarden_scan.lint` (1.17.0), which the hosted product imports, and the two
+# models `SkillMeta` and `LintNote` of `spellwarden_scan.model`; `__all__` of the package is unchanged.
+LINT_NAMES = ("LINT_IDS", "TITLES", "DESCRIPTION_MIN", "OVERLAP_MIN", "MAX_NOTES_PER_SKILL", "STOP_WORDS", "USE_WHEN", "check",
+              "counted", "single", "words", "similarity")
+
+
+def test_1_17_0_adds_the_lint_module_and_no_package_name():
+    from spellwarden_scan import lint, model
+
+    assert spellwarden_scan.lint is lint
+    for name in LINT_NAMES:
+        assert hasattr(lint, name) and name in lint.__all__, name
+    assert hasattr(model, "SkillMeta") and hasattr(model, "LintNote")
+    for name in ("lint", "LintNote", "SkillMeta"):
+        assert name not in spellwarden_scan.__all__, name
+
+
+# Phase 4 batch B spec 11.2: the public module `spellwarden_scan.analyzer` (1.17.0), which the hosted product imports; `__all__`
+# of the package is unchanged.
+ANALYZER_NAMES = ("ANALYZER_VERSION", "ANALYZER_MAX_BYTES", "ANALYZER_MAX_TOKENS", "CATEGORIES", "CONFIDENCE", "CATEGORY_RULES",
+                  "MEASURED_MODELS", "SCHEMA", "SYSTEM", "AnalyzerRequest", "AnalyzerResult", "CategoryVerdict", "NotAnalyzed",
+                  "Span", "build_request", "parse_reply", "rules_found", "is_measured", "measured_label")
+
+
+def test_1_17_0_adds_the_analyzer_module_and_no_package_name():
+    from spellwarden_scan import analyzer
+
+    assert spellwarden_scan.analyzer is analyzer
+    for name in ANALYZER_NAMES:
+        assert hasattr(analyzer, name) and name in analyzer.__all__, name
+    assert "analyzer" not in spellwarden_scan.__all__

@@ -447,7 +447,8 @@ def test_not_admitted_items_are_sw_reg_001_or_002_at_the_right_location_high_in_
     assert items[("server", "docs")]["request_url"] == template + quote("https://mcp.example.com/docs", safe="")  # no query, no hash
     assert items[("plugin", "lint")]["request_url"] is None  # not under the dashboard address: never kept, never printed
     sarif = json.loads(out_sarif.read_text(encoding="utf-8"))
-    results = sarif["runs"][0]["results"]
+    # 1.17.0: the description lint's notes (level note) are not the gate's results (Phase 4 batch B spec 11.4)
+    results = [r for r in sarif["runs"][0]["results"] if not r["ruleId"].startswith("SW-LINT-")]
     assert {r["ruleId"] for r in results} == {"SW-REG-001", "SW-REG-002"} and all(r["level"] == "error" for r in results)
     text = out_md.read_text(encoding="utf-8")
     assert "**Not admitted in the private registry**" in text
