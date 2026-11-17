@@ -64,10 +64,10 @@ def test_the_changelog_has_the_1_16_2_entry_above_1_16_1():
 
 
 def test_the_changelog_has_the_1_17_0_entry_above_1_16_2():
-    """1.17.0 (Phase 4 batch B spec 11.7): the analyzer and the description lint. The date is filled at the release, so the
-    entry keeps `2026-11-NN`; no measured rate is published with this release, and one line says so."""
+    """1.17.0 (Phase 4 batch B spec 11.7): the analyzer and the description lint. No measured rate is published with this
+    release, and one line says so."""
     text = (PYPROJECT.parent / "CHANGELOG.md").read_text(encoding="utf-8").replace("\r\n", "\n")
-    assert text.index("## 1.17.0 (2026-11-NN)") < text.index("## 1.16.2 (")
+    assert text.index("## 1.17.0 (2026-11-17)") < text.index("## 1.16.2 (")
     raw = text[text.index("## 1.17.0 ("):text.index("## 1.16.2 (")]
     entry = " ".join(raw.split())
     for needle in ("Rules version 2026.11.7, unchanged",

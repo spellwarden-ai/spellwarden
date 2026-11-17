@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.17.0 (2026-11-NN)
+## 1.17.0 (2026-11-17)
 
 Rules version 2026.11.7, unchanged. A scan gives the same findings, items and exit code as on 1.16.2, apart from the version.
 Its reports gain the description lint where the scan finds skills, and the analysis only with `--analyze`, which is off by
