@@ -185,6 +185,9 @@ from conftest import credential  # noqa: E402
 
 CREDENTIAL_VARIABLES = ("SPELLWARDEN_API_KEY", "SPELLWARDEN_ID_TOKEN", "ACTIONS_ID_TOKEN_REQUEST_URL",
                         "ACTIONS_ID_TOKEN_REQUEST_TOKEN")
+# 1.17.0 (Phase 4 batch B spec 11.3, r0:F7): the analyzer's key leaves the environment as the four do, with or without --analyze
+SECRET_VARIABLES = (*CREDENTIAL_VARIABLES, "SPELLWARDEN_MODEL_KEY")
+MODEL_KEY = "sk-test-" + "m" * 40
 
 
 def _json(run_cli, repo, *args, env=None, as_of="2026-12-01"):
@@ -259,11 +262,12 @@ def test_the_four_variables_are_gone_from_the_environment_the_scan_receives(make
     monkeypatch.setattr(run, "scan", spy)
     values = {"SPELLWARDEN_API_KEY": credential("swk"), "SPELLWARDEN_ID_TOKEN": "idt0ken",
               "ACTIONS_ID_TOKEN_REQUEST_URL": "http://127.0.0.1:1/t", "ACTIONS_ID_TOKEN_REQUEST_TOKEN": "r3qt0k",
-              "SPELLWARDEN_ORG": "acme"}
+              "SPELLWARDEN_ORG": "acme", "SPELLWARDEN_MODEL_KEY": MODEL_KEY}
     values.pop("SPELLWARDEN_ORG")  # org and key together are refused before the scan reads anything
     _json(run_cli, repo, env=values, as_of=None)
     options, environment = captured[0]
-    assert not set(CREDENTIAL_VARIABLES) & set(options.env) and not set(CREDENTIAL_VARIABLES) & set(environment)
+    assert not set(SECRET_VARIABLES) & set(options.env) and not set(SECRET_VARIABLES) & set(environment)
+    assert MODEL_KEY not in repr(options) and options.analyze is None  # without --analyze the key goes nowhere
     creds = options.credentials
     assert (creds.key.value, creds.id_token.value, creds.request_url.value, creds.request_token.value) == (
         values["SPELLWARDEN_API_KEY"], "idt0ken", "http://127.0.0.1:1/t", "r3qt0k")
@@ -284,10 +288,10 @@ def test_every_git_call_of_a_scan_gets_an_explicit_environment_without_the_crede
         return real_run(command, *args, **kwargs)
 
     monkeypatch.setattr(files.subprocess, "run", spy)
-    _json(run_cli, repo, env={"SPELLWARDEN_API_KEY": credential("swk"), "ACTIONS_ID_TOKEN_REQUEST_TOKEN": "r3qt0k"},
-          as_of=None)
+    _json(run_cli, repo, env={"SPELLWARDEN_API_KEY": credential("swk"), "ACTIONS_ID_TOKEN_REQUEST_TOKEN": "r3qt0k",
+                              "SPELLWARDEN_MODEL_KEY": MODEL_KEY}, as_of=None)
     assert environments and all(env is not None for env in environments)
-    assert all(not set(CREDENTIAL_VARIABLES) & set(env) for env in environments)
+    assert all(not set(SECRET_VARIABLES) & set(env) for env in environments)
     assert ci.git_remote_of  # the remote lookup takes the same explicit environment (tests/cli/test_ci.py)
 
 
@@ -320,7 +324,7 @@ def test_no_credential_appears_in_any_artefact(make_repo, run_cli, tmp_path):
     repo = _repo(make_repo, tmp_path)
     secrets = {"SPELLWARDEN_API_KEY": credential("swk"), "SPELLWARDEN_ID_TOKEN": "idt0ken-" + "x" * 12,
                "ACTIONS_ID_TOKEN_REQUEST_URL": "http://127.0.0.1:9/token-endpoint-url",
-               "ACTIONS_ID_TOKEN_REQUEST_TOKEN": "r3qt0ken-" + "y" * 12}
+               "ACTIONS_ID_TOKEN_REQUEST_TOKEN": "r3qt0ken-" + "y" * 12, "SPELLWARDEN_MODEL_KEY": MODEL_KEY}
     outputs = {fmt: tmp_path / f"out.{fmt}" for fmt in ("json", "sarif", "markdown", "gitlab-codequality", "text")}
     args = ["scan", str(repo), "--no-telemetry", "--verbose"]
     for fmt, path in outputs.items():
