@@ -32,7 +32,8 @@ def test_the_section_states_the_flags_the_key_and_the_rules():
                    "`http` only for a loopback address", "No redirect is followed", "10 s to connect and 120 s",
                    "over 1 MiB", "`mask_credentials`", "random boundary", "nonce", "never clean", "`model_assisted`",
                    "level `note` with `properties.model_assisted: true`", "verdicts never change the exit code", "Unmeasured model",
-                   "On Windows a file git does not track has no executable mode", "`exec_bits_unknown`"):
+                   "On Windows a file git does not track has no executable mode", "`exec_bits_unknown`",
+                   "`DIR` must be a directory you trust", "outside the scanned repository", "is analysed again"):
         assert needle in text, needle
     assert all(f"`{category}`" in text for category in analyzer.CATEGORIES)
     assert all(f"`{extension}`" in text for extension in analyzer.SCRIPT_EXTENSIONS)

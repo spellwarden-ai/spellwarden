@@ -22,6 +22,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 
 from spellwarden_scan import analyzer
+from spellwarden_scan.evidence import mask_credentials
 from spellwarden_scan.identity import package_files, package_sha256
 
 from spellwarden_cli.discover import Discovery, SkillPackage
@@ -91,12 +92,20 @@ _SPAN_KEYS = frozenset({"path", "line", "text"})
 
 
 def _cached_category(entry: object) -> bool:
-    """A category as `CategoryVerdict.to_dict()` wrote it; anything else makes the cache file unusable (it is re-analysed)."""
+    """A category as `CategoryVerdict.to_dict()` wrote it; anything else makes the cache file unusable (it is re-analysed).
+    A cache file is trusted no more than an answer (r0:F4): the summary, the spans and their count must be within the caps
+    `parse_reply` applies, and masking the summary or a span with `mask_credentials` must change nothing."""
     return (isinstance(entry, dict) and set(entry) == _CACHED_KEYS and entry["verdict"] in analyzer.VERDICTS
-            and entry["confidence"] in analyzer.CONFIDENCE and isinstance(entry["summary"], str)
-            and type(entry["spans_left_out"]) is int and isinstance(entry["spans"], list)
+            and entry["confidence"] in analyzer.CONFIDENCE and _kept_text(entry["summary"], analyzer.SUMMARY_MAX)
+            and type(entry["spans_left_out"]) is int and entry["spans_left_out"] >= 0 and isinstance(entry["spans"], list)
+            and len(entry["spans"]) <= analyzer.MAX_SPANS
             and all(isinstance(span, dict) and set(span) == _SPAN_KEYS and isinstance(span["path"], str)
-                    and type(span["line"]) is int and isinstance(span["text"], str) for span in entry["spans"]))
+                    and type(span["line"]) is int and span["line"] >= 1 and _kept_text(span["text"], analyzer.SPAN_MAX)
+                    for span in entry["spans"]))
+
+
+def _kept_text(text: object, limit: int) -> bool:
+    return isinstance(text, str) and len(text) <= limit and mask_credentials(text) == text
 
 
 def _write_cache(path: str, package_hash: str, model: str, categories: list[dict]) -> bool:

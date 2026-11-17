@@ -237,3 +237,27 @@ def test_a_selected_file_discovery_did_not_read_makes_the_analysis_incomplete(tm
     assert set(raised) == {"skills/a", "skills/d"} and errors == []
     assert "scripts/run.sh" in raised["skills/a"] and "tool.py" in raised["skills/d"]
     assert len(list(cache.glob("*.json"))) == 2  # b and c only
+
+
+@pytest.mark.parametrize("change", [
+    lambda stored: stored["categories"][0].update(summary="x" * (analyzer.SUMMARY_MAX + 1)),
+    lambda stored: stored["categories"][0].update(summary="The key AKIAIOSFODNN7EXAMPLE was found."),
+    lambda stored: stored["categories"][0]["spans"][0].update(text="y" * (analyzer.SPAN_MAX + 1)),
+    lambda stored: stored["categories"][0]["spans"][0].update(text="export AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE"),
+    lambda stored: stored["categories"][0].update(spans=stored["categories"][0]["spans"] * (analyzer.MAX_SPANS + 1)),
+], ids=["long-summary", "credential-summary", "long-span", "credential-span", "too-many-spans"])
+def test_a_cache_entry_past_the_caps_or_unmasked_is_not_served(tmp_path, change):
+    """r0:F4: a cache file is trusted no more than an answer: what the report would never hold (an unmasked credential, a
+    summary, span or span list past its cap) makes it a miss, analysed again."""
+    cache = tmp_path / "cache"
+    client = Scripted(good)
+    one = found(skill("skills/a", {"SKILL.md": SKILL}))
+    (first,), _, _ = run(one, client, cache_dir=str(cache))
+    path = analysis.cache_path(str(cache), first["package_sha256"], "test-model")
+    stored = json.loads(open(path, encoding="utf-8").read())
+    change(stored)
+    with open(path, "w", encoding="utf-8") as handle:
+        json.dump(stored, handle)
+    (again,), _, _ = run(one, client, cache_dir=str(cache))
+    assert again["cached"] is False and len(client.calls) == 2
+    assert "AKIAIOSFODNN7EXAMPLE" not in json.dumps(again)
