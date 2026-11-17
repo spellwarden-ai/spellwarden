@@ -61,6 +61,16 @@ def test_limits_records_the_analyzer_s_bounds_and_spec_q4():
         assert needle in text, needle
 
 
+def test_limits_records_the_answer_token_cap_and_the_way_out_of_not_text():
+    """r0:F5: the answer's token cap (`ANALYZER_MAX_TOKENS`, sent as `max_tokens`) with its kind and way out, and the way out of
+    a file that is not text."""
+    text = section("### Limits")
+    assert analyzer.ANALYZER_MAX_TOKENS == 4096
+    for needle in ("`max_tokens` of 4,096", "an answer cut there", "analyse again, or analyse a smaller skill",
+                   "make the file UTF-8 text, or move it out of the script selection"):
+        assert needle in text, needle
+
+
 def test_exit_codes_say_neither_the_lint_nor_the_analyzer_changes_them():
     assert "and the verdicts of the model-assisted analyzer (`--analyze`) never change the exit code" in section(
         "### Exit codes")
