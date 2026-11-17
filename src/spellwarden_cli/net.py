@@ -29,7 +29,7 @@ a `Location`), gets the full rules. `allow_private=False` is accepted with its o
 connection (the probe phase's request budget, `probing.py`) and may raise
 `FetchError`.
 
-One of the four modules of `spellwarden_cli` that may reach the network
+One of the five modules of `spellwarden_cli` that may reach the network
 (`tests/test_network_boundary.py`). Python 3.11 or newer.
 """
 from __future__ import annotations

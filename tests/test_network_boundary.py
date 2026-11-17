@@ -1,5 +1,6 @@
 """Spec 2 invariant 2 and claim C16 (O3 spec 6.11): of both packages, only `spellwarden_cli/net.py` (the probe),
-`ping.py` (the usage ping), `forge.py` (the comment) and `api.py` (the connected API) import `socket`, `ssl`, `http` or `urllib.request`; only `files.py` and
+`ping.py` (the usage ping), `forge.py` (the comment), `api.py` (the connected API) and, since 1.17.0, `model_client.py` (the
+model endpoint of `--analyze`, Phase 4 batch B spec 11.3) import `socket`, `ssl`, `http` or `urllib.request`; only `files.py` and
 `ci.py` (git) import `subprocess`; nothing imports modules by name at run time to get around this."""
 from __future__ import annotations
 
@@ -9,7 +10,9 @@ from pathlib import Path
 SRC = Path(__file__).resolve().parents[1] / "src"
 PACKAGES = ("spellwarden_scan", "spellwarden_cli")
 NETWORK = ("socket", "ssl", "http", "urllib.request")
-NETWORK_MODULES = {"spellwarden_cli/net.py", "spellwarden_cli/ping.py", "spellwarden_cli/forge.py", "spellwarden_cli/api.py"}
+NETWORK_MODULES = {"spellwarden_cli/net.py", "spellwarden_cli/ping.py", "spellwarden_cli/forge.py", "spellwarden_cli/api.py",
+                   # 1.17.0 (Phase 4 batch B spec 11.3): the model endpoint the user names for --analyze, imported only under it
+                   "spellwarden_cli/model_client.py"}
 SUBPROCESS_MODULES = {"spellwarden_cli/files.py", "spellwarden_cli/ci.py"}
 
 
@@ -35,7 +38,7 @@ def reaches(names: set[str], roots: tuple[str, ...]) -> set[str]:
     return {name for name in names if any(name == root or name.startswith(root + ".") for root in roots)}
 
 
-def test_only_four_modules_reach_the_network():
+def test_only_five_modules_reach_the_network():
     offenders = {name: sorted(reaches(imported(tree), NETWORK)) for name, tree in modules()
                  if reaches(imported(tree), NETWORK) and name not in NETWORK_MODULES}
     assert offenders == {}
@@ -44,7 +47,7 @@ def test_only_four_modules_reach_the_network():
 def test_the_network_modules_are_the_ones_that_exist_and_need_it():
     present = {name for name, _ in modules()}
     assert NETWORK_MODULES <= present
-    assert len(NETWORK_MODULES) == 4
+    assert len(NETWORK_MODULES) == 5
     for name, tree in modules():
         if name in NETWORK_MODULES:
             assert reaches(imported(tree), NETWORK), f"{name} is allowed the network but does not use it"
@@ -75,3 +78,9 @@ def test_connected_settings_report_and_outputs_import_nothing_network_shaped():
         if name.startswith("spellwarden_cli/output/") or name in ("spellwarden_cli/settings.py", "spellwarden_cli/report.py",
                                                                     "spellwarden_cli/connected.py"):
             assert not reaches(imported(tree), ("socket", "ssl", "http", "urllib.request")), name
+
+
+def test_model_client_py_reaches_the_network_through_socket_and_http_client_only():
+    names = imported(dict(modules())["spellwarden_cli/model_client.py"])
+    assert {"socket", "http.client"} <= names
+    assert not reaches(names, ("urllib.request",)) and "ssl" not in names

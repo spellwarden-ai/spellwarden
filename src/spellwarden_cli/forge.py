@@ -5,7 +5,7 @@ A comment never fails the check: every outcome other than success is a `Notice`,
 forge refused for want of a permission (403, 404: fork and Dependabot tokens are read-only, or `pull-requests:
 write` was not granted), `comment_failed` for anything else, `comment_token_missing` without a token.
 
-One of the four modules of `spellwarden_cli` that may reach the network (`tests/test_network_boundary.py`)."""
+One of the five modules of `spellwarden_cli` that may reach the network (`tests/test_network_boundary.py`)."""
 from __future__ import annotations
 
 import json

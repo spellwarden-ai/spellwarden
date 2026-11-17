@@ -959,7 +959,7 @@ Releases are built and published by GitHub Actions through PyPI trusted publishi
 make check     # ruff, pytest, uv build
 ```
 
-`tests/test_pure.py` fails the build if any module of `spellwarden_scan` reaches for the network, the file system or the environment; `tests/test_network_boundary.py` fails it if any module of `spellwarden_cli` other than the prober's fetcher (`net.py`), the usage ping (`ping.py`), the comment poster (`forge.py`) and the API client of connected mode (`api.py`) can reach the network; `tests/test_fixture_coverage.py` fails it if a rule lacks a positive or a negative fixture. Every test runs offline: HTTP exchanges are recorded under `tests/recorded/` and git repositories are made by the tests.
+`tests/test_pure.py` fails the build if any module of `spellwarden_scan` reaches for the network, the file system or the environment; `tests/test_network_boundary.py` fails it if any module of `spellwarden_cli` other than the prober's fetcher (`net.py`), the usage ping (`ping.py`), the comment poster (`forge.py`), the API client of connected mode (`api.py`) and, since 1.17.0, the model client of `--analyze` (`model_client.py`) can reach the network; `tests/test_fixture_coverage.py` fails it if a rule lacks a positive or a negative fixture. Every test runs offline: HTTP exchanges are recorded under `tests/recorded/` and git repositories are made by the tests.
 
 ## Use it in CI
 
