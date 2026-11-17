@@ -168,6 +168,27 @@ def _agents(report: Report) -> list[str]:
     return lines + [""]
 
 
+LINT_GUIDE_URL = ("https://spellwarden.ai/docs/activation-checks?utm_source=scanner&utm_medium=cli"
+                  "&utm_campaign=description-lint")
+
+
+def _lint(report: Report) -> list[str]:
+    """Phase 4 batch B spec 11.4: the section "Description lint": one row per note (at most 25), informational; nothing when
+    no skill has a note."""
+    rows = [(entry.skill, note) for entry in report.lint or () for note in entry.notes]
+    left_out = sum(entry.left_out for entry in report.lint or ())
+    if not rows and not left_out:
+        return []
+    lines = [f"**Description lint (informational, never changes the exit code):** {_plural(len(rows) + left_out, 'note')}. "
+             f"[What each check means]({LINT_GUIDE_URL})", "", "| Skill | Check | Note |", "|---|---|---|"]
+    for skill, note in rows[:MAX_ROWS]:
+        lines.append(f"| {_code_cell(skill)} | {note.id} | {_text(note.message)} |")
+    more = len(rows) - MAX_ROWS + left_out if len(rows) > MAX_ROWS else left_out
+    if more > 0:
+        lines += ["", f"{more} more notes are in the JSON report."]
+    return lines + [""]
+
+
 def _not_admitted(report: Report) -> list[str]:
     """The section of O3 spec 6.10 for the items of the registry gate that failed it: `Request admission` for an item the
     registry does not hold (the link is only ever one under the dashboard address, `connected.run_gate`), the reason
@@ -220,7 +241,7 @@ def render(report: Report) -> str:
     if report.clients is not None:  # `scan --user` (phase 3 batch 2a spec 11.3)
         lines += ["**Clients:**", "", *(f"- {_text(line)}" for line in client_lines(report)), ""]
     lines += _findings(open_findings) + _instruction_files(report)
-    lines += _errors(report) + _lock(report) + _probes(report) + _agents(report)
+    lines += _errors(report) + _lock(report) + _probes(report) + _agents(report) + _lint(report)
     if accepted:
         lines += [f"{_plural(accepted, 'accepted finding')} with {'its' if accepted == 1 else 'their'} reasons "
                   f"{'is' if accepted == 1 else 'are'} listed in the baseline file.", ""]

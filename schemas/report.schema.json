@@ -22,6 +22,8 @@
     "fail_on": {"enum": ["critical", "high", "medium", "low", "never"]},
     "exit_code": {"enum": [0, 1, 2, 3]},
     "connected": {"$ref": "#/$defs/connected"},
+    "lint": {"type": "array", "description": "Repository scans with skills (scanner 1.17.0): the description lint of each skill, informational.",
+             "items": {"$ref": "#/$defs/lint_entry"}},
     "upload_truncated": {"type": "integer", "minimum": 0, "description": "Findings left out of the upload body to fit its caps."},
     "upload_truncated_fields": {"type": "array", "items": {"type": "string"}, "description": "Fields of the upload body that were cut."},
     "analysis": {"type": "array", "description": "scan --analyze only (scanner 1.17.0): the model-assisted analysis of each skill, advisory.",
@@ -238,6 +240,20 @@
         "added": {"type": "array", "items": {"$ref": "#/$defs/change"}},
         "removed": {"type": "array", "items": {"$ref": "#/$defs/change"}},
         "changed": {"type": "array", "items": {"$ref": "#/$defs/change"}}
+      }
+    },
+    "lint_entry": {
+      "type": "object",
+      "description": "The description lint of one skill (scanner 1.17.0). Informational: never a finding, never part of the exit code.",
+      "required": ["skill", "notes", "left_out"],
+      "properties": {
+        "skill": {"type": "string"},
+        "left_out": {"type": "integer", "minimum": 0},
+        "notes": {"type": "array", "maxItems": 20,
+                  "items": {"type": "object", "required": ["id", "severity", "message", "other_path"],
+                            "properties": {"id": {"enum": ["SW-LINT-001", "SW-LINT-002", "SW-LINT-003", "SW-LINT-004"]},
+                                           "severity": {"const": "info"}, "message": {"type": "string"},
+                                           "other_path": {"type": ["string", "null"]}}}}
       }
     },
     "notice": {

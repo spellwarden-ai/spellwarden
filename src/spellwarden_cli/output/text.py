@@ -122,6 +122,23 @@ def connected_lines(report: Report) -> list[str]:
     return lines
 
 
+def lint_lines(report: Report) -> list[str]:
+    """Phase 4 batch B spec 11.4: the description lint's notes, one line each under the skill they concern, then a blank line;
+    nothing when no skill has a note. Informational: the summary line and the exit code never count them."""
+    entries = [entry for entry in report.lint or () if entry.notes or entry.left_out]
+    if not entries:
+        return []
+    lines = ["Description lint (informational, never changes the exit code)"]
+    for entry in entries:
+        lines.append(f"  {terminal(entry.skill)}")
+        for note in entry.notes:
+            other = f" (with {terminal(note.other_path)})" if note.other_path is not None else ""
+            lines.append(f"    {note.id}{other} {terminal(note.message)}")
+        if entry.left_out:
+            lines.append(f"    {entry.left_out} more notes were not kept")
+    return [*lines, ""]
+
+
 def render(report: Report) -> str:
     lines: list[str] = []
     if report.connected is None:
@@ -168,6 +185,7 @@ def render(report: Report) -> str:
         if agent_view.remote_note_applies(report):
             lines.append(f"  {agent_view.REMOTE_NOTE}")
         lines.append("")
+    lines.extend(lint_lines(report))
     for notice in report.notices:
         lines.append(f"notice {notice.code} {terminal(notice.path)}: {terminal(notice.message)}")
     for error in report.errors:

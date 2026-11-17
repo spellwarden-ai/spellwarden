@@ -107,7 +107,9 @@ def test_notice_and_error_codes_are_todays_plus_the_closed_lists_of_spec_6_9():
         "a2a_keys_unavailable", "a2a_keys_missing", "a2a_key_without_kid", "a2a_private_key_in_jwks",
         "instructions_front_matter", "probe_list_incomplete", "workstation_uploaded", "client_not_found",
         # 1.15.0: the probed tool hashes of the lock file
-        "tools_changed", "tools_not_compared")
+        "tools_changed", "tools_not_compared",
+        # 1.17.0: the description lint
+        "description_lint")
     assert ERROR_CODES == TODAYS_ERROR_CODES + (
         "connected_config", "connected_key_invalid", "connected_no_credential", "connected_auth", "connected_subscription",
         "connected_ci_key_required", "connected_forbidden", "connected_rate_limited", "connected_unavailable",

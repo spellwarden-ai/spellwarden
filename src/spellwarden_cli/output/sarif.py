@@ -3,11 +3,12 @@ accepted findings carry an external suppression. No timestamps, and an invocatio
 (phase 3 batch 2c spec 11.2, F1), with no time in it: the file is byte-deterministic."""
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from urllib.parse import quote
 
-from spellwarden_scan import Rule
+from spellwarden_scan import Rule, lint
 
 from spellwarden_cli import escape, instruction_files
 from spellwarden_cli.output.upload import upload_path
@@ -78,6 +79,37 @@ def _invocation(report: Report) -> dict:
                                             "message": {"text": escape.message(error.message)}} for error in report.errors]}
 
 
+LINT_HELP_URI = ("https://spellwarden.ai/docs/activation-checks?utm_source=scanner&utm_medium=cli"
+                 "&utm_campaign=description-lint")
+
+
+def _lint_rule(note_id: str) -> dict:
+    """The descriptor of a description lint check (Phase 4 batch B spec 11.4): level `note`, no security severity."""
+    title = lint.TITLES[note_id]
+    return {"id": note_id, "name": "".join(word[:1].upper() + word[1:] for word in _WORD.findall(title)),
+            "shortDescription": {"text": title}, "helpUri": LINT_HELP_URI, "defaultConfiguration": {"level": "note"},
+            "properties": {"tags": ["description-lint"]}}
+
+
+def _lint_results(report: Report, first_index: int) -> list[dict]:
+    """One SARIF result of level `note` per lint note, on the skill's SKILL.md, with a fingerprint of the check, the skill and
+    the other skill. Never a finding: no `security-severity`."""
+    results = []
+    for entry in report.lint or ():
+        skill_file = "SKILL.md" if entry.skill == "." else f"{entry.skill}/SKILL.md"
+        for note in entry.notes:
+            digest = hashlib.sha256(f"{note.id}\n{entry.skill}\n{note.other_path or ''}".encode()).hexdigest()
+            results.append({
+                "ruleId": note.id, "ruleIndex": first_index + lint.LINT_IDS.index(note.id), "level": "note",
+                "message": {"text": escape.message(note.message)},
+                "locations": [{"physicalLocation": {"artifactLocation": {
+                    "uri": quote(upload_path(report, skill_file), safe="/")}}}],
+                "partialFingerprints": {"spellwarden/v1": digest},
+                "properties": {"description_lint": True},
+            })
+    return results
+
+
 def render(report: Report) -> str:
     rules = list(report.rules)
     index = {rule.id: position for position, rule in enumerate(rules)}
@@ -94,6 +126,10 @@ def render(report: Report) -> str:
             "results": [_result(report, item, index, instructions, clients_of) for item in report.findings],
         }],
     }
+    run = document["runs"][0]
+    if any(entry.notes for entry in report.lint or ()):  # absent otherwise, so a report without notes is unchanged
+        run["tool"]["driver"]["rules"].extend(_lint_rule(note_id) for note_id in lint.LINT_IDS)
+        run["results"].extend(_lint_results(report, len(rules)))
     if any(error.code in UPLOAD_ERRORS for error in report.errors):  # absent otherwise, so every other SARIF file is unchanged
         document["runs"][0]["invocations"] = [_invocation(report)]
     return json.dumps(document, indent=2, sort_keys=True, ensure_ascii=True) + "\n"

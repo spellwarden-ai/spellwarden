@@ -12,6 +12,7 @@ import jsonschema
 import pytest
 import yaml
 from conftest import _RUNNER_VARIABLES
+from golden_lint import without_lint
 
 from spellwarden_scan import RULES_VERSION, __version__
 
@@ -195,7 +196,8 @@ def _normalised_sarif(text: str, *, produced: bool) -> dict:
 def test_reports_differ_from_the_recorded_ones_only_in_the_normalised_differences(fresh):
     for _fmt, name in record.OUTPUTS:
         recorded = (GOLDEN / "out" / name).read_bytes().decode("utf-8")
-        produced = _without_finding_tags(name, (fresh[1] / name).read_bytes().decode("utf-8"))
+        # 1.17.0: the description lint is taken out first (Phase 4 batch B spec 11.4, claim E-1)
+        produced = _without_finding_tags(name, without_lint(name, (fresh[1] / name).read_bytes().decode("utf-8")))
         if name == "report.sarif":
             assert _normalised_sarif(produced, produced=True) == _normalised_sarif(recorded, produced=False)
             continue

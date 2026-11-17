@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 from spellwarden_scan import SEVERITY_RANK, A2aScanResult, Finding, McpScanResult, Rule, RuleSet, toolhash
 from spellwarden_scan.agentconfig import DOCUMENT_ERRORS
+from spellwarden_scan.model import LintNote
 
 if TYPE_CHECKING:
     from spellwarden_cli.discover import Item
@@ -49,7 +50,9 @@ NOTICE_CODES = ("no_agent_content", "git_unavailable", "exec_bits_unknown", "sym
                 # Phase 3 batch 2a spec 11.6: the upload succeeded; a client of the table has no file (verbose text only)
                 "workstation_uploaded", "client_not_found",
                 # 1.15.0: the probed tool hashes pinned in the lock file (`mcp-tools`) differ, or could not be compared
-                "tools_changed", "tools_not_compared")
+                "tools_changed", "tools_not_compared",
+                # 1.17.0 (Phase 4 batch B spec 11.4): the description lint
+                "description_lint")
 # The notices that say a run continued in free mode after connected mode could not start (O3 spec 6.4); the text and
 # Markdown outputs derive their "unavailable" line from them.
 FREE_MODE_NOTICES = ("connected_fallback", "fork_free_mode", "dependabot_free_mode")
@@ -149,6 +152,21 @@ class AgentReport:
         }
 
 
+@dataclass(frozen=True)
+class SkillLint:
+    """The description lint of one skill (Phase 4 batch B spec 11.4): `skill` is the skill's directory, `notes` at most
+    `lint.MAX_NOTES_PER_SKILL` notes sorted by id, `left_out` the count of notes the cap left out. Informational: never a
+    finding, never part of the exit code."""
+    skill: str
+    notes: tuple[LintNote, ...]
+    left_out: int = 0
+
+    def to_dict(self) -> dict:
+        return {"skill": self.skill, "left_out": self.left_out,
+                "notes": [{"id": note.id, "severity": "info", "message": note.message, "other_path": note.other_path}
+                          for note in self.notes]}
+
+
 def finding_order(rf: ReportFinding) -> tuple:
     f = rf.finding
     return (SEVERITY_RANK[f.severity], f.rule_id, f.location.path, f.location.line or 0, f.fingerprint, rf.item)
@@ -187,6 +205,9 @@ class Report:
     user: str | None = field(default=None, compare=False)
     # The scan root's directory name, the subject of a CycloneDX document (spec 7.3); None for `--user`. Not serialised.
     root_name: str | None = field(default=None, compare=False)
+    # 1.17.0 (Phase 4 batch B spec 11.4): the description lint, one entry per skill in path order; None when the scan found no
+    # skill (not serialised, so a report without skills is unchanged).
+    lint: tuple[SkillLint, ...] | None = None
     # Per item path, the facts a CycloneDX document and the workstation upload may carry, already free of secrets
     # (`details.item_details`): hashes, transports, reduced endpoints and sources, command identities. Not serialised.
     details: dict = field(default_factory=dict, compare=False, repr=False)
@@ -247,4 +268,6 @@ def to_json_dict(report: Report) -> dict:
         document["connected"] = report.connected
     if report.clients is not None:
         document["clients"] = [dict(entry) for entry in report.clients]
+    if report.lint is not None:
+        document["lint"] = [entry.to_dict() for entry in report.lint]
     return document

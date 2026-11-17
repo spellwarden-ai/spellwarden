@@ -67,7 +67,7 @@ def test_org_rules_document_is_applied_and_reported(make_repo, run_cli, tmp_path
     document = json.loads(outputs["sarif"].read_text(encoding="utf-8"))
     (sarif_run,) = document["runs"]
     assert "SW-ORG-010" in [rule["id"] for rule in sarif_run["tool"]["driver"]["rules"]]
-    assert [r["ruleId"] for r in sarif_run["results"]] == ["SW-ORG-010"]
+    assert [r["ruleId"] for r in sarif_run["results"] if not r["ruleId"].startswith("SW-LINT-")] == ["SW-ORG-010"]
     markdown = outputs["markdown"].read_text(encoding="utf-8")
     assert "**Connected mode**" in markdown and "Connected to Acme as gitlab:gitlab.com/acme/tools" in markdown.replace("\\", "")
     assert [i["check_name"] for i in json.loads(outputs["gitlab-codequality"].read_text(encoding="utf-8"))] == ["SW-ORG-010"]

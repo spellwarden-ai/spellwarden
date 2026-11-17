@@ -476,6 +476,8 @@ The probed tool hashes of 1.15.0 follow the rule for remote content. `lock --pro
 - a symbolic link to a place outside the home directory that leads to files the scan reads, and a link to a directory inside a skill (`unreadable`, one error per link, since 1.16.1; they were the notice `symlink_skipped`): they are not followed (spec decision D39), so what they lead to is not judged. Dotfile managers such as Nix home-manager make every client file such a link: those files are then not scanned, and the scan says so instead of reading as complete. A link out of the home is that error only when what the scan looks for below it exists below its target, checked without reading or listing anything there: for a link on a table path, the rest of that path (where the path has a `*`, the directory it would be matched in); for an entry of a skills directory, a `SKILL.md` in it; for an entry of Gemini CLI's extensions directory, a `gemini-extension.json` in it; inside a skill, the target itself. The way out: remove the link, or replace it with a copy of what it leads to; for a link on the base directory of a client (`~/.config`, `~/.claude`, `~/.codex`), the error also names the variable that moves that base (`XDG_CONFIG_HOME`, `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `COPILOT_HOME`, `APPDATA`) when every row that reached the link starts there, since a base outside the home that such a variable names is read as it is: set it to the real path. A link out of the home that leads to nothing the scan reads, and a link whose target is missing or a loop, stay the notice `symlink_skipped`;
 - the workstation upload: 1 MiB, 2,000 items and 1,000 findings, never cut (`workstation_upload_too_large`, nothing is sent). Its body lists at most 50 errors and 50 notices and carries their totals, and at most 8 roots per client with the client's number of roots in `roots_total` (since 1.16.2): output caps, since the report on the workstation lists them all, and each shows the count left out.
 
+The description lint (since 1.17.0) lists at most 20 notes per skill in each report, an output cap: every description was checked, and the count left out is shown (`left_out` in the JSON report, "more notes were not kept" in the text report and "more notes are in the JSON report" in the Markdown report). Only overlap notes are ever left out; the three single-skill notes always fit.
+
 ### Settings: `.spellwarden/config.yml`
 
 ```yaml
@@ -569,6 +571,21 @@ a2a:
 **What is not checked.** The extended card (it needs authentication), the agent's behaviour on the wire, TLS versions and HSTS of its endpoints, caching headers, and key expiry or revocation. The specification says "Expired or revoked keys MUST NOT be used for verification" (8.4.3) but defines no way to know a key is expired or revoked: the trusted key file is your own list, so removing a key from `a2a.keys` is how a repository revokes it.
 
 **Installing.** The scanner verifies signatures with the `cryptography` package, a compiled dependency that is imported by one module only. It installs from wheels: on Linux (glibc and musl, x86_64 and aarch64), macOS and Windows; a platform without a wheel cannot install 1.3.0. The image and the Action's pinned requirements carry the same packages with their hashes. The Action runs on the Python 3.11 or newer it finds on the runner; the locked `cffi` ships wheels for Python 3.11 to 3.14 at the time of this release, so on a newer Python add `actions/setup-python` until a later scanner release.
+
+### Description lint
+
+Since 1.17.0 every repository scan checks the `description` of each skill it finds: the text an agent reads to decide whether to load the skill. Four checks, made without a model:
+
+| Check | Notes a description that |
+|---|---|
+| `SW-LINT-001` | is missing, shorter than 40 characters or longer than 1,024 (agents read at most 1,024) |
+| `SW-LINT-002` | has no use-when clause: none of "use when", "use this when", "when the user" or "triggers on", in any case |
+| `SW-LINT-003` | names no trigger phrase: no quoted phrase (in straight or curly quotes or backticks) and no list of requests ("such as", "for example", "e.g.", "like", "including" or a colon, then two or more items split by a comma, the first of at most 120 characters) |
+| `SW-LINT-004` | overlaps the description of another skill of the same scan: the Jaccard similarity of their word sets is 0.6 or more, after case folding and without common words such as "the", "use" and "when"; the note is on both skills, each naming the other |
+
+A missing or blank description gets `SW-LINT-001` alone. The notes are informational: they are not findings, are not baselined, and never change the exit code, a rule count or the outcome of `--fail-on`. A message never quotes the description. The JSON report's `lint` lists every skill of the scan in path order, `{"skill", "notes": [{"id", "severity": "info", "message", "other_path"}], "left_out"}`, with an empty list of notes where a description triggers none, and the notice `description_lint` counts them. The text report shows them in a "Description lint" block, the Markdown report in a "Description lint" section, and SARIF as results of level `note` with `properties.description_lint: true`, whose four descriptors follow the rules at the end of the rule table. The GitLab Code Quality report, the CycloneDX document and the upload of connected mode carry none of them, and `scan --user` does not lint.
+
+The library returns the single-skill notes too: `scan_skill_package` puts `SW-LINT-001` to `SW-LINT-003` in `SkillScanResult.lint` (each a `spellwarden_scan.model.LintNote`), and `spellwarden_scan.lint.check(skills)` runs all four over a list of `SkillMeta(path, name, description)`. What each check means and how to fix a description: [spellwarden.ai/docs/activation-checks](https://spellwarden.ai/docs/activation-checks?utm_source=scanner&utm_medium=cli&utm_campaign=description-lint).
 
 ### Probing: `--probe`
 

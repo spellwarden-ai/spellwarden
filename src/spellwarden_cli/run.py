@@ -12,14 +12,16 @@ import os
 import re
 from typing import TYPE_CHECKING
 
-from spellwarden_scan import (RULES_VERSION, Finding, OrgRuleBudget, RuleSet, __version__, scan_agent_config,
+from spellwarden_scan import (RULES_VERSION, Finding, OrgRuleBudget, RuleSet, __version__, lint, scan_agent_config,
                               scan_skill_package)
+from spellwarden_scan.frontmatter import metadata_of
+from spellwarden_scan.model import SkillMeta
 
 from spellwarden_cli import agents as agents_module
 from spellwarden_cli import details, discover, files
 from spellwarden_cli.ci import ORG_RE
 from spellwarden_cli.discover import Discovery, SkillPackage
-from spellwarden_cli.report import LockState, Notice, ProbeReport, Report, ReportFinding
+from spellwarden_cli.report import LockState, Notice, ProbeReport, Report, ReportFinding, SkillLint
 from spellwarden_cli.secret import Credentials
 from spellwarden_cli.settings import Settings
 
@@ -152,13 +154,16 @@ def scan(options: ScanOptions) -> Report:
     findings = apply_baseline(options, findings, notices, errors, base_gate=state is not None and context is not None
                               and context.is_request)
     lock = check_lock(options, found, errors, probes=probes if options.settings.probe else None, notices=notices)
+    skill_lints = skill_lint(found)
+    if skill_lints is not None:
+        notices.append(lint_notice(skill_lints))
     report = Report(
         scanner_version=__version__, rules_version=RULES_VERSION, as_of=options.as_of.isoformat(),
         fail_on=options.settings.fail_on, items=found.items, findings=tuple(findings), probes=tuple(probes), lock=lock,
         notices=tuple(notices), errors=tuple(errors), repo_prefix=fileset.repo_prefix, rules=rules,
         agents=tuple(agent_reports), root_name=os.path.basename(options.root), details=details.item_details(found),
         connected=({**connected.report_block(state, context), "registry": registry}
-                   if state is not None and context is not None else None))
+                   if state is not None and context is not None else None), lint=skill_lints)
     report = report.sorted()
     if state is not None and context is not None and report.connected is not None:
         # O3 spec 6.7: after the exit code is decided and before any output is written, so every output carries the
@@ -207,6 +212,39 @@ def engine_findings(found: Discovery, rules: RuleSet, notices: list[Notice], err
         if result.truncated:
             notices.append(Notice("findings_truncated", "", f"{result.truncated} more configuration findings were not kept"))
     return findings
+
+
+LINT_GUIDE_URL = ("https://spellwarden.ai/docs/activation-checks?utm_source=scanner&utm_medium=cli"
+                  "&utm_campaign=description-lint")
+
+
+def skill_lint(found: Discovery) -> tuple[SkillLint, ...] | None:
+    """Phase 4 batch B spec 11.4: the description lint over every skill of the scan together (SW-LINT-004 compares siblings),
+    one entry per skill in path order with at most `lint.MAX_NOTES_PER_SKILL` notes and the count left out; None when the
+    scan found no skill, so a report without skills is unchanged."""
+    if not found.skills:
+        return None
+    metas = []
+    for skill in found.skills:
+        metadata = metadata_of(skill.engine_files(), "" if skill.path == "." else skill.path)
+        metas.append(SkillMeta(skill.path, metadata.name, metadata.description))
+    notes, left_out = lint.counted(metas)
+    by_path: dict[str, list] = {}
+    for note in notes:
+        by_path.setdefault(note.path, []).append(note)
+    return tuple(SkillLint(meta.path, tuple(by_path.get(meta.path, ())), left_out.get(meta.path, 0))
+                 for meta in sorted(metas, key=lambda meta: meta.path))
+
+
+def lint_notice(entries: tuple[SkillLint, ...]) -> Notice:
+    """The notice of the description lint (spec 11.4, 4.10): how many notes on how many skills, that they never change the
+    exit code, and the guide."""
+    count = sum(len(entry.notes) + entry.left_out for entry in entries)
+    with_notes = sum(1 for entry in entries if entry.notes or entry.left_out)
+    notes = "note" if count == 1 else "notes"
+    skills = "skill" if len(entries) == 1 else "skills"
+    return Notice("description_lint", "", f"Description lint: {count} {notes} on {with_notes} of {len(entries)} {skills}, "
+                  f"informational, never changing the exit code. What each check means: {LINT_GUIDE_URL}")
 
 
 def _as_written(skill: SkillPackage, finding: Finding) -> Finding:
