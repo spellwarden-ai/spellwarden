@@ -141,6 +141,7 @@ def _check_report(expect: dict, report: dict) -> list[str]:
                     problems.append(f"lock {key} {got}, expected {sorted(expect['lock'][key])}")
     problems += _check_connected(expect, report)
     problems += _check_agents(expect, report)
+    problems += _check_analysis(expect, report)
     if expect["probes"] is not None:
         got = {p["item"]: (p["status"], p["skip_reason"]) for p in report["probes"]}
         for wanted in expect["probes"]:
@@ -167,6 +168,25 @@ def _check_agents(expect: dict, report: dict) -> list[str]:
             problems.append(f"agent {want['item']} is {have}, expected {expected}")
     extra = sorted(set(seen) - {w["item"] for w in wanted})
     return problems + ([f"unexpected agents {extra}"] if extra else [])
+
+
+def _check_analysis(expect: dict, report: dict) -> list[str]:
+    """The `analysis` key of a case (scanner 1.17.0, `--analyze`): the report's `analysis` list holds exactly the skills
+    the case names, each with its status; a case without the key must produce no list at all (a scan without the
+    analyzer reports as before it existed)."""
+    got, wanted = report.get("analysis"), expect["analysis"]
+    if wanted is None:
+        return [] if got is None else ["the report holds an analysis list although the case does not turn the analyzer on"]
+    if not isinstance(got, list):
+        return ["the report holds no analysis list"]
+    seen = {entry.get("skill"): entry.get("status") for entry in got if isinstance(entry, dict)}
+    problems = [f"skill {w['skill']} is not in the analysis" for w in wanted if w["skill"] not in seen]
+    for want in wanted:
+        have = seen.get(want["skill"])
+        if have is not None and have != want["status"]:
+            problems.append(f"the analysis of {want['skill']} is {have!r}, expected {want['status']!r}")
+    extra = sorted(str(skill) for skill in set(seen) - {w["skill"] for w in wanted})
+    return problems + ([f"unexpected analysed skills {extra}"] if extra else [])
 
 
 def _check_connected(expect: dict, report: dict) -> list[str]:
@@ -198,7 +218,11 @@ def _check_sarif(expect: dict, path: str) -> list[str]:
     problems = []
     if sarif.get("version") != "2.1.0" or len(sarif.get("runs", [])) != 1:
         return ["the SARIF file is not one SARIF 2.1.0 run"]
-    results = sarif["runs"][0].get("results", [])
+    # Since 1.17.0 the description lint and the model-assisted analyzer add results of level note, marked in their
+    # properties; they are informational, never findings, so they are not counted here.
+    informational = ("description_lint", "model_assisted")
+    results = [r for r in sarif["runs"][0].get("results", [])
+               if not any((r.get("properties") or {}).get(name) is True for name in informational)]
     if len(results) != expect["findings"] + expect["accepted"]:
         problems.append(f"{len(results)} SARIF results, expected {expect['findings'] + expect['accepted']}")
     suppressed = sum(1 for r in results if r.get("suppressions"))
