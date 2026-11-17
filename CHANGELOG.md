@@ -8,7 +8,7 @@ default.
 
 1.17.0: an optional model-assisted analyzer (`--analyze`) that sends a skill's SKILL.md and scripts to an OpenAI-compatible
 endpoint you name, with your key from `SPELLWARDEN_MODEL_KEY`, and reports advisory, model-assisted findings with quoted spans;
-measured on Claude Sonnet 5.5 (rates below); never changes the exit code. A description lint (SW-LINT-001 to SW-LINT-004),
+measured on Claude Sonnet 5.5 (rates below); its verdicts never change the exit code. A description lint (SW-LINT-001 to SW-LINT-004),
 informational.
 
 Measured rates: filled before the release
@@ -21,7 +21,7 @@ Measured rates: filled before the release
 - What is sent: SKILL.md, then the scripts (under `scripts/`, with an executable mode, or with a script extension) of the
   files the package hash covers, each masked with `mask_credentials`, inside a random boundary, with a nonce the answer must
   repeat. At most 120,000 bytes a skill, all or nothing: past it (or with a file that is not UTF-8 text) the skill is
-  `incomplete` with its limit and the notice `analysis_incomplete`, and the scan's exit code is unchanged.
+  `incomplete` with its limit and the notice `analysis_incomplete`; the README's Limits says what that does to the exit code.
 - What comes back: the JSON report's `analysis` (status, model, the measured label, eight categories with a verdict, a
   confidence, a masked summary and at most five quoted spans each, checked against the masked source, and `rules_found`), the
   notice `model_assisted`, a section in the text and Markdown reports, and SARIF results of level `note` with

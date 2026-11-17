@@ -3,10 +3,10 @@ model endpoint the user names (`model_client.py`), and the report gains one `ana
 6.4) and the notice `model_assisted`. Imported only under `--analyze`, so a scan without it builds no request and imports no
 module of the model client.
 
-Advisory everywhere (owner decision idea:Q4): an analysis is never a finding and never changes the exit code, a rule count or
-a `--fail-on` outcome. A skill the analyzer could not read (past `--analyze-max-bytes`, or a file that is not text) is
-`incomplete` with its limit and the notice `analysis_incomplete`; whether that also makes the scan incomplete is decided by
-`incomplete_analysis_is_scan_error` alone (spec:Q4, D23).
+Advisory everywhere (owner decision idea:Q4): an analysis is never a finding, and its verdicts never change the exit code,
+a rule count or a `--fail-on` outcome. A skill the analyzer could not read (past `--analyze-max-bytes`, or a file that is
+not text) is `incomplete` with its limit and the notice `analysis_incomplete`; whether that also makes the scan incomplete
+is decided by `incomplete_analysis_is_scan_error` alone (spec:Q4, D23).
 
 The cache (`--analyze-cache DIR`) holds analysed results only, one JSON file per package hash, analyzer version and model;
 it never holds the key, a request or an answer's text. A cache file that cannot be read is analysed again, and a directory
@@ -221,7 +221,7 @@ def summary_notice(entries: Sequence[dict], options: AnalyzeOptions, *, cache_un
                           ("not_analyzed", "not analysed")):
         if counts[status]:
             parts.append(f"{counts[status]} {words}")
-    message = ", ".join(parts) + ". Advisory: it never changes the exit code."
+    message = ", ".join(parts) + ". Advisory: its verdicts never change the exit code."
     if cache_unwritable:
         message += " The directory of --analyze-cache could not be written, so results were not kept there."
     if label is not None:

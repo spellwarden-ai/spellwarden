@@ -26,7 +26,7 @@ def test_the_section_states_the_flags_the_key_and_the_rules():
                    "`SPELLWARDEN_MODEL_KEY` only, never a flag", "`Authorization: Bearer`", "Nothing goes to Spellwarden",
                    "`http` only for a loopback address", "No redirect is followed", "10 s to connect and 120 s",
                    "over 1 MiB", "`mask_credentials`", "random boundary", "nonce", "never clean", "`model_assisted`",
-                   "level `note` with `properties.model_assisted: true`", "never changes the exit code", "Unmeasured model",
+                   "level `note` with `properties.model_assisted: true`", "verdicts never change the exit code", "Unmeasured model",
                    "On Windows a file git does not track has no executable mode", "`exec_bits_unknown`"):
         assert needle in text, needle
     assert all(f"`{category}`" in text for category in analyzer.CATEGORIES)
@@ -52,5 +52,22 @@ def test_limits_records_the_analyzer_s_bounds_and_spec_q4():
 
 
 def test_exit_codes_say_neither_the_lint_nor_the_analyzer_changes_them():
-    assert "Neither the description lint nor the model-assisted analyzer (`--analyze`) ever changes the exit code" in section(
+    assert "and the verdicts of the model-assisted analyzer (`--analyze`) never change the exit code" in section(
         "### Exit codes")
+
+
+def test_spec_q4_answer_is_written_in_limits_and_its_function_only():
+    """spec:Q4: what an unreadable skill does to the exit code is `analysis.incomplete_analysis_is_scan_error`, its test and
+    README "Limits". Every other sentence that joins the analyzer and the exit code speaks of its verdicts (or sends the reader
+    to Limits), so the other answer needs no edit there."""
+    from spellwarden_cli import analysis
+
+    changelog = (Path(__file__).resolve().parents[1] / "CHANGELOG.md").read_text(encoding="utf-8").replace("\r\n", "\n")
+    entry = changelog[changelog.index("## 1.17.0 ("):changelog.index("## 1.16.2 (")]
+    limits = section("### Limits")
+    outside_limits = README.replace(limits, "")
+    notice = analysis.summary_notice([], analysis.AnalyzeOptions(endpoint="https://a.example/v1", model="m")).message
+    for name, text in (("README", outside_limits), ("CHANGELOG", entry), ("notice", notice)):
+        for sentence in re.split(r"(?<=[.:;])\s+|\n\n", " ".join(text.split())):
+            if re.search(r"analy[sz]|--analyze", sentence) and "exit code" in sentence:
+                assert "verdict" in sentence or "Limits" in sentence, (name, sentence)

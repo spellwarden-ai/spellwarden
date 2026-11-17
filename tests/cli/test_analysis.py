@@ -190,7 +190,7 @@ def test_a_cache_directory_that_cannot_be_written_never_ends_the_analysis(tmp_pa
 def test_the_summary_notice_names_the_model_counts_the_label_and_the_guide():
     notice = analysis.summary_notice([], options())
     assert notice.code == "model_assisted" and notice.path == ""
-    assert "never changes the exit code" in notice.message and analysis.ANALYZER_GUIDE_URL in notice.message
+    assert "its verdicts never change the exit code" in notice.message and analysis.ANALYZER_GUIDE_URL in notice.message
     assert "utm_source=scanner&utm_medium=cli&utm_campaign=analyzer" in analysis.ANALYZER_GUIDE_URL
     assert "Unmeasured model" in notice.message and not re.search("[\u2013\u2014!]", notice.message)
 
