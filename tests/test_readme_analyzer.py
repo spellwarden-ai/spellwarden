@@ -46,7 +46,7 @@ def test_limits_records_the_analyzer_s_bounds_and_spec_q4():
     text = section("### Limits")
     assert analyzer.ANALYZER_MAX_BYTES == 120_000
     for needle in ("at most 120,000 bytes", "`too_large`", "`not_text`", "`analysis_incomplete`", "--analyze-max-bytes",
-                   "never shown as analysed or clean", "the scan's errors and its exit code stay as the rules left them",
+                   "never shown as analysed or clean", "the scan itself did not read", "the scan's errors and its exit code stay as the rules left them",
                    "over 1 MiB", "`spans_left_out`"):
         assert needle in text, needle
 

@@ -175,6 +175,13 @@ def _is_script(relative: str, scan_path: str, executable_paths: Collection[str])
             or relative.lower().endswith(SCRIPT_EXTENSIONS))
 
 
+def selects(relative: str, scan_path: str, executable_paths: Collection[str] = frozenset()) -> bool:
+    """Whether `build_request` would send the file at `relative` (to the skill; `scan_path` from the scan root): the skill
+    file, in any case, or a script. The command asks it of a file discovery did not read (spec 4.8, r1:F1), which must make
+    the analysis `incomplete` rather than leave it out unseen."""
+    return relative.casefold() == SKILL_FILE.casefold() or _is_script(relative, scan_path, executable_paths)
+
+
 def _lines(text: str) -> list[str]:
     """The lines of `text` split at `\n` only (a `\r` before it is dropped when numbered), without the empty one after a final
     newline: what the request numbers and what a span's line is checked against."""
@@ -343,4 +350,4 @@ __all__ = ["ANALYZER_MAX_BYTES", "ANALYZER_MAX_TOKENS", "ANALYZER_VERSION", "CAT
            "LIMIT_CODES", "MAX_SPANS", "MEASURED_ENTRY_KEYS", "MEASURED_MODELS", "REPLY_REASONS", "SCHEMA", "SCRIPT_EXTENSIONS",
            "SPAN_MAX", "STATUSES", "SUMMARY_MAX", "SYSTEM", "VERDICTS", "AnalyzerRequest", "AnalyzerResult", "CategoryVerdict",
            "NotAnalyzed", "Span", "build_request", "canonical_model", "is_measured", "measured_label", "parse_reply",
-           "rules_found"]
+           "rules_found", "selects"]

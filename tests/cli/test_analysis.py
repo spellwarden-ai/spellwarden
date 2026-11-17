@@ -211,3 +211,29 @@ def test_a_reply_that_repeats_the_key_never_carries_it_out():
                                analysis.AnalyzeOptions(endpoint="http://127.0.0.1:9/v1", model="m", key=Secret(letters)),
                                notices, [], client_factory=lambda _o: Scripted(echo))
     assert letters not in json.dumps(entries) and "Key *** seen." in json.dumps(entries)
+
+
+def test_a_selected_file_discovery_did_not_read_makes_the_analysis_incomplete(tmp_path):
+    """r1:F1: a script of the skill over the file limit (the scan's error `unreadable`) or a member link that was not followed
+    is content the analyzer would send but was never read: `incomplete` with `too_large`, nothing sent, nothing cached. A file
+    the selection would not send (a data file) leaves the analysis as it was."""
+    from spellwarden_cli.report import Notice
+
+    client = Scripted(good)
+    cache = tmp_path / "cache"
+    unread = Discovery(items=(), skills=(skill("skills/a", {"SKILL.md": SKILL}), skill("skills/b", {"SKILL.md": SKILL}),
+                                         skill("skills/c", {"SKILL.md": SKILL + b"\nOther.\n"})), documents=(), plugin_dirs=(), notices=(),
+                       errors=(Notice("unreadable", "skills/a/scripts/run.sh", "larger than 10 MiB"),
+                               Notice("unreadable", "skills/c/data.bin", "larger than 10 MiB")))
+    linked = SkillPackage(path="skills/d", name="d", files={"skills/d/SKILL.md": SKILL},
+                          links={"skills/d/tool.py": b"/somewhere/else/tool.py"})
+    discovery = Discovery(items=(), skills=(*unread.skills, linked), documents=(), plugin_dirs=(), notices=(), errors=unread.errors)
+    entries, notices, errors = run(discovery, client, cache_dir=str(cache))
+    by_skill = {entry["skill"]: entry for entry in entries}
+    assert by_skill["skills/a"]["status"] == by_skill["skills/d"]["status"] == "incomplete"
+    assert by_skill["skills/a"]["limit"] == {"code": "too_large", "bytes": 10 * 2**20, "max": analyzer.ANALYZER_MAX_BYTES}
+    assert by_skill["skills/b"]["status"] == by_skill["skills/c"]["status"] == "analyzed" and len(client.calls) == 2
+    raised = {notice.path: notice.message for notice in notices if notice.code == "analysis_incomplete"}
+    assert set(raised) == {"skills/a", "skills/d"} and errors == []
+    assert "scripts/run.sh" in raised["skills/a"] and "tool.py" in raised["skills/d"]
+    assert len(list(cache.glob("*.json"))) == 2  # b and c only

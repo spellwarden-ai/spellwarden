@@ -205,3 +205,31 @@ def test_the_cache_dir_spares_the_second_call(make_repo, tmp_path, run_cli, endp
     scan(run_cli, repo, tmp_path / "a", *analyze_flags(server, "--analyze-cache", str(cache)))
     _, reports, _, _ = scan(run_cli, repo, tmp_path / "b", *analyze_flags(server, "--analyze-cache", str(cache)))
     assert len(server.requests) == 1 and json.loads(reports["json"])["analysis"][0]["cached"] is True
+
+
+def test_a_script_the_scan_could_not_read_is_never_shown_as_analysed(make_repo, tmp_path, run_cli, endpoint):
+    """r1:F1 and README "Limits": a script over 10 MiB is the scan's error `unreadable` and is not in the files the analyzer
+    would send. The skill's analysis is `incomplete`, nothing goes to the model and nothing is cached, and the scan's own
+    error keeps its exit code 2."""
+    base = tmp_path / "repo"
+    big = base / "skills" / "deploy" / "scripts" / "run.sh"
+    big.parent.mkdir(parents=True)
+    with open(big, "wb") as handle:  # sparse: the suite stays fast
+        handle.write(b"#!/bin/sh\n")
+        handle.truncate(11_000_000)
+    repo = make_repo(base, {"skills/deploy/SKILL.md": GOOD_SKILL})
+    server = endpoint(verdicts(False))
+    cache = tmp_path / "cache"
+    code, reports, _, _ = scan(run_cli, repo, tmp_path, *analyze_flags(server, "--analyze-cache", str(cache)),
+                               formats=("json", "text"))
+    report = json.loads(reports["json"])
+    assert code == 2 and [e["path"] for e in report["errors"] if e["code"] == "unreadable"] == ["skills/deploy/scripts/run.sh"]
+    (entry,) = report["analysis"]
+    assert entry["status"] == "incomplete" and entry["categories"] == []
+    assert entry["limit"] == {"code": "too_large", "bytes": 10 * 2**20, "max": analyzer.ANALYZER_MAX_BYTES}
+    (raised,) = [n for n in report["notices"] if n["code"] == "analysis_incomplete"]
+    assert raised["path"] == "skills/deploy" and "scripts/run.sh" in raised["message"]
+    assert server.requests == [] and not cache.exists()
+    assert "0 of 1 skills analysed" in next(n["message"] for n in report["notices"] if n["code"] == "model_assisted")
+    assert "no issue found" not in reports["text"].lower()
+    jsonschema.validate(report, SCHEMA)

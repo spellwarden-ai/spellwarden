@@ -24,6 +24,7 @@ from spellwarden_scan import analyzer
 from spellwarden_scan.identity import package_files, package_sha256
 
 from spellwarden_cli.discover import Discovery, SkillPackage
+from spellwarden_cli.files import FILE_MAX
 from spellwarden_cli.report import Notice, ReportFinding
 from spellwarden_cli.secret import Secret
 
@@ -150,6 +151,34 @@ def limit_message(limit: analyzer.NotAnalyzed) -> str:
     return f"Not analysed: {limit.path} is not UTF-8 text, and the analyzer reads text files only."
 
 
+def _unread(found: Discovery, skill: SkillPackage) -> tuple[str, bool] | None:
+    """The first file of the skill that `analyzer.build_request` would send but discovery did not read (r1:F1, spec 4.8):
+    `(path relative to the skill, whether it is a member link that was not followed)`, else None. Such a file is a script
+    over `FILE_MAX` (the scan's error `unreadable`, also listed in the file set's `too_large`) or a member link the scan
+    refused; `skill.engine_files()` leaves it out, so sending the rest would show content the user controls as analysed."""
+    prefix = "" if skill.path == "." else f"{skill.path}/"
+    links = set(skill.links)
+    candidates = {notice.path for notice in found.errors if notice.code == "unreadable"} | links
+    if found.fileset is not None:
+        candidates.update(found.fileset.too_large)
+    for path in sorted(candidates):
+        if not path.startswith(prefix) or any(path.startswith(f"{nested}/") for nested in skill.nested):
+            continue
+        relative = path[len(prefix):]
+        if analyzer.selects(relative, path, skill.executable):
+            return relative, path in links
+    return None
+
+
+def _unread_message(relative: str, link: bool) -> str:
+    """The notice `analysis_incomplete` of a file discovery did not read: what it is and the way out."""
+    if link:
+        return (f"Not analysed: {relative} is a symbolic link the scan did not follow, so the analyzer cannot read the skill "
+                "whole. Replace the link with the file it leads to.")
+    return (f"Not analysed: {relative} is larger than {FILE_MAX // 2**20} MiB and was not read, so the analyzer cannot read "
+            "the skill whole. Make the file smaller, or leave it out of the skill.")
+
+
 def analyse(found: Discovery, findings: Sequence[ReportFinding], options: AnalyzeOptions, notices: list[Notice],
             errors: list[Notice], *, client_factory: Callable[[AnalyzeOptions], object] | None = None) -> tuple[dict, ...]:
     """One `analysis` entry per skill, in path order; appends `analysis_incomplete` notices (or errors, by
@@ -171,6 +200,13 @@ def analyse(found: Discovery, findings: Sequence[ReportFinding], options: Analyz
     for skill in sorted(found.skills, key=lambda one: one.path):
         package_hash = _package_hash(skill)
         rules = analyzer.rules_found(open_ids.get(skill.path, ()))
+        unread = _unread(found, skill)
+        if unread is not None:  # before the cache and the request: nothing is sent or kept for a skill not read whole
+            limit = analyzer.NotAnalyzed("too_large", bytes=FILE_MAX, max=options.max_bytes, path=unread[0])
+            notice = Notice("analysis_incomplete", skill.path, _unread_message(*unread))
+            (errors if incomplete_analysis_is_scan_error(limit.code) else notices).append(notice)
+            entries.append(_entry(skill, package_hash, options, "incomplete", limit=limit.to_dict()))
+            continue
         cached_path = cache_path(options.cache_dir, package_hash, options.model) if options.cache_dir and package_hash else None
         cached = _read_cache(cached_path, package_hash, options.model) if cached_path else None
         if cached is not None:
