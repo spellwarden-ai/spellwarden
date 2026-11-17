@@ -24,6 +24,8 @@
     "connected": {"$ref": "#/$defs/connected"},
     "upload_truncated": {"type": "integer", "minimum": 0, "description": "Findings left out of the upload body to fit its caps."},
     "upload_truncated_fields": {"type": "array", "items": {"type": "string"}, "description": "Fields of the upload body that were cut."},
+    "analysis": {"type": "array", "description": "scan --analyze only (scanner 1.17.0): the model-assisted analysis of each skill, advisory.",
+                 "items": {"$ref": "#/$defs/analysis_entry"}},
     "clients": {"type": "array", "description": "scan --user only (scanner 1.14.0): each client of the table, in a fixed order.",
                 "items": {"type": "object", "required": ["client", "found", "roots"],
                           "properties": {"client": {"$ref": "#/$defs/client_name"}, "found": {"type": "boolean"},
@@ -31,6 +33,51 @@
   },
   "$defs": {
     "client_name": {"enum": ["claude-code", "claude-desktop", "cursor", "vscode", "windsurf", "codex", "gemini-cli"]},
+    "analysis_entry": {
+      "type": "object",
+      "description": "One skill's analysis (scanner 1.17.0). Advisory: never a finding, never part of the exit code.",
+      "required": ["skill", "status", "package_sha256", "analyzer_version", "model", "measured", "measured_on", "way", "run_id",
+                   "finished_at", "cached", "categories"],
+      "properties": {
+        "skill": {"type": "string"},
+        "status": {"enum": ["analyzed", "no_verdict", "incomplete", "not_analyzed"]},
+        "package_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+        "analyzer_version": {"type": "string"},
+        "model": {"type": "string"},
+        "measured": {"type": "boolean"},
+        "measured_on": {"type": ["string", "null"]},
+        "way": {"enum": ["endpoint"]},
+        "run_id": {"type": "null"},
+        "finished_at": {"type": "null"},
+        "cached": {"type": "boolean"},
+        "categories": {"type": "array", "maxItems": 8, "items": {"$ref": "#/$defs/analysis_category"}},
+        "reason": {"enum": ["not_json", "off_schema", "nonce_missing", "category_missing", "category_unknown", "category_duplicate",
+                            "span_unknown_path", "span_line", "span_not_in_source", "endpoint_error"]},
+        "limit": {"type": "object", "required": ["code"],
+                  "properties": {"code": {"enum": ["too_large", "not_text"]}, "bytes": {"type": "integer", "minimum": 0},
+                                 "max": {"type": "integer", "minimum": 1}, "path": {"type": "string"}}},
+        "endpoint": {"type": "object", "required": ["code", "status", "message"],
+                     "properties": {"code": {"type": "string"}, "status": {"type": ["integer", "null"]},
+                                    "message": {"type": "string", "maxLength": 200}}}
+      }
+    },
+    "analysis_category": {
+      "type": "object",
+      "required": ["id", "verdict", "confidence", "summary", "spans", "spans_left_out", "rules_found"],
+      "properties": {
+        "id": {"enum": ["instruction_override", "data_exfiltration", "credential_access", "destructive_action", "remote_code",
+                        "obfuscation", "deceptive_description", "excessive_permission"]},
+        "verdict": {"enum": ["issue", "none"]},
+        "confidence": {"enum": ["low", "medium", "high"]},
+        "summary": {"type": "string", "maxLength": 300},
+        "spans": {"type": "array", "maxItems": 5,
+                  "items": {"type": "object", "required": ["path", "line", "text"],
+                            "properties": {"path": {"type": "string"}, "line": {"type": "integer", "minimum": 1},
+                                           "text": {"type": "string", "maxLength": 200}}}},
+        "spans_left_out": {"type": "integer", "minimum": 0},
+        "rules_found": {"type": "boolean"}
+      }
+    },
     "connected": {
       "type": "object",
       "description": "Present only when connected mode established its session. Never carries a credential.",
