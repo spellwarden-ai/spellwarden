@@ -37,7 +37,7 @@
     "client_name": {"enum": ["claude-code", "claude-desktop", "cursor", "vscode", "windsurf", "codex", "gemini-cli"]},
     "analysis_entry": {
       "type": "object",
-      "description": "One skill's analysis (scanner 1.17.0). Advisory: never a finding, never part of the exit code.",
+      "description": "One skill's analysis (scanner 1.17.0). Advisory: never a finding, and its verdicts never change the exit code (for a skill the analyzer could not read, see the README's Limits).",
       "required": ["skill", "status", "package_sha256", "analyzer_version", "model", "measured", "measured_on", "way", "run_id",
                    "finished_at", "cached", "categories"],
       "properties": {

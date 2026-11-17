@@ -120,7 +120,7 @@ def test_notice_and_error_codes_are_todays_plus_the_closed_lists_of_spec_6_9():
         # 1.14.0 (phase 3 batch 2a spec 11.6)
         "user_instructions_limit", "user_skills_limit", "workstation_no_credential", "workstation_label_missing",
         "workstation_upload_too_large", "workstation_upload_failed",
-        # 1.17.0: spec:Q4, never written today
+        # 1.17.0: spec:Q4, written when `analysis.incomplete_analysis_is_scan_error` says so
         "analysis_incomplete")
     assert len(set(NOTICE_CODES)) == len(NOTICE_CODES) and len(set(ERROR_CODES)) == len(ERROR_CODES)
 

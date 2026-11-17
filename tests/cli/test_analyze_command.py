@@ -116,9 +116,9 @@ def test_sarif_results_of_the_analyzer_are_notes_marked_model_assisted(make_repo
     descriptor = run["tool"]["driver"]["rules"][mine[0]["ruleIndex"]]
     assert descriptor["id"] == "SW-ANALYZER-INSTRUCTION-OVERRIDE" and descriptor["defaultConfiguration"] == {"level": "note"}
     assert "utm_campaign=analyzer" in descriptor["helpUri"] and "security-severity" not in descriptor["properties"]
-    assert "Model-assisted analysis (advisory, never changes the exit code)" in reports["text"]
+    assert "Model-assisted analysis (advisory, its verdicts never change the exit code)" in reports["text"]
     assert "issue instruction_override (high)" in reports["text"]
-    assert "**Model-assisted analysis (advisory, never changes the exit code):**" in reports["markdown"]
+    assert "**Model-assisted analysis (advisory, its verdicts never change the exit code):**" in reports["markdown"]
     report = json.loads(reports["json"])
     jsonschema.validate(report, SCHEMA)
     (notice,) = [n for n in report["notices"] if n["code"] == "model_assisted"]

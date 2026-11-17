@@ -60,14 +60,28 @@ def test_spec_q4_answer_is_written_in_limits_and_its_function_only():
     """spec:Q4: what an unreadable skill does to the exit code is `analysis.incomplete_analysis_is_scan_error`, its test and
     README "Limits". Every other sentence that joins the analyzer and the exit code speaks of its verdicts (or sends the reader
     to Limits), so the other answer needs no edit there."""
-    from spellwarden_cli import analysis
+    import json
+    from types import SimpleNamespace
 
-    changelog = (Path(__file__).resolve().parents[1] / "CHANGELOG.md").read_text(encoding="utf-8").replace("\r\n", "\n")
+    from spellwarden_cli import analysis
+    from spellwarden_cli.output import markdown
+    from spellwarden_cli.output import text as text_output
+
+    root = Path(__file__).resolve().parents[1]
+    changelog = (root / "CHANGELOG.md").read_text(encoding="utf-8").replace("\r\n", "\n")
     entry = changelog[changelog.index("## 1.17.0 ("):changelog.index("## 1.16.2 (")]
     limits = section("### Limits")
     outside_limits = README.replace(limits, "")
     notice = analysis.summary_notice([], analysis.AnalyzeOptions(endpoint="https://a.example/v1", model="m")).message
-    for name, text in (("README", outside_limits), ("CHANGELOG", entry), ("notice", notice)):
+    no_skills = SimpleNamespace(analysis=())
+    text_heading = text_output.analysis_lines(no_skills)[0]
+    markdown_heading = markdown._analysis(no_skills)[0]
+    schema = json.loads((root / "schemas" / "report.schema.json").read_text(encoding="utf-8"))
+    schema_text = schema["$defs"]["analysis_entry"]["description"]
+    for name, written in (("CHANGELOG", entry), ("schema", schema_text)):
+        assert "writes today" not in written and "written today" not in written, name
+    for name, text in (("README", outside_limits), ("CHANGELOG", entry), ("notice", notice), ("text heading", text_heading),
+                       ("Markdown heading", markdown_heading), ("schema", schema_text)):
         for sentence in re.split(r"(?<=[.:;])\s+|\n\n", " ".join(text.split())):
             if re.search(r"analy[sz]|--analyze", sentence) and "exit code" in sentence:
                 assert "verdict" in sentence or "Limits" in sentence, (name, sentence)

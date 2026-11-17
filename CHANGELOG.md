@@ -35,8 +35,8 @@ Measured rates: filled before the release
 - The library: the public modules `spellwarden_scan.analyzer` (`build_request`, `parse_reply`, `CATEGORY_RULES`,
   `MEASURED_MODELS`, `is_measured`) and `spellwarden_scan.lint` (`check`), the models `LintNote` and `SkillMeta`, and
   `SkillScanResult.lint` with the single-skill notes; the package's `__all__` is unchanged.
-- `schemas/report.schema.json` describes `analysis` and `lint`, and lists the error code `analysis_incomplete`, which no scan
-  writes today. Reports written by 1.16.2 still validate. Neither section, nor their notices, goes into the upload of
+- `schemas/report.schema.json` describes `analysis` and `lint`, and lists the error code `analysis_incomplete` (when a scan
+  writes it is in the README's Limits). Reports written by 1.16.2 still validate. Neither section, nor their notices, goes into the upload of
   connected mode.
 - `spellwarden_cli.model_client` is the fifth module of the command that may reach the network, imported only under
   `--analyze`. `scripts/measure_analyzer.py`, not part of the wheel, measures the analyzer on a labelled set.

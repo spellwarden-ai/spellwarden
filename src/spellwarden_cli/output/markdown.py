@@ -198,7 +198,7 @@ def _analysis(report: Report) -> list[str]:
     its status and the categories with an issue; advisory. Nothing without `--analyze`."""
     if report.analysis is None:
         return []
-    lines = [f"**Model-assisted analysis (advisory, never changes the exit code):** "
+    lines = [f"**Model-assisted analysis (advisory, its verdicts never change the exit code):** "
              f"[How it works and what it was measured on]({ANALYZER_GUIDE_URL})", "",
              "| Skill | Model | Result |", "|---|---|---|"]
     for entry in report.analysis[:MAX_ROWS]:

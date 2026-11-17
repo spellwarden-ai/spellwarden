@@ -148,7 +148,7 @@ def analysis_lines(report: Report) -> list[str]:
     why there is no verdict. Advisory: the summary line and the exit code never count it. Nothing without `--analyze`."""
     if report.analysis is None:
         return []
-    lines = ["Model-assisted analysis (advisory, never changes the exit code)"]
+    lines = ["Model-assisted analysis (advisory, its verdicts never change the exit code)"]
     for entry in report.analysis:
         cached = ", cached" if entry["cached"] else ""
         if entry["status"] != "analyzed":

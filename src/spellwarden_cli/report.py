@@ -28,8 +28,7 @@ ERROR_CODES = (*DOCUMENT_ERRORS, "unsafe_path", "case_collision", "unreadable", 
                # Phase 3 batch 2a spec 11.6: `scan --user` and the workstation upload
                "user_instructions_limit", "user_skills_limit", "workstation_no_credential", "workstation_label_missing",
                "workstation_upload_too_large", "workstation_upload_failed",
-               # 1.17.0 (Phase 4 batch B spec:Q4, D23): written only when `analysis.incomplete_analysis_is_scan_error` says so,
-               # which it does not today
+               # 1.17.0 (Phase 4 batch B spec:Q4, D23): written only when `analysis.incomplete_analysis_is_scan_error` says so
                "analysis_incomplete")
 # The error codes whose message says what to fix (O3 spec 6.9); the Markdown report prints them whole.
 CONNECTED_ERRORS = ERROR_CODES[ERROR_CODES.index("connected_config"):ERROR_CODES.index("registry_check_too_large") + 1]
@@ -214,7 +213,8 @@ class Report:
     # skill (not serialised, so a report without skills is unchanged).
     lint: tuple[SkillLint, ...] | None = None
     # 1.17.0 (spec 11.3): the analysis of each skill under `--analyze` (the fields of spec 6.4, `analysis.analyse`); None
-    # without it (not serialised). Advisory: never part of the exit code.
+    # without it (not serialised). Advisory: its verdicts never change the exit code (for a skill the analyzer could not
+    # read, spec:Q4: `analysis.incomplete_analysis_is_scan_error`).
     analysis: tuple[dict, ...] | None = None
     # Per item path, the facts a CycloneDX document and the workstation upload may carry, already free of secrets
     # (`details.item_details`): hashes, transports, reduced endpoints and sources, command identities. Not serialised.
