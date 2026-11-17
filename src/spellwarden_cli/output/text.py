@@ -142,6 +142,20 @@ def lint_lines(report: Report) -> list[str]:
 _NOT_DONE = {"no_verdict": "no verdict", "incomplete": "not analysed", "not_analyzed": "not analysed"}
 
 
+def not_done_why(entry: dict) -> str:
+    """Why an analysis has no verdict: its reason or its limit's code; for an endpoint failure also the endpoint's code, status
+    and its message, already masked and bounded (r0:F6). Plain text: each writer escapes it as third-party text."""
+    why = entry.get("reason") or (entry.get("limit") or {}).get("code") or ""
+    failure = entry.get("endpoint")
+    if failure:
+        why += f": {failure['code']}"
+        if failure.get("status") is not None:
+            why += f", status {failure['status']}"
+        if failure.get("message"):
+            why += f": {failure['message']}"
+    return why
+
+
 def analysis_lines(report: Report) -> list[str]:
     """Phase 4 batch B spec 11.3: under `--analyze`, each skill's analysis: the categories with an issue (confidence,
     summary, quoted spans), the categories where the rules found an issue and the model did not, the count of the rest; or
@@ -152,8 +166,7 @@ def analysis_lines(report: Report) -> list[str]:
     for entry in report.analysis:
         cached = ", cached" if entry["cached"] else ""
         if entry["status"] != "analyzed":
-            why = entry.get("reason") or (entry.get("limit") or {}).get("code") or ""
-            lines.append(f"  {terminal(entry['skill'])}: {_NOT_DONE[entry['status']]} ({terminal(why)})")
+            lines.append(f"  {terminal(entry['skill'])}: {_NOT_DONE[entry['status']]} ({terminal(not_done_why(entry))})")
             continue
         lines.append(f"  {terminal(entry['skill'])}: analysed by {terminal(entry['model'])}{cached}")
         quiet = 0

@@ -11,7 +11,7 @@ from spellwarden_scan.gate import GATE_REASONS
 
 from spellwarden_cli import escape, instruction_files
 from spellwarden_cli.output import agents as agent_view
-from spellwarden_cli.output.text import client_lines, connected_lines
+from spellwarden_cli.output.text import client_lines, connected_lines, not_done_why
 from spellwarden_cli.report import CONNECTED_ERRORS, Report, ReportFinding
 
 MARKER = "<!-- spellwarden-scan -->"
@@ -207,7 +207,7 @@ def _analysis(report: Report) -> list[str]:
                       if category["verdict"] == "issue"]
             result = "issues: " + ", ".join(issues) if issues else "no issue found by the model"
         else:
-            result = f"{entry['status']}: {entry.get('reason') or (entry.get('limit') or {}).get('code')}"
+            result = f"{entry['status']}: {not_done_why(entry)}"
         lines.append(f"| {_code_cell(entry['skill'])} | {_text(entry['model'])} | {_text(result)} |")
     if len(report.analysis) > MAX_ROWS:
         lines += ["", f"{len(report.analysis) - MAX_ROWS} more skills are in the JSON report."]

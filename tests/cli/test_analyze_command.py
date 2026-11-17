@@ -263,3 +263,21 @@ def test_analyzer_results_point_at_a_lower_case_skill_file_as_written(make_repo,
     assert mine == {"SW-ANALYZER-INSTRUCTION-OVERRIDE": {"artifactLocation": uri, "region": {"startLine": 8}},
                     "SW-ANALYZER-DATA-EXFILTRATION": {"artifactLocation": uri}}
     jsonschema.validate(report, SCHEMA)
+
+
+def test_text_and_markdown_show_an_endpoint_failure_with_its_status_and_masked_message(make_repo, tmp_path, run_cli,
+                                                                                         endpoint):
+    """r0:F6: an endpoint failure shows its code, its status and the masked, bounded message the JSON carries, escaped like
+    any third-party text; the credential-shaped value in the body never shows."""
+    secret = "AKIAIOSFODNN7EXAMPLE"
+    repo = repo_with(make_repo, tmp_path, {".claude/skills/deploy/SKILL.md": GOOD_SKILL})
+    server = endpoint(lambda _h, _b: (500, {}, json.dumps({"error": {"message": f"upstream | *down* with {secret}"}}).encode()))
+    _, reports, _, _ = scan(run_cli, repo, tmp_path, *analyze_flags(server), formats=("json", "text", "markdown"))
+    (entry,) = json.loads(reports["json"])["analysis"]
+    assert entry["endpoint"]["status"] == 500 and secret not in entry["endpoint"]["message"]
+    message = entry["endpoint"]["message"]
+    assert f"not analysed (endpoint_error: endpoint_status, status 500: {message})" in reports["text"]
+    row = next(line for line in reports["markdown"].splitlines() if line.startswith("| `.claude/skills/deploy`"))
+    assert "endpoint\\_status, status 500" in row and "upstream \\| \\*down\\*" in row
+    for written in reports.values():
+        assert secret not in written
