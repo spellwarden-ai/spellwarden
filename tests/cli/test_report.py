@@ -109,7 +109,9 @@ def test_notice_and_error_codes_are_todays_plus_the_closed_lists_of_spec_6_9():
         # 1.15.0: the probed tool hashes of the lock file
         "tools_changed", "tools_not_compared",
         # 1.17.0: the description lint and the model-assisted analyzer
-        "description_lint", "model_assisted", "analysis_incomplete")
+        "description_lint", "model_assisted", "analysis_incomplete",
+        # 1.17.0: `ci-run gitlab` on a merge request from a fork without SPELLWARDEN_MODEL_KEY
+        "analyzer_no_key")
     assert ERROR_CODES == TODAYS_ERROR_CODES + (
         "connected_config", "connected_key_invalid", "connected_no_credential", "connected_auth", "connected_subscription",
         "connected_ci_key_required", "connected_forbidden", "connected_rate_limited", "connected_unavailable",

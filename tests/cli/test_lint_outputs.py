@@ -97,12 +97,12 @@ def test_the_upload_carries_no_lint_no_analysis_and_none_of_their_notices():
     report = {"schema": 1, "findings": [], "items": [], "probes": [], "errors": [],
               "lint": [{"skill": "s", "notes": [], "left_out": 0}], "analysis": [],
               "notices": [{"code": code, "path": "", "message": "m"} for code in
-                          ("description_lint", "model_assisted", "analysis_incomplete", "uploaded")]}
+                          ("description_lint", "model_assisted", "analysis_incomplete", "analyzer_no_key", "uploaded")]}
     limits = {"upload_max_bytes": 1 << 20, "upload_max_findings": 500, "upload_max_items": 2000, "upload_max_probes": 200}
     body, _, _ = connected.reduce_report(report, limits)
     assert "lint" not in body and "analysis" not in body
     assert [notice["code"] for notice in body["notices"]] == ["uploaded"]
-    assert connected.LOCAL_NOTICES == ("description_lint", "model_assisted", "analysis_incomplete")
+    assert connected.LOCAL_NOTICES == ("description_lint", "model_assisted", "analysis_incomplete", "analyzer_no_key")
 
 
 def test_the_lint_guide_link_is_the_one_of_spec_4_10():

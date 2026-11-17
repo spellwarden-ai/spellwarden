@@ -833,7 +833,7 @@ def _cap(report: dict, name: str, limit: int, cut: list[str]) -> None:
 
 # 1.17.0 (Phase 4 batch B spec 11.3, 11.4): the notices of the description lint and the analyzer stay with the report on the
 # machine, like their sections
-LOCAL_NOTICES = ("description_lint", "model_assisted", "analysis_incomplete")
+LOCAL_NOTICES = ("description_lint", "model_assisted", "analysis_incomplete", "analyzer_no_key")
 
 
 def reduce_report(report_dict: dict, limits: dict, envelope: dict | None = None) -> tuple[dict, int, list[str]]:

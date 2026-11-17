@@ -156,7 +156,8 @@ def _scan_report(args: argparse.Namespace, context, credentials: Credentials,
     fail_on = args.fail_on or "high"
     root = os.path.abspath(args.path)
     if not os.path.isdir(root):
-        return _error_report(fail_on, as_of, "path_not_directory", args.path, "the scan path must be a directory"), False
+        return _error_report(fail_on, as_of, "path_not_directory", args.path, "the scan path must be a directory",
+                             tuple(getattr(args, "notices", ()))), False
     flags = Flags(fail_on=args.fail_on, probe=args.probe, probe_private=args.probe_private,
                   telemetry=False if args.no_telemetry else None, upload=args.upload)
     log = _stderr if args.verbose else run._silent
@@ -168,7 +169,10 @@ def _scan_report(args: argparse.Namespace, context, credentials: Credentials,
         connected_source = (ci.revision_source(root, context, config=True, baseline=False, env=os.environ)
                             if args.config is not None else None)
     except Exception as exc:  # a crash before the settings are read still writes every output (spec 6.2); no ping
-        return _error_report(fail_on, as_of, "crash", "", f"internal error: {type(exc).__name__}: {exc}"), False
+        return _error_report(fail_on, as_of, "crash", "", f"internal error: {type(exc).__name__}: {exc}",
+                             tuple(getattr(args, "notices", ()))), False
+    # The caller's notices (`main(notices=...)`) travel with the base revision's, into every report from here on.
+    source = dataclasses.replace(source, notices=(*source.notices, *getattr(args, "notices", ())))
     try:
         settings = load_settings(root, config=args.config, flags=flags, env=os.environ, read=source.read,
                                  connected_read=connected_source.read if connected_source is not None else None,
@@ -331,12 +335,15 @@ def cmd_scan(args: argparse.Namespace) -> int:
     return report.exit_code()
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, *, notices: tuple[Notice, ...] = ()) -> int:
+    """`notices`: what a caller in this process says about the run before the scan, which the scan's report carries
+    (1.17.0: `ci-run gitlab` and `analyzer_no_key`); never set from the command line."""
     parser = build_parser()
     try:
         args = parser.parse_args(argv)
     except SystemExit as exc:  # argparse exits 2 on a usage error and 0 after --help
         return exc.code if isinstance(exc.code, int) else 2
+    args.notices = tuple(notices)
     try:
         return int(args.handler(args))
     except KeyboardInterrupt:

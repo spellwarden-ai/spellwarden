@@ -27,6 +27,12 @@ Measured rates: filled before the release
   notice `model_assisted`, a section in the text and Markdown reports, and SARIF results of level `note` with
   `properties.model_assisted: true`. A reply off the schema, without the nonce or quoting a span not in the source is
   `no_verdict`, never clean. `--analyze-cache DIR` reuses results by package hash, analyzer version and model.
+- `spellwarden ci-run gitlab` reads the GitLab component's inputs `analyze`, `model-endpoint` and `model` (`SW_ANALYZE`,
+  `SW_MODEL_ENDPOINT`, `SW_MODEL`) and adds `--analyze --model-endpoint URL --model NAME` when `analyze` is `true`; the key comes
+  from the masked CI/CD variable `SPELLWARDEN_MODEL_KEY` only. A bad input or a missing key is a usage error (exit 2), and an
+  endpoint that holds a user name, password, query or fragment is refused without being shown. On a merge request from a fork,
+  which gets no masked variables, the scan runs without the analyzer, with the notice `analyzer_no_key` (not uploaded in
+  connected mode). With `analyze` unset or `false` the job's command is as before.
 - The description lint runs on every repository scan with skills: `SW-LINT-001` (a description shorter than 40 or longer than
   1,024 characters), `SW-LINT-002` (no use-when clause), `SW-LINT-003` (no trigger phrase) and `SW-LINT-004` (two skills of
   the scan whose descriptions overlap). Its notes are in the JSON report's `lint`, at most 20 a skill with the count left out,

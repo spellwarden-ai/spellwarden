@@ -55,8 +55,8 @@ NOTICE_CODES = ("no_agent_content", "git_unavailable", "exec_bits_unknown", "sym
                 "tools_changed", "tools_not_compared",
                 # 1.17.0 (Phase 4 batch B spec 11.4): the description lint
                 "description_lint",
-                # 1.17.0 (spec 11.3): the model-assisted analyzer
-                "model_assisted", "analysis_incomplete")
+                # 1.17.0 (spec 11.3): the model-assisted analyzer; `ci-run gitlab` on a fork without SPELLWARDEN_MODEL_KEY
+                "model_assisted", "analysis_incomplete", "analyzer_no_key")
 # The notices that say a run continued in free mode after connected mode could not start (O3 spec 6.4); the text and
 # Markdown outputs derive their "unavailable" line from them.
 FREE_MODE_NOTICES = ("connected_fallback", "fork_free_mode", "dependabot_free_mode")
