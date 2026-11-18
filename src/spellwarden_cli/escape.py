@@ -87,6 +87,16 @@ def message(text: str) -> str:
     return "".join(out)
 
 
+_HTML_REFERENCES = {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#x27;"}
+
+
+def html(text: str) -> str:
+    """1.18.0, the HTML report: the terminal rules (C0 and C1 controls as \\xNN, hidden characters as \\u{NNNN}, tab and newline
+    as \\t and \\n), then `&`, `<`, `>`, `"` and `'` as character references, so the text can neither open an element nor leave a
+    quoted attribute value."""
+    return "".join(_HTML_REFERENCES.get(char, char) for char in terminal(text))
+
+
 codequality = terminal
 
-__all__ = ["code_span", "codequality", "markdown", "message", "terminal"]
+__all__ = ["code_span", "codequality", "html", "markdown", "message", "terminal"]

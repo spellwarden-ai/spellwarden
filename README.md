@@ -482,6 +482,8 @@ The description lint (since 1.17.0) lists at most 20 notes per skill in each rep
 
 A preset (since 1.18.0, see "Presets") is an output cap in this sense: a finding it turns off was judged and is counted in every report (the notice `preset`, the JSON report's `preset.off`), never silently dropped. It adds no limit, never leaves content unread and never hides an error.
 
+The HTML report (since 1.18.0) has no size cap of its own: it holds what the JSON report holds, under the caps above (the findings kept per package, the evidence of a finding).
+
 The model-assisted analyzer (`--analyze`, since 1.17.0) follows the same rule:
 
 - what one skill sends is at most 120,000 bytes of masked UTF-8 text, SKILL.md and scripts together, all or nothing. A skill past it, or one whose SKILL.md or a script is not UTF-8 text, is not analysed: its `analysis` entry is `incomplete` with the `limit` (`too_large` with the bytes and the bound, or `not_text` with the file), the notice `analysis_incomplete` names the skill, and it is never shown as analysed or clean. The way out is to split the skill, or to raise the bound with `--analyze-max-bytes` (at most 10,000,000); for a file that is not text, make the file UTF-8 text, or move it out of the script selection (out of `scripts/`, without an executable mode and without a script extension). A skill with a SKILL.md or script the scan itself did not read (a file over 10 MiB, the error `unreadable`, or a member link that was not followed) is `incomplete` with `too_large` as well (its bytes are 10,485,760 when the size is not known), nothing is sent for it and nothing is cached; the way out is the file's own: make it smaller, leave it out of the skill, or replace the link with the file. The analyzer is an extra you asked for, not the judgement of the rules, so only the analysis is incomplete: the scan's errors and its exit code stay as the rules left them;
@@ -547,8 +549,15 @@ On a pull or merge request the scan reads the baseline from the base revision, l
 | `markdown` | the job summary and the pull or merge request comment (starts with `<!-- spellwarden-scan -->`, at most 60,000 characters) |
 | `gitlab-codequality` | the GitLab Code Quality report (critical, high, medium and low become critical, major, minor and info) |
 | `cyclonedx` | an AI bill of materials, CycloneDX 1.7 JSON (since 1.14.0): skills, plugins, marketplaces, instruction files and configuration documents as components, MCP servers and A2A agent cards as services, findings as vulnerabilities naming their component or service (open ones `in_triage`, accepted ones `exploitable` with `will_not_fix` and the baseline's reason), the rest as `spellwarden:` properties; the serial number is derived from the content, so the same scan gives the same file |
+| `html` | a person, in a browser (since 1.18.0): one self-contained file, every string from the repository escaped, no script and no network request when opened; see "HTML report" |
 
 Paths are relative to the scan root, except in SARIF and Code Quality, where they are relative to the repository root, because that is where GitHub and GitLab resolve them.
+
+### HTML report
+
+`--format html` (since 1.18.0; `spellwarden scan --format html --output report.html`) writes one self-contained HTML file to open in a browser or attach to a ticket: the scanner and rules versions and the date, the preset when one other than `balanced` applied, the outcome and exit code, the counts by severity, the notices and errors, then every finding grouped by item (rule id, title, severity, location, evidence, fingerprint, the baseline's reason for an accepted finding, and a link to the rule's page), the items scanned, the probed servers and agent cards, the lock changes and the description lint. Under `--analyze` it also holds the analysis. It holds what the JSON report holds, in the same order, and is byte-identical for the same files, settings and `--as-of` date.
+
+The file is built for content you do not trust. Every string from the scanned repository or a probed server is escaped (`&`, `<`, `>`, `"` and `'` as character references, hidden characters as `\u{NNNN}`, control characters as `\xNN`), so a skill whose text holds `<script>` shows it as text. There is no script element, no event attribute, no form, no frame, no image, no font and no stylesheet but one inline style without `url(`, and a Content-Security-Policy (`default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'`) forbids every fetch: opening the file makes no network request. The only links are the rule pages on spellwarden.ai, plain links a person may click. The report has no size cap of its own (see [Limits](#limits)).
 
 ### Presets
 

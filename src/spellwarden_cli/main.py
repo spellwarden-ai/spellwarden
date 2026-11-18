@@ -64,7 +64,7 @@ def _add_scan(commands) -> None:
     scan.add_argument("--device-label", metavar="TEXT",
                       help="with --user --upload: the name your organisation sees for this device (kept for later runs)")
     scan.add_argument("--format", action=_FormatAction, metavar="FMT", dest="format",
-                      help="text (default), json, sarif, markdown, gitlab-codequality or cyclonedx; repeatable")
+                      help="text (default), json, sarif, markdown, gitlab-codequality, cyclonedx or html; repeatable")
     scan.add_argument("--output", action=_OutputAction, metavar="FILE", help="the file the preceding --format writes")
     scan.add_argument("--fail-on", choices=FAIL_ON, default=None, help="fail at this severity or worse (default: high)")
     # 1.18.0: the severities of named rules (`presets.ROWS`); no preset, or balanced, is the scanner's behaviour without presets
