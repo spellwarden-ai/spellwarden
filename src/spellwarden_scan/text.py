@@ -65,6 +65,12 @@ def replace_lone_surrogates(text: str) -> str:
     return _LONE_SURROGATE.sub("\ufffd", text)
 
 
+def utf8(text: str) -> bytes:
+    """The UTF-8 bytes every hash of the engine takes of a text: `replace_lone_surrogates` first, so a caller's text that holds a
+    lone surrogate hashes as its U+FFFD form instead of raising, and any other text gives exactly `text.encode("utf-8")`."""
+    return replace_lone_surrogates(text).encode("utf-8")
+
+
 def replace_lone_surrogates_in_json(value: object) -> object:
     """A value as `json.loads` returns it, with `replace_lone_surrogates` applied to every string in it, keys included. Lists and
     objects are changed in place (the caller owns what it just parsed) and walked with a loop, not a recursion, so any depth
@@ -92,4 +98,5 @@ def replace_lone_surrogates_in_json(value: object) -> object:
     return value
 
 
-__all__ = ["comment_safe", "replace_lone_surrogates", "replace_lone_surrogates_in_json", "valid_block", "valid_line"]
+__all__ = ["comment_safe", "replace_lone_surrogates", "replace_lone_surrogates_in_json", "utf8", "valid_block",
+           "valid_line"]

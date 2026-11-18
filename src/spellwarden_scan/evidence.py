@@ -6,6 +6,7 @@ import re
 import unicodedata
 from collections.abc import Callable
 
+from spellwarden_scan.text import utf8
 from spellwarden_scan.rules.patterns import (
     ASSIGNED_SECRET, ASSIGNED_VALUE, CREDENTIAL_PATTERNS, PLACEHOLDER_VALUE, name_tokens, secret_named,
 )
@@ -386,8 +387,9 @@ def excerpt(line: str) -> str:
 def fingerprint(rule_id: str, path: str, matched: str) -> str:
     """sha256 hex of `rule_id NUL path NUL matched` (spec 5.2): triage carry-over keys on it.
     `matched` is always the original matched text, never masked evidence, so two different
-    credentials on otherwise identical lines never share a fingerprint."""
-    return hashlib.sha256(f"{rule_id}\x00{path}\x00{matched}".encode()).hexdigest()
+    credentials on otherwise identical lines never share a fingerprint. The text is encoded with `text.utf8` (1.18.0): a lone
+    surrogate in a caller's text hashes as U+FFFD instead of raising; any other text gives the bytes it always gave."""
+    return hashlib.sha256(utf8(f"{rule_id}\x00{path}\x00{matched}")).hexdigest()
 
 
 def code_point_names(text: str) -> str:
