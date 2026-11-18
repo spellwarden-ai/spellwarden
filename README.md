@@ -1144,6 +1144,21 @@ Inputs, the comment token and the merge request comparison: [gitlab.com/spellwar
 
 **Anywhere else.** `pipx run spellwarden==1.0.0 scan`, or the image `ghcr.io/spellwarden-ai/spellwarden:1.0.0`.
 
+### Pre-commit hook
+
+Since 1.18.0 this repository is a hook repository of the [pre-commit framework](https://pre-commit.com) (`.pre-commit-hooks.yaml`; guide: [spellwarden.ai/docs/pre-commit](https://spellwarden.ai/docs/pre-commit?utm_source=github&utm_medium=readme&utm_campaign=pre-commit)). In your `.pre-commit-config.yaml`:
+
+```yaml
+repos:
+  - repo: https://github.com/spellwarden-ai/spellwarden
+    rev: v1.18.0
+    hooks:
+      - id: spellwarden
+        # args: [--preset, low-noise]   # any `spellwarden scan` option
+```
+
+The framework (pre-commit 3.2.0 or later) installs the scanner from the tagged release into an environment of its own and runs `spellwarden scan --no-upload` at the repository root, at the stages `pre-commit`, `pre-push` and `manual`, when a commit changes agent content: a `SKILL.md`, anything under a folder named `skills`, `.claude`, `.cursor`, `.codex`, `.vscode`, `.claude-plugin`, `.spellwarden` or `.well-known`, an MCP configuration file, a plugin's `hooks/hooks.json`, an instruction file or an agent card. The scan always covers the whole repository, so a change the file filter misses is judged on the next run and in CI. The hook never uploads to connected mode and sends no usage ping (the ping is sent only in CI). Its exit code is the scanner's: findings at `--fail-on` (default high) stop the commit (exit 1), and so does an incomplete scan (exit 2) or, with `--locked`, a stale lock (exit 3). To commit once without it: `SKIP=spellwarden git commit`.
+
 ### Verifying what you run
 
 Every surface of a release is signed, and one manifest ties them together.

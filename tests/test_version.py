@@ -1,4 +1,5 @@
-"""The current release is 1.17.0, which adds the model-assisted analyzer (`spellwarden scan --analyze`, advisory and off by
+"""The current release is 1.18.0, which adds a pre-commit hook definition, the HTML report and presets without changing a
+rule. 1.17.0 added the model-assisted analyzer (`spellwarden scan --analyze`, advisory and off by
 default) and the description lint without changing a rule (1.16.2: `spellwarden lock` and `lock --check` exit 2 and write or confirm no lock when content was
 left unread, the workstation upload counts each client's roots and the CI upload's field table names the instruction file fields,
 without changing a rule (1.16.1: unread agent content no longer looks like a pass (an oversize repository file of agent
@@ -24,7 +25,7 @@ PYPROJECT = Path(__file__).resolve().parents[1] / "pyproject.toml"
 
 
 def test_the_versions():
-    assert __version__ == "1.17.0"
+    assert __version__ == "1.18.0"
     assert tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))["project"]["version"] == __version__
     assert RULES_VERSION == "2026.11.7"
     assert len(RuleSet.baseline()) == 66
@@ -80,3 +81,27 @@ def test_the_changelog_has_the_1_17_0_entry_above_1_16_2():
         assert needle in entry, needle
     assert "filled before the release" not in text and raw.count("\nMeasured rates: ") == 1
     assert 'Measured rates: none are published for analyzer version 1 yet, so every result says "Unmeasured model".' in entry
+
+
+def test_the_changelog_has_the_1_18_0_entry_above_1_17_0():
+    """1.18.0: the hook, the HTML report and presets; nothing changes without a preset; the table is published by reference."""
+    text = (PYPROJECT.parent / "CHANGELOG.md").read_text(encoding="utf-8").replace("\r\n", "\n")
+    assert text.index("## 1.18.0 (") < text.index("## 1.17.0 (2026-11-17)")
+    raw = text[text.index("## 1.18.0 ("):text.index("## 1.17.0 (")]
+    entry = " ".join(raw.split())
+    for needle in ("Rules version 2026.11.7, unchanged (66 rules)",
+                   "1.18.0: added a pre-commit hook definition (`.pre-commit-hooks.yaml`), the HTML report (`--format html`), "
+                   "presets (`--preset strict|balanced|low-noise`, the `preset` setting and `SPELLWARDEN_PRESET`) with the rule "
+                   "table. Unchanged: every output and exit code of a scan without a preset or with `balanced`; the rules and "
+                   "their versions (`RULES_VERSION` 2026.11.7).",
+                   "README's \"Presets\"", "`spellwarden rules --preset NAME`", "`preset_from`", "`SW_PRESET`",
+                   "v1.17.0", "Linux and Windows"):
+        assert needle in entry, needle
+    for character in ("\u2014", "\u2013", "!"):
+        assert character not in raw
+
+
+def test_the_hook_file_ships_in_the_sdist_and_pre_commit_is_a_development_dependency():
+    project = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
+    assert ".pre-commit-hooks.yaml" in project["tool"]["hatch"]["build"]["targets"]["sdist"]["include"]
+    assert any(entry.startswith("pre-commit>=") for entry in project["dependency-groups"]["dev"])

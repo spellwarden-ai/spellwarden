@@ -1,5 +1,43 @@
 # Changelog
 
+## 1.18.0 (2026-11-NN)
+
+Rules version 2026.11.7, unchanged (66 rules). Without a preset, or with `balanced`, a scan gives the same reports, findings,
+items and exit code as on 1.17.0, apart from the version.
+
+1.18.0: added a pre-commit hook definition (`.pre-commit-hooks.yaml`), the HTML report (`--format html`), presets
+(`--preset strict|balanced|low-noise`, the `preset` setting and `SPELLWARDEN_PRESET`) with the rule table. Unchanged: every
+output and exit code of a scan without a preset or with `balanced`; the rules and their versions (`RULES_VERSION` 2026.11.7).
+
+- The hook: this repository is a hook repository of the pre-commit framework (pre-commit 3.2.0 or later). The hook
+  `spellwarden` runs `spellwarden scan --no-upload` at the repository root, at the stages `pre-commit`, `pre-push` and
+  `manual`, when a commit changes agent content (its file filter is `spellwarden_cli.discover.AGENT_CONTENT_REGEX`). The scan
+  covers the whole repository, never uploads and sends no usage ping, and its exit code is the scanner's. The README's
+  "Pre-commit hook" has the `.pre-commit-config.yaml` lines.
+- The HTML report: `--format html` writes one self-contained file holding what the JSON report holds. Every string from the
+  repository or a probed server is escaped (`spellwarden_cli.escape.html`); there is no script, no event attribute and no
+  external asset, one inline style without `url(`, and a Content-Security-Policy that forbids every fetch, so opening the file
+  makes no network request. It has no size cap of its own.
+- Presets: `strict` raises named medium rules to high and low metadata rules to medium; `low-noise` turns off named metadata
+  and protocol-age rules and lowers named medium rules to low; `balanced` is each rule's own severity. The flag wins over the
+  environment, which wins over the file; on a pull or merge request the file is read from the base revision. A preset never
+  changes an organisation rule (`SW-ORG-`), the registry gate (`SW-REG-`), what the baseline accepts or an error, and never
+  lowers a critical or high finding or a malicious indicator; in connected mode the upload carries every finding at the rule's
+  own severity. Every report says when one applied (the notice `preset`, the JSON report's `preset` block, SARIF's
+  `runs[0].properties.preset`, CycloneDX's `spellwarden:preset` properties), a finding it moved carries `preset_from`, and a
+  finding it turned off is counted. The table of every rule is the README's "Presets", and `spellwarden rules --preset NAME`
+  prints it. `--preset` cannot be used with `--user`.
+- `spellwarden ci-run gitlab` reads the GitLab component's input `preset` (`SW_PRESET`) and adds `--preset VALUE` when it is
+  not empty; another value is a usage error (exit 2). The component and the GitHub Action take the input from their 1.18.0
+  releases (`wrappers/README.md`).
+- `schemas/report.schema.json` describes the optional `preset` block and a finding's optional `preset_from`;
+  `schemas/settings.schema.json` describes the key `preset`. Reports written by 1.17.0 still validate; a scanner older than
+  1.18.0 refuses a settings file with `preset`.
+- The tests hold 1.18.0 to 1.17.0: the reports of every fixture, in the six formats 1.17.0 has, were recorded from the release
+  tag v1.17.0 and are compared byte for byte, the version apart; within 1.18.0 no preset and the three ways of saying
+  `balanced` give the same bytes in every format, the HTML report included. CI runs the hook through the pre-commit framework
+  on Linux and Windows (`pre-commit` is a development dependency).
+
 ## 1.17.0 (2026-11-17)
 
 Rules version 2026.11.7, unchanged. A scan gives the same findings, items and exit code as on 1.16.2, apart from the version.
