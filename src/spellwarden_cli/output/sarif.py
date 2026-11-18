@@ -9,6 +9,7 @@ import re
 from urllib.parse import quote
 
 from spellwarden_scan import Rule, analyzer, lint
+from spellwarden_scan.text import replace_lone_surrogates, utf8
 
 from spellwarden_cli import escape, instruction_files
 from spellwarden_cli.output.upload import upload_path
@@ -22,6 +23,12 @@ LEVEL = {"critical": "error", "high": "error", "medium": "warning", "low": "note
 _WORD = re.compile(r"[A-Za-z0-9]+")
 # Phase 3 batch 2c spec 11.2 (F1): a report holding one of these errors names every error of the run in the invocation.
 UPLOAD_ERRORS = ("workstation_upload_failed", "workstation_upload_too_large")
+
+
+def _uri(report: Report, path: str) -> str:
+    """The `artifactLocation.uri` of a path: percent-encoded UTF-8, a lone surrogate as U+FFFD (1.18.0), so no path can make
+    the encoding raise."""
+    return quote(replace_lone_surrogates(upload_path(report, path)), safe="/")
 
 
 def _name(rule: Rule) -> str:
@@ -45,7 +52,7 @@ def _result(report: Report, item: ReportFinding, index: dict[str, int], instruct
             clients_of: dict[str, list[str]] | None = None) -> dict:
     finding = item.finding
     text = f"{finding.title}: {finding.evidence}" if finding.evidence else finding.title
-    physical: dict = {"artifactLocation": {"uri": quote(upload_path(report, finding.location.path), safe="/")}}
+    physical: dict = {"artifactLocation": {"uri": _uri(report, finding.location.path)}}
     if finding.location.line:
         physical["region"] = {"startLine": finding.location.line}
     location: dict = {"physicalLocation": physical}
@@ -100,12 +107,12 @@ def _lint_results(report: Report, first_index: int) -> list[dict]:
     for entry in report.lint or ():
         skill_file = entry.skill_file_path()
         for note in entry.notes:
-            digest = hashlib.sha256(f"{note.id}\n{entry.skill}\n{note.other_path or ''}".encode()).hexdigest()
+            digest = hashlib.sha256(utf8(f"{note.id}\n{entry.skill}\n{note.other_path or ''}")).hexdigest()
             results.append({
                 "ruleId": note.id, "ruleIndex": first_index + lint.LINT_IDS.index(note.id), "level": "note",
                 "message": {"text": escape.message(note.message)},
                 "locations": [{"physicalLocation": {"artifactLocation": {
-                    "uri": quote(upload_path(report, skill_file), safe="/")}}}],
+                    "uri": _uri(report, skill_file)}}}],
                 "partialFingerprints": {"spellwarden/v1": digest},
                 "properties": {"description_lint": True},
             })
@@ -143,10 +150,10 @@ def _analysis_results(report: Report, first_index: int) -> list[dict]:
                 continue
             spans = category["spans"]
             where = base + spans[0]["path"] if spans else skill_file
-            physical: dict = {"artifactLocation": {"uri": quote(upload_path(report, where), safe="/")}}
+            physical: dict = {"artifactLocation": {"uri": _uri(report, where)}}
             if spans:
                 physical["region"] = {"startLine": spans[0]["line"]}
-            digest = hashlib.sha256(f"{category['id']}\n{entry['skill']}".encode()).hexdigest()
+            digest = hashlib.sha256(utf8(f"{category['id']}\n{entry['skill']}")).hexdigest()
             results.append({
                 "ruleId": analyzer_rule_id(category["id"]),
                 "ruleIndex": first_index + analyzer.CATEGORIES.index(category["id"]), "level": "note",

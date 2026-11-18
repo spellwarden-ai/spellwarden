@@ -15,7 +15,8 @@ def section(heading: str) -> str:
 def test_the_readme_describes_the_html_report():
     text = section("### HTML report")
     for needle in ("`--format html`", "self-contained", "`<script>`", "Content-Security-Policy", "no network request",
-                   "no script element", "no size cap of its own", "rule pages"):
+                   "no script element", "no size cap of its own", "rule pages",
+                   "hidden characters and lone surrogates as `\\u{NNNN}`"):
         assert needle in text, needle
     for character in ("—", "–", "!"):
         assert character not in text

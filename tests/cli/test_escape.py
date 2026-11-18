@@ -2,7 +2,7 @@
 feeds the same values through every output format)."""
 from __future__ import annotations
 
-from spellwarden_cli.escape import code_span, codequality, log_lines, markdown, message, terminal
+from spellwarden_cli.escape import code_span, codequality, html, log_lines, markdown, message, terminal
 
 HOSTILE = "a\tb\nc\x1b[31m|`x`<script>@channel‮Z\x85"
 
@@ -42,3 +42,16 @@ def test_log_lines_keeps_a_line_from_being_read_as_a_workflow_command():
     assert log_lines("ok\n  ::add-mask::word\n\u00a0::stop-commands::t") == (
         "ok\n  \\x3a:add-mask::word\n\u00a0\\x3a:stop-commands::t")
     assert log_lines("a::b\n:one\n  low SW-SKL-031 ::x/SKILL.md:1\n") == "a::b\n:one\n  low SW-SKL-031 ::x/SKILL.md:1\n"
+
+
+def test_a_lone_surrogate_is_shown_as_its_code_point_by_every_text_sink():
+    """1.18.0: a lone surrogate (U+D800 to U+DFFF on its own) is no character any UTF-8 file can hold; every sink shows it as
+    the `\\u{NNNN}` form of a hidden character, so no writer fails at its final UTF-8 encode. A real astral character stays."""
+    text = "a\udc80b\ud800 \U0001F600"
+    assert terminal(text) == "a\\u{DC80}b\\u{D800} \U0001F600"
+    assert html(text) == "a\\u{DC80}b\\u{D800} \U0001F600"
+    assert markdown(text) == "a\\\\u{DC80}b\\\\u{D800} \U0001F600"
+    assert code_span(text) == "`a\\u{DC80}b\\u{D800} \U0001F600`"
+    assert message(text) == "a\\u{DC80}b\\u{D800} \U0001F600"
+    for sink in (terminal, html, markdown, code_span, message, codequality):
+        sink(text).encode("utf-8")

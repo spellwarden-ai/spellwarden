@@ -18,7 +18,9 @@ _WORKFLOW_COMMAND = re.compile(r"^([^\S\n]*):(?=:)", re.MULTILINE)
 
 
 def _hidden(char: str) -> bool:
-    return bool(_INVISIBLE.match(char)) or unicodedata.category(char) == "Cf"
+    """A hidden character (shown as \\u{NNNN}): the list above, a format character, or (1.18.0) a lone surrogate, U+D800 to
+    U+DFFF on its own, which no UTF-8 encoder accepts, so no writer can fail at its final encode on one."""
+    return bool(_INVISIBLE.match(char)) or unicodedata.category(char) in ("Cf", "Cs")
 
 
 def terminal(text: str, *, single_line: bool = True) -> str:
