@@ -406,13 +406,13 @@ Obot is not an export target: it creates its access policies, tool selections an
 ```
 spellwarden scan [PATH] [--format FMT [--output FILE]]... [--fail-on LEVEL] [--locked] [--probe | --no-probe]
                  [--probe-private | --no-probe-private] [--baseline FILE] [--config FILE] [--as-of YYYY-MM-DD]
-                 [--no-telemetry] [--upload | --no-upload] [--quiet] [--verbose]
+                 [--no-telemetry] [--upload | --no-upload] [--preset strict|balanced|low-noise] [--quiet] [--verbose]
 spellwarden lock [PATH] [--check | --probe]
 spellwarden baseline add [PATH] (--fingerprint FP... | --all) --reason TEXT [--expires YYYY-MM-DD | --days N]
 spellwarden baseline add [PATH] --fingerprint FP --rule SW-REG-NNN|SW-ORG-NNN [--finding-path PATH] --reason TEXT [--expires YYYY-MM-DD | --days N]
 spellwarden baseline prune [PATH]
 spellwarden baseline list [PATH]
-spellwarden rules [--format text|json|markdown]
+spellwarden rules [--format text|json|markdown] [--preset strict|balanced|low-noise]
 spellwarden ci comment --provider github|gitlab --body FILE
 spellwarden ci-run gitlab
 spellwarden otel normalise PATH --signal traces|logs [--encoding auto|protobuf|json] [--content] [--max-records N] [--max-bytes N]
@@ -480,6 +480,8 @@ The probed tool hashes of 1.15.0 follow the rule for remote content. `lock --pro
 
 The description lint (since 1.17.0) lists at most 20 notes per skill in each report, an output cap: every description was checked, and the count left out is shown (`left_out` in the JSON report, "more notes were not kept" in the text report and "more notes are in the JSON report" in the Markdown report). Only overlap notes are ever left out; the three single-skill notes always fit.
 
+A preset (since 1.18.0, see "Presets") is an output cap in this sense: a finding it turns off was judged and is counted in every report (the notice `preset`, the JSON report's `preset.off`), never silently dropped. It adds no limit, never leaves content unread and never hides an error.
+
 The model-assisted analyzer (`--analyze`, since 1.17.0) follows the same rule:
 
 - what one skill sends is at most 120,000 bytes of masked UTF-8 text, SKILL.md and scripts together, all or nothing. A skill past it, or one whose SKILL.md or a script is not UTF-8 text, is not analysed: its `analysis` entry is `incomplete` with the `limit` (`too_large` with the bytes and the bound, or `not_text` with the file), the notice `analysis_incomplete` names the skill, and it is never shown as analysed or clean. The way out is to split the skill, or to raise the bound with `--analyze-max-bytes` (at most 10,000,000); for a file that is not text, make the file UTF-8 text, or move it out of the script selection (out of `scripts/`, without an executable mode and without a script extension). A skill with a SKILL.md or script the scan itself did not read (a file over 10 MiB, the error `unreadable`, or a member link that was not followed) is `incomplete` with `too_large` as well (its bytes are 10,485,760 when the size is not known), nothing is sent for it and nothing is cached; the way out is the file's own: make it smaller, leave it out of the skill, or replace the link with the file. The analyzer is an extra you asked for, not the judgement of the rules, so only the analysis is incomplete: the scan's errors and its exit code stay as the rules left them;
@@ -497,13 +499,14 @@ fail-on: high
 probe: false
 telemetry: true
 instructions: true           # instruction files; see "Instruction files"
+preset: balanced             # strict, balanced or low-noise; see "Presets"
 a2a:                          # agent cards; see "Checking A2A agent cards"
   cards: [deploy/agent/card.json]
   keys: .well-known/jwks.json
   agents: [https://agent.example.com/]
 ```
 
-The file is optional. An unknown key or a `version` other than 1 is an error (exit 2), so a typo never silently weakens a gate. A flag wins over the environment (`SPELLWARDEN_FAIL_ON`, `SPELLWARDEN_PROBE`, `SPELLWARDEN_TELEMETRY`), which wins over the file. Private probing is deliberately not a setting (see "Probing"). The `instructions` key (a boolean, default true) leaves the instruction files out when false; it has no flag and no environment variable, and on a pull or merge request it is read from the base revision with the rest of the file, so a request cannot switch off its own scanning. The `connected` mapping (`pack`, `upload`, `required`) is described under "Connected mode", the `a2a` mapping (`cards`, `keys`, `agents`) under "Checking A2A agent cards". On a pull or merge request `a2a.keys` and `a2a.agents` are read from the base revision even under `--config`, like `connected.pack` and `connected.required`: a request cannot choose the keys its cards are verified with or the agents that are fetched.
+The file is optional. An unknown key or a `version` other than 1 is an error (exit 2), so a typo never silently weakens a gate. A flag wins over the environment (`SPELLWARDEN_FAIL_ON`, `SPELLWARDEN_PROBE`, `SPELLWARDEN_TELEMETRY`, `SPELLWARDEN_PRESET`), which wins over the file. Private probing is deliberately not a setting (see "Probing"). The `preset` key (since 1.18.0: `strict`, `balanced` or `low-noise`) is described under "Presets"; on a pull or merge request it is read from the base revision with the rest of the file, so a request cannot lower its own checks. The `instructions` key (a boolean, default true) leaves the instruction files out when false; it has no flag and no environment variable, and on a pull or merge request it is read from the base revision with the rest of the file, so a request cannot switch off its own scanning. The `connected` mapping (`pack`, `upload`, `required`) is described under "Connected mode", the `a2a` mapping (`cards`, `keys`, `agents`) under "Checking A2A agent cards". On a pull or merge request `a2a.keys` and `a2a.agents` are read from the base revision even under `--config`, like `connected.pack` and `connected.required`: a request cannot choose the keys its cards are verified with or the agents that are fetched.
 
 **On a pull or merge request, this file and the baseline are read from the base revision**, the commit the request targets, never from the request itself. Otherwise a request could add a malicious `.mcp.json` together with `exclude: [".mcp.json"]`, or accept its own finding in the baseline, and pass its own check. A request that changes either file therefore sees the change apply only once it is merged, and the report says so with the notice `settings_from_base`. The lock file is still read from the request: a request that changes agent content must update it, and reviewers see that change. Under `--locked` the lock is computed with the base's `include` and `exclude`, so a request that changes those patterns and the lock together is reported stale until the settings change is merged first. Local runs, pushes, schedules and manual runs read the working tree as before. A `--config` or `--baseline` file named on the command line is read as given: whoever runs the scanner chose it.
 
@@ -546,6 +549,98 @@ On a pull or merge request the scan reads the baseline from the base revision, l
 | `cyclonedx` | an AI bill of materials, CycloneDX 1.7 JSON (since 1.14.0): skills, plugins, marketplaces, instruction files and configuration documents as components, MCP servers and A2A agent cards as services, findings as vulnerabilities naming their component or service (open ones `in_triage`, accepted ones `exploitable` with `will_not_fix` and the baseline's reason), the rest as `spellwarden:` properties; the serial number is derived from the content, so the same scan gives the same file |
 
 Paths are relative to the scan root, except in SARIF and Code Quality, where they are relative to the repository root, because that is where GitHub and GitLab resolve them.
+
+### Presets
+
+`--preset strict|balanced|low-noise` (since 1.18.0), the setting `preset` in `.spellwarden/config.yml` and the variable `SPELLWARDEN_PRESET` change the severity of named rules, or leave a rule's findings out of the reports, from the table below. As for every setting, the flag wins over the environment, which wins over the file; without any of them there is no preset.
+
+- **`balanced`** is each rule's own severity: the scanner's behaviour without a preset. With `balanced`, or no preset, nothing changes at all: every report and exit code is the one a scan without presets writes, with no notice and no added field.
+- **`strict`** raises the medium rules that describe a direct risk (credentials, code execution, exfiltration paths, authentication) to high, so they fail at the default `--fail-on high`, and the low metadata rules to medium. It turns nothing off.
+- **`low-noise`** turns off the rules about metadata, format or protocol age that fire on most benign content, and lowers to low the medium rules whose pattern is common in benign skills and configurations.
+
+What a preset never does, whatever its table says:
+
+- it never lowers or turns off a critical or high finding or a malicious indicator: `low-noise` changes medium and low findings only;
+- it never changes an organisation rule (`SW-ORG-`) or a finding of the registry gate (`SW-REG-`): it changes the scanner's own rules (`SW-SKL-`, `SW-MCP-`, `SW-CFG-`, `SW-A2A-`) only;
+- it never changes what the baseline accepts: the baseline is applied first and matches by fingerprint, which a preset does not change, and `spellwarden baseline` and `spellwarden lock` ignore presets;
+- it never hides an error: an incomplete scan stays exit 2;
+- in connected mode it never changes what your organisation sees: the upload carries every finding at the rule's own severity and the exit code they give, while the reports written and the process exit code are the preset's;
+- on a pull or merge request the settings file is read from the base revision (see "Settings"), so a request cannot choose its own preset through the file. A `--config` file and the flag are the choice of whoever runs the scanner.
+
+Every report says when a preset other than `balanced` applied: the notice `preset` in the text, JSON and HTML reports, a line under the verdict of the Markdown report, the first entry of a GitLab Code Quality file (or an informational entry of its own when no finding is left), the JSON report's `preset` block (`name`, `source` (`flag`, `environment` or `file`), `changed` and `off`), SARIF's `runs[0].properties.preset` and CycloneDX's `spellwarden:preset` properties. A finding whose severity a preset changed carries `preset_from`, its severity without the preset, and the reports say "raised from medium by the strict preset" or "lowered from medium by the low-noise preset". A finding a preset turns off is counted (`off`), never silently dropped. `spellwarden rules --preset NAME` prints each rule with its severity under that preset, or `off`. `--preset` cannot be used with `--user`. In the GitLab component the input `preset` reaches `spellwarden ci-run gitlab` as `SW_PRESET` and becomes `--preset` when it is not empty; the GitHub Action takes the same input from its 1.18.0 release.
+
+A rule a later release adds is `balanced` in every preset until a release gives it a row.
+
+<!-- presets:start -->
+| Rule | Title | Default | strict | low-noise | Why |
+|---|---|---|---|---|---|
+| `SW-A2A-001` | Agent card does not follow A2A 1.0 | medium | medium | low | format conformance, no attack path |
+| `SW-A2A-002` | Agent card uses a format older than A2A 1.0 | medium | medium | off | protocol age only |
+| `SW-A2A-003` | Agent card at the path used before A2A 0.3 | medium | medium | off | protocol age only |
+| `SW-A2A-004` | Agent endpoint or authentication URL not served over HTTPS | high | high | high | high: never lowered |
+| `SW-A2A-005` | OAuth implicit or password flow declared (deprecated in A2A 1.0) | high | high | high | high: never lowered |
+| `SW-A2A-006` | OAuth authorization code flow without PKCE required | medium | high | medium | authentication weakness: strict raises; low-noise keeps a real risk at medium |
+| `SW-A2A-007` | Agent declares no authentication | medium | high | medium | authentication: as above |
+| `SW-A2A-008` | API key sent in the URL query | medium | high | medium | credential exposure: as above |
+| `SW-A2A-009` | Skill inherits every scope of the agent | low | medium | off | least-privilege hygiene, low |
+| `SW-A2A-010` | Agent card signature does not verify | high | high | high | high: never lowered |
+| `SW-A2A-011` | Agent card signature is malformed or uses a refused algorithm | high | high | high | high: never lowered |
+| `SW-A2A-012` | Agent card is not signed | low | medium | off | most cards are unsigned; hygiene |
+| `SW-A2A-013` | Signing key not bound to the card's host | medium | high | medium | trust of the signature: strict raises |
+| `SW-A2A-014` | Agent card text contains injected instructions or hidden characters | high | high | high | high: never lowered |
+| `SW-A2A-015` | Credential in the agent card | critical | critical | critical | critical: never lowered |
+| `SW-A2A-016` | Agent card fetched through a redirect to another host | medium | high | medium | possible card substitution: strict raises |
+| `SW-A2A-017` | Agent card signed with a shared secret that only the agent can check | medium | high | medium | unverifiable signature: strict raises |
+| `SW-A2A-018` | Agent card cannot be read | high | high | high | high: never lowered |
+| `SW-A2A-019` | Agent card member spelled two ways | high | high | high | high: never lowered |
+| `SW-CFG-001` | Remote MCP server over plain HTTP | high | high | high | high: never lowered |
+| `SW-CFG-002` | Credential written into an MCP server configuration | critical | critical | critical | critical |
+| `SW-CFG-003` | MCP server launched from an unpinned package | medium | high | low | `npx -y package` style launches are the common way configurations are written; strict treats an unpinned launch as supply-chain risk |
+| `SW-CFG-004` | MCP server at a raw IP address or behind a URL shortener | medium | high | medium | a hidden destination: strict raises; not common in benign configurations |
+| `SW-CFG-005` | Hook pipes remote content to a shell | high | high | high | high |
+| `SW-CFG-006` | Hook sends local file contents to an external host | critical | critical | critical | malicious indicator |
+| `SW-CFG-007` | Hook decodes and runs an encoded payload | critical | critical | critical | malicious indicator |
+| `SW-CFG-008` | Settings switch off approval prompts | high | high | high | high |
+| `SW-CFG-009` | Marketplace plugin source not pinned to a commit | medium | high | medium | supply chain: strict raises |
+| `SW-CFG-010` | Literal value under a secret name in an MCP server configuration | high | high | high | high |
+| `SW-CFG-012` | MCP server configured to approve every tool call automatically | high | high | high | high |
+| `SW-CFG-013` | Database or cluster MCP server with write access although a read-only mode exists | high | high | high | high |
+| `SW-MCP-001` | Server lists tools without authentication | high | high | high | high: never lowered, although it fires on 16,546 census hosts, most of them public read-only servers by design; the largest remaining source of MCP noise |
+| `SW-MCP-002` | Static key authentication instead of OAuth | medium | high | medium | authentication: strict raises |
+| `SW-MCP-003` | OAuth dynamic client registration (deprecated; use Client ID Metadata Documents) | medium | medium | low | protocol migration; 5,366 census hosts (63% of OAuth servers) |
+| `SW-MCP-004` | HTTP+SSE transport (deprecated) | medium | medium | low | protocol migration |
+| `SW-MCP-005` | Spec version older than 2026-07-28 | low | low | off | protocol age; 13,897 census hosts |
+| `SW-MCP-006` | Protocol sessions (Mcp-Session-Id) in use | medium | medium | off | protocol migration; 1,708 hosts |
+| `SW-MCP-007` | Requires the initialize handshake; no server/discover | medium | medium | off | protocol migration; 13,852 hosts |
+| `SW-MCP-008` | Uses deprecated Roots, Sampling or Logging | medium | medium | off | protocol migration; 715 hosts |
+| `SW-MCP-009` | Endpoint not served over HTTPS | high | high | high | high |
+| `SW-MCP-010` | No protected resource metadata, or issuer not validated | medium | high | medium | token audience and issuer checks: strict raises |
+| `SW-MCP-011` | MCP server text contains instruction-like text | high | high | high | precision tuned on its own record (87 holdout false alarms in 1.12.0); a preset does not override it |
+| `SW-MCP-012` | MCP server's tools changed since they were approved | high | high | high | high |
+| `SW-REG-001` | Skill package not admitted in the organisation's private registry | high | high | high | the organisation's policy: no preset touches it |
+| `SW-REG-002` | MCP server not admitted in the organisation's private registry | high | high | high | as above |
+| `SW-REG-003` | Agent content the private registry cannot judge | high | high | high | as above |
+| `SW-SKL-001` | Prompt-injection phrases in skill instructions | high | high | high | high |
+| `SW-SKL-002` | Hidden text: zero-width or bidirectional control characters | high | high | high | high |
+| `SW-SKL-003` | Instructions to skip approvals or disable hooks | high | high | high | high |
+| `SW-SKL-004` | Encoded payload decoded and executed | critical | critical | critical | malicious indicator |
+| `SW-SKL-005` | Writes to agent configuration | high | high | high | high |
+| `SW-SKL-006` | Destructive command without a confirmation step | medium | high | low | common in benign operations skills (`rm -rf build/`); strict treats it as a direct risk |
+| `SW-SKL-007` | Remote script piped to a shell | high | high | high | high |
+| `SW-SKL-008` | Sends local file contents to an external host | critical | critical | critical | malicious indicator |
+| `SW-SKL-009` | Unpinned dependency install | medium | high | low | unpinned installs are the analyzer's most common benign category; strict treats them as supply-chain risk |
+| `SW-SKL-010` | Bundled binary or executable file | medium | high | medium | an unreadable file: strict raises; kept at medium because a binary cannot be judged |
+| `SW-SKL-011` | Hard-coded credential in the package | critical | critical | critical | critical |
+| `SW-SKL-012` | Reads a credential file path without stating purpose | medium | high | low | many benign cloud skills name `~/.aws/credentials` to explain setup; strict treats it as an exfiltration path |
+| `SW-SKL-013` | Network calls to raw IP addresses or URL shorteners | medium | high | medium | a hidden destination: strict raises |
+| `SW-SKL-014` | Obfuscated script code | medium | high | medium | obfuscation: strict raises |
+| `SW-SKL-015` | Frontmatter missing or invalid (name, description) | low | medium | off | metadata only |
+| `SW-SKL-019` | Fetches external URL content into context without an allowlist | medium | high | low | common in research and documentation skills; strict treats it as an injection path |
+| `SW-SKL-031` | Missing license and version metadata | low | medium | off | metadata only |
+| `SW-SKL-032` | Instructions lure the user into running a password-protected download or a pasted script | critical | critical | critical | malicious indicator |
+| `SW-SKL-036` | Frontmatter pre-approves an unscoped shell or interpreter | medium | high | low | many benign skills pre-approve `Bash`; strict treats unscoped execution as a direct risk |
+| `SW-SKL-037` | Executable downloaded from a moving reference and run without an integrity check | medium | high | low | the same pattern as SW-SKL-009 for executables; strict raises |
+<!-- presets:end -->
 
 ### Checking A2A agent cards
 
@@ -967,7 +1062,7 @@ A package's identity is a hash over its bytes, as a forge archive of its directo
 
 ### Schemas and compatibility
 
-`schemas/` holds JSON Schemas (draft 2020-12) for the settings, the baseline, the lock file and the JSON report, including every closed list of values. Readers of the report must ignore fields they do not know; the settings and the baseline refuse them. From 1.0.0, removing or renaming a field or a value, or changing an exit code, is a major version; adding an optional field, a notice code or a rule is a minor one. Since 1.3.0 the report holds an optional `agents` list (one entry per A2A agent card the run read or fetched, written only when there is one), the rule-id pattern of the report and the baseline schema is `^SW-(SKL|MCP|CFG|REG|A2A|ORG)-[0-9]{3}$`, and the settings schema has the `a2a` mapping. A 1.2.x scanner refuses a settings file with an `a2a` mapping (`settings_invalid`, unknown key) and a baseline with an `SW-A2A` entry, as it would any later key or rule; a team that runs two scanner versions against one repository must upgrade both. In the same way a 1.3.x scanner refuses a baseline with an `SW-A2A-019` entry, the rule 1.4.0 added. Unlike `SW-A2A-019`, the rules 1.8.0 added (`SW-SKL-032`, `SW-SKL-036`, `SW-SKL-037`, `SW-CFG-012`, `SW-CFG-013`, rules version `2026.11.1`) keep an older baseline readable: a scanner older than 1.8.0 reads a baseline that names one of them without error, but the entry matches nothing there, so `baseline list` shows it as unmatched, `baseline prune` removes it, and the older scanner reports none of the new findings. `SW-SKL-032` is a malicious-indicator rule, so an entry for it may last at most 30 days from 1.8.0 on. Since 1.2.0 the report holds an optional `connected` block when a run was connected (the credential kind, the organisation, the run, the policy applied, the registry gate's counts and items, and the upload outcome), and `upload_truncated` and `upload_truncated_fields` after an upload that was cut; a free run adds none of them. Since 1.13.0 each finding of the report also holds `tags` (the framework ids of its rule: `owasp_agentic`, `owasp_mcp`, `nist`, `atlas`, `owasp_ast`), an item of kind `instructions` holds `format` and `front_matter`, the lock schema has the item kind `instructions`, and the settings schema has the key `instructions`; the report's `schema` stays 1. Since 1.15.0 the lock schema has the item kind `mcp-tools`, a change in the report's `lock` may name it, and the notice codes `tools_changed` and `tools_not_compared` are new.
+`schemas/` holds JSON Schemas (draft 2020-12) for the settings, the baseline, the lock file and the JSON report, including every closed list of values. Readers of the report must ignore fields they do not know; the settings and the baseline refuse them. From 1.0.0, removing or renaming a field or a value, or changing an exit code, is a major version; adding an optional field, a notice code or a rule is a minor one. Since 1.3.0 the report holds an optional `agents` list (one entry per A2A agent card the run read or fetched, written only when there is one), the rule-id pattern of the report and the baseline schema is `^SW-(SKL|MCP|CFG|REG|A2A|ORG)-[0-9]{3}$`, and the settings schema has the `a2a` mapping. A 1.2.x scanner refuses a settings file with an `a2a` mapping (`settings_invalid`, unknown key) and a baseline with an `SW-A2A` entry, as it would any later key or rule; a team that runs two scanner versions against one repository must upgrade both. In the same way a 1.3.x scanner refuses a baseline with an `SW-A2A-019` entry, the rule 1.4.0 added. Unlike `SW-A2A-019`, the rules 1.8.0 added (`SW-SKL-032`, `SW-SKL-036`, `SW-SKL-037`, `SW-CFG-012`, `SW-CFG-013`, rules version `2026.11.1`) keep an older baseline readable: a scanner older than 1.8.0 reads a baseline that names one of them without error, but the entry matches nothing there, so `baseline list` shows it as unmatched, `baseline prune` removes it, and the older scanner reports none of the new findings. `SW-SKL-032` is a malicious-indicator rule, so an entry for it may last at most 30 days from 1.8.0 on. Since 1.2.0 the report holds an optional `connected` block when a run was connected (the credential kind, the organisation, the run, the policy applied, the registry gate's counts and items, and the upload outcome), and `upload_truncated` and `upload_truncated_fields` after an upload that was cut; a free run adds none of them. Since 1.13.0 each finding of the report also holds `tags` (the framework ids of its rule: `owasp_agentic`, `owasp_mcp`, `nist`, `atlas`, `owasp_ast`), an item of kind `instructions` holds `format` and `front_matter`, the lock schema has the item kind `instructions`, and the settings schema has the key `instructions`; the report's `schema` stays 1. Since 1.15.0 the lock schema has the item kind `mcp-tools`, a change in the report's `lock` may name it, and the notice codes `tools_changed` and `tools_not_compared` are new. Since 1.18.0 the report holds an optional `preset` block and each finding an optional `preset_from`, both only when a preset other than `balanced` applied, and the settings schema has the key `preset`; a scanner older than 1.18.0 refuses a settings file with `preset` (`settings_invalid`, unknown key), so a team that runs two scanner versions against one repository upgrades both before setting it.
 
 ## What Spellwarden keeps from your telemetry
 
