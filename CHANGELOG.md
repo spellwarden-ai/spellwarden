@@ -32,6 +32,12 @@ output and exit code of a scan without a preset or with `balanced`; the rules an
   `runs[0].properties.preset`, CycloneDX's `spellwarden:preset` properties), a finding it moved carries `preset_from`, and a
   finding it turned off is counted. The table of every rule is the README's "Presets", and `spellwarden rules --preset NAME`
   prints it. `--preset` cannot be used with `--user`.
+- Lone surrogates: a string with a lone surrogate (a `\uD800` to `\uDFFF` escape without its pair) in the JSON answer of a
+  probed server or of the service is read with U+FFFD in its place, so a `--probe` scan ends with its normal exit code
+  instead of an internal error (exit 2) and writes every report and the lock file; a pair written as two escapes is kept. The
+  engine's fingerprint, package hash and canonical JSON encode a caller's lone surrogate as U+FFFD
+  (`spellwarden_scan.text.utf8`) and give the same hashes as before for any other text, and every report shows a lone
+  surrogate as `\u{NNNN}`.
 - `spellwarden ci-run gitlab` reads the GitLab component's input `preset` (`SW_PRESET`) and adds `--preset VALUE` when it is
   not empty; another value is a usage error (exit 2). The component and the GitHub Action take the input from their 1.18.0
   releases (`wrappers/README.md`).

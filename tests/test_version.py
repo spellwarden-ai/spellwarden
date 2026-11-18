@@ -106,6 +106,8 @@ def test_the_changelog_has_the_1_18_0_entry_above_1_17_0():
             "findings, and the lint notes and the analyzer's verdicts when present. The connected-mode details and the "
             "instruction-file scopes are in the JSON report, not in the HTML report.") in entry
     assert "holding what the JSON report holds" not in entry
+    assert ("Lone surrogates: a string with a lone surrogate (a `\\uD800` to `\\uDFFF` escape without its pair) in the JSON answer "
+            "of a probed server or of the service is read with U+FFFD in its place") in entry
     for character in ("\u2014", "\u2013", "!"):
         assert character not in raw
 
