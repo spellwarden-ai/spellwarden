@@ -3,6 +3,7 @@ eval label may hold, and how a value is written into a generated comment. A valu
 new line, a new key or a reversed run of text in a generated file or a response header."""
 from __future__ import annotations
 
+import re
 import unicodedata
 
 # Cc: every control character (CR, LF, NUL, tab, ...); Cf: format characters (the bidirectional controls, zero-width
@@ -53,4 +54,42 @@ def comment_safe(s: str, max_len: int = 120) -> str:
     return "".join(out)
 
 
-__all__ = ["comment_safe", "valid_block", "valid_line"]
+# 1.18.0: a lone surrogate, the code points U+D800 to U+DFFF on their own. JSON allows them as `\uD800` escapes and
+# Python's `json` decodes such an escape to that code point, but no UTF-8 encoder accepts one, so remote text that holds one
+# would make every later hash or file write raise. A pair written as two escapes is decoded to one character and is not one.
+_LONE_SURROGATE = re.compile("[\ud800-\udfff]")
+
+
+def replace_lone_surrogates(text: str) -> str:
+    """`text` with each lone surrogate replaced by U+FFFD; any other text is returned unchanged."""
+    return _LONE_SURROGATE.sub("\ufffd", text)
+
+
+def replace_lone_surrogates_in_json(value: object) -> object:
+    """A value as `json.loads` returns it, with `replace_lone_surrogates` applied to every string in it, keys included. Lists and
+    objects are changed in place (the caller owns what it just parsed) and walked with a loop, not a recursion, so any depth
+    `json.loads` accepted is handled. Two keys that become equal keep the later value, as a repeated JSON key does."""
+    if isinstance(value, str):
+        return replace_lone_surrogates(value)
+    pending = [value] if isinstance(value, (dict, list)) else []
+    while pending:
+        node = pending.pop()
+        if isinstance(node, list):
+            for index, item in enumerate(node):
+                if isinstance(item, str):
+                    node[index] = replace_lone_surrogates(item)
+                elif isinstance(item, (dict, list)):
+                    pending.append(item)
+            continue
+        entries = list(node.items())
+        node.clear()
+        for key, item in entries:
+            if isinstance(item, str):
+                item = replace_lone_surrogates(item)
+            elif isinstance(item, (dict, list)):
+                pending.append(item)
+            node[replace_lone_surrogates(key) if isinstance(key, str) else key] = item
+    return value
+
+
+__all__ = ["comment_safe", "replace_lone_surrogates", "replace_lone_surrogates_in_json", "valid_block", "valid_line"]

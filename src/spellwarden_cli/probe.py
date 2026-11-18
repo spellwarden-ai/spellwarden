@@ -15,6 +15,7 @@ from urllib.parse import urlsplit
 from spellwarden_scan import (
     AuthServerMetadata, ProbeResult, PromptArgument, PromptInfo, ResourceInfo, ResourceTemplateInfo, ToolInfo,
 )
+from spellwarden_scan.text import replace_lone_surrogates_in_json
 
 from spellwarden_cli import net
 
@@ -330,11 +331,19 @@ def _note_auth(state: dict, response) -> None:
             state["www_authenticate"] = header
 
 
+def _loads(text: str) -> object:
+    """The one JSON boundary of a server's answers (the JSON-RPC results and the OAuth metadata documents): a lone surrogate
+    in a string (a `\\udc80` escape, which JSON allows and `json` decodes to an unpaired code point no UTF-8 encoder accepts)
+    becomes U+FFFD here, so no finding, hash, report or lock file written from the answer can fail on it. A pair written as two
+    escapes is one character and is kept. Raises ValueError as `json.loads` does."""
+    return replace_lone_surrogates_in_json(json.loads(text))
+
+
 def _json_of(response):
     if response is None or response.status != 200:
         return None
     try:
-        return json.loads(response.body.decode("utf-8"))
+        return _loads(response.body.decode("utf-8"))
     except (ValueError, UnicodeDecodeError):
         return None
 
@@ -357,13 +366,13 @@ def _rpc_result(response) -> dict | None:
         for line in text.splitlines():
             if line.startswith("data:"):
                 try:
-                    message = json.loads(line[5:].strip())
+                    message = _loads(line[5:].strip())
                 except ValueError:
                     message = None
                 break
     else:
         try:
-            message = json.loads(text)
+            message = _loads(text)
         except ValueError:
             message = None
     if isinstance(message, dict) and isinstance(message.get("result"), dict):

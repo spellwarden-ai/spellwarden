@@ -1,9 +1,12 @@
 """Phase C spec 5.4 (review item 8): the text rules for names, descriptions, titles and labels, and the comment form."""
 from __future__ import annotations
 
+import json
+
 import pytest
 
-from spellwarden_scan.text import comment_safe, valid_block, valid_line
+from spellwarden_scan.text import (comment_safe, replace_lone_surrogates, replace_lone_surrogates_in_json, valid_block,
+                                   valid_line)
 
 
 @pytest.mark.parametrize("value", ["Ops prod", 'Ops "prod"', "x: y", "- z", "Équipe sécurité", "运维团队", "Launch \U0001f680",
@@ -37,3 +40,31 @@ def test_comment_safe_cuts_without_splitting_an_escape():
     cut = comment_safe("x" * 117 + "é" + "y")
     assert cut == "x" * 117 and len(cut) <= 120
     assert comment_safe("abc", max_len=2) == "ab"
+
+
+# --- 1.18.0: lone surrogates ---------------------------------------------------------------------------------------------
+
+def test_a_lone_surrogate_becomes_the_replacement_character_and_other_text_is_unchanged():
+    assert replace_lone_surrogates("a\udc80b\ud800\udfff") == "a\ufffdb\ufffd\ufffd"
+    for text in ("", "plain", "Équipe \U0001F600 运维", "\ufffd", "\uffff\U00010000"):
+        assert replace_lone_surrogates(text) is text or replace_lone_surrogates(text) == text
+    assert replace_lone_surrogates(json.loads('"\\ud83d\\ude00"')) == "\U0001F600"  # a pair of escapes is one character
+
+
+def test_every_string_of_a_parsed_json_value_is_made_safe_keys_included():
+    value = json.loads('{"a\\udc80": ["x\\ud800", {"k": "v\\udfff", "n": 1, "t": true, "z": null}], "b": "\\ud83d\\ude00"}')
+    assert replace_lone_surrogates_in_json(value) == {"a\ufffd": ["x\ufffd", {"k": "v\ufffd", "n": 1, "t": True, "z": None}],
+                                                      "b": "\U0001F600"}
+    assert list(value) == ["a\ufffd", "b"]  # the key order is kept
+    assert replace_lone_surrogates_in_json("\udc80") == "\ufffd" and replace_lone_surrogates_in_json(7) == 7
+
+
+def test_a_deep_json_value_is_walked_without_recursion():
+    depth = 5000
+    value: object = "\udc80"
+    for _ in range(depth):
+        value = [value]
+    replace_lone_surrogates_in_json(value)
+    for _ in range(depth):
+        value = value[0]
+    assert value == "\ufffd"

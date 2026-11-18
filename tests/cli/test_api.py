@@ -555,3 +555,10 @@ def test_no_credential_in_repr_or_events():
 def test_the_module_constants():
     assert (api.RUN_BUDGET_SECONDS, api.REQUEST_TIMEOUT_SECONDS, api.RESPONSE_MAX, api.RETRY_AFTER_MAX) == (
         150.0, 10.0, 2 * 1024 * 1024, 20)
+
+
+def test_a_lone_surrogate_in_an_answer_becomes_the_replacement_character():
+    """1.18.0: connected mode's answers reach notices, the report's `connected` block and the registry gate's findings; a lone
+    surrogate escape in one of their strings is read as U+FFFD, as in a probed server's answers, and a pair is kept."""
+    parsed = api.ApiClient._parse(b'{"message": "denied \\udc80", "items": [{"name\\ud800": "\\ud83d\\ude00"}]}')
+    assert parsed == {"message": "denied �", "items": [{"name�": "\U0001F600"}]}

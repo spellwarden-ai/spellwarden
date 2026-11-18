@@ -38,6 +38,8 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from urllib.parse import quote, unquote, urlencode, urlsplit
 
+from spellwarden_scan.text import replace_lone_surrogates_in_json
+
 from spellwarden_cli.net import USER_AGENT, FetchError, check_host, default_resolver, pinned_connection, tls_context
 from spellwarden_cli.secret import Secret
 
@@ -474,8 +476,8 @@ class ApiClient:
 
     @staticmethod
     def _parse(payload: bytes) -> dict | None:
-        try:
-            parsed = json.loads(payload.decode("utf-8"))
+        try:  # a lone surrogate in a string of the answer becomes U+FFFD, as in the probe's answers (probe._loads)
+            parsed = replace_lone_surrogates_in_json(json.loads(payload.decode("utf-8")))
         except (UnicodeDecodeError, ValueError):
             return None
         return parsed if isinstance(parsed, dict) else None
