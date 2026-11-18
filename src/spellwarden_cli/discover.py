@@ -34,6 +34,21 @@ from spellwarden_cli.report import Notice
 
 SKILL_FILE = "SKILL.md"
 MAX_CARDS = 300  # discovered and listed agent cards together (O4 spec 6.3; 300 since 1.13.0); more is the error `a2a_cards_limit`
+# 1.18.0: the paths the pre-commit hook runs on (`.pre-commit-hooks.yaml`, written from this by scripts/write_hooks_yaml.py):
+# every kind of path a scan discovers as agent content or settings, and more, since a regular expression cannot know which
+# folders hold a SKILL.md: SKILL.md anywhere, everything under the agent folders, the MCP configuration names, a plugin's hooks
+# file, the instruction file names and agent cards. The scan itself always covers the whole root, so a change this misses is
+# judged the next time the hook runs, or in CI. Matched with `re.search` against a POSIX path, whatever its case.
+AGENT_CONTENT_REGEX = (
+    r"(?i)(^|/)("
+    r"skill\.md"
+    r"|(skills|\.claude|\.cursor|\.codex|\.vscode|\.claude-plugin|\.spellwarden|\.well-known)/.+"
+    r"|\.mcp\.json|mcp\.json|claude_desktop_config\.json|hooks/hooks\.json"
+    r"|agents\.md|claude\.md|gemini\.md|\.github/copilot-instructions\.md|\.cursorrules|\.windsurfrules"
+    r"|\.windsurf/rules/[^/]+\.md|\.devin/rules/[^/]+\.md"
+    r"|agent-card\.json"
+    r")$"
+)
 _ITEM_KIND = {"mcp": "mcp-config", "settings": "settings", "marketplace": "marketplace", "hooks": "hooks",
               "plugin": "plugin-manifest"}
 

@@ -109,6 +109,35 @@ jobs:
       - run: uv run --locked pytest -q -o faulthandler_timeout=120
       - run: uv build
 
+  # 1.18.0: the hook of .pre-commit-hooks.yaml through the pre-commit framework (tests/test_pre_commit_hook.py): in a fixture
+  # repository with a high finding the hook fails (exit 1), in a clean one it passes (exit 0). Linux and Windows runners only.
+  # The framework installs the hook's environment from the network, so the test runs only where SPELLWARDEN_PRE_COMMIT_TRY_REPO
+  # is 1.
+  pre-commit-hook:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Keep line endings as committed (fixtures are hashed byte for byte)
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5.4.2
+        with:
+          python-version: "3.13"
+      - run: uv sync --locked
+      - name: The hook in a repository with a finding and in a clean one
+        env:
+          SPELLWARDEN_PRE_COMMIT_TRY_REPO: "1"
+        run: uv run --locked pytest -q tests/test_pre_commit_hook.py -o faulthandler_timeout=1200
+
   # Phase C spec 5.5.1, the release gate of the managed hook mode (owner answer R2, claim E7). On each platform the
   # managed export of the vector pack is installed at its documented path with administrator rights, owned by root or
   # the Administrators group and not writable by others; the unprivileged user cannot change it; the exact command
