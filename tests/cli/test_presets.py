@@ -220,10 +220,22 @@ def test_the_notice_in_the_singular_for_strict_and_for_no_change():
 
 @pytest.mark.usefixtures("example_rows")
 def test_in_connected_mode_the_notice_says_what_the_upload_carries():
-    after = applied([finding("SW-SKL-009")], presets.STRICT, connected={"credential": "oidc"})
+    uploaded = {"credential": "oidc", "upload": {"status": "uploaded", "attested": True}}
+    after = applied([finding("SW-SKL-009")], presets.STRICT, connected=uploaded)
     assert message(after) == ("Preset strict (from --preset): 1 finding was raised. The organisation's rules, its registry gate "
                               "and the baseline file are applied as they are. The upload to your organisation carries every "
                               f"finding at the rule's own severity. See {presets.GUIDE_URL}")
+
+
+@pytest.mark.usefixtures("example_rows")
+@pytest.mark.parametrize("upload", [{"status": "skipped", "reason": "disabled"}, {"status": "skipped", "reason": "local"},
+                                    {"status": "skipped", "reason": "branch"}, {"status": "failed", "error": "http_503"},
+                                    None])
+def test_without_an_upload_the_notice_says_nothing_about_one(upload):
+    connected = {"credential": "key"} if upload is None else {"credential": "key", "upload": upload}
+    after = applied([finding("SW-SKL-009")], presets.STRICT, connected=connected)
+    assert message(after) == "Preset strict (from --preset): 1 finding was raised. " + TAIL
+    assert "upload" not in message(after)
 
 
 def test_change_words_and_origins():

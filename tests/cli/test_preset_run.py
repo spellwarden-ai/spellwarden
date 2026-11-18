@@ -200,3 +200,16 @@ def test_in_connected_mode_the_upload_is_the_scan_without_a_preset(name, make_re
     assert "The upload to your organisation carries every finding at the rule's own severity." in notice(reports[name], "preset")
     if name == "strict":
         assert (exit_codes["none"], exit_codes[name]) == (0, 1) and bodies[name]["report"]["exit_code"] == 0
+
+
+def test_in_connected_mode_a_skipped_upload_is_not_said_to_carry_anything(make_repo, run_cli, tmp_path, api_double):
+    fake, _ = api_double
+    repo = make_repo(tmp_path / "repo", {**FILES, "skills/demo/scripts/deploy.sh": BASTION})
+    env = connected_gitlab(SPELLWARDEN_ORG="acme", SPELLWARDEN_ID_TOKEN=ID_TOKEN)
+    _serve(fake, policy_answer([org_rule()]))
+    code, report, _, err = scan_json(run_cli, repo, env, "--preset", "strict", "--no-upload")
+    assert report is not None, err
+    assert report["connected"]["upload"] == {"status": "skipped", "reason": "disabled"}
+    assert not [request for request in fake.requests if request[1] == SCANS_PATH]
+    assert report["preset"]["name"] == "strict"
+    assert "upload" not in notice(report, "preset")

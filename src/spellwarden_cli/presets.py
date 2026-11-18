@@ -188,8 +188,10 @@ def apply(report: Report, name: str | None, *, source: str = "flag", origin: str
         else:
             kept.append(row)
     block = {"name": name, "source": source, "changed": lowered + raised, "off": off}
+    upload = (report.connected or {}).get("upload")
+    uploaded = isinstance(upload, dict) and upload.get("status") == "uploaded"  # skipped or failed: nothing to say of an upload
     text = notice_message(name, origin, off=off, off_rules=len(off_rules), lowered=lowered, raised=raised,
-                          connected=report.connected is not None)
+                          connected=uploaded)
     return dataclasses.replace(report, findings=tuple(kept), preset=block,
                                notices=(*report.notices, Notice(NOTICE_CODE, "", text))).sorted()
 
@@ -199,8 +201,8 @@ def _counted(count: int, one: str, many: str) -> str:
 
 
 def notice_message(name: str, origin: str, *, off: int, off_rules: int, lowered: int, raised: int, connected: bool) -> str:
-    """The notice `preset`, in every output: what the preset did, that the organisation's parts are applied as they are, in
-    connected mode what the upload carries, and the guide."""
+    """The notice `preset`, in every output: what the preset did, that the organisation's parts are applied as they are, when
+    a connected run uploaded its results (`connected`) what the upload carries, and the guide."""
     parts = []
     if off:
         parts.append(f"{_counted(off, 'finding', 'findings')} of {_counted(off_rules, 'rule', 'rules')} "
