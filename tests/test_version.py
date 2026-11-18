@@ -101,6 +101,11 @@ def test_the_changelog_has_the_1_18_0_entry_above_1_17_0():
                    "in the hook's `args`, or any other switch in the README's \"The usage ping\", turns it off."):
         assert needle in entry, needle
     assert "never uploads and sends no usage ping" not in entry
+    assert ("The HTML report: `--format html` writes one self-contained file holding the versions, the date, the preset when "
+            "one applies, the outcome and exit code, the counts by severity, the notices and errors, every item with its "
+            "findings, and the lint notes and the analyzer's verdicts when present. The connected-mode details and the "
+            "instruction-file scopes are in the JSON report, not in the HTML report.") in entry
+    assert "holding what the JSON report holds" not in entry
     for character in ("\u2014", "\u2013", "!"):
         assert character not in raw
 

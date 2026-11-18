@@ -16,10 +16,13 @@ output and exit code of a scan without a preset or with `balanced`; the rules an
   ping; in CI its scan sends the usage ping like any scan in CI, and `--no-telemetry` in the hook's `args`, or any other
   switch in the README's "The usage ping", turns it off. The README's "Pre-commit hook" has the `.pre-commit-config.yaml`
   lines.
-- The HTML report: `--format html` writes one self-contained file holding what the JSON report holds. Every string from the
-  repository or a probed server is escaped (`spellwarden_cli.escape.html`); there is no script, no event attribute and no
-  external asset, one inline style without `url(`, and a Content-Security-Policy that forbids every fetch, so opening the file
-  makes no network request. It has no size cap of its own.
+- The HTML report: `--format html` writes one self-contained file holding the versions, the date, the preset when one
+  applies, the outcome and exit code, the counts by severity, the notices and errors, every item with its findings, and the
+  lint notes and the analyzer's verdicts when present. The connected-mode details and the instruction-file scopes are in the
+  JSON report, not in the HTML report. Every string from the repository or a probed server is escaped
+  (`spellwarden_cli.escape.html`); there is no script, no event attribute and no external asset, one inline style without
+  `url(`, and a Content-Security-Policy that forbids every fetch, so opening the file makes no network request. It has no size
+  cap of its own.
 - Presets: `strict` raises named medium rules to high and low metadata rules to medium; `low-noise` turns off named metadata
   and protocol-age rules and lowers named medium rules to low; `balanced` is each rule's own severity. The flag wins over the
   environment, which wins over the file; on a pull or merge request the file is read from the base revision. A preset never
