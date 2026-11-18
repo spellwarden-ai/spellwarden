@@ -12,8 +12,10 @@ output and exit code of a scan without a preset or with `balanced`; the rules an
 - The hook: this repository is a hook repository of the pre-commit framework (pre-commit 3.2.0 or later). The hook
   `spellwarden` runs `spellwarden scan --no-upload` at the repository root, at the stages `pre-commit`, `pre-push` and
   `manual`, when a commit changes agent content (its file filter is `spellwarden_cli.discover.AGENT_CONTENT_REGEX`). The scan
-  covers the whole repository, never uploads and sends no usage ping, and its exit code is the scanner's. The README's
-  "Pre-commit hook" has the `.pre-commit-config.yaml` lines.
+  covers the whole repository and never uploads, and its exit code is the scanner's. Outside CI a hook run sends no usage
+  ping; in CI its scan sends the usage ping like any scan in CI, and `--no-telemetry` in the hook's `args`, or any other
+  switch in the README's "The usage ping", turns it off. The README's "Pre-commit hook" has the `.pre-commit-config.yaml`
+  lines.
 - The HTML report: `--format html` writes one self-contained file holding what the JSON report holds. Every string from the
   repository or a probed server is escaped (`spellwarden_cli.escape.html`); there is no script, no event attribute and no
   external asset, one inline style without `url(`, and a Content-Security-Policy that forbids every fetch, so opening the file

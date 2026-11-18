@@ -95,8 +95,12 @@ def test_the_changelog_has_the_1_18_0_entry_above_1_17_0():
                    "table. Unchanged: every output and exit code of a scan without a preset or with `balanced`; the rules and "
                    "their versions (`RULES_VERSION` 2026.11.7).",
                    "README's \"Presets\"", "`spellwarden rules --preset NAME`", "`preset_from`", "`SW_PRESET`",
-                   "v1.17.0", "Linux and Windows"):
+                   "v1.17.0", "Linux and Windows",
+                   "The scan covers the whole repository and never uploads, and its exit code is the scanner's. Outside CI a "
+                   "hook run sends no usage ping; in CI its scan sends the usage ping like any scan in CI, and `--no-telemetry` "
+                   "in the hook's `args`, or any other switch in the README's \"The usage ping\", turns it off."):
         assert needle in entry, needle
+    assert "never uploads and sends no usage ping" not in entry
     for character in ("\u2014", "\u2013", "!"):
         assert character not in raw
 
