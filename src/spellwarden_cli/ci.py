@@ -27,6 +27,7 @@ from urllib.parse import urlsplit
 from spellwarden_scan.evidence import mask_credentials
 
 from spellwarden_cli import escape, paths
+from spellwarden_cli.presets import PRESETS
 from spellwarden_cli.report import Notice
 from spellwarden_cli.settings import FAIL_ON
 
@@ -965,7 +966,7 @@ def gitlab_argv(env: Mapping[str, str], notices: list[Notice] | None = None
     job sets for the scan (O3 spec 11, P12: `SW_ORG` becomes `SPELLWARDEN_ORG`; the component only passes
     variables). Every boolean is passed as an explicit positive or negative flag, so the scanned settings file cannot
     change what an input chose (6.3). The notices the scan's report must carry (1.17.0: `analyzer_no_key`) are appended
-    to `notices`."""
+    to `notices`. 1.18.0: `SW_PRESET` (the input `preset`) adds `--preset VALUE` when it is not empty."""
     problems: list[str] = []
     path = env.get("SW_PATH") or "."
     fail_on = _choice(env, "SW_FAIL_ON", "fail-on", FAIL_ON, problems)
@@ -986,6 +987,9 @@ def gitlab_argv(env: Mapping[str, str], notices: list[Notice] | None = None
             problems.append(f"input org: {escape.terminal(org)!r} is not an organisation slug (2 to 64 lower-case letters, "
                             "digits and hyphens)")
     analyzer = _analyzer_argv(env, problems, notices if notices is not None else [])
+    preset = env.get("SW_PRESET", "")
+    if preset and preset not in PRESETS:
+        problems.append(f"input preset: {escape.terminal(preset)!r} is not one of {', '.join(PRESETS)}, or empty")
     argv = ["scan", path, "--fail-on", fail_on]
     if locked == "true" or (locked == "auto" and os.path.isfile(os.path.join(path, ".spellwarden", "lock.json"))):
         argv.append("--locked")
@@ -996,6 +1000,8 @@ def gitlab_argv(env: Mapping[str, str], notices: list[Notice] | None = None
     if upload in ("true", "false"):
         argv.append("--upload" if upload == "true" else "--no-upload")
     argv += analyzer
+    if preset in PRESETS:  # empty: no flag, so the scanner's own settings decide, as before 1.18.0
+        argv += ["--preset", preset]
     for fmt, output in GITLAB_OUTPUTS:
         argv += ["--format", fmt, "--output", output]
     argv += ["--format", "text"]

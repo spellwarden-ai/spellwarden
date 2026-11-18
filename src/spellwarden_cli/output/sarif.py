@@ -66,6 +66,8 @@ def _result(report: Report, item: ReportFinding, index: dict[str, int], instruct
         result["properties"] = {"instructions": instructions[item.item]}
     if clients_of is not None:  # `scan --user` (phase 3 batch 2a spec 11.3): the clients whose configuration holds the item
         result.setdefault("properties", {})["clients"] = clients_of.get(item.item, [])
+    if item.preset_from is not None:  # 1.18.0: the severity without the preset
+        result.setdefault("properties", {})["preset_from"] = item.preset_from
     if item.suppressed:
         reason = (item.baseline or {}).get("reason", "")
         result["suppressions"] = [{"kind": "external", "justification": escape.message(reason)}]
@@ -175,6 +177,8 @@ def render(report: Report) -> str:
         }],
     }
     run = document["runs"][0]
+    if report.preset is not None:  # 1.18.0: absent otherwise, so a scan without a preset writes the SARIF file of 1.17.0
+        run["properties"] = {"preset": dict(report.preset)}
     if any(entry.notes for entry in report.lint or ()):  # absent otherwise, so a report without notes is unchanged
         run["tool"]["driver"]["rules"].extend(_lint_rule(note_id) for note_id in lint.LINT_IDS)
         run["results"].extend(_lint_results(report, len(rules)))

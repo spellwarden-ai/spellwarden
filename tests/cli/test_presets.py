@@ -5,17 +5,20 @@ over file, unknown values refused) and the two schemas."""
 from __future__ import annotations
 
 import dataclasses
+import hashlib
 import json
 from pathlib import Path
 
+import jsonschema
 import pytest
-from conftest import write_tree
+from conftest import cyclonedx_problems, write_tree
 from jsonschema import Draft202012Validator
 
 from spellwarden_scan import RULES_VERSION, SEVERITY_RANK, Finding, Location, RuleSet, __version__
 from spellwarden_scan.evidence import fingerprint
 
 from spellwarden_cli import presets
+from spellwarden_cli.output import FORMATS
 from spellwarden_cli.report import LockState, Notice, Report, ReportFinding, to_json_dict
 from spellwarden_cli.settings import Flags, SettingsError, load_settings
 
@@ -306,3 +309,130 @@ def test_reports_written_by_earlier_releases_still_validate():
     golden = Path(__file__).resolve().parents[1] / "golden"
     for path in (golden / "1.13.0" / "out" / "report.json", golden / "1.0.0" / "out" / "report.json"):
         _validator("report").validate(json.loads(path.read_text(encoding="utf-8")))
+
+
+# --- every output (Task 2) --------------------------------------------------------------------------------------------
+
+def strict_report(*, connected: dict | None = None) -> Report:
+    return applied([finding("SW-SKL-009", path="skills/demo/scripts/setup.sh"),
+                    finding("SW-SKL-031", path="skills/demo/SKILL.md", line=1)], presets.STRICT, connected=connected)
+
+
+def off_report() -> Report:
+    """low-noise turns the one finding off: nothing is left to list."""
+    return applied([finding("SW-SKL-031", path="skills/demo/SKILL.md", line=1)], presets.LOW_NOISE, source="environment",
+                   origin="SPELLWARDEN_PRESET")
+
+
+def _sarif_validator():
+    vendored = Path(__file__).resolve().parents[1] / "schemas" / "sarif-schema-2.1.0.json"  # tests/schemas, as test_outputs.py
+    schema = json.loads(vendored.read_bytes().replace(b"\r\n", b"\n"))
+    return jsonschema.validators.validator_for(schema)(schema)
+
+
+@pytest.mark.usefixtures("example_rows")
+def test_the_text_report_prints_the_notice_and_how_a_finding_moved():
+    out = FORMATS["text"](strict_report())
+    assert f"notice preset : {message(strict_report())}" in out
+    assert ("  high SW-SKL-009 skills/demo/scripts/setup.sh:2 Unpinned dependency install "
+            "(raised from medium by the strict preset)") in out
+    assert ("  medium SW-SKL-031 skills/demo/SKILL.md:1 Missing license and version metadata "
+            "(raised from low by the strict preset)") in out
+
+
+@pytest.mark.usefixtures("example_rows")
+def test_the_markdown_report_says_it_under_the_verdict_and_in_the_severity_cell():
+    out = FORMATS["markdown"](strict_report())
+    body = message(strict_report()).removesuffix(f" See {presets.GUIDE_URL}")
+    assert f"**Preset:** {body} [How presets work]({presets.GUIDE_URL})" in out
+    assert "| high (raised from medium by the strict preset) | SW-SKL-009 |" in out
+    assert out.index("**Preset:**") < out.index("| Severity | Rule |")
+    assert "(from SPELLWARDEN\\_PRESET)" in FORMATS["markdown"](off_report())
+
+
+@pytest.mark.usefixtures("example_rows")
+def test_sarif_carries_the_block_and_preset_from():
+    document = json.loads(FORMATS["sarif"](strict_report()))
+    _sarif_validator().validate(document)
+    run = document["runs"][0]
+    assert run["properties"] == {"preset": {"name": "strict", "source": "flag", "changed": 2, "off": 0}}
+    result = next(entry for entry in run["results"] if entry["ruleId"] == "SW-SKL-009")
+    assert result["level"] == "error" and result["properties"] == {"preset_from": "medium"}
+    plain = json.loads(FORMATS["sarif"](report_of([finding("SW-SKL-009")])))
+    assert "properties" not in plain["runs"][0] and all("properties" not in entry for entry in plain["runs"][0]["results"])
+
+
+@pytest.mark.usefixtures("example_rows")
+def test_code_quality_puts_the_notice_in_the_first_entry_or_an_entry_of_its_own():
+    issues = json.loads(FORMATS["gitlab-codequality"](strict_report()))
+    assert issues[0]["description"].endswith("\n" + message(strict_report()))
+    assert all("\n" not in issue["description"] for issue in issues[1:])
+    described = next(issue["description"] for issue in issues if issue["check_name"] == "SW-SKL-009")
+    assert "(raised from medium by the strict preset)" in described
+    (only,) = json.loads(FORMATS["gitlab-codequality"](off_report()))
+    assert only == {"description": message(off_report()), "check_name": "spellwarden-preset",
+                    "fingerprint": hashlib.sha256(b"spellwarden-preset\nlow-noise").hexdigest(), "severity": "info",
+                    "location": {"path": "", "lines": {"begin": 1}}}
+    assert json.loads(FORMATS["gitlab-codequality"](report_of([]))) == []
+
+
+@pytest.mark.usefixtures("example_rows")
+def test_cyclonedx_carries_the_preset_properties():
+    document = json.loads(FORMATS["cyclonedx"](strict_report()))
+    assert cyclonedx_problems(document) == []
+    metadata = {(entry["name"], entry["value"]) for entry in document["metadata"]["properties"]}
+    assert {("spellwarden:preset", "strict"), ("spellwarden:preset_source", "flag"), ("spellwarden:preset_changed", "2"),
+            ("spellwarden:preset_off", "0")} <= metadata
+    vulnerability = next(entry for entry in document["vulnerabilities"] if entry["id"] == "SW-SKL-009")
+    assert vulnerability["ratings"][0]["severity"] == "high"
+    assert {"name": "spellwarden:preset_from", "value": "medium"} in vulnerability["properties"]
+    plain = json.loads(FORMATS["cyclonedx"](report_of([finding("SW-SKL-009")])))
+    assert not any(entry["name"].startswith("spellwarden:preset") for entry in plain["metadata"]["properties"])
+
+
+@pytest.mark.usefixtures("example_rows")
+@pytest.mark.parametrize("fmt", ["text", "markdown", "json", "gitlab-codequality"])
+def test_every_output_counts_the_finding_low_noise_turned_off(fmt):
+    assert "1 finding of 1 rule is not listed" in FORMATS[fmt](off_report())
+
+
+@pytest.mark.usefixtures("example_rows")
+def test_sarif_and_cyclonedx_count_it_too():
+    assert json.loads(FORMATS["sarif"](off_report()))["runs"][0]["properties"]["preset"]["off"] == 1
+    properties = json.loads(FORMATS["cyclonedx"](off_report()))["metadata"]["properties"]
+    assert {"name": "spellwarden:preset_off", "value": "1"} in properties
+
+
+@pytest.mark.parametrize("fmt", ["text", "markdown", "sarif", "gitlab-codequality", "cyclonedx"])
+def test_without_a_preset_no_output_changes(fmt):
+    plain = report_of([finding("SW-SKL-009"), finding("SW-SKL-031", path="skills/demo/SKILL.md", line=1)])
+    assert FORMATS[fmt](presets.apply(plain, presets.BALANCED)) == FORMATS[fmt](plain)
+    assert "preset" not in FORMATS[fmt](plain).lower()
+
+
+# --- spellwarden rules --preset ---------------------------------------------------------------------------------------
+
+@pytest.mark.usefixtures("example_rows")
+def test_rules_prints_each_rule_under_a_preset(run_cli):
+    code, out, _ = run_cli(["rules", "--preset", "low-noise"])
+    assert code == 0
+    lines = out.splitlines()
+    assert len(lines) == len(RULES)
+    by_id = {line.split()[0]: line for line in lines}
+    for rule in RULES:
+        assert by_id[rule.id].split()[1] == presets.severity_of(rule, "low-noise"), rule.id
+    assert by_id["SW-SKL-031"] == f"SW-SKL-031  {'off':<8}  Missing license and version metadata"
+    assert run_cli(["rules", "--preset", "balanced"])[1] == run_cli(["rules"])[1]
+
+
+@pytest.mark.usefixtures("example_rows")
+def test_rules_json_and_markdown_name_the_preset(run_cli):
+    code, out, _ = run_cli(["rules", "--preset", "strict", "--format", "json"])
+    entries = json.loads(out)
+    assert code == 0 and len(entries) == len(RULES)
+    assert all(entry["preset"] == {"name": "strict", "severity": presets.severity_of(RULES.get(entry["id"]), "strict")}
+               for entry in entries)
+    code, out, _ = run_cli(["rules", "--preset", "strict", "--format", "markdown"])
+    assert code == 0 and out.splitlines()[:2] == ["| Id | Title | Default | strict |", "|---|---|---|---|"]
+    assert "| SW-SKL-009 | Unpinned dependency install | medium | high |" in out
+    assert run_cli(["rules", "--preset", "loud"])[0] == 2

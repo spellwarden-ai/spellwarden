@@ -9,7 +9,7 @@ from collections.abc import Sequence
 
 from spellwarden_scan.gate import GATE_REASONS
 
-from spellwarden_cli import escape, instruction_files
+from spellwarden_cli import escape, instruction_files, presets
 from spellwarden_cli.output import agents as agent_view
 from spellwarden_cli.output.text import client_lines, connected_lines, not_done_why
 from spellwarden_cli.report import CONNECTED_ERRORS, Report, ReportFinding
@@ -74,16 +74,28 @@ def _location(item: ReportFinding) -> str:
     return f"{location.path}:{location.line}" if location.line else location.path
 
 
-def _findings(open_findings: Sequence[ReportFinding]) -> list[str]:
+def _findings(report: Report, open_findings: Sequence[ReportFinding]) -> list[str]:
     if not open_findings:
         return []
     lines = ["| Severity | Rule | Location | Title |", "|---|---|---|---|"]
     for item in open_findings[:MAX_ROWS]:
         finding = item.finding
-        lines.append(f"| {finding.severity} | {finding.rule_id} | {_code_cell(_location(item))} | {_text(finding.title)} |")
+        severity = finding.severity
+        if item.preset_from is not None and report.preset is not None:  # 1.18.0: how a preset moved it
+            severity += f" ({presets.change_words(item.preset_from, finding.severity, report.preset['name'])})"
+        lines.append(f"| {severity} | {finding.rule_id} | {_code_cell(_location(item))} | {_text(finding.title)} |")
     if len(open_findings) > MAX_ROWS:
         lines += ["", f"{len(open_findings) - MAX_ROWS} more findings are in the JSON and SARIF reports."]
     return lines + [""]
+
+
+def _preset(report: Report) -> list[str]:
+    """1.18.0: the preset's notice under the verdict, its guide as a link; nothing without a preset or with balanced."""
+    notice = presets.notice_of(report)
+    if notice is None:
+        return []
+    body = notice.message.removesuffix(f" See {presets.GUIDE_URL}")
+    return [f"**Preset:** {escape.markdown(body)} [How presets work]({presets.GUIDE_URL})", ""]
 
 
 def _instruction_files(report: Report) -> list[str]:
@@ -259,13 +271,13 @@ def connected_section(report: Report) -> str:
 def render(report: Report) -> str:
     open_findings = report.unsuppressed()
     accepted = len(report.findings) - len(open_findings)
-    lines = [MARKER, f"**Spellwarden scan {_verdict(report)}.** {_counts(open_findings, accepted)}", ""]
+    lines = [MARKER, f"**Spellwarden scan {_verdict(report)}.** {_counts(open_findings, accepted)}", "", *_preset(report)]
     section = connected_section(report)
     if section:
         lines.append(section)
     if report.clients is not None:  # `scan --user` (phase 3 batch 2a spec 11.3)
         lines += ["**Clients:**", "", *(f"- {_text(line)}" for line in client_lines(report)), ""]
-    lines += _findings(open_findings) + _instruction_files(report)
+    lines += _findings(report, open_findings) + _instruction_files(report)
     lines += _errors(report) + _lock(report) + _probes(report) + _agents(report) + _lint(report)
     lines += _analysis(report)
     if accepted:
