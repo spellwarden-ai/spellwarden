@@ -4,7 +4,8 @@ settings key, so the scanned revision cannot grant itself private probing. The `
 the repository's statement about connected mode: `pack` and `required` have no flag and no environment variable. The `a2a`
 mapping (O4 spec 6.2) names the agent cards to check (`cards`), the key file that is the only trust root for their signatures
 (`keys`) and the remote agents to fetch under `--probe` (`agents`); on a pull or merge request `keys` and `agents` are read
-from the base revision, even under `--config`."""
+from the base revision, even under `--config`. The `preset` key (1.18.0) is one of `presets.PRESETS`, with the flag `--preset` and
+the variable `SPELLWARDEN_PRESET`; on a pull or merge request it is read from the base revision with the rest of the file."""
 from __future__ import annotations
 
 import re
@@ -12,13 +13,13 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from urllib.parse import urlsplit
 
-from spellwarden_cli import paths, safe_yaml
+from spellwarden_cli import paths, presets, safe_yaml
 from spellwarden_scan.glob import glob_match
 from spellwarden_scan.relpath import UnsafePath, contain
 
 CONFIG_PATH = ".spellwarden/config.yml"
 FAIL_ON = ("critical", "high", "medium", "low", "never")
-_KEYS = ("version", "include", "exclude", "fail-on", "probe", "telemetry", "connected", "a2a", "instructions")
+_KEYS = ("version", "include", "exclude", "fail-on", "probe", "telemetry", "connected", "a2a", "instructions", "preset")
 _A2A_KEYS = ("cards", "keys", "agents")
 A2A_MAX_CARDS = 50
 A2A_MAX_AGENTS = 20
@@ -42,6 +43,7 @@ class Flags:
     probe_private: bool | None = None
     telemetry: bool | None = None
     upload: bool | None = None  # --upload / --no-upload
+    preset: str | None = None  # --preset (1.18.0)
 
 
 @dataclass(frozen=True)
@@ -72,6 +74,11 @@ class Settings:
     connected: Connected = Connected()
     a2a: A2a = A2a()
     instructions: bool = True  # 1.13.0 (Phase 3 batch 1 spec 10.5): find, lock, scan and report instruction files
+    # 1.18.0: the preset (`presets.PRESETS`), None when none is set; where it was set ("flag", "environment" or "file") and how
+    # the notice names that place (`presets.origin_of`)
+    preset: str | None = None
+    preset_source: str | None = None
+    preset_origin: str | None = None
 
 
 def env_bool(value: str | None) -> bool | None:
@@ -120,9 +127,12 @@ def load_settings(root: str, *, config: str | None, flags: Flags, env: Mapping[s
     keys = a2a_mapping.get("keys")
     a2a = A2a(cards=tuple(a2a_mapping.get("cards", ())), keys=keys, agents=tuple(a2a_mapping.get("agents", ())),
               keys_bytes=_read_keys(root, keys, keys_read) if keys else None)
+    preset, preset_source = _preset(flags, env, values)
     return Settings(include=tuple(values.get("include", ())), exclude=tuple(values.get("exclude", ())),
                     fail_on=fail_on, probe=probe, probe_private=probe_private, telemetry=not telemetry_off,
-                    connected=connected, a2a=a2a, instructions=values.get("instructions", True))
+                    connected=connected, a2a=a2a, instructions=values.get("instructions", True), preset=preset,
+                    preset_source=preset_source,
+                    preset_origin=presets.origin_of(preset_source, config) if preset_source is not None else None)
 
 
 def _base_connected(root: str, read: Callable[[str, int], bytes], *, strict: bool) -> dict:
@@ -209,6 +219,23 @@ def _env_choice(env: Mapping[str, str], name: str) -> str | None:
     return raw
 
 
+def _preset(flags: Flags, env: Mapping[str, str], values: dict) -> tuple[str | None, str | None]:
+    """1.18.0: the preset and where it was set, flag over environment over file, as every setting. The file is the one
+    `load_settings` read: on a pull or merge request the base revision's, unless `--config` names one, which is read as given."""
+    if flags.preset is not None:
+        if flags.preset not in presets.PRESETS:
+            raise SettingsError(f"--preset: {flags.preset!r} is not one of {', '.join(presets.PRESETS)}")
+        return flags.preset, "flag"
+    raw = (env.get("SPELLWARDEN_PRESET") or "").strip()
+    if raw:
+        if raw not in presets.PRESETS:
+            raise SettingsError(f"SPELLWARDEN_PRESET: {raw!r} is not one of {', '.join(presets.PRESETS)}")
+        return raw, "environment"
+    if values.get("preset") is not None:
+        return values["preset"], "file"
+    return None, None
+
+
 def _read(root: str, config: str | None, read: Callable[[str, int], bytes] | None) -> tuple[object | None, str]:
     if config is not None:
         name = config
@@ -254,6 +281,8 @@ def _validate(document: object, name: str) -> dict:
             raise SettingsError(f"{name}: `{key}` must be a list of non-empty strings")
     if "fail-on" in document and document["fail-on"] not in FAIL_ON:
         raise SettingsError(f"{name}: `fail-on` must be one of {', '.join(FAIL_ON)}")
+    if "preset" in document and document["preset"] not in presets.PRESETS:
+        raise SettingsError(f"{name}: `preset` must be one of {', '.join(presets.PRESETS)}")
     for key in ("probe", "telemetry", "instructions"):
         if key in document and not isinstance(document[key], bool):
             raise SettingsError(f"{name}: `{key}` must be true or false")

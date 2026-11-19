@@ -1,5 +1,63 @@
 # Changelog
 
+## 1.18.0 (2026-11-19)
+
+Rules version 2026.11.7, unchanged (66 rules). Without a preset, or with `balanced`, a scan gives the same reports, findings,
+items and exit code as on 1.17.0, apart from the version.
+
+1.18.0: added a pre-commit hook definition (`.pre-commit-hooks.yaml`), the HTML report (`--format html`), presets
+(`--preset strict|balanced|low-noise`, the `preset` setting and `SPELLWARDEN_PRESET`) with the rule table. Unchanged: every
+output and exit code of a scan without a preset or with `balanced`; the rules and their versions (`RULES_VERSION` 2026.11.7).
+
+- The hook: this repository is a hook repository of the pre-commit framework (pre-commit 3.2.0 or later). The hook
+  `spellwarden` runs `spellwarden scan --no-upload` at the repository root, at the stages `pre-commit`, `pre-push` and
+  `manual`, when a commit changes agent content (its file filter is `spellwarden_cli.discover.AGENT_CONTENT_REGEX`). The scan
+  covers the whole repository and never uploads, and its exit code is the scanner's. Outside CI a hook run sends no usage
+  ping; in CI its scan sends the usage ping like any scan in CI, and `--no-telemetry` in the hook's `args`, or any other
+  switch in the README's "The usage ping", turns it off. The README's "Pre-commit hook" has the `.pre-commit-config.yaml`
+  lines.
+- The HTML report: `--format html` writes one self-contained file holding the versions, the date, the preset when one
+  applies, the outcome and exit code, the counts by severity, the notices and errors, every item with its findings, and the
+  lint notes and the analyzer's verdicts when present. The connected-mode details and the instruction-file scopes are in the
+  JSON report, not in the HTML report. Every string from the repository or a probed server is escaped
+  (`spellwarden_cli.escape.html`); there is no script, no event attribute and no external asset, one inline style without
+  `url(`, and a Content-Security-Policy that forbids every fetch, so opening the file makes no network request. It has no size
+  cap of its own.
+- Presets: `strict` raises named medium rules to high and low metadata rules to medium; `low-noise` turns off named metadata
+  and protocol-age rules and lowers named medium rules to low; `balanced` is each rule's own severity. The flag wins over the
+  environment, which wins over the file; on a pull or merge request the file is read from the base revision. A preset never
+  changes an organisation rule (`SW-ORG-`), the registry gate (`SW-REG-`), what the baseline accepts or an error, and never
+  lowers a critical or high finding or a malicious indicator; in connected mode the upload carries every finding at the rule's
+  own severity. Every report says when one applied (the notice `preset`, the JSON report's `preset` block, SARIF's
+  `runs[0].properties.preset`, CycloneDX's `spellwarden:preset` properties), a finding it moved carries `preset_from`, and a
+  finding it turned off is counted. The table of every rule is the README's "Presets", and `spellwarden rules --preset NAME`
+  prints it. `--preset` cannot be used with `--user`.
+- Lone surrogates: a string with a lone surrogate (a `\uD800` to `\uDFFF` escape without its pair) in the JSON answer of a
+  probed server or of the service is read with U+FFFD in its place, so a `--probe` scan ends with its normal exit code
+  instead of an internal error (exit 2) and writes every report and the lock file; a pair written as two escapes is kept. The
+  engine's fingerprint, package hash and canonical JSON encode a caller's lone surrogate as U+FFFD
+  (`spellwarden_scan.text.utf8`) and give the same hashes as before for any other text, and every report shows a lone
+  surrogate as `\u{NNNN}`. SKILL.md front matter and the settings and baseline files are read the same way (a pair written
+  as two escapes is joined into its character), so no metadata the engine returns holds a lone surrogate; every JSON reader
+  of repository files refuses one as not JSON, as before. Every request to the service is valid UTF-8: a file name that is
+  not valid UTF-8, or any other text with a lone surrogate, is sent with U+FFFD in its place, and the local reports are
+  unchanged. When two keys of one object would become equal, both are kept: the later one gets U+FFFD and a number
+  appended, so no value is dropped.
+- Tool hashes: a tool whose input schema holds a lone surrogate now has that schema recorded and hashed, with U+FFFD in
+  its place; 1.17.0 recorded no schema for such a tool, so a change to that schema went unnoticed. The lock entry and the
+  approved hash of such a tool change once, and SW-MCP-012 reports it until the tool is approved again. No other tool's
+  hash changes.
+- `spellwarden ci-run gitlab` reads the GitLab component's input `preset` (`SW_PRESET`) and adds `--preset VALUE` when it is
+  not empty; another value is a usage error (exit 2). The component and the GitHub Action take the input from their 1.18.0
+  releases (`wrappers/README.md`).
+- `schemas/report.schema.json` describes the optional `preset` block and a finding's optional `preset_from`;
+  `schemas/settings.schema.json` describes the key `preset`. Reports written by 1.17.0 still validate; a scanner older than
+  1.18.0 refuses a settings file with `preset`.
+- The tests hold 1.18.0 to 1.17.0: the reports of every fixture, in the six formats 1.17.0 has, were recorded from the release
+  tag v1.17.0 and are compared byte for byte, the version apart; within 1.18.0 no preset and the three ways of saying
+  `balanced` give the same bytes in every format, the HTML report included. CI runs the hook through the pre-commit framework
+  on Linux and Windows (`pre-commit` is a development dependency).
+
 ## 1.17.0 (2026-11-17)
 
 Rules version 2026.11.7, unchanged. A scan gives the same findings, items and exit code as on 1.16.2, apart from the version.

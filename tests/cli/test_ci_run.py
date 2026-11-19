@@ -417,3 +417,29 @@ def test_the_scan_carries_the_notices_it_is_given(tmp_path, monkeypatch, make_re
         json.loads((repo / "out.json").read_text(encoding="utf-8"))["notices"]
     assert cli.main(["scan", ".", "--no-telemetry", "--format", "json", "--output", "out.json"]) == 0
     assert "analyzer_no_key" not in (repo / "out.json").read_text(encoding="utf-8")
+
+
+# --- 1.18.0: the input preset (SW_PRESET) -----------------------------------------------------------------------------
+
+@pytest.mark.parametrize("value", ["", "strict", "balanced", "low-noise"])
+def test_the_preset_input_adds_the_flag_only_when_set(value, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    argv, problems, _, _ = ci.gitlab_argv({**VALID, "SW_PRESET": value})
+    expected = list(TODAYS_VALID_ARGV)
+    if value:
+        position = expected.index("--format")
+        expected[position:position] = ["--preset", value]
+    assert problems == [] and argv == expected
+
+
+def test_an_unset_preset_leaves_the_arguments_as_they_were(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    assert ci.gitlab_argv(VALID)[0] == TODAYS_VALID_ARGV
+
+
+def test_an_invalid_preset_input_is_a_problem_shown_escaped(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    argv, problems, _, _ = ci.gitlab_argv({**VALID, "SW_PRESET": "loud\x1b[31m"})
+    assert problems == [f"input preset: {ci.escape.terminal('loud' + chr(27) + '[31m')!r} is not one of strict, balanced, "
+                        "low-noise, or empty"]
+    assert "--preset" not in argv

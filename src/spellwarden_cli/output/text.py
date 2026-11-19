@@ -7,7 +7,7 @@ from __future__ import annotations
 import re
 from collections import Counter
 
-from spellwarden_cli import clients, instruction_files
+from spellwarden_cli import clients, instruction_files, presets
 from spellwarden_cli.escape import log_lines, terminal
 from spellwarden_cli.output import agents as agent_view
 from spellwarden_cli.report import FREE_MODE_NOTICES, Report
@@ -205,7 +205,9 @@ def render(report: Report) -> str:
             f = rf.finding
             line = "-" if f.location.line is None else str(f.location.line)
             accepted = f" (accepted: {terminal(rf.baseline['reason'])})" if rf.suppressed and rf.baseline else ""
-            lines.append(f"  {f.severity} {f.rule_id} {terminal(f.location.path)}:{line} {terminal(f.title)}{accepted}")
+            moved = (f" ({presets.change_words(rf.preset_from, f.severity, report.preset['name'])})"
+                     if rf.preset_from is not None and report.preset is not None else "")
+            lines.append(f"  {f.severity} {f.rule_id} {terminal(f.location.path)}:{line} {terminal(f.title)}{moved}{accepted}")
             if item in scopes:
                 lines.append(f"    {terminal(scopes[item])}")
         lines.append("")

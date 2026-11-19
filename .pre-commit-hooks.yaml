@@ -1,0 +1,12 @@
+# Spellwarden for the pre-commit framework: https://spellwarden.ai/docs/pre-commit?utm_source=github&utm_medium=readme&utm_campaign=pre-commit
+# Written by scripts/write_hooks_yaml.py from spellwarden_cli.discover.AGENT_CONTENT_REGEX. Do not edit by hand.
+- id: spellwarden
+  name: Spellwarden (scan agent skills, MCP configuration and hooks)
+  description: Scans the repository's agent content when it changes.
+  entry: spellwarden scan --no-upload
+  language: python
+  pass_filenames: false
+  require_serial: true
+  files: '(?i)(^|/)(skill\.md|(skills|\.claude|\.cursor|\.codex|\.vscode|\.claude-plugin|\.spellwarden|\.well-known)/.+|\.mcp\.json|mcp\.json|claude_desktop_config\.json|hooks/hooks\.json|agents\.md|claude\.md|gemini\.md|\.github/copilot-instructions\.md|\.cursorrules|\.windsurfrules|\.windsurf/rules/[^/]+\.md|\.devin/rules/[^/]+\.md|agent-card\.json)$'
+  stages: [pre-commit, pre-push, manual]
+  minimum_pre_commit_version: "3.2.0"

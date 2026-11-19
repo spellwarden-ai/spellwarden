@@ -245,3 +245,19 @@ def scan_json(run_cli, repo, env=None, *args: str):
     """`(exit code, report, stdout, stderr)` of `spellwarden scan` in JSON, with no usage ping."""
     code, out, err = run_cli(["scan", str(repo), "--format", "json", "--no-telemetry", *args], env=env)
     return code, (json.loads(out) if out.startswith("{") else None), out, err
+
+
+@pytest.fixture
+def example_rows(monkeypatch):
+    """1.18.0: the four rows the examples of the preset tests stand on, set for the test whatever `presets.ROWS` holds: two rules
+    `strict` raises to high and `low-noise` lowers to low, two rules `strict` raises to medium and `low-noise` turns off. A row of
+    the table can so change without a change to those tests; the table itself is checked row by row in
+    tests/cli/test_presets.py, without this fixture."""
+    from spellwarden_cli import presets
+
+    for rule_id, strict, low_noise in (("SW-SKL-006", "high", "low"), ("SW-SKL-009", "high", "low"),
+                                       ("SW-SKL-015", "medium", "off"), ("SW-SKL-031", "medium", "off")):
+        monkeypatch.setitem(presets._BY_ID, rule_id, presets.Row(rule_id, strict, low_noise, "an example of the tests"))
+    presets.changes.cache_clear()  # `changes` keeps what it computed from the rows
+    yield
+    presets.changes.cache_clear()  # monkeypatch puts the rows back after this

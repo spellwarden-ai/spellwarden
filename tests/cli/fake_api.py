@@ -94,6 +94,7 @@ class _Connection:
         sent.setdefault("Host", self.host if self.port in (80, 443) else f"{self.host}:{self.port}")
         self._sent = json.loads(body) if body else None
         self._api.requests.append((method, path, sent, self._sent))
+        self._api.raw_bodies.append(body)
         bare = path.split("?", 1)[0]
         for answer in self._api._answers:
             if answer.method == method and answer.path == bare and answer.left > 0 and answer.status != 0:
@@ -121,6 +122,7 @@ class _Connection:
 class FakeApi:
     def __init__(self, clock: FakeClock | None = None) -> None:
         self.requests: list[tuple[str, str, dict[str, str], object]] = []
+        self.raw_bodies: list[bytes | None] = []  # each request's body as sent, in the order of `requests`
         self._answers: list[_Answer] = []
         self._clock = clock or FakeClock()
 

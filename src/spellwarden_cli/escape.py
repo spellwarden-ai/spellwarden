@@ -18,7 +18,9 @@ _WORKFLOW_COMMAND = re.compile(r"^([^\S\n]*):(?=:)", re.MULTILINE)
 
 
 def _hidden(char: str) -> bool:
-    return bool(_INVISIBLE.match(char)) or unicodedata.category(char) == "Cf"
+    """A hidden character (shown as \\u{NNNN}): the list above, a format character, or (1.18.0) a lone surrogate, U+D800 to
+    U+DFFF on its own, which no UTF-8 encoder accepts, so no writer can fail at its final encode on one."""
+    return bool(_INVISIBLE.match(char)) or unicodedata.category(char) in ("Cf", "Cs")
 
 
 def terminal(text: str, *, single_line: bool = True) -> str:
@@ -87,6 +89,16 @@ def message(text: str) -> str:
     return "".join(out)
 
 
+_HTML_REFERENCES = {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#x27;"}
+
+
+def html(text: str) -> str:
+    """1.18.0, the HTML report: the terminal rules (C0 and C1 controls as \\xNN, hidden characters as \\u{NNNN}, tab and newline
+    as \\t and \\n), then `&`, `<`, `>`, `"` and `'` as character references, so the text can neither open an element nor leave a
+    quoted attribute value."""
+    return "".join(_HTML_REFERENCES.get(char, char) for char in terminal(text))
+
+
 codequality = terminal
 
-__all__ = ["code_span", "codequality", "markdown", "message", "terminal"]
+__all__ = ["code_span", "codequality", "html", "markdown", "message", "terminal"]

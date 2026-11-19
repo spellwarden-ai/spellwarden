@@ -1,6 +1,6 @@
 [project]
 name = "spellwarden"
-version = "1.17.0"
+version = "1.18.0"
 description = "Spellwarden: the scan engine for agent skills, MCP servers and Claude Code configuration and A2A agent cards (spellwarden_scan, pure code, no I/O) and the spellwarden command that does the I/O (spellwarden_cli)."
 readme = "README.md"
 license = "Apache-2.0"
@@ -33,6 +33,9 @@ dev = [
     "jsonschema>=4.23",
     # the reference OTLP decoder of tests/otel (runtime traces spec 4.9); never imported by the package (tests/test_pure.py)
     "opentelemetry-proto==1.45.1",
+    # the pre-commit framework: tests/test_pre_commit_hook.py runs the hook through it in CI (1.18.0); never imported by the
+    # package (tests/test_pure.py)
+    "pre-commit>=3.2.0",
     "pytest>=8.3",
     # jsonschema's `format-nongpl` checkers of `date-time` and `iri-reference` (MIT; never the GPL `rfc3987`): the CycloneDX
     # validator of tests/conftest.py checks both formats with them (1.16.2); never imported by the package (tests/test_pure.py)
@@ -49,7 +52,7 @@ build-backend = "hatchling.build"
 packages = ["src/spellwarden_scan", "src/spellwarden_cli"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src/spellwarden_scan", "src/spellwarden_cli", "tests", "fixtures", "schemas", "README.md", "CHANGELOG.md", "LICENSE", "pyproject.toml"]
+include = ["src/spellwarden_scan", "src/spellwarden_cli", "tests", "fixtures", "schemas", "README.md", "CHANGELOG.md", "LICENSE", "pyproject.toml", ".pre-commit-hooks.yaml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

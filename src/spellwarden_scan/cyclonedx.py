@@ -17,6 +17,7 @@ from collections.abc import Iterable, Sequence
 
 from spellwarden_scan.agentconfig import url_parts
 from spellwarden_scan.evidence import mask_credentials
+from spellwarden_scan.text import utf8
 
 SPEC_VERSION = "1.7"
 SCHEMA_URL = "http://cyclonedx.org/schema/bom-1.7.schema.json"
@@ -205,7 +206,8 @@ def dependency(ref: str, depends_on: Sequence[str]) -> dict:
 
 
 def _canonical(value: object) -> bytes:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    # 1.18.0: a lone surrogate as U+FFFD (text.utf8); any other value gives the bytes it always gave
+    return utf8(json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False))
 
 
 def document(*, subject: dict, tool_version: str, tool_url: str, timestamp: str, components: Sequence[dict],

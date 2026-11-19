@@ -18,6 +18,7 @@ import dataclasses
 
 from spellwarden_cli import api, run
 from spellwarden_cli.output import FORMATS, write_stdout
+from spellwarden_cli.presets import PRESETS
 from spellwarden_cli.report import LockState, Notice, Report
 from spellwarden_cli.secret import Credentials, Secret, read_credentials, take_secret
 from spellwarden_cli.settings import FAIL_ON, Flags, SettingsError, load_settings
@@ -63,9 +64,12 @@ def _add_scan(commands) -> None:
     scan.add_argument("--device-label", metavar="TEXT",
                       help="with --user --upload: the name your organisation sees for this device (kept for later runs)")
     scan.add_argument("--format", action=_FormatAction, metavar="FMT", dest="format",
-                      help="text (default), json, sarif, markdown, gitlab-codequality or cyclonedx; repeatable")
+                      help="text (default), json, sarif, markdown, gitlab-codequality, cyclonedx or html; repeatable")
     scan.add_argument("--output", action=_OutputAction, metavar="FILE", help="the file the preceding --format writes")
     scan.add_argument("--fail-on", choices=FAIL_ON, default=None, help="fail at this severity or worse (default: high)")
+    # 1.18.0: the severities of named rules (`presets.ROWS`); no preset, or balanced, is the scanner's behaviour without presets
+    scan.add_argument("--preset", choices=PRESETS, default=None,
+                      help="strict, balanced or low-noise: raise or lower named rules (default: none, each rule's own)")
     scan.add_argument("--locked", action="store_true", help="fail when .spellwarden/lock.json is absent or stale")
     probe = scan.add_mutually_exclusive_group()
     probe.add_argument("--probe", dest="probe", action="store_true", default=None,
@@ -159,7 +163,7 @@ def _scan_report(args: argparse.Namespace, context, credentials: Credentials,
         return _error_report(fail_on, as_of, "path_not_directory", args.path, "the scan path must be a directory",
                              tuple(getattr(args, "notices", ()))), False
     flags = Flags(fail_on=args.fail_on, probe=args.probe, probe_private=args.probe_private,
-                  telemetry=False if args.no_telemetry else None, upload=args.upload)
+                  telemetry=False if args.no_telemetry else None, upload=args.upload, preset=getattr(args, "preset", None))
     log = _stderr if args.verbose else run._silent
     api_url, overridden = api.api_url(os.environ, log)  # the ignore line is api_url's own
     try:
@@ -289,7 +293,7 @@ def _usage_problem(args: argparse.Namespace, outputs: list[tuple[str, str | None
                 return f"{flag} needs --user"
         return None
     for flag, given in (("PATH", args.path is not None), ("--locked", args.locked), ("--baseline", args.baseline is not None),
-                        ("--config", args.config is not None)):
+                        ("--config", args.config is not None), ("--preset", getattr(args, "preset", None) is not None)):
         if given:
             return f"--user scans the home directory and cannot be used with {flag}"
     if args.inventory and args.probe:

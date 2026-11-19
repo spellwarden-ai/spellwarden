@@ -25,6 +25,7 @@ from spellwarden_scan.model import (
     SettingFlag,
 )
 from spellwarden_scan.relpath import UnsafePath, contain
+from spellwarden_scan.text import utf8
 
 MAX_DEPTH = 32
 MAX_SERVERS = 200
@@ -46,7 +47,8 @@ def _load_jsonc(content: bytes) -> Any:
 
 
 def _canonical(value: Any) -> bytes:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    # 1.18.0: a lone surrogate as U+FFFD (text.utf8); any other value gives the bytes it always gave
+    return utf8(json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False))
 
 
 def _raw_json(value: Any) -> str:

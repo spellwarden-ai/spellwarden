@@ -8,6 +8,7 @@ from collections.abc import Mapping
 import yaml
 
 from spellwarden_scan.model import Metadata
+from spellwarden_scan.text import replace_lone_surrogates_in_json
 
 NAME_RE = re.compile(r"[a-z0-9][a-z0-9-]{0,63}")  # always `fullmatch`: `$` would accept a trailing newline
 _LINE = re.compile(r"[^\r\n]*(?:\r\n|\r|\n)|[^\r\n]+$")
@@ -36,8 +37,8 @@ def parse_frontmatter(text: str) -> tuple[dict, str]:
         if lines[index].rstrip("\r\n") == "---":
             block = "".join(lines[1:index])
             body = "".join(lines[index + 1:])
-            try:
-                loaded = yaml.safe_load(block)
+            try:  # 1.18.0: the one YAML boundary of the engine; a lone surrogate from a quoted escape becomes U+FFFD here
+                loaded = replace_lone_surrogates_in_json(yaml.safe_load(block))
             except yaml.YAMLError as exc:
                 raise FrontmatterError("invalid_yaml") from exc
             if loaded is None:

@@ -108,6 +108,8 @@ def _vulnerability(report: Report, finding: ReportFinding, ref: str, target: str
     state, response = cdx.ANALYSIS[status]
     location = f"{f.location.path}:{f.location.line}" if f.location.line else f.location.path
     properties = [cdx.prop("location", location), cdx.prop("origin", "rule"), cdx.prop("status", status)]
+    if finding.preset_from is not None:  # 1.18.0: the severity without the preset
+        properties.append(cdx.prop("preset_from", finding.preset_from))
     baseline = finding.baseline or {}
     if finding.suppressed and baseline.get("expires"):
         properties.append(cdx.prop("expires", baseline["expires"]))
@@ -157,6 +159,9 @@ def build(report: Report) -> dict:
     properties = [cdx.prop("mode", mode), cdx.prop("rules_version", report.rules_version),
                   cdx.prop("as_of", report.as_of), cdx.prop("exit_code", report.exit_code()),
                   cdx.prop("complete", not report.errors), cdx.prop("errors", len(report.errors))]
+    if report.preset is not None:  # 1.18.0: absent otherwise, so a scan without a preset writes the document of 1.17.0
+        properties += [cdx.prop("preset", report.preset["name"]), cdx.prop("preset_source", report.preset["source"]),
+                       cdx.prop("preset_changed", report.preset["changed"]), cdx.prop("preset_off", report.preset["off"])]
     for entry in report.clients or ():
         properties.append(cdx.prop(f"client:{entry['client']}", "found" if entry["found"] else "not_found"))
     return cdx.document(subject=subject, tool_version=report.scanner_version, tool_url=HOME_URL,

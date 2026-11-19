@@ -56,7 +56,9 @@ NOTICE_CODES = ("no_agent_content", "git_unavailable", "exec_bits_unknown", "sym
                 # 1.17.0 (Phase 4 batch B spec 11.4): the description lint
                 "description_lint",
                 # 1.17.0 (spec 11.3): the model-assisted analyzer; `ci-run gitlab` on a fork without SPELLWARDEN_MODEL_KEY
-                "model_assisted", "analysis_incomplete", "analyzer_no_key")
+                "model_assisted", "analysis_incomplete", "analyzer_no_key",
+                # 1.18.0: a preset other than balanced applied (`presets.apply`)
+                "preset")
 # The notices that say a run continued in free mode after connected mode could not start (O3 spec 6.4); the text and
 # Markdown outputs derive their "unavailable" line from them.
 FREE_MODE_NOTICES = ("connected_fallback", "fork_free_mode", "dependabot_free_mode")
@@ -99,9 +101,15 @@ class ReportFinding:
     item: str
     suppressed: bool = False
     baseline: dict | None = None  # {"reason", "added", "expires"} when a baseline entry matched
+    # 1.18.0: the finding's severity without the preset, when a preset (strict or low-noise) changed it; None otherwise, and then
+    # not serialised, so a report without a preset is byte-identical to 1.17.0's
+    preset_from: str | None = None
 
     def to_dict(self) -> dict:
-        return {**self.finding.to_dict(), "item": self.item, "suppressed": self.suppressed, "baseline": self.baseline}
+        entry = {**self.finding.to_dict(), "item": self.item, "suppressed": self.suppressed, "baseline": self.baseline}
+        if self.preset_from is not None:
+            entry["preset_from"] = self.preset_from
+        return entry
 
 
 @dataclass(frozen=True)
@@ -221,6 +229,9 @@ class Report:
     # without it (not serialised). Advisory: its verdicts never change the exit code (for a skill the analyzer could not
     # read, spec:Q4: `analysis.incomplete_analysis_is_scan_error`).
     analysis: tuple[dict, ...] | None = None
+    # 1.18.0: the preset applied, `{"name", "source", "changed", "off"}` (`presets.apply`), for strict or low-noise only; None
+    # without a preset or with balanced, and then not serialised, so such a report is byte-identical to 1.17.0's.
+    preset: dict | None = None
     # Per item path, the facts a CycloneDX document and the workstation upload may carry, already free of secrets
     # (`details.item_details`): hashes, transports, reduced endpoints and sources, command identities. Not serialised.
     details: dict = field(default_factory=dict, compare=False, repr=False)
@@ -285,4 +296,6 @@ def to_json_dict(report: Report) -> dict:
         document["lint"] = [entry.to_dict() for entry in report.lint]
     if report.analysis is not None:
         document["analysis"] = [dict(entry) for entry in report.analysis]
+    if report.preset is not None:
+        document["preset"] = dict(report.preset)
     return document

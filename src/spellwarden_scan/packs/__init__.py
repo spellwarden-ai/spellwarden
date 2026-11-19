@@ -16,7 +16,7 @@ from spellwarden_scan.orgrules import (
     PATTERN_KEYS, PATTERN_PREDICATES, PROBE_PREDICATES, SPEC_KEYS, OrgRuleError, validate_org_rule,
 )
 from spellwarden_scan.packs.enforcement import ENFORCEMENT_IDS, ENFORCEMENT_RULES, TARGET_IDS, EnforcementRule
-from spellwarden_scan.text import valid_block, valid_line
+from spellwarden_scan.text import utf8, valid_block, valid_line
 from spellwarden_scan.version import RULES_VERSION, __version__
 
 PACK_ERROR_CODES = ("bad_schema", "bad_pack", "bad_rules", "bad_org_rule", "too_many_org_rules")
@@ -252,9 +252,10 @@ def make_pack_document(*, pack_id: str, name: str, version: str, description: st
 
 
 def canonical_json(doc: PackDocument | dict) -> bytes:
-    """Sorted keys, no whitespace, UTF-8 (spec 5.4): two documents with the same canonical JSON are one pack version."""
+    """Sorted keys, no whitespace, UTF-8 (spec 5.4): two documents with the same canonical JSON are one pack version. A lone
+    surrogate is encoded as U+FFFD (`text.utf8`, 1.18.0)."""
     value = doc.to_dict() if isinstance(doc, PackDocument) else doc
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    return utf8(json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False))
 
 
 def pack_sha256(doc: PackDocument | dict) -> str:

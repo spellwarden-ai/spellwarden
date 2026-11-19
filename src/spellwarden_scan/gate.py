@@ -10,6 +10,7 @@ from spellwarden_scan.evidence import bounded_evidence, fingerprint, mask_creden
 from spellwarden_scan.identity import package_sha256
 from spellwarden_scan.model import Finding, Location
 from spellwarden_scan.rules import registry
+from spellwarden_scan.text import utf8
 
 GATE_RULE_IDS = ("SW-REG-001", "SW-REG-002", "SW-REG-003")
 GATE_REASONS = ("unhashable", "unresolved", "insecure", "unpinned", "unknown_launcher", "launch_override",
@@ -56,7 +57,7 @@ def unhashable_binding(files: Mapping[str, bytes], offending: Iterable[str]) -> 
     """The binding of an `unhashable` skill: the hash of its hashable files (`PackageFiles.files`) and the sorted,
     deduplicated offending paths, so an edit to `SKILL.md` or a script is a new finding (P48)."""
     paths = "\0".join(sorted(set(offending)))
-    return hashlib.sha256(f"{package_sha256(files)}\0{paths}".encode()).hexdigest()
+    return hashlib.sha256(utf8(f"{package_sha256(files)}\0{paths}")).hexdigest()
 
 
 __all__ = ["GATE_KINDS", "GATE_REASONS", "GATE_RULE_IDS", "gate_finding", "resolver_binding", "unhashable_binding"]

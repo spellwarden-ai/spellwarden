@@ -179,7 +179,13 @@ def scan(options: ScanOptions) -> Report:
         outcome = connected.upload(state, report, context, options)
         report.connected["upload"] = outcome
         report = dataclasses.replace(report, notices=(*report.notices, connected.upload_notice(outcome))).sorted()
-    return report
+    # 1.18.0: the preset last, after the upload, so the upload carries every finding at its rule's own severity and the exit code
+    # that gives; the reports written and the process exit code are the preset's. No preset, or balanced: the same report.
+    from spellwarden_cli import presets
+
+    settings = options.settings
+    return presets.apply(report, settings.preset, source=settings.preset_source or "flag",
+                         origin=settings.preset_origin or "--preset")
 
 
 def engine_findings(found: Discovery, rules: RuleSet, notices: list[Notice], errors: list[Notice] | None = None, *,

@@ -54,7 +54,8 @@ def settings_for(root: str, env: Mapping[str, str]) -> Settings:
 def current_report(root: str, *, as_of: date, env: Mapping[str, str]) -> Report:
     """A scan of `root` as the baseline commands need it: the settings file's include and exclude apply, the
     probe never runs (these commands make no network call), the baseline in place is applied."""
-    settings = dataclasses.replace(settings_for(root, env), probe=False)
+    # 1.18.0: no preset: a baseline accepts findings as the rules give them, whatever SPELLWARDEN_PRESET says
+    settings = dataclasses.replace(settings_for(root, env), probe=False, preset=None, preset_source=None, preset_origin=None)
     return run.scan(run.ScanOptions(root=root, settings=settings, as_of=as_of, env=dict(env)))
 
 
