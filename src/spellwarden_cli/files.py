@@ -12,7 +12,9 @@ import shutil
 import stat
 import subprocess
 import sys
+import threading
 import unicodedata
+import weakref
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
@@ -159,10 +161,13 @@ def _selected(path: str, settings: Settings) -> bool:
     return not any(glob_match(path, pattern) for pattern in settings.exclude)
 
 
+def _git_command(executable: str, top: str, root: str, *args: str) -> list[str]:
+    return [executable, "-c", f"safe.directory={top.replace(os.sep, '/')}", "-c", "core.fsmonitor=false", "-C", root, *args]
+
+
 def _git(executable: str, top: str, root: str, *args: str, env: Mapping[str, str] | None = None,
          stdin: bytes | None = None) -> bytes:
-    command = [executable, "-c", f"safe.directory={top.replace(os.sep, '/')}", "-c", "core.fsmonitor=false",
-               "-C", root, *args]
+    command = _git_command(executable, top, root, *args)
     feed = {"input": stdin} if stdin is not None else {"stdin": subprocess.DEVNULL}
     try:
         done = subprocess.run(command, capture_output=True, check=False, timeout=_GIT_TIMEOUT,
@@ -307,12 +312,28 @@ class IndexEntry:
     size: int
 
 
+def _stop_batch(process: subprocess.Popen) -> None:
+    """Ends a `git cat-file --batch` process: its input closed (git then exits), killed if it has not exited soon after."""
+    for pipe in (process.stdin, process.stdout):
+        try:
+            if pipe is not None:
+                pipe.close()
+        except OSError:
+            pass
+    try:
+        process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait()
+
+
 class StagedIndex:
     """The git index of the work tree holding a scan root, read once (1.19.0, `scan --staged`): every path at stage 0 under the
     scan root with its mode, object id and size (`git ls-files -z --stage --full-name`, then one `git cat-file --batch-check`),
-    and each blob read when it is asked for (`git cat-file --batch`), as stored: no filter and no line-ending conversion, so the
-    bytes are the same on every system. A staged scan so reads what would be committed whatever the working tree holds: no
-    untracked file and no unstaged change, and a path removed from the index is not listed. Raises `StagedUnavailable`."""
+    and each blob read when it is asked for, through one `git cat-file --batch` process kept for the index's life (started at
+    the first read, ended by `close`), as stored: no filter and no line-ending conversion, so the bytes are the same on every
+    system. A staged scan so reads what would be committed whatever the working tree holds: no untracked file and no unstaged
+    change, and a path removed from the index is not listed. Raises `StagedUnavailable`."""
 
     def __init__(self, root: str, *, git: str | None = None, env: Mapping[str, str] | None = None) -> None:
         self.root = os.path.abspath(root)
@@ -334,6 +355,25 @@ class StagedIndex:
             raise StagedUnavailable(f"--staged could not read the git index ({exc}).") from exc
         self.entries: dict[str, IndexEntry] = {path: IndexEntry(mode, oid, sizes[oid])
                                                for path, (mode, oid) in sorted(listed.items())}
+        self._batch: subprocess.Popen | None = None
+        self._batch_end: weakref.finalize | None = None  # ends the process if the index is dropped without `close`
+        self._lock = threading.Lock()
+
+    def close(self) -> None:
+        """Ends the `git cat-file --batch` process, if one was started; a later read starts another."""
+        with self._lock:
+            self._end_batch()
+
+    def __enter__(self) -> StagedIndex:
+        return self
+
+    def __exit__(self, *_exc: object) -> None:
+        self.close()
+
+    def _end_batch(self) -> None:
+        if self._batch_end is not None:
+            self._batch_end()  # calls `_stop_batch` once
+        self._batch = self._batch_end = None
 
     def _git(self, *args: str, stdin: bytes | None = None) -> bytes:
         return _git(self.executable, self.top, self.root, *args, env=self.env, stdin=stdin)
@@ -377,16 +417,39 @@ class StagedIndex:
         return sizes
 
     def _blob(self, entry: IndexEntry, shown: str) -> bytes:
-        """The bytes of `entry`'s blob (`git cat-file --batch`). Raises `OSError` when git cannot give them."""
-        try:
-            answer = self._git("cat-file", "--batch", stdin=f"{entry.oid}\n".encode("ascii"))
-        except _GitFailed as exc:
-            raise OSError(errno.EIO, f"git cannot read the staged {shown} ({exc})") from exc
-        header, _, rest = answer.partition(b"\n")
-        fields = header.decode("ascii", "replace").split(" ")
-        if len(fields) != 3 or fields[1] != "blob" or fields[2] != str(entry.size) or len(rest) < entry.size:
-            raise OSError(errno.EIO, f"git did not return the staged {shown}")
-        return rest[:entry.size]
+        """The bytes of `entry`'s blob, from the index's one `git cat-file --batch` process (binary pipes, no shell). Raises
+        `OSError` when git cannot give them; the process is then ended, since its output may be out of step, and the next read
+        starts another. A read that takes longer than git's time limit ends the process too."""
+        with self._lock:
+            if self._batch is None:
+                try:
+                    self._batch = subprocess.Popen(_git_command(self.executable, self.top, self.root, "cat-file", "--batch"),
+                                                   stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                                   env=self.env)
+                except (OSError, subprocess.SubprocessError) as exc:
+                    raise OSError(errno.EIO, f"git cannot read the staged {shown} ({type(exc).__name__})") from exc
+                self._batch_end = weakref.finalize(self, _stop_batch, self._batch)
+            process = self._batch
+            timer = threading.Timer(_GIT_TIMEOUT, process.kill)
+            timer.start()
+            try:
+                process.stdin.write(f"{entry.oid}\n".encode("ascii"))
+                process.stdin.flush()
+                header = process.stdout.readline(256)
+                fields = header.decode("ascii", "replace").rstrip("\n").split(" ")
+                if len(fields) != 3 or fields[1] != "blob" or fields[2] != str(entry.size):
+                    raise OSError(errno.EIO, f"git did not return the staged {shown}")
+                content = process.stdout.read(entry.size)
+                if len(content) != entry.size or process.stdout.read(1) != b"\n":
+                    raise OSError(errno.EIO, f"git did not return the staged {shown}")
+                return content
+            except OSError as exc:
+                self._end_batch()
+                if exc.errno == errno.EIO:
+                    raise
+                raise OSError(errno.EIO, f"git cannot read the staged {shown} ({type(exc).__name__})") from exc
+            finally:
+                timer.cancel()
 
     def blob(self, path: str, max_bytes: int) -> bytes:
         """The staged bytes of the regular file `path` (scan-root-relative), what `FileSet.read` returns under `--staged`:

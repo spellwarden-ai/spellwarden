@@ -156,6 +156,21 @@ def test_a_merge_conflict_in_a_skill_script_makes_the_analysis_incomplete_withou
         server.close()
 
 
+def test_the_batch_reader_ends_on_close_and_a_later_read_starts_another(make_repo, tmp_path, monkeypatch):
+    repo = make_repo(tmp_path / "repo", {"a.md": "first\n", "b.md": "second\n"})
+    processes: list = []
+    started = _git_processes(monkeypatch, processes)
+    with StagedIndex(str(repo)) as index:
+        fileset = index.fileset(Settings())
+        assert fileset.read("a.md") == b"first\n" and fileset.read("b.md") == b"second\n"
+        (batch,) = [process for process, args in zip(processes, started, strict=True) if "--batch" in args]
+        assert batch.poll() is None
+    assert batch.returncode is not None
+    assert fileset.read("a.md") == b"first\n"  # after close, a read starts another process
+    index.close()
+    assert sum(1 for args in started if "--batch" in args) == 2 and all(p.returncode is not None for p in processes)
+
+
 def test_an_untracked_lock_on_disk_is_not_the_lock_of_a_staged_scan(make_repo, tmp_path):
     """A lock file never staged is absent for a staged scan, whatever the working tree holds: a skill member link to it is the
     package's own link to the lock before it exists, as in a scan before the first `spellwarden lock`."""
@@ -310,6 +325,53 @@ def test_staged_outside_a_git_repository_is_an_error(tmp_path, run_cli):
 def test_staged_refuses_the_flags_that_contradict_it(args, message, run_cli):
     code, _out, err = run_cli(["scan", *args])
     assert code == 2 and message in err
+
+
+def _git_processes(monkeypatch, processes: list | None = None) -> list[list[str]]:
+    """Every git process started from here on, by its arguments (through `subprocess.Popen`, which `subprocess.run` uses too);
+    `processes`, when given, receives each process object."""
+    started: list[list[str]] = []
+
+    class Counting(subprocess.Popen):
+        def __init__(self, args, *rest, **kwargs):
+            if os.path.basename(str(args[0])).lower().startswith("git"):
+                started.append([str(arg) for arg in args])
+                if processes is not None:
+                    processes.append(self)
+            super().__init__(args, *rest, **kwargs)
+
+    monkeypatch.setattr(subprocess, "Popen", Counting)
+    return started
+
+
+def _many_files(base: Path, skills: int, scripts: int) -> dict[str, str]:
+    tree = {"README.md": "agents\n"}
+    for number in range(skills):
+        tree[f"skills/s{number}/SKILL.md"] = GOOD.replace("name: good", f"name: s{number}")
+        for script in range(scripts):
+            tree[f"skills/s{number}/scripts/run{script}.sh"] = f"#!/bin/sh\necho {number} {script}\n"
+    return tree
+
+
+def test_a_staged_scan_starts_a_bounded_number_of_git_processes(make_repo, tmp_path, run_cli, monkeypatch):
+    """The staged blobs are read through one `git cat-file --batch` process for the index's life, not one process per file: a
+    scan of 120 files starts as many git processes as a scan of 4, and gives the same report as a scan without `--staged`."""
+    few = make_repo(tmp_path / "few", _many_files(tmp_path, 1, 2))
+    many = make_repo(tmp_path / "many", _many_files(tmp_path, 6, 19))
+    processes: list = []
+    started = _git_processes(monkeypatch, processes)
+    code_few, report_few, _out, err = scan_json(run_cli, few, None, "--staged")
+    assert code_few == 0, err
+    for_few = len(started)
+    started.clear()
+    code_many, report_many, _out, err = scan_json(run_cli, many, None, "--staged")
+    assert code_many == 0, err
+    assert len(report_many["items"]) == 6 and len(started) == for_few <= 10, started
+    assert sum(1 for args in started if "--batch" in args) == 1
+    assert all(process.returncode is not None for process in processes)  # the batch process ended with the scan
+    monkeypatch.undo()
+    code_plain, report_plain, _out, _err = scan_json(run_cli, many, None)
+    assert (code_plain, report_plain) == (code_many, report_many)
 
 
 @pytest.mark.parametrize("root", ["tests/golden/1.0.0/repo", "tests/golden/1.13.0/repo", "fixtures/repos/findings/repo"])

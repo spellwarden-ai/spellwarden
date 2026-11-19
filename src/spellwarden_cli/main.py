@@ -205,6 +205,8 @@ def _scan_report(args: argparse.Namespace, context, credentials: Credentials,
                                  connected_read=connected_source.read if connected_source is not None else None,
                                  connected_credential=bool(credentials.org) or credentials.key is not None)
     except SettingsError as exc:
+        if staged is not None:  # 1.19.0: the index's git process ends here, not when the object is collected
+            staged.close()
         return _error_report(fail_on, as_of, "settings_invalid", args.config or ".spellwarden/config.yml", str(exc),
                              source.notices), False
     connected_mode = bool(credentials.org) or credentials.key is not None or settings.connected.required
@@ -234,6 +236,9 @@ def _scan_report(args: argparse.Namespace, context, credentials: Credentials,
     except Exception as exc:  # a scanner crash still writes every output (spec 6.2)
         return _error_report(settings.fail_on, as_of, "crash", "", f"internal error: {type(exc).__name__}: {exc}",
                              source.notices), telemetry
+    finally:
+        if staged is not None:  # 1.19.0: every staged read is done; the index's git process ends here
+            staged.close()
     options.log(f"scan took {time.monotonic() - started:.2f} s")
     return report, telemetry
 
