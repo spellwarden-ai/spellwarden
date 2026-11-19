@@ -45,10 +45,12 @@ def test_comment_safe_cuts_without_splitting_an_escape():
 # --- 1.18.0: lone surrogates ---------------------------------------------------------------------------------------------
 
 def test_a_lone_surrogate_becomes_the_replacement_character_and_other_text_is_unchanged():
-    assert replace_lone_surrogates("a\udc80b\ud800\udfff") == "a\ufffdb\ufffd\ufffd"
-    for text in ("", "plain", "Équipe \U0001F600 运维", "\ufffd", "\uffff\U00010000"):
-        assert replace_lone_surrogates(text) is text or replace_lone_surrogates(text) == text
-    assert replace_lone_surrogates(json.loads('"\\ud83d\\ude00"')) == "\U0001F600"  # a pair of escapes is one character
+    assert replace_lone_surrogates("a\udc80b\udfff\ud800c\ud800") == "a\ufffdb\ufffd\ufffdc\ufffd"  # a low before a high: two
+    for text in ("", "plain", "\u00c9quipe \U0001F600 \u8fd0\u7ef4", "\ufffd", "\uffff\U00010000"):
+        assert replace_lone_surrogates(text) == text
+    assert replace_lone_surrogates(json.loads('"\\ud83d\\ude00"')) == "\U0001F600"  # json joins a pair of escapes itself
+    # PyYAML leaves a pair of escapes as two code points: a high followed by a low is joined into the character it encodes
+    assert replace_lone_surrogates("x\ud83d\ude00y\ud800\udfff") == "x\U0001F600y\U000103FF"
 
 
 def test_every_string_of_a_parsed_json_value_is_made_safe_keys_included():

@@ -55,14 +55,23 @@ def comment_safe(s: str, max_len: int = 120) -> str:
 
 
 # 1.18.0: a lone surrogate, the code points U+D800 to U+DFFF on their own. JSON allows them as `\uD800` escapes and
-# Python's `json` decodes such an escape to that code point, but no UTF-8 encoder accepts one, so remote text that holds one
-# would make every later hash or file write raise. A pair written as two escapes is decoded to one character and is not one.
-_LONE_SURROGATE = re.compile("[\ud800-\udfff]")
+# Python's `json` decodes such an escape to that code point; PyYAML does the same with a double-quoted escape, and leaves a pair
+# written as two escapes as two code points. No UTF-8 encoder accepts one, so text that holds one would make every later hash
+# or file write raise. A high surrogate followed by a low one is a pair: it is joined into the character it encodes.
+_SURROGATE = re.compile("([\ud800-\udbff][\udc00-\udfff])|[\ud800-\udfff]")
+
+
+def _replaced(match: re.Match) -> str:
+    pair = match.group(1)
+    if pair is None:
+        return "\ufffd"
+    return chr(0x10000 + ((ord(pair[0]) - 0xD800) << 10) + (ord(pair[1]) - 0xDC00))
 
 
 def replace_lone_surrogates(text: str) -> str:
-    """`text` with each lone surrogate replaced by U+FFFD; any other text is returned unchanged."""
-    return _LONE_SURROGATE.sub("\ufffd", text)
+    """`text` with each pair of surrogates joined into its character and each lone surrogate replaced by U+FFFD; any other text
+    is returned unchanged."""
+    return _SURROGATE.sub(_replaced, text)
 
 
 def utf8(text: str) -> bytes:
@@ -71,30 +80,36 @@ def utf8(text: str) -> bytes:
     return replace_lone_surrogates(text).encode("utf-8")
 
 
+def _safe(item: object, pending: list) -> object:
+    """One member of a container: a string made safe, a list or mapping queued for the loop (changed in place), a tuple or set
+    (PyYAML's `!!omap` pairs and `!!set`) rebuilt with its members made safe; anything else as it is."""
+    if isinstance(item, str):
+        return replace_lone_surrogates(item)
+    if isinstance(item, (dict, list)):
+        pending.append(item)
+        return item
+    if isinstance(item, (tuple, set, frozenset)):
+        return type(item)(replace_lone_surrogates_in_json(member) for member in item)
+    return item
+
+
 def replace_lone_surrogates_in_json(value: object) -> object:
-    """A value as `json.loads` returns it, with `replace_lone_surrogates` applied to every string in it, keys included. Lists and
-    objects are changed in place (the caller owns what it just parsed) and walked with a loop, not a recursion, so any depth
-    `json.loads` accepted is handled. Two keys that become equal keep the later value, as a repeated JSON key does."""
-    if isinstance(value, str):
-        return replace_lone_surrogates(value)
-    pending = [value] if isinstance(value, (dict, list)) else []
+    """A value as `json.loads` or a YAML safe loader returns it, with `replace_lone_surrogates` applied to every string in it,
+    keys included. Lists and mappings are changed in place (the caller owns what it just parsed) and walked with a loop, not a
+    recursion, so any depth the parser accepted is handled. Two keys that become equal keep the later value, as a repeated key
+    does."""
+    pending: list = []
+    value = _safe(value, pending)
     while pending:
         node = pending.pop()
         if isinstance(node, list):
             for index, item in enumerate(node):
-                if isinstance(item, str):
-                    node[index] = replace_lone_surrogates(item)
-                elif isinstance(item, (dict, list)):
-                    pending.append(item)
+                node[index] = _safe(item, pending)
             continue
         entries = list(node.items())
         node.clear()
         for key, item in entries:
-            if isinstance(item, str):
-                item = replace_lone_surrogates(item)
-            elif isinstance(item, (dict, list)):
-                pending.append(item)
-            node[replace_lone_surrogates(key) if isinstance(key, str) else key] = item
+            node[_safe(key, pending)] = _safe(item, pending)
     return value
 
 
