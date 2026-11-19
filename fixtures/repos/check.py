@@ -142,6 +142,7 @@ def _check_report(expect: dict, report: dict) -> list[str]:
     problems += _check_connected(expect, report)
     problems += _check_agents(expect, report)
     problems += _check_analysis(expect, report)
+    problems += _check_preset(expect, report)
     if expect["probes"] is not None:
         got = {p["item"]: (p["status"], p["skip_reason"]) for p in report["probes"]}
         for wanted in expect["probes"]:
@@ -187,6 +188,18 @@ def _check_analysis(expect: dict, report: dict) -> list[str]:
             problems.append(f"the analysis of {want['skill']} is {have!r}, expected {want['status']!r}")
     extra = sorted(str(skill) for skill in set(seen) - {w["skill"] for w in wanted})
     return problems + ([f"unexpected analysed skills {extra}"] if extra else [])
+
+
+def _check_preset(expect: dict, report: dict) -> list[str]:
+    """The `preset` key of a case (scanner 1.18.0, `--preset`): the report's `preset` block holds the name, the source and the
+    counts the case names; a case without the key must produce no block at all (no preset, or `balanced`, reports as a scan
+    before presets existed)."""
+    block, wanted = report.get("preset"), expect["preset"]
+    if wanted is None:
+        return [] if block is None else [f"the report holds a preset block {block!r} although the case applies no preset"]
+    if not isinstance(block, dict):
+        return ["the report holds no preset block"]
+    return [f"preset {key} is {block.get(key)!r}, expected {value!r}" for key, value in wanted.items() if block.get(key) != value]
 
 
 def _check_connected(expect: dict, report: dict) -> list[str]:

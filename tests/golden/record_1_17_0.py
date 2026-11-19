@@ -30,7 +30,8 @@ ROOT_GLOBS = ("fixtures/skills/*/positive", "fixtures/skills/*/negative", "fixtu
               "fixtures/config/*/negative", "fixtures/config/plugins-settings", "fixtures/orgrules/skills/*",
               "fixtures/repos/*/repo", "fixtures/html-escape", "fixtures/presets", "tests/fixtures/a2a",
               "tests/fixtures/homes/*", "tests/golden/1.0.0/repo", "tests/golden/1.13.0/repo")
-ADDED_AFTER_1_17_0 = ("fixtures/html-escape", "fixtures/presets")  # fixtures 1.18.0 adds: not in the record
+# Fixtures 1.18.0 adds: not in the record. The last is the wrappers' case for their `preset` input.
+ADDED_AFTER_1_17_0 = ("fixtures/html-escape", "fixtures/presets", "fixtures/repos/preset/repo")
 
 
 def _module(name: str, path: Path):
