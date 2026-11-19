@@ -138,14 +138,24 @@ def test_a_container_shared_by_many_references_is_walked_once():
 
 
 def test_front_matter_built_from_nested_aliases_is_read_quickly():
+    """Five levels of nine aliases (45, within the front-matter limit of 50) reference one list 59,049 times; it is read quickly,
+    each list cleaned once. Nine levels (81 aliases) is past the limit and refused before it is loaded (1.19.0)."""
     from spellwarden_scan import parse_frontmatter
+    from spellwarden_scan.frontmatter import FrontmatterLimit
 
-    lines = ['a: &a ["l\\udc80", "l", "l", "l", "l", "l", "l", "l", "l"]']
-    for index in range(1, 10):
-        name, previous = chr(ord("a") + index), chr(ord("a") + index - 1)
-        lines.append(f"{name}: &{name} [{', '.join(['*' + previous] * 9)}]")
+    def block(levels: int) -> str:
+        lines = ['a: &a ["l\\udc80", "l", "l", "l", "l", "l", "l", "l", "l"]']
+        for index in range(1, levels):
+            name, previous = chr(ord("a") + index), chr(ord("a") + index - 1)
+            lines.append(f"{name}: &{name} [{', '.join(['*' + previous] * 9)}]")
+        return "---\n" + "\n".join(lines) + "\n---\nbody\n"
+
     started = time.perf_counter()
-    mapping, _ = parse_frontmatter("---\n" + "\n".join(lines) + "\n---\nbody\n")
+    mapping, _ = parse_frontmatter(block(6))
     assert time.perf_counter() - started < 1.0 * SPEED_FACTOR
-    assert mapping["a"][0] == "l\ufffd" and mapping["j"][0][0][0][0][0][0][0][0][0][0] == "l\ufffd"
+    assert mapping["a"][0] == "l\ufffd" and mapping["f"][0][0][0][0][0][0] == "l\ufffd"
+    started = time.perf_counter()
+    with pytest.raises(FrontmatterLimit):
+        parse_frontmatter(block(10))
+    assert time.perf_counter() - started < 1.0 * SPEED_FACTOR
 

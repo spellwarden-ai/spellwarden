@@ -22,7 +22,7 @@ import re
 from collections.abc import Iterator
 
 from spellwarden_scan.evidence import excerpt, fingerprint
-from spellwarden_scan.frontmatter import FrontmatterError, parse_frontmatter
+from spellwarden_scan.frontmatter import FrontmatterError, FrontmatterLimit, parse_frontmatter
 from spellwarden_scan.model import Finding, Location
 from spellwarden_scan.package import Package, TextFile
 
@@ -203,6 +203,8 @@ def detect(package: Package) -> Iterator[Finding]:
             continue
         try:
             mapping, _ = parse_frontmatter(unit.text)
+        except FrontmatterLimit as exc:  # 1.19.0: not read, so the caller's error to report, never a silent skip
+            raise exc.at(unit.path) from None
         except FrontmatterError:
             continue
         if not isinstance(mapping, dict) or _KEY not in mapping:

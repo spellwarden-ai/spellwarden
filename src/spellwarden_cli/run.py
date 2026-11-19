@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 
 from spellwarden_scan import (RULES_VERSION, Finding, OrgRuleBudget, RuleSet, __version__, lint, scan_agent_config,
                               scan_skill_package)
-from spellwarden_scan.frontmatter import metadata_of
+from spellwarden_scan.frontmatter import FrontmatterLimit, metadata_of
 from spellwarden_scan.model import SkillMeta
 
 from spellwarden_cli import agents as agents_module
@@ -188,21 +188,39 @@ def scan(options: ScanOptions) -> Report:
                          origin=settings.preset_origin or "--preset")
 
 
+# 1.19.0: a repository scan's way out of a front matter past a limit; `scan --user` reads no settings file and passes its own
+FRONTMATTER_WAY_OUT = "make the front matter smaller, or leave the file out with `exclude` in .spellwarden/config.yml"
+
+
+def frontmatter_refused(error: FrontmatterLimit, path: str, way_out: str = FRONTMATTER_WAY_OUT) -> Notice:
+    """1.19.0: the error `unreadable` of a front matter past one of the engine's limits (`frontmatter.FrontmatterLimit`): the
+    file, the limit and the way out. The skill or instruction file holding it is not judged, so the scan is incomplete
+    (exit 2); an unread front matter is never a finding."""
+    return Notice("unreadable", path, f"{error.detail}; not read, so the scan is incomplete: {way_out}")
+
+
 def engine_findings(found: Discovery, rules: RuleSet, notices: list[Notice], errors: list[Notice] | None = None, *,
-                    org_budget: Callable[[], OrgRuleBudget] | None = None) -> list[ReportFinding]:
+                    org_budget: Callable[[], OrgRuleBudget] | None = None,
+                    way_out: str = FRONTMATTER_WAY_OUT) -> list[ReportFinding]:
     """The engine once per skill (only that package's files, under scan-root keys, so finding paths are scan-root
     paths), once per instruction file and once for every configuration document that parsed or was truncated (spec 5.5, 6.5).
     In connected mode `org_budget` gives each package a time budget for the org rules; a rule that did not finish is the error
-    `org_rules_incomplete` (O3 spec 6.5)."""
+    `org_rules_incomplete` (O3 spec 6.5). A package with a front matter past one of the engine's limits is not judged: the
+    error `unreadable` names the file and `way_out`, the caller's way out (1.19.0, `frontmatter_refused`)."""
     from spellwarden_cli import connected
 
     findings: list[ReportFinding] = []
+    refused = errors if errors is not None else notices
     for skill in found.skills:
         # a case variant of SKILL.md is read under the engine's SKILL.md key and reported as written (spec 6.5)
-        result = scan_skill_package(skill.engine_files(), rules, root="" if skill.path == "." else skill.path,
-                                    executable_paths=skill.engine_executable(), nested_roots=skill.nested,
-                                    markdown_paths=skill.markdown,
-                                    **({"org_rule_budget": org_budget()} if org_budget is not None else {}))
+        try:
+            result = scan_skill_package(skill.engine_files(), rules, root="" if skill.path == "." else skill.path,
+                                        executable_paths=skill.engine_executable(), nested_roots=skill.nested,
+                                        markdown_paths=skill.markdown,
+                                        **({"org_rule_budget": org_budget()} if org_budget is not None else {}))
+        except FrontmatterLimit as exc:
+            refused.append(frontmatter_refused(exc, skill.as_written(exc.path) if exc.path else skill.path, way_out))
+            continue
         if result.org_rules_incomplete and errors is not None:
             errors.append(connected.org_rules_incomplete_error(result.org_rules_incomplete, skill.path))
         findings.extend(ReportFinding(_as_written(skill, finding), skill.path) for finding in result.findings)
@@ -211,9 +229,13 @@ def engine_findings(found: Discovery, rules: RuleSet, notices: list[Notice], err
     for instruction in found.instruction_files:
         # 1.13.0 (Phase 3 batch 1 spec 10.3): one file, scanned as an instruction file (every skill rule but the two about the
         # SKILL.md metadata); `markdown_paths` makes a `.mdc` rule, `.cursorrules` and `.windsurfrules` read as Markdown
-        result = scan_skill_package({instruction.path: instruction.content}, rules, root="", kind="instructions",
-                                    markdown_paths=frozenset({instruction.path}),
-                                    **({"org_rule_budget": org_budget()} if org_budget is not None else {}))
+        try:
+            result = scan_skill_package({instruction.path: instruction.content}, rules, root="", kind="instructions",
+                                        markdown_paths=frozenset({instruction.path}),
+                                        **({"org_rule_budget": org_budget()} if org_budget is not None else {}))
+        except FrontmatterLimit as exc:
+            refused.append(frontmatter_refused(exc, exc.path or instruction.path, way_out))
+            continue
         if result.org_rules_incomplete and errors is not None:
             errors.append(connected.org_rules_incomplete_error(result.org_rules_incomplete, instruction.path))
         findings.extend(ReportFinding(finding, instruction.path) for finding in result.findings)
@@ -235,14 +257,20 @@ LINT_GUIDE_URL = ("https://spellwarden.ai/docs/activation-checks?utm_source=scan
 def skill_lint(found: Discovery) -> tuple[SkillLint, ...] | None:
     """Phase 4 batch B spec 11.4: the description lint over every skill of the scan together (SW-LINT-004 compares siblings),
     one entry per skill in path order with at most `lint.MAX_NOTES_PER_SKILL` notes and the count left out; None when the
-    scan found no skill, so a report without skills is unchanged."""
+    scan found no skill, so a report without skills is unchanged. A skill whose front matter was not read (1.19.0, the error
+    `unreadable` of `engine_findings`) is left out; None when no skill is left."""
     if not found.skills:
         return None
     metas = []
     skill_files = {skill.path: skill.as_written(skill.engine_key()) for skill in found.skills}  # r0:F2: as written
     for skill in found.skills:
-        metadata = metadata_of(skill.engine_files(), "" if skill.path == "." else skill.path)
+        try:
+            metadata = metadata_of(skill.engine_files(), "" if skill.path == "." else skill.path)
+        except FrontmatterLimit:
+            continue
         metas.append(SkillMeta(skill.path, metadata.name, metadata.description))
+    if not metas:
+        return None
     notes, left_out = lint.counted(metas)
     by_path: dict[str, list] = {}
     for note in notes:
