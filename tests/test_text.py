@@ -70,3 +70,25 @@ def test_a_deep_json_value_is_walked_without_recursion():
     for _ in range(depth):
         value = value[0]
     assert value == "\ufffd"
+
+
+def test_keys_that_become_equal_are_all_kept_the_later_with_a_distinct_name():
+    """1.18.0: cleaning keys never loses a value. A cleaned key equal to one already in the cleaned object (another cleaned key,
+    or a key that was U+FFFD already) gets U+FFFD appended until it is unique; the earlier key in the document keeps its name."""
+    assert replace_lone_surrogates_in_json(json.loads('{"a\\udc80": 1, "a\\udc81": 2}')) == {"a\ufffd": 1, "a\ufffd\ufffd": 2}
+    assert list(replace_lone_surrogates_in_json(json.loads('{"a\\ufffd": 0, "a\\udc80": 1, "a\\udc81": 2}')).items()) == [
+        ("a\ufffd", 0), ("a\ufffd\ufffd", 1), ("a\ufffd\ufffd\ufffd", 2)]
+    assert list(replace_lone_surrogates_in_json(json.loads('{"a\\udc80": 1, "a\\ufffd": 0}')).items()) == [
+        ("a\ufffd", 1), ("a\ufffd\ufffd", 0)]
+    nested = '{"p": {"x\\udc80": {"d": "one"}, "x\\udc81": {"d": "two"}}, "q": [{"k\\ud800": 1, "k\\udbff": 2}]}'
+    first, second = (replace_lone_surrogates_in_json(json.loads(nested)) for _ in range(2))
+    assert first == second == {"p": {"x\ufffd": {"d": "one"}, "x\ufffd\ufffd": {"d": "two"}},
+                               "q": [{"k\ufffd": 1, "k\ufffd\ufffd": 2}]}
+    assert [list(first["p"]), list(first["q"][0])] == [list(second["p"]), list(second["q"][0])]
+
+
+def test_an_object_without_lone_surrogates_keeps_its_keys_in_their_order():
+    text = '{"z": 1, "a": {"y": 2, "b": [{"x": 3, "\\ufffd": 4, "\\ufffd\\ufffd": 5}]}, "m": "\\ud83d\\ude00"}'
+    value = replace_lone_surrogates_in_json(json.loads(text))
+    assert value == json.loads(text)
+    assert list(value) == ["z", "a", "m"] and list(value["a"]["b"][0]) == ["x", "\ufffd", "\ufffd\ufffd"]

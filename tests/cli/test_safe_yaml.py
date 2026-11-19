@@ -82,3 +82,8 @@ def test_a_lone_surrogate_from_a_quoted_escape_comes_out_as_the_replacement_char
     of `.spellwarden/config.yml` and `.spellwarden/baseline.yml` gives U+FFFD and the joined character, keys included."""
     value = loads(b'"k\\udc80": ["v\\ud800", {"n": "\\udfff"}]\npair: "\\ud83d\\ude00"\n', max_bytes=CONFIG_MAX, name="x.yml")
     assert value == {"k\ufffd": ["v\ufffd", {"n": "\ufffd"}], "pair": "\U0001F600"}
+
+
+def test_keys_that_clean_to_the_same_name_both_survive():
+    value = loads(b'"x\\udc80": 1\n"x\\udc81": 2\n', max_bytes=CONFIG_MAX, name="x.yml")
+    assert list(value.items()) == [("x�", 1), ("x��", 2)]

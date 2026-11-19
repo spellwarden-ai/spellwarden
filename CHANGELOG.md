@@ -41,7 +41,8 @@ output and exit code of a scan without a preset or with `balanced`; the rules an
   as two escapes is joined into its character), so no metadata the engine returns holds a lone surrogate; every JSON reader
   of repository files refuses one as not JSON, as before. Every request to the service is valid UTF-8: a file name that is
   not valid UTF-8, or any other text with a lone surrogate, is sent with U+FFFD in its place, and the local reports are
-  unchanged.
+  unchanged. When two keys of one object would become equal, both are kept: the later one has U+FFFD appended until its
+  name is unique, so no value is dropped.
 - Tool hashes: a tool whose input schema holds a lone surrogate now has that schema recorded and hashed, with U+FFFD in
   its place; 1.17.0 recorded no schema for such a tool, so a change to that schema went unnoticed. The lock entry and the
   approved hash of such a tool change once, and SW-MCP-012 reports it until the tool is approved again. No other tool's
