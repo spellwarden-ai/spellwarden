@@ -86,4 +86,4 @@ def test_a_lone_surrogate_from_a_quoted_escape_comes_out_as_the_replacement_char
 
 def test_keys_that_clean_to_the_same_name_both_survive():
     value = loads(b'"x\\udc80": 1\n"x\\udc81": 2\n', max_bytes=CONFIG_MAX, name="x.yml")
-    assert list(value.items()) == [("x�", 1), ("x��", 2)]
+    assert list(value.items()) == [("x\ufffd", 1), ("x\ufffd\ufffd2", 2)]

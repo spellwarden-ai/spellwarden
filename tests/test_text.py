@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import json
+import os
+import time
+from itertools import islice, product
 
 import pytest
 
@@ -41,6 +44,9 @@ def test_comment_safe_cuts_without_splitting_an_escape():
     assert cut == "x" * 117 and len(cut) <= 120
     assert comment_safe("abc", max_len=2) == "ab"
 
+# Wall-clock budgets scale with SPELLWARDEN_SPEED_FACTOR when it is set (CI sets 3), as in tests/test_growth_skl_037.py.
+SPEED_FACTOR = float(os.environ.get("SPELLWARDEN_SPEED_FACTOR", "1"))
+
 
 # --- 1.18.0: lone surrogates ---------------------------------------------------------------------------------------------
 
@@ -74,16 +80,16 @@ def test_a_deep_json_value_is_walked_without_recursion():
 
 def test_keys_that_become_equal_are_all_kept_the_later_with_a_distinct_name():
     """1.18.0: cleaning keys never loses a value. A cleaned key equal to one already in the cleaned object (another cleaned key,
-    or a key that was U+FFFD already) gets U+FFFD appended until it is unique; the earlier key in the document keeps its name."""
-    assert replace_lone_surrogates_in_json(json.loads('{"a\\udc80": 1, "a\\udc81": 2}')) == {"a\ufffd": 1, "a\ufffd\ufffd": 2}
+    or a key that was U+FFFD already) gets U+FFFD and a number from 2 appended; the earlier key in the document keeps its name."""
+    assert replace_lone_surrogates_in_json(json.loads('{"a\\udc80": 1, "a\\udc81": 2}')) == {"a\ufffd": 1, "a\ufffd\ufffd2": 2}
     assert list(replace_lone_surrogates_in_json(json.loads('{"a\\ufffd": 0, "a\\udc80": 1, "a\\udc81": 2}')).items()) == [
-        ("a\ufffd", 0), ("a\ufffd\ufffd", 1), ("a\ufffd\ufffd\ufffd", 2)]
+        ("a\ufffd", 0), ("a\ufffd\ufffd2", 1), ("a\ufffd\ufffd3", 2)]
     assert list(replace_lone_surrogates_in_json(json.loads('{"a\\udc80": 1, "a\\ufffd": 0}')).items()) == [
-        ("a\ufffd", 1), ("a\ufffd\ufffd", 0)]
+        ("a\ufffd", 1), ("a\ufffd\ufffd2", 0)]
     nested = '{"p": {"x\\udc80": {"d": "one"}, "x\\udc81": {"d": "two"}}, "q": [{"k\\ud800": 1, "k\\udbff": 2}]}'
     first, second = (replace_lone_surrogates_in_json(json.loads(nested)) for _ in range(2))
-    assert first == second == {"p": {"x\ufffd": {"d": "one"}, "x\ufffd\ufffd": {"d": "two"}},
-                               "q": [{"k\ufffd": 1, "k\ufffd\ufffd": 2}]}
+    assert first == second == {"p": {"x\ufffd": {"d": "one"}, "x\ufffd\ufffd2": {"d": "two"}},
+                               "q": [{"k\ufffd": 1, "k\ufffd\ufffd2": 2}]}
     assert [list(first["p"]), list(first["q"][0])] == [list(second["p"]), list(second["q"][0])]
 
 
@@ -92,3 +98,25 @@ def test_an_object_without_lone_surrogates_keeps_its_keys_in_their_order():
     value = replace_lone_surrogates_in_json(json.loads(text))
     assert value == json.loads(text)
     assert list(value) == ["z", "a", "m"] and list(value["a"]["b"][0]) == ["x", "\ufffd", "\ufffd\ufffd"]
+
+
+def test_a_name_the_document_already_holds_is_skipped():
+    value = replace_lone_surrogates_in_json(json.loads('{"a\\ufffd": 0, "a\\ufffd\\ufffd2": 9, "a\\udc80": 1, "a\\udc81": 2}'))
+    assert list(value.items()) == [("a\ufffd", 0), ("a\ufffd\ufffd2", 9), ("a\ufffd\ufffd3", 1), ("a\ufffd\ufffd4", 2)]
+
+
+def test_many_keys_that_all_collide_cost_linear_time_and_key_text():
+    """200,000 keys that differ only in which two low surrogates they hold (a low surrogate never starts a pair) all clean to
+    `name\ufffd\ufffd`: the names given are numbered, so the work and the text of the keys grow with the input, not with its square."""
+    lows = [chr(code) for code in range(0xDC00, 0xE000)]
+    keys = ["name" + first + second for first, second in islice(product(lows, repeat=2), 200_000)]
+    value = dict.fromkeys(keys, 1)
+    started = time.perf_counter()
+    cleaned = replace_lone_surrogates_in_json(value)
+    elapsed = time.perf_counter() - started
+    assert elapsed < 3.0 * SPEED_FACTOR, elapsed
+    assert len(cleaned) == 200_000 and sum(cleaned.values()) == 200_000  # no value lost
+    names = list(cleaned)
+    assert names[:3] == ["name\ufffd\ufffd", "name\ufffd\ufffd\ufffd2", "name\ufffd\ufffd\ufffd3"] and names[-1] == "name\ufffd\ufffd\ufffd200000"
+    assert sum(map(len, names)) < 3 * sum(map(len, keys))
+

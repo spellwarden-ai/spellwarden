@@ -110,8 +110,8 @@ def test_the_changelog_has_the_1_18_0_entry_above_1_17_0():
             "of a probed server or of the service is read with U+FFFD in its place") in entry
     assert ("SKILL.md front matter and the settings and baseline files are read the same way" in entry
             and "Every request to the service is valid UTF-8" in entry)
-    assert ("When two keys of one object would become equal, both are kept: the later one has U+FFFD appended until its name is "
-            "unique, so no value is dropped.") in entry
+    assert ("When two keys of one object would become equal, both are kept: the later one gets U+FFFD and a number appended, so "
+            "no value is dropped.") in entry
     for character in ("\u2014", "\u2013", "!"):
         assert character not in raw
 

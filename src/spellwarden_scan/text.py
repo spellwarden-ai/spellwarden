@@ -98,8 +98,10 @@ def replace_lone_surrogates_in_json(value: object) -> object:
     keys included. Lists and mappings are changed in place (the caller owns what it just parsed) and walked with a loop, not a
     recursion, so any depth the parser accepted is handled. No value is ever lost: a cleaned key equal to a key already in the
     cleaned mapping (two keys that clean to the same text, or one that already held U+FFFD) is kept under a distinct name, the
-    later key in the document's order with U+FFFD appended until it is unique, so a server cannot hide one value behind
-    another. A mapping without lone surrogates comes back with the same keys in the same order."""
+    later key in the document's order as `base + U+FFFD + n` with n counted per base from 2, skipping a name the mapping
+    already holds, so a server cannot hide one value behind another. The last n of each base is kept, so the work and the key
+    text stay linear in the input however many keys collide. A mapping without lone surrogates comes back with the same keys
+    in the same order."""
     pending: list = []
     value = _safe(value, pending)
     while pending:
@@ -110,11 +112,17 @@ def replace_lone_surrogates_in_json(value: object) -> object:
             continue
         entries = list(node.items())
         node.clear()
+        last: dict[str, int] = {}  # per base name, the last n given: each candidate is tried once, O(1) amortised
         for key, item in entries:
             key = _safe(key, pending)
-            if isinstance(key, str):
-                while key in node:
-                    key += "\ufffd"
+            if isinstance(key, str) and key in node:
+                base, n = key, last.get(key, 1)
+                while True:
+                    n += 1
+                    key = f"{base}\ufffd{n}"
+                    if key not in node:
+                        break
+                last[base] = n
             node[key] = _safe(item, pending)
     return value
 
