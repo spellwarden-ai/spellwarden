@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.18.0 (2026-11-NN)
+## 1.18.0 (2026-11-19)
 
 Rules version 2026.11.7, unchanged (66 rules). Without a preset, or with `balanced`, a scan gives the same reports, findings,
 items and exit code as on 1.17.0, apart from the version.
@@ -38,6 +38,10 @@ output and exit code of a scan without a preset or with `balanced`; the rules an
   engine's fingerprint, package hash and canonical JSON encode a caller's lone surrogate as U+FFFD
   (`spellwarden_scan.text.utf8`) and give the same hashes as before for any other text, and every report shows a lone
   surrogate as `\u{NNNN}`.
+- Tool hashes: a tool whose input schema holds a lone surrogate now has that schema recorded and hashed, with U+FFFD in
+  its place; 1.17.0 recorded no schema for such a tool, so a change to that schema went unnoticed. The lock entry and the
+  approved hash of such a tool change once, and SW-MCP-012 reports it until the tool is approved again. No other tool's
+  hash changes.
 - `spellwarden ci-run gitlab` reads the GitLab component's input `preset` (`SW_PRESET`) and adds `--preset VALUE` when it is
   not empty; another value is a usage error (exit 2). The component and the GitHub Action take the input from their 1.18.0
   releases (`wrappers/README.md`).
