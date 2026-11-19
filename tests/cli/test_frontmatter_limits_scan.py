@@ -92,3 +92,39 @@ def test_a_skill_with_a_refused_front_matter_is_incomplete_under_analyze_and_sen
         assert len(sent) == 1 and "name: tool" in sent[0] and "name: big" not in sent[0]  # only the skill that was read
     finally:
         server.close()
+
+
+def test_a_skill_with_a_refused_command_front_matter_is_incomplete_under_analyze_and_sends_nothing(make_repo, tmp_path,
+                                                                                                    run_cli):
+    """A front matter past a limit in a skill's `commands/` (or `agents/`) file refuses the whole package: no rule judged the
+    skill, so `--analyze` sends nothing for it, even though SKILL.md itself was read. Its entry is `incomplete` and names the
+    refused file, the notice says why, and the description lint leaves the skill out."""
+    from fake_model import FakeModel, completion
+
+    server = FakeModel(lambda _handler, _body: (500, {"Content-Type": "application/json"}, completion("{}")))
+    try:
+        repo = make_repo(tmp_path / "repo", {"skills/x/SKILL.md": CLEAN, "skills/x/commands/big.md": BIG})
+        code, out, err = run_cli(["scan", str(repo), "--format", "json", "--no-telemetry", "--quiet", "--analyze", "--model-endpoint",
+                                  server.url, "--model", "test-model"], env=None)
+        report = json.loads(out)
+        assert code == 2, err
+        assert [(error["code"], error["path"]) for error in report["errors"]] == [("unreadable", "skills/x/commands/big.md")]
+        (entry,) = report["analysis"]
+        assert entry["skill"] == "skills/x" and entry["status"] == "incomplete" and entry["categories"] == []
+        assert entry["limit"]["code"] == "too_large" and entry["limit"]["path"] == "commands/big.md"
+        assert entry["limit"]["bytes"] == len(BIG.encode())
+        (raised,) = [notice for notice in report["notices"] if notice["code"] == "analysis_incomplete"]
+        assert raised["path"] == "skills/x" and "commands/big.md" in raised["message"] and "front matter" in raised["message"]
+        assert server.requests == []
+        assert "lint" not in report or all(lint["skill"] != "skills/x" for lint in report["lint"])
+    finally:
+        server.close()
+
+
+def test_the_description_lint_leaves_out_a_skill_refused_for_a_command_front_matter(make_repo, tmp_path, run_cli):
+    repo = make_repo(tmp_path / "repo", {"skills/x/SKILL.md": CLEAN.replace("name: tool", "name: x"),
+                                         "skills/x/agents/big.md": BIG, "skills/tool/SKILL.md": CLEAN})
+    code, report, _out, err = scan_json(run_cli, repo)
+    assert code == 2, err
+    assert [(error["code"], error["path"]) for error in report["errors"]] == [("unreadable", "skills/x/agents/big.md")]
+    assert [entry["skill"] for entry in report["lint"]] == ["skills/tool"]

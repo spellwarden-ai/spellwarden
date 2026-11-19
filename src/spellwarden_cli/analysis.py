@@ -18,7 +18,7 @@ import json
 import os
 import posixpath
 import tempfile
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 
 from spellwarden_scan import analyzer
@@ -170,13 +170,18 @@ def limit_message(limit: analyzer.NotAnalyzed) -> str:
     return f"Not analysed: {limit.path} is not UTF-8 text, and the analyzer reads text files only."
 
 
-def _unread(found: Discovery, skill: SkillPackage, errors: Sequence[Notice] = ()) -> tuple[str, str] | None:
-    """The first file of the skill that `analyzer.build_request` would send but the scan did not read (r1:F1, spec 4.8):
-    `(path relative to the skill, why)`, else None; why is `link` (a member link that was not followed), `size` (a script over
-    `FILE_MAX`, the scan's error `unreadable`, also listed in the file set's `too_large`) or `front_matter` (a file whose front
-    matter the engine refused: the error `unreadable` of the run's `errors`, which discovery never held). `skill.engine_files()`
-    leaves such a file out, so sending the rest would show content the user controls as analysed."""
+def _unread(found: Discovery, skill: SkillPackage, errors: Sequence[Notice] = (),
+            refused: Mapping[str, str] | None = None) -> tuple[str, str] | None:
+    """The file that makes the skill one the scan did not read whole (spec 4.8): `(path relative to the skill, why)`, else
+    None. First a file of any kind whose front matter the engine refused (`front_matter`: `refused`, from `run.engine_findings`,
+    maps the skill to it): then no rule judged the package, so nothing of it may be shown as analysed. Else the first file
+    `analyzer.build_request` would send but the scan did not read: why is `link` (a member link that was not followed), `size`
+    (a script over `FILE_MAX`, the scan's error `unreadable`, also listed in the file set's `too_large`) or `front_matter` (the
+    error `unreadable` of the run's `errors`, which discovery never held). `skill.engine_files()` leaves such a file out, so
+    sending the rest would show content the user controls as analysed."""
     prefix = "" if skill.path == "." else f"{skill.path}/"
+    if refused is not None and skill.path in refused:
+        return refused[skill.path][len(prefix):], "front_matter"
     links = set(skill.links)
     sized = {notice.path for notice in found.errors if notice.code == "unreadable"}
     if found.fileset is not None:
@@ -194,8 +199,8 @@ def _unread(found: Discovery, skill: SkillPackage, errors: Sequence[Notice] = ()
 def _unread_message(relative: str, why: str) -> str:
     """The notice `analysis_incomplete` of a file the scan did not read: what it is and the way out."""
     if why == "front_matter":
-        return (f"Not analysed: the front matter of {relative} is past a limit of the scanner and the file was not read, so the "
-                "analyzer cannot read the skill whole. Make the front matter smaller, or leave the skill out.")
+        return (f"Not analysed: the front matter of {relative} is past a limit of the scanner, so the rules did not judge the "
+                "skill and the analyzer cannot read it whole. Make the front matter smaller, or leave the skill out.")
     if why == "link":
         return (f"Not analysed: {relative} is a symbolic link the scan did not follow, so the analyzer cannot read the skill "
                 "whole. Replace the link with the file it leads to.")
@@ -204,10 +209,12 @@ def _unread_message(relative: str, why: str) -> str:
 
 
 def analyse(found: Discovery, findings: Sequence[ReportFinding], options: AnalyzeOptions, notices: list[Notice],
-            errors: list[Notice], *, client_factory: Callable[[AnalyzeOptions], object] | None = None) -> tuple[dict, ...]:
+            errors: list[Notice], *, client_factory: Callable[[AnalyzeOptions], object] | None = None,
+            refused: Mapping[str, str] | None = None) -> tuple[dict, ...]:
     """One `analysis` entry per skill, in path order; appends `analysis_incomplete` notices (or errors, by
     `incomplete_analysis_is_scan_error`) and the one `model_assisted` notice. `findings` are the scan's, after the baseline:
-    a category whose rules have an open finding in the skill carries `rules_found: true`."""
+    a category whose rules have an open finding in the skill carries `rules_found: true`. `refused` is `run.engine_findings`'s
+    map of the packages whose front matter it refused: such a skill is `incomplete` and nothing is sent for it."""
     if client_factory is None:
         from spellwarden_cli import model_client  # here: only a scan with --analyze imports the network module
 
@@ -224,7 +231,7 @@ def analyse(found: Discovery, findings: Sequence[ReportFinding], options: Analyz
     for skill in sorted(found.skills, key=lambda one: one.path):
         package_hash = _package_hash(skill)
         rules = analyzer.rules_found(open_ids.get(skill.path, ()))
-        unread = _unread(found, skill, errors)
+        unread = _unread(found, skill, errors, refused)
         if unread is not None:  # before the cache and the request: nothing is sent or kept for a skill not read whole
             prefix = "" if skill.path == "." else f"{skill.path}/"
             # a file whose front matter was refused was read, so its size is known; the others were not read (10 MiB or more)
