@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.19.0 (2026-11-NN)
+## 1.19.0 (2026-11-20)
 
 Rules version 2026.11.7, unchanged (66 rules). A scan without `--staged` gives the same reports, findings, items and exit code
 as on 1.18.0, apart from the version, for every front matter within the new limits and every analyzer reply that keeps the
@@ -49,7 +49,7 @@ analyzer could not read. Unchanged: the rules and their versions (`RULES_VERSION
 - Words: the README says what the analyzer's nonce does (it checks that the reply answers this request in the schema; it does
   not stop a skill that tells the model to repeat it, and the defences are the advisory result and the rules beside it) and
   that the rates will be measured on fresh held-out skills.
-- A correction to the 1.18.0 entry, dated 2026-11-NN: 1.18.0 had two exceptions to unchanged outputs: a `--probe` exit path,
+- A correction to the 1.18.0 entry, dated 2026-11-20: 1.18.0 had two exceptions to unchanged outputs: a `--probe` exit path,
   and the lock hash of a tool input schema holding a lone surrogate, which changes once and raises SW-MCP-012, so exit 3
   under `--locked` once after upgrading.
 - Tests: hostile input in the HTML report's probed server, agent card, analysis span, lint and lock-change sections; the
