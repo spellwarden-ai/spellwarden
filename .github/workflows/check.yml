@@ -136,7 +136,9 @@ jobs:
       - name: The hook in a repository with a finding and in a clean one
         env:
           SPELLWARDEN_PRE_COMMIT_TRY_REPO: "1"
-        run: uv run --locked pytest -q tests/test_pre_commit_hook.py -o faulthandler_timeout=1200
+        # The test repositories are made under the runner's temporary directory, which is on the checkout's drive: on Windows
+        # `pre-commit try-repo` cannot reach a repository on another drive (the default temporary directory is on C:).
+        run: uv run --locked pytest -q tests/test_pre_commit_hook.py -o faulthandler_timeout=1200 --basetemp "$RUNNER_TEMP/pre-commit-hook"
 
   # Phase C spec 5.5.1, the release gate of the managed hook mode (owner answer R2, claim E7). On each platform the
   # managed export of the vector pack is installed at its documented path with administrator rights, owned by root or
