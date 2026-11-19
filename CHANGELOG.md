@@ -41,7 +41,9 @@ analyzer could not read. Unchanged: the rules and their versions (`RULES_VERSION
   and its `limit` now names the file in `path`. This holds for a skill with a front matter past a limit too, in its
   `SKILL.md` or in a Markdown file of its `commands/` or `agents/` directory: with `--analyze` it was sent to the model and
   shown as analysed; it is now `incomplete` with that file in `path`, nothing is sent for it, and the notice names the front
-  matter. The description lint leaves such a skill out.
+  matter. The description lint leaves such a skill out. A SKILL.md or script the scan did not read for another reason (a
+  path with an unresolved merge conflict under `--staged`, a file that cannot be read) is `incomplete` too, its `limit`
+  naming the file in `path` without `bytes`, and its notice says that the file was not read.
 - Words: the README says what the analyzer's nonce does (it checks that the reply answers this request in the schema; it does
   not stop a skill that tells the model to repeat it, and the defences are the advisory result and the rules beside it) and
   that the rates will be measured on fresh held-out skills.

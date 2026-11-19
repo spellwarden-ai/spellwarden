@@ -263,3 +263,21 @@ def test_a_cache_entry_past_the_caps_or_unmasked_is_not_served(tmp_path, change)
     (again,), _, _ = run(one, client, cache_dir=str(cache))
     assert again["cached"] is False and len(client.calls) == 2
     assert "AKIAIOSFODNN7EXAMPLE" not in json.dumps(again)
+
+
+def test_a_script_the_file_set_could_not_read_is_not_called_a_front_matter_refusal():
+    """A selected file the file set itself could not read (the run's error `unreadable` that discovery never held, such as a
+    file that cannot be stat'ed) makes the analysis `incomplete`, with the file in `path` and no size, since none is known; the
+    notice says the file was not read, never that a front matter is past a limit."""
+    from spellwarden_cli.report import Notice
+
+    client = Scripted(good)
+    errors = [Notice("unreadable", "skills/a/scripts/run.sh", "cannot be read (Permission denied)")]
+    notices: list = []
+    entries = analysis.analyse(found(skill("skills/a", {"SKILL.md": SKILL})), [], options(), notices, errors,
+                               client_factory=lambda _o: client)
+    (entry,) = entries
+    assert entry["status"] == "incomplete" and client.calls == []
+    assert entry["limit"] == {"code": "too_large", "max": analyzer.ANALYZER_MAX_BYTES, "path": "scripts/run.sh"}
+    (raised,) = [notice for notice in notices if notice.code == "analysis_incomplete"]
+    assert "scripts/run.sh" in raised.message and "front matter" not in raised.message and "MiB" not in raised.message

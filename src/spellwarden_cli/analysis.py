@@ -176,9 +176,10 @@ def _unread(found: Discovery, skill: SkillPackage, errors: Sequence[Notice] = ()
     None. First a file of any kind whose front matter the engine refused (`front_matter`: `refused`, from `run.engine_findings`,
     maps the skill to it): then no rule judged the package, so nothing of it may be shown as analysed. Else the first file
     `analyzer.build_request` would send but the scan did not read: why is `link` (a member link that was not followed), `size`
-    (a script over `FILE_MAX`, the scan's error `unreadable`, also listed in the file set's `too_large`) or `front_matter` (the
-    error `unreadable` of the run's `errors`, which discovery never held). `skill.engine_files()` leaves such a file out, so
-    sending the rest would show content the user controls as analysed."""
+    (a script over `FILE_MAX`, the scan's error `unreadable`, also listed in the file set's `too_large`) or `unread` (any other
+    error `unreadable` of the run's `errors`, which discovery never held: an unresolved merge conflict under `--staged`, a
+    file that cannot be stat'ed). `skill.engine_files()` leaves such a file out, so sending the rest would show content the
+    user controls as analysed."""
     prefix = "" if skill.path == "." else f"{skill.path}/"
     if refused is not None and skill.path in refused:
         return refused[skill.path][len(prefix):], "front_matter"
@@ -186,13 +187,14 @@ def _unread(found: Discovery, skill: SkillPackage, errors: Sequence[Notice] = ()
     sized = {notice.path for notice in found.errors if notice.code == "unreadable"}
     if found.fileset is not None:
         sized.update(found.fileset.too_large)
-    refused = {notice.path for notice in errors if notice.code == "unreadable"} - sized - links
-    for path in sorted(sized | links | refused):
+    front_matter = set(refused.values()) if refused is not None else set()
+    others = {notice.path for notice in errors if notice.code == "unreadable"} - sized - links - front_matter
+    for path in sorted(sized | links | others):
         if not path.startswith(prefix) or any(path.startswith(f"{nested}/") for nested in skill.nested):
             continue
         relative = path[len(prefix):]
         if analyzer.selects(relative, path, skill.executable):
-            return relative, "link" if path in links else "front_matter" if path in refused else "size"
+            return relative, "link" if path in links else "unread" if path in others else "size"
     return None
 
 
@@ -201,6 +203,9 @@ def _unread_message(relative: str, why: str) -> str:
     if why == "front_matter":
         return (f"Not analysed: the front matter of {relative} is past a limit of the scanner, so the rules did not judge the "
                 "skill and the analyzer cannot read it whole. Make the front matter smaller, or leave the skill out.")
+    if why == "unread":
+        return (f"Not analysed: {relative} was not read by the scan (its error `unreadable` says why), so the analyzer cannot "
+                "read the skill whole. Fix what that error names, or leave the file out of the skill.")
     if why == "link":
         return (f"Not analysed: {relative} is a symbolic link the scan did not follow, so the analyzer cannot read the skill "
                 "whole. Replace the link with the file it leads to.")
@@ -234,8 +239,10 @@ def analyse(found: Discovery, findings: Sequence[ReportFinding], options: Analyz
         unread = _unread(found, skill, errors, refused)
         if unread is not None:  # before the cache and the request: nothing is sent or kept for a skill not read whole
             prefix = "" if skill.path == "." else f"{skill.path}/"
-            # a file whose front matter was refused was read, so its size is known; the others were not read (10 MiB or more)
-            size = len(skill.files.get(prefix + unread[0], b"")) if unread[1] == "front_matter" else FILE_MAX
+            # a file whose front matter was refused was read, so its size is known; a file over the size limit or a link not
+            # followed is 10 MiB or more; any other file not read has no size known, so none is given
+            size = (len(skill.files.get(prefix + unread[0], b"")) if unread[1] == "front_matter"
+                    else None if unread[1] == "unread" else FILE_MAX)
             limit = analyzer.NotAnalyzed("too_large", bytes=size, max=options.max_bytes, path=unread[0])
             notice = Notice("analysis_incomplete", skill.path, _unread_message(*unread))
             (errors if incomplete_analysis_is_scan_error(limit.code) else notices).append(notice)

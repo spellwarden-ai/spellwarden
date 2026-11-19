@@ -97,8 +97,9 @@ _BEDROCK_PREFIX = "eu.anthropic."
 @dataclass(frozen=True)
 class NotAnalyzed:
     """A skill the analyzer did not read (spec 4.8, customer content): `too_large` with the masked `bytes` and the `max` (and,
-    since 1.19.0, the `path` relative to the skill of a file the scan itself did not read, when the command knows it), or
-    `not_text` with the `path` of the first file that is not UTF-8. Never shown as analysed or clean."""
+    since 1.19.0, the `path` relative to the skill of a file the scan itself did not read, when the command knows it, and no
+    `bytes` when that file's size is not known), or `not_text` with the `path` of the first file that is not UTF-8. Never
+    shown as analysed or clean."""
     code: str
     bytes: int | None = None
     max: int | None = None
@@ -106,7 +107,7 @@ class NotAnalyzed:
 
     def to_dict(self) -> dict:
         if self.code == "too_large":
-            limit = {"code": self.code, "bytes": self.bytes, "max": self.max}
+            limit = {"code": self.code, **({"bytes": self.bytes} if self.bytes is not None else {}), "max": self.max}
             if self.path is not None:
                 limit["path"] = self.path
             return limit

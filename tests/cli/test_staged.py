@@ -124,6 +124,38 @@ def test_an_unresolved_merge_conflict_is_unreadable(make_repo, tmp_path):
     assert [(error.code, error.path) for error in fileset.errors] == [("unreadable", "c.md")]
 
 
+def test_a_merge_conflict_in_a_skill_script_makes_the_analysis_incomplete_without_a_front_matter_reason(make_repo, tmp_path,
+                                                                                                        run_cli):
+    """Under `--staged --analyze`, a skill script the index holds only as an unresolved merge conflict was not read: the error
+    `unreadable` says so, the skill's analysis is `incomplete` naming the script with no size (none is known), nothing is sent,
+    and the notice says the file was not read, never that a front matter is past a limit."""
+    from fake_model import FakeModel, completion
+
+    repo = make_repo(tmp_path / "repo", {"skills/tool/SKILL.md": GOOD, "skills/tool/scripts/run.sh": "#!/bin/sh\necho hi\n"})
+    oid = _object(repo, b"#!/bin/sh\necho side\n")
+    lines = f"0 {'0' * 40}\tskills/tool/scripts/run.sh\n" + "".join(
+        f"100644 {oid} {stage}\tskills/tool/scripts/run.sh\n" for stage in (1, 2, 3))
+    subprocess.run([*GIT, "-C", str(repo), "update-index", "--index-info"], input=lines.encode("ascii"), check=True,
+                   capture_output=True)
+    server = FakeModel(lambda _handler, _body: (500, {"Content-Type": "application/json"}, completion("{}")))
+    try:
+        code, report, _out, err = scan_json(run_cli, repo, None, "--staged", "--quiet", "--analyze", "--model-endpoint",
+                                            server.url, "--model", "test-model")
+        assert code == 2, err
+        assert [(error["code"], error["path"]) for error in report["errors"]] == [("unreadable", "skills/tool/scripts/run.sh")]
+        assert "merge conflict" in report["errors"][0]["message"]
+        (entry,) = report["analysis"]
+        assert entry["status"] == "incomplete" and entry["categories"] == []
+        assert entry["limit"]["code"] == "too_large" and entry["limit"]["path"] == "scripts/run.sh"
+        assert "bytes" not in entry["limit"]
+        (raised,) = [notice for notice in report["notices"] if notice["code"] == "analysis_incomplete"]
+        assert "scripts/run.sh" in raised["message"] and "was not read" in raised["message"]
+        assert "front matter" not in raised["message"] and "MiB" not in raised["message"]
+        assert server.requests == []
+    finally:
+        server.close()
+
+
 def test_an_untracked_lock_on_disk_is_not_the_lock_of_a_staged_scan(make_repo, tmp_path):
     """A lock file never staged is absent for a staged scan, whatever the working tree holds: a skill member link to it is the
     package's own link to the lock before it exists, as in a scan before the first `spellwarden lock`."""
