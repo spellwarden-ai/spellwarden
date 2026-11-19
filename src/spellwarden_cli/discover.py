@@ -542,6 +542,8 @@ class _Builder:
             return False
         if directory_too and any(name == lock_dir or name.startswith(lock_dir + "/") for name in listed):
             return False
+        if self.fileset.index is not None:  # 1.19.0, `--staged`: the index is the whole file set, so nothing listed is absent
+            return True
         try:
             directory = os.lstat(os.path.join(self.fileset.root, lock_dir))
         except FileNotFoundError:
