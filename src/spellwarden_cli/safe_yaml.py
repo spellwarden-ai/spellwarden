@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import yaml
 
+from spellwarden_scan.text import replace_lone_surrogates_in_json
+
 CONFIG_MAX = 64 * 1024
 BASELINE_MAX = 2**20
 MAX_DEPTH = 8
@@ -35,7 +37,10 @@ def loads(data: bytes, *, max_bytes: int, name: str) -> object:
         raise YamlRefused(name, "not_yaml", "not UTF-8") from exc
     try:
         _check_events(text, name)
-        return yaml.load(text, Loader=yaml.SafeLoader)  # noqa: S506 - every refusal above has been checked
+        # 1.18.0: a lone surrogate from a double-quoted escape becomes U+FFFD (a pair is joined), so no setting or baseline
+        # value can reach a report, an upload or a written file holding one
+        loaded = yaml.load(text, Loader=yaml.SafeLoader)  # noqa: S506 - every refusal above has been checked
+        return replace_lone_surrogates_in_json(loaded)
     except yaml.YAMLError as exc:
         raise YamlRefused(name, "not_yaml", str(exc).splitlines()[0] if str(exc) else "") from exc
 

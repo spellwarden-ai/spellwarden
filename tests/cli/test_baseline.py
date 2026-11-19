@@ -433,3 +433,16 @@ def test_add_refuses_rule_or_path_without_fingerprint(tmp_path, make_repo, run_c
     repo = _repo(tmp_path, make_repo)
     code, _out, err = run_cli(["baseline", "add", str(repo), "--all", "--rule", "SW-REG-001", "--reason", "x"])
     assert code == 2 and "--fingerprint" in err
+
+
+def test_a_baseline_reason_with_a_lone_surrogate_escape_is_read_as_the_replacement_character(tmp_path, make_repo, run_cli):
+    """1.18.0: the reason reaches every report and the connected upload; it holds U+FFFD, never a lone surrogate."""
+    repo = _repo(tmp_path, make_repo)
+    _code, report = _scan(run_cli, repo, "--as-of", "2026-12-15")
+    _write(repo, [_entry(_finding(report, "SW-SKL-007")["fingerprint"], reason='"Mirrored \\udc80 copy."')])
+    code, out, err = run_cli(["scan", str(repo), "--no-telemetry", "--as-of", "2026-12-15", "--format", "json",
+                              "--format", "text", "--output", str(tmp_path / "report.txt")])
+    assert code == 0, err
+    finding = _finding(json.loads(out), "SW-SKL-007")
+    assert finding["suppressed"] is True and finding["baseline"]["reason"] == "Mirrored \ufffd copy."
+    assert "Mirrored \ufffd copy." in (tmp_path / "report.txt").read_bytes().decode("utf-8")

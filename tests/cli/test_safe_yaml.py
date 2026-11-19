@@ -75,3 +75,10 @@ def test_eight_levels_load_and_nine_do_not():
     with pytest.raises(YamlRefused) as caught:
         loads(b"[" * 9 + b"]" * 9, max_bytes=CONFIG_MAX, name="c")
     assert caught.value.rule == "too_deep"
+
+
+def test_a_lone_surrogate_from_a_quoted_escape_comes_out_as_the_replacement_character():
+    """1.18.0: PyYAML decodes a double-quoted `\\udc80` to an unpaired code point and leaves a pair of escapes as two; the loader
+    of `.spellwarden/config.yml` and `.spellwarden/baseline.yml` gives U+FFFD and the joined character, keys included."""
+    value = loads(b'"k\\udc80": ["v\\ud800", {"n": "\\udfff"}]\npair: "\\ud83d\\ude00"\n', max_bytes=CONFIG_MAX, name="x.yml")
+    assert value == {"k\ufffd": ["v\ufffd", {"n": "\ufffd"}], "pair": "\U0001F600"}
