@@ -120,3 +120,32 @@ def test_many_keys_that_all_collide_cost_linear_time_and_key_text():
     assert names[:3] == ["name\ufffd\ufffd", "name\ufffd\ufffd\ufffd2", "name\ufffd\ufffd\ufffd3"] and names[-1] == "name\ufffd\ufffd\ufffd200000"
     assert sum(map(len, names)) < 3 * sum(map(len, keys))
 
+
+def test_a_container_shared_by_many_references_is_walked_once():
+    """PyYAML builds an alias as a reference to the same object, so a few hundred bytes can reference one list billions of
+    times; each list and mapping is walked once, and its strings are made safe once for every reference."""
+    shared: object = ["x\udc80"]
+    for _ in range(40):
+        shared = [shared, {"k\udc81": shared}]
+    started = time.perf_counter()
+    value = replace_lone_surrogates_in_json(shared)
+    assert time.perf_counter() - started < 1.0 * SPEED_FACTOR
+    leaf = value
+    while isinstance(leaf, list) and len(leaf) == 2:
+        assert list(leaf[1]) == ["k\ufffd"]
+        leaf = leaf[0]
+    assert leaf == ["x\ufffd"]
+
+
+def test_front_matter_built_from_nested_aliases_is_read_quickly():
+    from spellwarden_scan import parse_frontmatter
+
+    lines = ['a: &a ["l\\udc80", "l", "l", "l", "l", "l", "l", "l", "l"]']
+    for index in range(1, 10):
+        name, previous = chr(ord("a") + index), chr(ord("a") + index - 1)
+        lines.append(f"{name}: &{name} [{', '.join(['*' + previous] * 9)}]")
+    started = time.perf_counter()
+    mapping, _ = parse_frontmatter("---\n" + "\n".join(lines) + "\n---\nbody\n")
+    assert time.perf_counter() - started < 1.0 * SPEED_FACTOR
+    assert mapping["a"][0] == "l\ufffd" and mapping["j"][0][0][0][0][0][0][0][0][0][0] == "l\ufffd"
+

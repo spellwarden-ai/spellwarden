@@ -80,17 +80,31 @@ def utf8(text: str) -> bytes:
     return replace_lone_surrogates(text).encode("utf-8")
 
 
-def _safe(item: object, pending: list) -> object:
-    """One member of a container: a string made safe, a list or mapping queued for the loop (changed in place), a tuple or set
-    (PyYAML's `!!omap` pairs and `!!set`) rebuilt with its members made safe; anything else as it is."""
-    if isinstance(item, str):
-        return replace_lone_surrogates(item)
-    if isinstance(item, (dict, list)):
-        pending.append(item)
+class _Walk:
+    """The state of one walk: the lists and mappings still to clean, the ids of those already queued (a YAML alias is the same
+    object at every reference, so a few hundred bytes can reference one list billions of times: each is cleaned once, in place,
+    which serves every reference), and each tuple or set already rebuilt, by id, so it too is rebuilt once."""
+
+    def __init__(self) -> None:
+        self.pending: list = []
+        self.queued: set[int] = set()
+        self.rebuilt: dict[int, object] = {}
+
+    def safe(self, item: object) -> object:
+        """One member: a string made safe, a list or mapping queued once (changed in place), a tuple or set (PyYAML's `!!omap`
+        pairs and `!!set`) rebuilt once with its members made safe; anything else as it is."""
+        if isinstance(item, str):
+            return replace_lone_surrogates(item)
+        if isinstance(item, (dict, list)):
+            if id(item) not in self.queued:
+                self.queued.add(id(item))
+                self.pending.append(item)
+            return item
+        if isinstance(item, (tuple, set, frozenset)):
+            if id(item) not in self.rebuilt:
+                self.rebuilt[id(item)] = type(item)(self.safe(member) for member in item)
+            return self.rebuilt[id(item)]
         return item
-    if isinstance(item, (tuple, set, frozenset)):
-        return type(item)(replace_lone_surrogates_in_json(member) for member in item)
-    return item
 
 
 def replace_lone_surrogates_in_json(value: object) -> object:
@@ -101,20 +115,21 @@ def replace_lone_surrogates_in_json(value: object) -> object:
     later key in the document's order as `base + U+FFFD + n` with n counted per base from 2, skipping a name the mapping
     already holds, so a server cannot hide one value behind another. The last n of each base is kept, so the work and the key
     text stay linear in the input however many keys collide. A mapping without lone surrogates comes back with the same keys
-    in the same order."""
-    pending: list = []
-    value = _safe(value, pending)
-    while pending:
-        node = pending.pop()
+    in the same order. Each list, mapping, tuple and set is cleaned once however many references it has (`_Walk`), so the work
+    is linear in the number of distinct objects, not in the size of the value they expand to."""
+    walk = _Walk()
+    value = walk.safe(value)
+    while walk.pending:
+        node = walk.pending.pop()
         if isinstance(node, list):
             for index, item in enumerate(node):
-                node[index] = _safe(item, pending)
+                node[index] = walk.safe(item)
             continue
         entries = list(node.items())
         node.clear()
         last: dict[str, int] = {}  # per base name, the last n given: each candidate is tried once, O(1) amortised
         for key, item in entries:
-            key = _safe(key, pending)
+            key = walk.safe(key)
             if isinstance(key, str) and key in node:
                 base, n = key, last.get(key, 1)
                 while True:
@@ -123,7 +138,7 @@ def replace_lone_surrogates_in_json(value: object) -> object:
                     if key not in node:
                         break
                 last[base] = n
-            node[key] = _safe(item, pending)
+            node[key] = walk.safe(item)
     return value
 
 
