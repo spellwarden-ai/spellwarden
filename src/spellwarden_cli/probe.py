@@ -382,8 +382,9 @@ def _rpc_result(response) -> dict | None:
 
 def _schema_of(value: object) -> dict | None:
     """Phase C spec 5.6: a tool's `inputSchema` when it is a JSON object whose canonical JSON (sorted keys, no
-    whitespace, UTF-8) is at most 16 KiB; anything else, or a value that cannot be written as UTF-8 (a lone
-    surrogate), is no schema."""
+    whitespace, UTF-8) is at most 16 KiB; anything else is no schema. A server's lone surrogate never reaches this
+    function (`_loads` reads it as U+FFFD, so such a schema is kept and hashed); a value from another caller that cannot be
+    written as UTF-8 is no schema."""
     if not isinstance(value, dict):
         return None
     try:

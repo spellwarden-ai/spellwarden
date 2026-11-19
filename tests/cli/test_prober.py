@@ -162,7 +162,8 @@ def _schema_of_size(size: int) -> dict:
 
 def test_the_prober_records_input_schemas_up_to_16_kib():
     # Phase C spec 5.6 and claim E9: kept at 10 KiB and at exactly 16 384 bytes, dropped at 16 385 and at 20 KiB;
-    # anything that is not a JSON object, or cannot be written as UTF-8, is no schema.
+    # anything that is not a JSON object is no schema. A lone surrogate in a schema is read as U+FFFD at the probe's JSON
+    # boundary (since 1.18.0), so the schema is kept and hashed; 1.17.0 recorded no schema for it.
     exchanges = load_exchanges("probe_none")
     schemas = {"ten": _schema_of_size(10 * 1024), "edge": _schema_of_size(16384), "over": _schema_of_size(16385),
                "twenty": _schema_of_size(20 * 1024), "list": ["not", "an", "object"], "text": "object",
@@ -172,7 +173,8 @@ def test_the_prober_records_input_schemas_up_to_16_kib():
     result = probe(FakeFetcher(exchanges), ENDPOINT, release="r", now_iso="t")
     recorded = {tool.name: tool.input_schema for tool in result.tools}
     assert recorded["ten"] == schemas["ten"] and recorded["edge"] == schemas["edge"]
-    assert [name for name, value in recorded.items() if value is None] == ["over", "twenty", "list", "text", "surrogate", "none"]
+    assert [name for name, value in recorded.items() if value is None] == ["over", "twenty", "list", "text", "none"]
+    assert recorded["surrogate"] == {"type": "object", "description": "\ufffd"}
     assert probe_module.MAX_SCHEMA_BYTES == 16384
     assert type(result).from_dict(result.to_dict()) == result
 
