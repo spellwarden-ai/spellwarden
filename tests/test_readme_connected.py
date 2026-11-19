@@ -177,3 +177,10 @@ def test_the_launch_override_reason_lists_every_override_env_name():
     body = gate[gate.index("##### Gate reason: launch override"):gate.index("##### Gate reason: resolver override")]
     listed = set(re.findall(r"`([A-Z][A-Z0-9_]+)`", body[body.index("an `env` entry"):]))
     assert listed == LAUNCH_OVERRIDE_ENV
+
+
+def test_what_is_sent_says_a_lone_surrogate_is_sent_as_the_replacement_character():
+    text = " ".join(readme().split())
+    assert ("Every request is valid UTF-8: a name that is not valid UTF-8 (such as a file name in another encoding), or any text "
+            "that holds a lone surrogate, is sent and shown in the upload with U+FFFD in its place, since 1.18.0; the reports "
+            "written on the runner are unchanged.") in text

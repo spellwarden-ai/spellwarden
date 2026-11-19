@@ -854,7 +854,7 @@ connected:
 
 #### What is sent
 
-Only these leave the runner: the token request to your code host, the exchange, the session and policy requests, the registry check and the upload. No whole file is ever sent. A finding carries an excerpt of at most 300 characters of the matched line, with credentials masked. An MCP server's address leaves only as a hash, and the link that asks for its admission carries the address without user name, query or fragment.
+Only these leave the runner: the token request to your code host, the exchange, the session and policy requests, the registry check and the upload. No whole file is ever sent. Every request is valid UTF-8: a name that is not valid UTF-8 (such as a file name in another encoding), or any text that holds a lone surrogate, is sent and shown in the upload with U+FFFD in its place, since 1.18.0; the reports written on the runner are unchanged. A finding carries an excerpt of at most 300 characters of the matched line, with credentials masked. An MCP server's address leaves only as a hash, and the link that asks for its admission carries the address without user name, query or fragment.
 
 - The exchange sends the organisation slug, the code host's OIDC token (once, to be verified; it is not stored) and the display fields of the run: the scan root, the pull request number, the head commit and the default branch.
 - The registry check sends, for each item in scope, its path, line, name and identity: a skill's package hash, a server's address hash, the pinned form of a stdio command, a plugin's or marketplace's repository URL and commit.

@@ -38,7 +38,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from urllib.parse import quote, unquote, urlencode, urlsplit
 
-from spellwarden_scan.text import replace_lone_surrogates_in_json
+from spellwarden_scan.text import replace_lone_surrogates, replace_lone_surrogates_in_json
 
 from spellwarden_cli.net import USER_AGENT, FetchError, check_host, default_resolver, pinned_connection, tls_context
 from spellwarden_cli.secret import Secret
@@ -407,7 +407,8 @@ class ApiClient:
     # -- internals --
 
     def _url(self, path: str, params: dict[str, str] | None) -> str:
-        query = f"?{urlencode(params, quote_via=quote, safe='@')}" if params else ""
+        safe = {replace_lone_surrogates(str(name)): replace_lone_surrogates(str(value)) for name, value in (params or {}).items()}
+        query = f"?{urlencode(safe, quote_via=quote, safe='@')}" if safe else ""
         return f"{self._base}{path}{query}"
 
     def _left(self) -> float:
@@ -441,7 +442,11 @@ class ApiClient:
     def _request(self, method: str, path: str, params: dict[str, str] | None, body: dict | None, *, retry: bool,
                  auth: bool = True) -> dict:
         url = self._url(path, params)
-        data = None if body is None else json.dumps(body, separators=(",", ":")).encode("utf-8")
+        # 1.18.0: the service never receives a lone surrogate from this client (a file name that is not UTF-8 is decoded with
+        # surrogateescape): every string of the body, keys included, is sent with U+FFFD in its place. The JSON round trip copies
+        # the body first, so the caller's report and body are left as they were.
+        data = None if body is None else json.dumps(replace_lone_surrogates_in_json(json.loads(json.dumps(body))),
+                                                    separators=(",", ":")).encode("utf-8")
         headers = {"Accept": "application/json", "User-Agent": USER_AGENT}
         if data is not None:
             headers["Content-Type"] = "application/json"
