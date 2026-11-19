@@ -226,7 +226,8 @@ def test_a_script_the_scan_could_not_read_is_never_shown_as_analysed(make_repo, 
     assert code == 2 and [e["path"] for e in report["errors"] if e["code"] == "unreadable"] == ["skills/deploy/scripts/run.sh"]
     (entry,) = report["analysis"]
     assert entry["status"] == "incomplete" and entry["categories"] == []
-    assert entry["limit"] == {"code": "too_large", "bytes": 10 * 2**20, "max": analyzer.ANALYZER_MAX_BYTES}
+    assert entry["limit"] == {"code": "too_large", "bytes": 10 * 2**20, "max": analyzer.ANALYZER_MAX_BYTES,
+                              "path": "scripts/run.sh"}  # 1.19.0: the file that was not read, relative to the skill
     (raised,) = [n for n in report["notices"] if n["code"] == "analysis_incomplete"]
     assert raised["path"] == "skills/deploy" and "scripts/run.sh" in raised["message"]
     assert server.requests == [] and not cache.exists()
@@ -236,17 +237,18 @@ def test_a_script_the_scan_could_not_read_is_never_shown_as_analysed(make_repo, 
 
 
 def test_analyzer_results_point_at_a_lower_case_skill_file_as_written(make_repo, tmp_path, run_cli, endpoint):
-    """r0:F2: spans the model quotes from the request's SKILL.md name the skill file as the repository writes it, and the SARIF
-    result of a category without a span sits on that file too."""
+    """r0:F2: spans the model quotes from the request's SKILL.md name the skill file as the repository writes it. (Since 1.19.0
+    an issue without a span is `no_verdict`, so both issues here carry one; a cached issue without a span is the next test.)"""
 
     def answer(_handler, body):
         user = body["messages"][1]["content"]
         nonce = re.search(r"The nonce is ([0-9a-f]+)\.", user).group(1)
         categories = [{"id": c, "verdict": "none", "confidence": "low", "summary": "Nothing.", "spans": []}
                       for c in analyzer.CATEGORIES]
+        span = [{"path": "SKILL.md", "line": 8, "text": "Run the deploy and report what changed."}]
         categories[0] = {"id": "instruction_override", "verdict": "issue", "confidence": "high", "summary": "Suspicious.",
-                         "spans": [{"path": "SKILL.md", "line": 8, "text": "Run the deploy and report what changed."}]}
-        categories[1] = {"id": "data_exfiltration", "verdict": "issue", "confidence": "low", "summary": "Maybe.", "spans": []}
+                         "spans": span}
+        categories[1] = {"id": "data_exfiltration", "verdict": "issue", "confidence": "low", "summary": "Maybe.", "spans": span}
         return 200, {"Content-Type": "application/json"}, completion(json.dumps({"nonce": nonce, "categories": categories}))
 
     repo = repo_with(make_repo, tmp_path, {".claude/skills/deploy/skill.md": RISKY_SKILL})
@@ -261,8 +263,28 @@ def test_analyzer_results_point_at_a_lower_case_skill_file_as_written(make_repo,
     assert uri == {"uri": ".claude/skills/deploy/skill.md"}
     mine = {r["ruleId"]: r["locations"][0]["physicalLocation"] for r in results if r["ruleId"].startswith("SW-ANALYZER-")}
     assert mine == {"SW-ANALYZER-INSTRUCTION-OVERRIDE": {"artifactLocation": uri, "region": {"startLine": 8}},
-                    "SW-ANALYZER-DATA-EXFILTRATION": {"artifactLocation": uri}}
+                    "SW-ANALYZER-DATA-EXFILTRATION": {"artifactLocation": uri, "region": {"startLine": 8}}}
     jsonschema.validate(report, SCHEMA)
+
+
+def test_a_cached_issue_without_a_span_sits_on_the_skill_file_as_written():
+    """A result cached before 1.19.0 may hold an issue without a span (the span rule refuses such a reply since, and the cache
+    serves what it holds): SARIF puts it on the skill file as the repository writes it, without a region."""
+    from spellwarden_scan import RULES_VERSION, RuleSet, __version__
+
+    from spellwarden_cli.output import FORMATS as WRITERS
+    from spellwarden_cli.report import LockState, Report
+
+    categories = [{"id": c, "verdict": "issue" if c == "data_exfiltration" else "none", "confidence": "low", "summary": "Maybe.",
+                   "spans": [], "spans_left_out": 0, "rules_found": False} for c in analyzer.CATEGORIES]
+    entry = {"skill": ".claude/skills/deploy", "skill_file": ".claude/skills/deploy/skill.md", "status": "analyzed",
+             "model": "m", "measured": False, "cached": True, "categories": categories}
+    report = Report(scanner_version=__version__, rules_version=RULES_VERSION, as_of="2026-11-19", fail_on="high", items=(),
+                    findings=(), probes=(), lock=LockState(), notices=(), errors=(), repo_prefix="", rules=RuleSet.baseline(),
+                    analysis=(entry,))
+    results = json.loads(WRITERS["sarif"](report))["runs"][0]["results"]
+    (result,) = [r for r in results if r["ruleId"] == "SW-ANALYZER-DATA-EXFILTRATION"]
+    assert result["locations"][0]["physicalLocation"] == {"artifactLocation": {"uri": ".claude/skills/deploy/skill.md"}}
 
 
 def test_text_and_markdown_show_an_endpoint_failure_with_its_status_and_masked_message(make_repo, tmp_path, run_cli,

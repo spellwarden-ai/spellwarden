@@ -231,7 +231,9 @@ def test_a_selected_file_discovery_did_not_read_makes_the_analysis_incomplete(tm
     entries, notices, errors = run(discovery, client, cache_dir=str(cache))
     by_skill = {entry["skill"]: entry for entry in entries}
     assert by_skill["skills/a"]["status"] == by_skill["skills/d"]["status"] == "incomplete"
-    assert by_skill["skills/a"]["limit"] == {"code": "too_large", "bytes": 10 * 2**20, "max": analyzer.ANALYZER_MAX_BYTES}
+    assert by_skill["skills/a"]["limit"] == {"code": "too_large", "bytes": 10 * 2**20, "max": analyzer.ANALYZER_MAX_BYTES,
+                                             "path": "scripts/run.sh"}  # 1.19.0: the file that was not read
+    assert by_skill["skills/d"]["limit"]["path"] == "tool.py"
     assert by_skill["skills/b"]["status"] == by_skill["skills/c"]["status"] == "analyzed" and len(client.calls) == 2
     raised = {notice.path: notice.message for notice in notices if notice.code == "analysis_incomplete"}
     assert set(raised) == {"skills/a", "skills/d"} and errors == []

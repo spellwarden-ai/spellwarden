@@ -5,11 +5,12 @@ request and give the reply back to `parse_reply`.
 Scanned content is hostile data (spec 6.5). `build_request` puts the skill's files inside a block delimited by a random
 boundary, tells the model that the block is data and that an instruction inside it is evidence, asks for a nonce the answer
 must repeat, and passes each file's text through `mask_credentials` before it enters the request; the size bound, `input_bytes`
-and the span check all use that masked text. `parse_reply` refuses anything but one JSON object of the schema with the nonce
-and every category once, and checks every quoted span against the masked source at the line it names (at least
-`MIN_SPAN_CHARS` characters, found in a window of `SPAN_LINE_SLACK` more lines than the span holds, starting at that line,
-whitespace collapsed on both sides): a reply that fails is `no_verdict` with the reason, never clean. Summaries and spans
-are masked again on the way out.
+and the span check all use that masked text. The nonce checks that a reply answers this request in the schema; it does not stop
+a skill that tells the model to repeat it (see `build_request`). `parse_reply` refuses anything but one JSON object of the
+schema with the nonce and every category once, with spans for every issue and none for a verdict of none (1.19.0), and checks
+every quoted span against the masked source at the line it names (at least `MIN_SPAN_CHARS` characters, found in a window of
+`SPAN_LINE_SLACK` more lines than the span holds, starting at that line, whitespace collapsed on both sides): a reply that
+fails is `no_verdict` with the reason, never clean. Summaries and spans are masked again on the way out.
 
 Advisory (owner decision idea:Q4): a result is never a finding and never changes an exit code, a rule count or a `--fail-on`
 outcome. Pure: no I/O. The boundary and the nonce come from `secrets` unless the caller passes them."""
@@ -95,8 +96,9 @@ _BEDROCK_PREFIX = "eu.anthropic."
 
 @dataclass(frozen=True)
 class NotAnalyzed:
-    """A skill the analyzer did not read (spec 4.8, customer content): `too_large` with the masked `bytes` and the `max`, or
-    `not_text` with the `path` (relative to the skill) of the first file that is not UTF-8. Never shown as analysed or clean."""
+    """A skill the analyzer did not read (spec 4.8, customer content): `too_large` with the masked `bytes` and the `max` (and,
+    since 1.19.0, the `path` relative to the skill of a file the scan itself did not read, when the command knows it), or
+    `not_text` with the `path` of the first file that is not UTF-8. Never shown as analysed or clean."""
     code: str
     bytes: int | None = None
     max: int | None = None
@@ -104,7 +106,10 @@ class NotAnalyzed:
 
     def to_dict(self) -> dict:
         if self.code == "too_large":
-            return {"code": self.code, "bytes": self.bytes, "max": self.max}
+            limit = {"code": self.code, "bytes": self.bytes, "max": self.max}
+            if self.path is not None:
+                limit["path"] = self.path
+            return limit
         return {"code": self.code, "path": self.path}
 
 
@@ -223,7 +228,9 @@ def build_request(files: Mapping[str, bytes], *, root: str = "", max_bytes: int 
     script in path order (a file under `scripts/`, one in `executable_paths` (scan-root paths), or one with an extension of
     `SCRIPT_EXTENSIONS`). All or nothing: a file that is not UTF-8 is `NotAnalyzed("not_text", path=...)`, and masked text
     over `max_bytes` together is `NotAnalyzed("too_large", bytes, max)`; nothing is sent either way. A package without
-    `SKILL.md` is a `ValueError`."""
+    `SKILL.md` is a `ValueError`. The nonce checks that a reply answers this request in the schema; it does not stop a skill
+    that tells the model to repeat it, so it is no defence against a skill that steers the model: the result is advisory, never
+    a finding, and the rules judge the same skill beside it (`rules_found`)."""
     root = root.strip("/")
     prefix = f"{root}/" if root else ""
     kept = package_files(files, root, nested_skill_roots(files, root)).files
@@ -276,11 +283,13 @@ def _no_verdict(reason: str) -> AnalyzerResult:
 
 def parse_reply(text: str, request: AnalyzerRequest) -> AnalyzerResult:
     """Spec 11.2: the reply must be one JSON object of `SCHEMA` (a single Markdown code fence around it is allowed), repeat
-    the nonce, and hold every category once; every span's text must be at least `MIN_SPAN_CHARS` characters and occur,
-    whitespace collapsed, in the masked text of the file it names, in the window of lines that starts at the line it names
-    (`SPAN_LINE_SLACK`). Anything else is `no_verdict` with the reason. Summaries and spans are masked
-    with `mask_credentials` and cut to `SUMMARY_MAX` and `SPAN_MAX`; at most `MAX_SPANS` spans are kept per category and the
-    count left out is kept."""
+    the nonce, and hold every category once; a category with the verdict `issue` and no span, or `none` with spans, is
+    `off_schema` (1.19.0; the request always asked for exactly that, so `ANALYZER_VERSION` is unchanged); every span's text must
+    be at least `MIN_SPAN_CHARS` characters and occur, whitespace collapsed, in the masked text of the file it names, in the
+    window of lines that starts at the line it names (`SPAN_LINE_SLACK`). Anything else is `no_verdict` with the reason.
+    A reply that repeats the nonce passes that check whatever the skill told the model: the nonce does not stop a skill that
+    tells the model to repeat it (see `build_request`). Summaries and spans are masked with `mask_credentials` and cut to
+    `SUMMARY_MAX` and `SPAN_MAX`; at most `MAX_SPANS` spans are kept per category and the count left out is kept."""
     stripped = text.strip()
     fenced = _FENCE.match(stripped)
     if fenced is not None:
@@ -311,6 +320,8 @@ def parse_reply(text: str, request: AnalyzerRequest) -> AnalyzerResult:
             return _no_verdict("category_duplicate")
         if (entry["verdict"] not in VERDICTS or entry["confidence"] not in CONFIDENCE or not isinstance(entry["summary"], str)
                 or not isinstance(entry["spans"], list)):
+            return _no_verdict("off_schema")
+        if (entry["verdict"] == "issue") != bool(entry["spans"]):  # 1.19.0: spans for every issue, none for a verdict of none
             return _no_verdict("off_schema")
         spans: list[Span] = []
         for span in entry["spans"]:

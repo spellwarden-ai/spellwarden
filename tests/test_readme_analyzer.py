@@ -112,3 +112,17 @@ def test_spec_q4_answer_is_written_in_limits_and_its_function_only():
                 continue  # spec 11.7's words; its "never changes the exit code" speaks of the verdicts, true either way
             if re.search(r"analy[sz]|--analyze", sentence) and "exit code" in sentence:
                 assert "verdict" in sentence or "Limits" in sentence, (name, sentence)
+
+
+def test_the_section_says_what_the_nonce_does_the_span_rule_and_how_rates_will_be_measured():
+    """1.19.0: the nonce is a check that the reply answers this request in the schema, not a defence; the span rule; the unread
+    file's path in `limit`; the rates measured on fresh held-out skills."""
+    text = " ".join(section("### Model-assisted analyzer: `--analyze`").split())
+    for needle in ("The nonce checks that the reply answers this request in the schema",
+                   "it does not stop a skill that tells the model to repeat it",
+                   "the result is advisory, never a finding, and that the rules judge the same skill beside it",
+                   "gives a category the verdict `issue` without a span or `none` with spans (`off_schema`, since 1.19.0)",
+                   "will be measured on fresh held-out skills and published with a later release"):
+        assert needle in text, needle
+    assert "held-out half" not in README
+    assert "its `limit` names that file in `path`" in " ".join(section("### Limits").split())
