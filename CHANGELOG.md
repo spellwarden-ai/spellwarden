@@ -38,7 +38,9 @@ analyzer could not read. Unchanged: the rules and their versions (`RULES_VERSION
   `no_verdict` with the reason `off_schema`. The request already asked for exactly that, so nothing sent to a model changes
   and `ANALYZER_VERSION` stays "1"; a result cached before 1.19.0 that breaks the rule is served as stored.
 - The analyzer's unread file: a skill whose SKILL.md or script the scan did not read is still `incomplete` with `too_large`,
-  and its `limit` now names the file in `path`.
+  and its `limit` now names the file in `path`. This holds for a `SKILL.md` whose front matter is past a limit too: with
+  `--analyze` it was sent to the model and shown as analysed; it is now `incomplete`, nothing is sent for it, and the notice
+  names the front matter.
 - Words: the README says what the analyzer's nonce does (it checks that the reply answers this request in the schema; it does
   not stop a skill that tells the model to repeat it, and the defences are the advisory result and the rules beside it) and
   that the rates will be measured on fresh held-out skills.

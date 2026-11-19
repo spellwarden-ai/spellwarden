@@ -4,6 +4,8 @@ finding, and the description lint leaves it out. The other skills are judged as 
 that reads no settings file (`scan --user`) names its own way out, never `exclude`."""
 from __future__ import annotations
 
+import json
+
 from conftest import scan_json
 
 from spellwarden_scan import RuleSet
@@ -63,3 +65,30 @@ def test_a_caller_without_a_settings_file_names_its_own_way_out(make_repo, tmp_p
     (error,) = errors
     assert (error.code, error.path) == ("unreadable", "skills/big/SKILL.md")
     assert "more than 2,000 YAML nodes" in error.message and way_out in error.message and "exclude" not in error.message
+
+
+def test_a_skill_with_a_refused_front_matter_is_incomplete_under_analyze_and_sends_nothing(make_repo, tmp_path, run_cli):
+    """A skill whose SKILL.md the engine refused (front matter past a limit, the error `unreadable`) is a file the scan did not
+    read: `--analyze` sends nothing for it, its entry is `incomplete` and names the file, and the notice says why. A skill that
+    was read is analysed as before."""
+    from fake_model import FakeModel, completion
+
+    server = FakeModel(lambda _handler, _body: (500, {"Content-Type": "application/json"}, completion("{}")))
+    try:
+        repo = make_repo(tmp_path / "repo", {"skills/big/SKILL.md": BIG, "skills/tool/SKILL.md": CLEAN})
+        code, out, err = run_cli(["scan", str(repo), "--format", "json", "--no-telemetry", "--quiet", "--analyze", "--model-endpoint",
+                                  server.url, "--model", "test-model"], env=None)
+        report = json.loads(out)
+        assert code == 2, err
+        assert [(error["code"], error["path"]) for error in report["errors"]] == [("unreadable", "skills/big/SKILL.md")]
+        by_skill = {entry["skill"]: entry for entry in report["analysis"]}
+        assert by_skill["skills/big"]["status"] == "incomplete"
+        assert by_skill["skills/big"]["limit"]["code"] == "too_large" and by_skill["skills/big"]["limit"]["path"] == "SKILL.md"
+        assert by_skill["skills/big"]["limit"]["bytes"] == len(BIG.encode()) and by_skill["skills/big"]["categories"] == []
+        raised = [notice for notice in report["notices"] if notice["code"] == "analysis_incomplete"]
+        assert [notice["path"] for notice in raised] == ["skills/big"]
+        assert "front matter" in raised[0]["message"] and "MiB" not in raised[0]["message"]
+        sent = [body["messages"][1]["content"] for _path, _headers, body in server.requests]
+        assert len(sent) == 1 and "name: tool" in sent[0] and "name: big" not in sent[0]  # only the skill that was read
+    finally:
+        server.close()
