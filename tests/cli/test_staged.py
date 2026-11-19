@@ -266,6 +266,35 @@ def test_staged_sends_nothing_to_spellwarden_and_says_the_credentials_are_ignore
     assert report["errors"] == [] and code in (0, 1) and credential("swk") not in out + err
 
 
+def test_staged_says_when_the_settings_require_connected_mode_that_it_was_not_evaluated(make_repo, tmp_path, run_cli,
+                                                                                         api_double, ping_requests):
+    """In CI, staged settings with `connected.required: true` and neither SPELLWARDEN_ORG nor a key would make a scan without
+    `--staged` connect and apply the organisation's rules and the registry gate. A staged scan sends nothing to Spellwarden, so
+    a notice says that connected mode was required and not evaluated; it is a notice, so the exit code is the same as without
+    the setting. Outside CI the setting asks for nothing, so there is no such notice."""
+    fake, _ = api_double
+    repo = make_repo(tmp_path / "repo", {"skills/good/SKILL.md": GOOD,
+                                         ".spellwarden/config.yml": "version: 1\nconnected:\n  required: true\n"})
+    env = connected_github(tmp_path)
+    code, out, err = run_cli(["scan", str(repo), "--staged", "--format", "json"], env=env)
+    report = json.loads(out)
+    assert (code, report["errors"]) == (0, []), err
+    assert fake.requests == [] and ping_requests == [] and "connected" not in report
+    (notice,) = [entry for entry in report["notices"] if entry["code"] == "staged_connected_required"]
+    assert notice["message"] == ("connected.required is set in .spellwarden/config.yml, but --staged sends nothing to "
+                                 "Spellwarden, so connected mode was not evaluated: the organisation's rules and the registry "
+                                 "gate were not applied. A scan without --staged applies them.")
+    assert not [entry for entry in report["notices"] if entry["code"] == "staged_credentials_ignored"]
+    write_tree(repo, {".spellwarden/config.yml": "version: 1\n"})
+    git(repo, "add", ".spellwarden/config.yml")
+    code_without, report_without, _out, _err = scan_json(run_cli, repo, env, "--staged")
+    assert code_without == code and "staged_connected_required" not in {n["code"] for n in report_without["notices"]}
+    git(repo, "checkout", "--", ".")
+    git(repo, "reset", "-q", "--hard")
+    local_code, local, _out, _err = scan_json(run_cli, repo, None, "--staged")
+    assert local_code == 0 and "staged_connected_required" not in {n["code"] for n in local["notices"]}
+
+
 def test_staged_outside_a_git_repository_is_an_error(tmp_path, run_cli):
     plain = write_tree(tmp_path / "plain", {"skills/good/SKILL.md": GOOD})
     code, report, _out, _err = scan_json(run_cli, plain, None, "--staged")

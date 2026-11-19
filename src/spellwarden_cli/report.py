@@ -61,8 +61,8 @@ NOTICE_CODES = ("no_agent_content", "git_unavailable", "exec_bits_unknown", "sym
                 "model_assisted", "analysis_incomplete", "analyzer_no_key",
                 # 1.18.0: a preset other than balanced applied (`presets.apply`)
                 "preset",
-                # 1.19.0: `scan --staged` ignored SPELLWARDEN_ORG or SPELLWARDEN_API_KEY
-                "staged_credentials_ignored")
+                # 1.19.0: `scan --staged` ignored SPELLWARDEN_ORG or SPELLWARDEN_API_KEY, or, in CI, `connected.required`
+                "staged_credentials_ignored", "staged_connected_required")
 # The notices that say a run continued in free mode after connected mode could not start (O3 spec 6.4); the text and
 # Markdown outputs derive their "unavailable" line from them.
 FREE_MODE_NOTICES = ("connected_fallback", "fork_free_mode", "dependabot_free_mode")

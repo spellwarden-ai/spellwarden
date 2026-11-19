@@ -16,9 +16,11 @@ analyzer could not read. Unchanged: the rules and their versions (`RULES_VERSION
   `--locked`, the lock file come from the index too; a `--config` or `--baseline` file named on the command line is read as
   given. It sends nothing to Spellwarden: no connected mode, no upload and no usage ping; `SPELLWARDEN_ORG` and
   `SPELLWARDEN_API_KEY` are ignored with the notice `staged_credentials_ignored`, and `--upload` and `--user` cannot be used
-  with it. `--probe` and `--analyze` work as in any scan. Outside a git repository, or when git cannot read the index, it is
-  the error `staged_unavailable` (exit 2), which `schemas/report.schema.json` lists; a path the index holds only as an
-  unresolved merge conflict is the error `unreadable`.
+  with it. In CI, staged settings that say `connected.required: true` give the notice `staged_connected_required`: connected
+  mode, and so the organisation's rules and the registry gate, was not evaluated; the exit code does not change. `--probe`
+  and `--analyze` work as in any scan. Outside a git repository, or when git cannot read the index, it is the error
+  `staged_unavailable` (exit 2), which `schemas/report.schema.json` lists; a path the index holds only as an unresolved merge
+  conflict is the error `unreadable`.
 - The hook: `.pre-commit-hooks.yaml` runs `spellwarden scan --staged` (1.18.0 ran `spellwarden scan --no-upload`), at the same
   three stages. An untracked file no longer fails a commit, an untracked `.spellwarden/config.yml` no longer excludes what a
   commit holds, and the hook sends no usage ping in CI any more. On a pull or merge request in CI the hook now reads the

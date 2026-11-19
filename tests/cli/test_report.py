@@ -114,8 +114,8 @@ def test_notice_and_error_codes_are_todays_plus_the_closed_lists_of_spec_6_9():
         "analyzer_no_key",
         # 1.18.0: a preset other than balanced applied
         "preset",
-        # 1.19.0: `scan --staged` ignored SPELLWARDEN_ORG or SPELLWARDEN_API_KEY
-        "staged_credentials_ignored")
+        # 1.19.0: `scan --staged` ignored SPELLWARDEN_ORG or SPELLWARDEN_API_KEY, or, in CI, `connected.required`
+        "staged_credentials_ignored", "staged_connected_required")
     assert ERROR_CODES == TODAYS_ERROR_CODES + (
         "connected_config", "connected_key_invalid", "connected_no_credential", "connected_auth", "connected_subscription",
         "connected_ci_key_required", "connected_forbidden", "connected_rate_limited", "connected_unavailable",

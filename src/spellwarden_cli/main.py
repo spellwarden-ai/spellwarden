@@ -28,6 +28,10 @@ MODEL_KEY_VARIABLE = "SPELLWARDEN_MODEL_KEY"  # 1.17.0 (spec 11.3): the analyzer
 ANALYZE_MAX_BYTES_LIMIT = 10_000_000
 # 1.19.0: the one notice of `scan --staged` when SPELLWARDEN_ORG or SPELLWARDEN_API_KEY is set
 STAGED_CREDENTIALS_IGNORED = "--staged sends nothing to Spellwarden; SPELLWARDEN_ORG and the key are ignored."
+# 1.19.0: the notice of `scan --staged` in CI when the settings say `connected.required: true`, which a scan without it obeys
+STAGED_CONNECTED_REQUIRED = ("connected.required is set in .spellwarden/config.yml, but --staged sends nothing to Spellwarden, "
+                             "so connected mode was not evaluated: the organisation's rules and the registry gate were not "
+                             "applied. A scan without --staged applies them.")
 
 
 def _iso_date(text: str) -> date:
@@ -204,6 +208,10 @@ def _scan_report(args: argparse.Namespace, context, credentials: Credentials,
         return _error_report(fail_on, as_of, "settings_invalid", args.config or ".spellwarden/config.yml", str(exc),
                              source.notices), False
     connected_mode = bool(credentials.org) or credentials.key is not None or settings.connected.required
+    if staged is not None and settings.connected.required and context is not None and context.provider is not None:
+        # 1.19.0: in CI a scan without --staged would connect for `required`; a staged scan says that it did not (a notice)
+        source = dataclasses.replace(source, notices=(*source.notices,
+                                                      Notice("staged_connected_required", "", STAGED_CONNECTED_REQUIRED)))
     # The base revision's notices travel in connected mode: `settings_from_base` when it set something, and
     # `base_unavailable` always (an unreadable base silently defaulting pack and required would hide invariant 5).
     if connected_source is not None and connected_mode and (
