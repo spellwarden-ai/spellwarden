@@ -344,7 +344,7 @@ def _git_processes(monkeypatch, processes: list | None = None) -> list[list[str]
     return started
 
 
-def _many_files(base: Path, skills: int, scripts: int) -> dict[str, str]:
+def _many_files(skills: int, scripts: int) -> dict[str, str]:
     tree = {"README.md": "agents\n"}
     for number in range(skills):
         tree[f"skills/s{number}/SKILL.md"] = GOOD.replace("name: good", f"name: s{number}")
@@ -356,8 +356,8 @@ def _many_files(base: Path, skills: int, scripts: int) -> dict[str, str]:
 def test_a_staged_scan_starts_a_bounded_number_of_git_processes(make_repo, tmp_path, run_cli, monkeypatch):
     """The staged blobs are read through one `git cat-file --batch` process for the index's life, not one process per file: a
     scan of 120 files starts as many git processes as a scan of 4, and gives the same report as a scan without `--staged`."""
-    few = make_repo(tmp_path / "few", _many_files(tmp_path, 1, 2))
-    many = make_repo(tmp_path / "many", _many_files(tmp_path, 6, 19))
+    few = make_repo(tmp_path / "few", _many_files(1, 2))
+    many = make_repo(tmp_path / "many", _many_files(6, 19))
     processes: list = []
     started = _git_processes(monkeypatch, processes)
     code_few, report_few, _out, err = scan_json(run_cli, few, None, "--staged")
