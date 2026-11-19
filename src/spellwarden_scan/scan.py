@@ -65,7 +65,9 @@ def scan_skill_package(files: Mapping[str, bytes], rules: RuleSet, *, root: str 
     a non-empty `org_rules_incomplete` on the result is an incomplete policy evaluation, never a clean one. `nested_roots` are the
     skill directories inside `root` (`identity.nested_skill_roots`); the result's `package_sha256` leaves them out.
     `markdown_paths` (1.13.0) are paths read as Markdown whatever their suffix (`Package.build`): the command passes the path of
-    an instruction file such as a Cursor `.mdc` rule. The default changes nothing."""
+    an instruction file such as a Cursor `.mdc` rule. The default changes nothing. Raises `frontmatter.FrontmatterLimit` (1.19.0)
+    naming the file when a front matter it reads is past one of the limits: content left unread is the caller's error to
+    report."""
     if kind not in SCAN_KINDS:
         raise ValueError(f"kind must be one of {', '.join(SCAN_KINDS)}, not {kind!r}")
     package = Package.build(files, root=root, executable_paths=executable_paths, markdown_paths=markdown_paths)

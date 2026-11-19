@@ -134,11 +134,15 @@ def render_lock(lock: Mapping) -> bytes:
     return (json.dumps(lock, indent=2, sort_keys=True, ensure_ascii=False) + "\n").encode("utf-8")
 
 
-def _read(root: str) -> dict | None:
+def _read(root: str, read: Callable[[str, int], bytes] | None = None) -> dict | None:
     """The stored lock, or None when the file is absent. The file comes from the scanned revision: it is read
-    contained and bounded, and anything but a lock of version 1 is refused."""
+    contained and bounded, and anything but a lock of version 1 is refused. `read(relative, max_bytes)` (1.19.0, the git
+    index under `scan --staged`) supplies the bytes when given, with the contract of `paths.read_contained`."""
     try:
-        data, _mode = paths.read_contained(root, LOCK_PATH, max_bytes=files.FILE_MAX)
+        if read is not None:
+            data = read(LOCK_PATH, files.FILE_MAX)
+        else:
+            data, _mode = paths.read_contained(root, LOCK_PATH, max_bytes=files.FILE_MAX)
     except FileNotFoundError:
         return None
     except (OSError, paths.UnsafePath, paths.TooLarge) as exc:
@@ -268,10 +272,10 @@ def compare_pins(pins: Iterable[Mapping], probes: Iterable[ProbeReport], servers
 
 
 def compare_lock(root: str, computed: Mapping, *, probes: Iterable[ProbeReport] | None = None,
-                 notices: list[Notice] | None = None) -> LockState:
+                 notices: list[Notice] | None = None, read: Callable[[str, int], bytes] | None = None) -> LockState:
     """The stored lock against `computed` (which never holds pins). The `mcp-tools` pins take part only when the run probed
-    (`probes` is not None); their notices are appended to `notices`."""
-    stored = _read(root)
+    (`probes` is not None); their notices are appended to `notices`. `read` as for `_read` (1.19.0)."""
+    stored = _read(root, read)
     if stored is None:
         return LockState(status="absent")
     old = _grouped(item for item in stored["items"] if item["kind"] != PIN_KIND)
@@ -290,11 +294,13 @@ def compare_lock(root: str, computed: Mapping, *, probes: Iterable[ProbeReport] 
     return LockState(status="stale" if added or removed or changed else "ok", added=added, removed=removed, changed=changed)
 
 
-def changed_pin_notices(root: str, probes: Iterable[ProbeReport]) -> list[Notice]:
+def changed_pin_notices(root: str, probes: Iterable[ProbeReport], *,
+                        read: Callable[[str, int], bytes] | None = None) -> list[Notice]:
     """`scan --probe` without `--locked`: a `tools_changed` notice for each pinned server whose kinds read in full differ now.
-    The exit code does not change, and a lock file that is absent or cannot be read gives no notice here."""
+    The exit code does not change, and a lock file that is absent or cannot be read gives no notice here. `read` as for
+    `_read` (1.19.0)."""
     try:
-        stored = _read(root)
+        stored = _read(root, read)
     except LockUnreadable:
         return []
     if stored is None:

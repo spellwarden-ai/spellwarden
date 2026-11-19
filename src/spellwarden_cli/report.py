@@ -29,7 +29,9 @@ ERROR_CODES = (*DOCUMENT_ERRORS, "unsafe_path", "case_collision", "unreadable", 
                "user_instructions_limit", "user_skills_limit", "workstation_no_credential", "workstation_label_missing",
                "workstation_upload_too_large", "workstation_upload_failed",
                # 1.17.0 (Phase 4 batch B spec:Q4, D23): written only when `analysis.incomplete_analysis_is_scan_error` says so
-               "analysis_incomplete")
+               "analysis_incomplete",
+               # 1.19.0: `scan --staged` outside a git repository, or the index could not be read
+               "staged_unavailable")
 # The error codes whose message says what to fix (O3 spec 6.9); the Markdown report prints them whole.
 CONNECTED_ERRORS = ERROR_CODES[ERROR_CODES.index("connected_config"):ERROR_CODES.index("registry_check_too_large") + 1]
 NOTICE_CODES = ("no_agent_content", "git_unavailable", "exec_bits_unknown", "symlink_skipped", "file_too_large",
@@ -58,7 +60,9 @@ NOTICE_CODES = ("no_agent_content", "git_unavailable", "exec_bits_unknown", "sym
                 # 1.17.0 (spec 11.3): the model-assisted analyzer; `ci-run gitlab` on a fork without SPELLWARDEN_MODEL_KEY
                 "model_assisted", "analysis_incomplete", "analyzer_no_key",
                 # 1.18.0: a preset other than balanced applied (`presets.apply`)
-                "preset")
+                "preset",
+                # 1.19.0: `scan --staged` ignored SPELLWARDEN_ORG or SPELLWARDEN_API_KEY, or, in CI, `connected.required`
+                "staged_credentials_ignored", "staged_connected_required")
 # The notices that say a run continued in free mode after connected mode could not start (O3 spec 6.4); the text and
 # Markdown outputs derive their "unavailable" line from them.
 FREE_MODE_NOTICES = ("connected_fallback", "fork_free_mode", "dependabot_free_mode")

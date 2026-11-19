@@ -1,4 +1,5 @@
-"""Writes `.pre-commit-hooks.yaml` (1.18.0) from `spellwarden_cli.discover.AGENT_CONTENT_REGEX`, so the hook's file filter and
+"""Writes `.pre-commit-hooks.yaml` (1.18.0; the entry `spellwarden scan --staged` since 1.19.0) from
+`spellwarden_cli.discover.AGENT_CONTENT_REGEX`, so the hook's file filter and
 the scanner's discovery never disagree; tests/test_pre_commit_hook.py compares the file with `render()`. Run it from the
 repository root after a change to the filter:
 
@@ -23,7 +24,7 @@ def render() -> str:
             "- id: spellwarden\n"
             "  name: Spellwarden (scan agent skills, MCP configuration and hooks)\n"
             "  description: Scans the repository's agent content when it changes.\n"
-            "  entry: spellwarden scan --no-upload\n"
+            "  entry: spellwarden scan --staged\n"
             "  language: python\n"
             "  pass_filenames: false\n"
             "  require_serial: true\n"

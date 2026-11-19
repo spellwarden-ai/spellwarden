@@ -69,8 +69,11 @@ nonce = re.search(r"The nonce is ([0-9a-f]+)\.", user).group(1)
 names = ["instruction_override", "data_exfiltration", "credential_access", "destructive_action", "remote_code", "obfuscation",
          "deceptive_description", "excessive_permission"]
 issue = "MALICIOUS-MARKER" in user
+marked = re.search(r"^ *([0-9]+)\| .*MALICIOUS-MARKER", user, re.M)
+span = [{"path": "SKILL.md", "line": int(marked.group(1)), "text": "MALICIOUS-MARKER"}] if issue and marked else []
 categories = [{"id": name, "verdict": "issue" if issue and name == "remote_code" else "none",
-               "confidence": "high" if issue else "low", "summary": "UNIQUE-ANSWER-TEXT", "spans": []} for name in names]
+               "confidence": "high" if issue else "low", "summary": "UNIQUE-ANSWER-TEXT",
+               "spans": span if issue and name == "remote_code" else []} for name in names]
 emit(json.dumps({"nonce": nonce, "categories": categories}), models=models)
 '''
 DEFAULT_SET = (("m1", "malicious", "held-out", "MALICIOUS-MARKER"),

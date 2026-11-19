@@ -282,7 +282,7 @@
                           "policy_invalid", "org_rules_incomplete", "registry_check_failed", "registry_check_too_large",
                           "a2a_cards_limit", "instructions_limit", "user_instructions_limit", "user_skills_limit",
                           "workstation_no_credential", "workstation_label_missing", "workstation_upload_too_large",
-                          "workstation_upload_failed", "analysis_incomplete"]},
+                          "workstation_upload_failed", "analysis_incomplete", "staged_unavailable"]},
         "path": {"type": "string"},
         "message": {"type": "string"}
       }

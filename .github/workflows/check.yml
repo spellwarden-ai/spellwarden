@@ -109,10 +109,11 @@ jobs:
       - run: uv run --locked pytest -q -o faulthandler_timeout=120
       - run: uv build
 
-  # 1.18.0: the hook of .pre-commit-hooks.yaml through the pre-commit framework (tests/test_pre_commit_hook.py): in a fixture
-  # repository with a high finding the hook fails (exit 1), in a clean one it passes (exit 0). Linux and Windows runners only.
-  # The framework installs the hook's environment from the network, so the test runs only where SPELLWARDEN_PRE_COMMIT_TRY_REPO
-  # is 1.
+  # 1.18.0, 1.19.0: the hook of .pre-commit-hooks.yaml through the pre-commit framework (tests/test_pre_commit_hook.py): in a
+  # fixture repository with a high finding the hook fails (exit 1), in a clean one it passes (exit 0); since 1.19.0 an untracked
+  # skill does not fail a commit of another and an untracked settings file cannot exclude a staged skill. Linux and Windows
+  # runners only. The framework installs the hook's environment from the network, so the test runs only where
+  # SPELLWARDEN_PRE_COMMIT_TRY_REPO is 1; tests/cli/test_staged.py runs the 1.19.0 cases without the framework everywhere.
   pre-commit-hook:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30

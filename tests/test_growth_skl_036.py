@@ -176,7 +176,8 @@ def test_non_string_values_are_quiet():
 
 @pytest.mark.parametrize("token", ["Read, ", "Bash(x:*) ", "Bash(", "Bash, "])
 def test_long_allowed_tools_line_is_read_in_linear_time(token):
-    line = "allowed-tools: " + token * (300_000 // len(token))
+    # 1.19.0: a front matter is read up to 64 KiB, so the line is as long as the limit allows
+    line = "allowed-tools: " + token * (60_000 // len(token))
     start = time.perf_counter()
     findings = run(line)
     assert time.perf_counter() - start < 1.0 * SPEED_FACTOR
@@ -185,12 +186,11 @@ def test_long_allowed_tools_line_is_read_in_linear_time(token):
 
 def test_escaped_entries_that_are_not_in_the_raw_text_are_read_in_linear_time():
     # YAML unescapes "\x42a\x73h" to Bash, so the raw text never contains the entry that the parser returns.
+    # 1.19.0: a front matter holds at most 2,000 YAML nodes, so the list is as long as the limit allows
     entry = '"\\x42a\\x73h", '
-    line = "allowed-tools: [" + entry * (280_000 // len(entry)) + "]"
+    line = "allowed-tools: [" + entry * 1_900 + "]"
     start = time.perf_counter()
     findings = run(line)
-    # Nearly all of the time is the frontmatter parser reading a 280,000-character YAML list (0.3 s on a fast machine, over
-    # a second on a slow CI runner); the rule adds almost nothing, and a quadratic rule would take minutes.
     assert time.perf_counter() - start < 2.0 * SPEED_FACTOR
     assert at(findings) == [("SKILL.md", 4)]
 

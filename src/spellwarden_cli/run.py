@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 
 from spellwarden_scan import (RULES_VERSION, Finding, OrgRuleBudget, RuleSet, __version__, lint, scan_agent_config,
                               scan_skill_package)
-from spellwarden_scan.frontmatter import metadata_of
+from spellwarden_scan.frontmatter import FrontmatterLimit, metadata_of
 from spellwarden_scan.model import SkillMeta
 
 from spellwarden_cli import agents as agents_module
@@ -55,6 +55,9 @@ class ScanOptions:
     scope: str | None = ""  # the scan root below its work tree (`ci.scan_scope`, P41); None: outside the grammar of 8.4
     config: str | None = None  # the `--config` argument (O4 spec 6.5: where findings on remote agents point), None without it
     analyze: AnalyzeOptions | None = None  # 1.17.0 (Phase 4 batch B spec 11.3): `--analyze` and its flags; None without it
+    # 1.19.0: `--staged`, the git index the files, the settings, the baseline and the lock come from (nothing is sent to
+    # Spellwarden); None: the working tree
+    staged: files.StagedIndex | None = None
 
 
 def connected_config_problem(options: ScanOptions) -> Notice | None:
@@ -102,24 +105,27 @@ def scan(options: ScanOptions) -> Report:
     if options.api_url is not None:
         early.append(Notice("api_url_override", "", "SPELLWARDEN_API_URL is honoured: the connected calls go to a loopback "
                                                     "address, not to the Spellwarden service."))
-    problem = connected_config_problem(options)
+    problem = connected_config_problem(options) if options.staged is None else None  # 1.19.0: no connected mode staged
     if problem is not None:
         return _stopped(options, early, problem)
     # Connected mode (O3 spec 6.2 to 6.5): the session and the policy come first, but a failure before the session is
     # only kept: `required` decides after discovery, which the Dependabot exemption needs (P35).
     credentials = options.credentials if options.credentials is not None else Credentials(None, None, None, None, None)
     context = options.context
-    if context is None and (credentials.org or credentials.key is not None or options.settings.connected.required):
+    if options.staged is None and context is None and (credentials.org or credentials.key is not None
+                                                       or options.settings.connected.required):
         context = ci.detect(options.env)
     state = stop = None
-    if context is not None and connected.activation(options.settings, context, credentials) is not None:
+    if options.staged is None and context is not None and connected.activation(options.settings, context,
+                                                                               credentials) is not None:
         try:
             state = connected.establish(options, context, credentials, options.scope, connected.make_client)
         except connected.ConnectedStop as caught:
             stop = caught
         except connected.ConnectedFail as failed:
             return _stopped(options, early, Notice(failed.code, "", failed.message))
-    fileset = files.list_files(options.root, options.settings, env=options.env)
+    fileset = (options.staged.fileset(options.settings) if options.staged is not None
+               else files.list_files(options.root, options.settings, env=options.env))
     a2a = options.settings.a2a
     found = discover.discover(fileset, listed_cards=a2a.cards, agents_configured=bool(a2a.agents),
                               instructions=options.settings.instructions)
@@ -136,7 +142,8 @@ def scan(options: ScanOptions) -> Report:
         rules = rules.with_rules(state.compiled)
         notices.extend(connected.state_notices(state, options.settings))
         org_budget = connected.org_rule_budget if state.compiled else None
-    findings = engine_findings(found, rules, notices, errors, org_budget=org_budget)
+    refused: dict[str, str] = {}  # the skills and instruction files whose front matter the engine refused, and the file
+    findings = engine_findings(found, rules, notices, errors, org_budget=org_budget, refused=refused)
     remote = agents_module.RemotePhase(trust=agents_module.load_trust(a2a, notices, errors))
     probes = run_probes(options, found, rules, findings, notices, org_budget=org_budget, remote=remote)
     for probe in probes:
@@ -156,14 +163,14 @@ def scan(options: ScanOptions) -> Report:
     findings = apply_baseline(options, findings, notices, errors, base_gate=state is not None and context is not None
                               and context.is_request)
     lock = check_lock(options, found, errors, probes=probes if options.settings.probe else None, notices=notices)
-    skill_lints = skill_lint(found)
+    skill_lints = skill_lint(found, refused)
     if skill_lints is not None:
         notices.append(lint_notice(skill_lints))
     analysed = None
     if options.analyze is not None:
         from spellwarden_cli import analysis  # here: a scan without --analyze imports neither it nor the model client
 
-        analysed = analysis.analyse(found, findings, options.analyze, notices, errors)
+        analysed = analysis.analyse(found, findings, options.analyze, notices, errors, refused=refused)
     report = Report(
         scanner_version=__version__, rules_version=RULES_VERSION, as_of=options.as_of.isoformat(),
         fail_on=options.settings.fail_on, items=found.items, findings=tuple(findings), probes=tuple(probes), lock=lock,
@@ -188,21 +195,42 @@ def scan(options: ScanOptions) -> Report:
                          origin=settings.preset_origin or "--preset")
 
 
+# 1.19.0: a repository scan's way out of a front matter past a limit; `scan --user` reads no settings file and passes its own
+FRONTMATTER_WAY_OUT = "make the front matter smaller, or leave the file out with `exclude` in .spellwarden/config.yml"
+
+
+def frontmatter_refused(error: FrontmatterLimit, path: str, way_out: str = FRONTMATTER_WAY_OUT) -> Notice:
+    """1.19.0: the error `unreadable` of a front matter past one of the engine's limits (`frontmatter.FrontmatterLimit`): the
+    file, the limit and the way out. The skill or instruction file holding it is not judged, so the scan is incomplete
+    (exit 2); an unread front matter is never a finding."""
+    return Notice("unreadable", path, f"{error.detail}; not read, so the scan is incomplete: {way_out}")
+
+
 def engine_findings(found: Discovery, rules: RuleSet, notices: list[Notice], errors: list[Notice] | None = None, *,
-                    org_budget: Callable[[], OrgRuleBudget] | None = None) -> list[ReportFinding]:
+                    org_budget: Callable[[], OrgRuleBudget] | None = None,
+                    way_out: str = FRONTMATTER_WAY_OUT, refused: dict[str, str] | None = None) -> list[ReportFinding]:
     """The engine once per skill (only that package's files, under scan-root keys, so finding paths are scan-root
     paths), once per instruction file and once for every configuration document that parsed or was truncated (spec 5.5, 6.5).
     In connected mode `org_budget` gives each package a time budget for the org rules; a rule that did not finish is the error
-    `org_rules_incomplete` (O3 spec 6.5)."""
+    `org_rules_incomplete` (O3 spec 6.5). A package with a front matter past one of the engine's limits is not judged: the
+    error `unreadable` names the file and `way_out`, the caller's way out (1.19.0, `frontmatter_refused`), and `refused`, when
+    given, maps the path of each package so refused (a skill or an instruction file) to the scan-root path of the file named."""
     from spellwarden_cli import connected
 
     findings: list[ReportFinding] = []
+    refused_to = errors if errors is not None else notices
+    refused = refused if refused is not None else {}
     for skill in found.skills:
         # a case variant of SKILL.md is read under the engine's SKILL.md key and reported as written (spec 6.5)
-        result = scan_skill_package(skill.engine_files(), rules, root="" if skill.path == "." else skill.path,
-                                    executable_paths=skill.engine_executable(), nested_roots=skill.nested,
-                                    markdown_paths=skill.markdown,
-                                    **({"org_rule_budget": org_budget()} if org_budget is not None else {}))
+        try:
+            result = scan_skill_package(skill.engine_files(), rules, root="" if skill.path == "." else skill.path,
+                                        executable_paths=skill.engine_executable(), nested_roots=skill.nested,
+                                        markdown_paths=skill.markdown,
+                                        **({"org_rule_budget": org_budget()} if org_budget is not None else {}))
+        except FrontmatterLimit as exc:
+            refused[skill.path] = skill.as_written(exc.path) if exc.path else skill.path
+            refused_to.append(frontmatter_refused(exc, refused[skill.path], way_out))
+            continue
         if result.org_rules_incomplete and errors is not None:
             errors.append(connected.org_rules_incomplete_error(result.org_rules_incomplete, skill.path))
         findings.extend(ReportFinding(_as_written(skill, finding), skill.path) for finding in result.findings)
@@ -211,9 +239,14 @@ def engine_findings(found: Discovery, rules: RuleSet, notices: list[Notice], err
     for instruction in found.instruction_files:
         # 1.13.0 (Phase 3 batch 1 spec 10.3): one file, scanned as an instruction file (every skill rule but the two about the
         # SKILL.md metadata); `markdown_paths` makes a `.mdc` rule, `.cursorrules` and `.windsurfrules` read as Markdown
-        result = scan_skill_package({instruction.path: instruction.content}, rules, root="", kind="instructions",
-                                    markdown_paths=frozenset({instruction.path}),
-                                    **({"org_rule_budget": org_budget()} if org_budget is not None else {}))
+        try:
+            result = scan_skill_package({instruction.path: instruction.content}, rules, root="", kind="instructions",
+                                        markdown_paths=frozenset({instruction.path}),
+                                        **({"org_rule_budget": org_budget()} if org_budget is not None else {}))
+        except FrontmatterLimit as exc:
+            refused[instruction.path] = exc.path or instruction.path
+            refused_to.append(frontmatter_refused(exc, refused[instruction.path], way_out))
+            continue
         if result.org_rules_incomplete and errors is not None:
             errors.append(connected.org_rules_incomplete_error(result.org_rules_incomplete, instruction.path))
         findings.extend(ReportFinding(finding, instruction.path) for finding in result.findings)
@@ -232,17 +265,26 @@ LINT_GUIDE_URL = ("https://spellwarden.ai/docs/activation-checks?utm_source=scan
                   "&utm_campaign=description-lint")
 
 
-def skill_lint(found: Discovery) -> tuple[SkillLint, ...] | None:
+def skill_lint(found: Discovery, refused: Mapping[str, str] | None = None) -> tuple[SkillLint, ...] | None:
     """Phase 4 batch B spec 11.4: the description lint over every skill of the scan together (SW-LINT-004 compares siblings),
     one entry per skill in path order with at most `lint.MAX_NOTES_PER_SKILL` notes and the count left out; None when the
-    scan found no skill, so a report without skills is unchanged."""
+    scan found no skill, so a report without skills is unchanged. A skill whose front matter was not read (1.19.0, the error
+    `unreadable` of `engine_findings`, which lists it in `refused`, whichever file of the package it was) is left out; None
+    when no skill is left."""
     if not found.skills:
         return None
     metas = []
     skill_files = {skill.path: skill.as_written(skill.engine_key()) for skill in found.skills}  # r0:F2: as written
     for skill in found.skills:
-        metadata = metadata_of(skill.engine_files(), "" if skill.path == "." else skill.path)
+        if refused is not None and skill.path in refused:
+            continue
+        try:
+            metadata = metadata_of(skill.engine_files(), "" if skill.path == "." else skill.path)
+        except FrontmatterLimit:
+            continue
         metas.append(SkillMeta(skill.path, metadata.name, metadata.description))
+    if not metas:
+        return None
     notes, left_out = lint.counted(metas)
     by_path: dict[str, list] = {}
     for note in notes:
@@ -321,12 +363,13 @@ def check_lock(options: ScanOptions, found: Discovery, errors: list[Notice], *, 
     without it as `tools_changed` notices, both appended to `notices`."""
     from spellwarden_cli import lockfile  # here, not at the top: lockfile's command imports this module
 
+    read = options.staged.read if options.staged is not None else None  # 1.19.0: under --staged, the lock as staged
     if not options.locked:
         if probes is not None and notices is not None:
-            notices.extend(lockfile.changed_pin_notices(options.root, probes))
+            notices.extend(lockfile.changed_pin_notices(options.root, probes, read=read))
         return LockState()
     try:
-        return lockfile.compare_lock(options.root, lockfile.compute_lock(found), probes=probes, notices=notices)
+        return lockfile.compare_lock(options.root, lockfile.compute_lock(found), probes=probes, notices=notices, read=read)
     except lockfile.LockUnreadable as exc:
         errors.append(Notice("lock_unreadable", lockfile.LOCK_PATH, str(exc)))
         return LockState()

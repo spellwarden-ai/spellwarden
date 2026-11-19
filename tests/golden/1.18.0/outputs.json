@@ -1,0 +1,1039 @@
+{
+ "as_of": "2026-11-17",
+ "release_tag": "v1.18.0",
+ "roots": {
+  "fixtures/config/SW-CFG-001/negative": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "8b8654bcb0059b14ff9136501d480f90a7bbcf404afcad8ff98a30ed05c04f9b",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "8e6c38e24723f7ea719c9a2726661c2db70c4ca683b3d2ed83c0205ccecdec6b",
+    "json": "13fae6b7184fcc5fbec1510937b56ee14b69c5e77e41cefe5063650269886161",
+    "markdown": "d63a7afdc5fda0bb268f396ecbd01032381df23899047b40523e42758e692e5d",
+    "sarif": "a54d74d7e284bd76b387965dd378f9d0532089acaf8e0f687ef04177ce7e71de",
+    "text": "2871fa6fc751517551dc37c02873afaaa3954f4aca6e8a409d6d7cf377e8cb47"
+   }
+  },
+  "fixtures/config/SW-CFG-001/positive": {
+   "exit_code": 1,
+   "outputs": {
+    "cyclonedx": "c2e35997367e23900960441e8612b4b784171c017b44039088b06b3db0cbb235",
+    "gitlab-codequality": "855d278d79bf8e4e60a49461ade08d19988d208f25a414739817022db315de0a",
+    "html": "8b34f9a04b830d7dff96cfb646e7b811f1d41850fdcf41b7640cb20118234be2",
+    "json": "0bf33324e4c060869f8cbf238f368da0439a639d8dce29a6b6b9abb8a90b8b23",
+    "markdown": "ccb0383ceca885b7b7c49f94c43183dbc19b17f935adf7fe4d898eed088dae76",
+    "sarif": "4903b2671c373a47d362adc414117679fd2e92b5db66528611c8b68f7e960d52",
+    "text": "29002430d8f509099612378391a5653957912d77c48541ad4493053108170ebb"
+   }
+  },
+  "fixtures/config/SW-CFG-002/negative": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "790e53bb46b98f8fb177269f0846880689ca63f00eb0a03b9ca1e849ae9eae21",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "f718921680527d883bf2595d0a07076147fbf137e1cd850df631694d4fd39d5d",
+    "json": "e7b2b69cc2b91b4182ff050bcec71536b84f5d259d26ef7b5e47b49ee0645a27",
+    "markdown": "d63a7afdc5fda0bb268f396ecbd01032381df23899047b40523e42758e692e5d",
+    "sarif": "a54d74d7e284bd76b387965dd378f9d0532089acaf8e0f687ef04177ce7e71de",
+    "text": "2871fa6fc751517551dc37c02873afaaa3954f4aca6e8a409d6d7cf377e8cb47"
+   }
+  },
+  "fixtures/config/SW-CFG-002/positive": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "793718e95ff97d44fdc6d9cc6e2480a671463d351417ab992631082ee7377263",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "dc97de26045ff9746b02e48f3bbc7467257724eb976a43ec1bb7c69038aa6739",
+    "json": "b44e5f8e2f6e9ad1d78cf303e8d46df3d79c884346c1342480536c9cd28e9068",
+    "markdown": "d63a7afdc5fda0bb268f396ecbd01032381df23899047b40523e42758e692e5d",
+    "sarif": "a54d74d7e284bd76b387965dd378f9d0532089acaf8e0f687ef04177ce7e71de",
+    "text": "a74969998724bea62cc6347df55b9f81eef2c92ea3186beaaf0aaee3ed1a75a5"
+   }
+  },
+  "fixtures/config/SW-CFG-003/negative": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "e6018ba0ad48a8c3067d9ad146ff84fb2f20bf0cca7f070d126d05cc3e5d7bf6",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "e2a0e3abf380e3dfe9bbe49afac500f21d82e0691eb8c1e67ee43bb7f0096be7",
+    "json": "d810e5c762ecf91c79f8a52dfb6cc5a5286821b92cd7e8dca5048eff5ffb77fc",
+    "markdown": "d63a7afdc5fda0bb268f396ecbd01032381df23899047b40523e42758e692e5d",
+    "sarif": "a54d74d7e284bd76b387965dd378f9d0532089acaf8e0f687ef04177ce7e71de",
+    "text": "2871fa6fc751517551dc37c02873afaaa3954f4aca6e8a409d6d7cf377e8cb47"
+   }
+  },
+  "fixtures/config/SW-CFG-003/positive": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "00d378070ba9024be2cc1eb811e1f7e6ade46ab15753c1cfaf57abac58f50c17",
+    "gitlab-codequality": "4e3e8220258649866fe025d206e1d3e20b4cc10fb920e1e76609358c02bfd8e6",
+    "html": "3a781573c25c22a90a93aefec3efb0c4652a033d5a02d32743479124164ca3e9",
+    "json": "daf94aadaa197d16aa042f9ef0d80547262b9e846f346284642a5bfff107f1d3",
+    "markdown": "7022ed189bee93c81756f2d86452af2d000cc295d20df86a582a31b1d28d0827",
+    "sarif": "9f4d6a0327e585785ebf7136eb9becbc8fbd59e9c090b618618decc41376fb9b",
+    "text": "856c6249b216e6403ec3f16892494832367ae4ddef2c78f7eb6a60393043d5d4"
+   }
+  },
+  "fixtures/config/SW-CFG-004/negative": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "8b524080e6cf53f0ef2abec799185e8bac95019cbc085030139b8d59a50bcebf",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "d17d016b5e916e49a0a77eceae3b88234cc78de7e2bdfb2f3cc96d918a8b97b1",
+    "json": "985776e2ac76c5d6abe609177f8c1936445c9a852259b83d081190b0cb515f2a",
+    "markdown": "d63a7afdc5fda0bb268f396ecbd01032381df23899047b40523e42758e692e5d",
+    "sarif": "a54d74d7e284bd76b387965dd378f9d0532089acaf8e0f687ef04177ce7e71de",
+    "text": "2871fa6fc751517551dc37c02873afaaa3954f4aca6e8a409d6d7cf377e8cb47"
+   }
+  },
+  "fixtures/config/SW-CFG-004/positive": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "5cbf921ed077eefc4c5dc973b663e4ce4cf872d284b617680095809e90139539",
+    "gitlab-codequality": "c94158190be5d70933f7174dc92766683dd481ca51d29e07402947dd23532427",
+    "html": "16e7479095d5cdc8f1489bebb3862d3acf22e08bb42f50bf9bc573aaf4f00fbc",
+    "json": "ba070d78b20f0f69976d2bac70384b0248daf3ba81388ef64d3791fe6318b823",
+    "markdown": "de1068d9a4aaa763085d82f86ae3000f00d37d94919786d44a6b362631f1d186",
+    "sarif": "f277cdaea5c866da364e127edaf96af8f42ebc4fb4da6fa073c8fd861ee3f510",
+    "text": "aef969c1e35a91cc969b813deb2078e2345249c611ccdf0f5dad5d18722e01e7"
+   }
+  },
+  "fixtures/config/SW-CFG-005/negative": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "793718e95ff97d44fdc6d9cc6e2480a671463d351417ab992631082ee7377263",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "dc97de26045ff9746b02e48f3bbc7467257724eb976a43ec1bb7c69038aa6739",
+    "json": "b44e5f8e2f6e9ad1d78cf303e8d46df3d79c884346c1342480536c9cd28e9068",
+    "markdown": "d63a7afdc5fda0bb268f396ecbd01032381df23899047b40523e42758e692e5d",
+    "sarif": "a54d74d7e284bd76b387965dd378f9d0532089acaf8e0f687ef04177ce7e71de",
+    "text": "a74969998724bea62cc6347df55b9f81eef2c92ea3186beaaf0aaee3ed1a75a5"
+   }
+  },
+  "fixtures/config/SW-CFG-005/positive": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "793718e95ff97d44fdc6d9cc6e2480a671463d351417ab992631082ee7377263",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "dc97de26045ff9746b02e48f3bbc7467257724eb976a43ec1bb7c69038aa6739",
+    "json": "b44e5f8e2f6e9ad1d78cf303e8d46df3d79c884346c1342480536c9cd28e9068",
+    "markdown": "d63a7afdc5fda0bb268f396ecbd01032381df23899047b40523e42758e692e5d",
+    "sarif": "a54d74d7e284bd76b387965dd378f9d0532089acaf8e0f687ef04177ce7e71de",
+    "text": "a74969998724bea62cc6347df55b9f81eef2c92ea3186beaaf0aaee3ed1a75a5"
+   }
+  },
+  "fixtures/config/SW-CFG-006/negative": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "f392773222c523745c3199b533f36105906ae488285b0542959fcf20431979f6",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "2f673ded886b0e0502cb92495e3e9db1a006a5a185dc99fbc53a392cf7401d86",
+    "json": "dd6742b0d323e75d29837a318e072e9b8b92cdaa91af996820abfb3b6d1cc360",
+    "markdown": "d63a7afdc5fda0bb268f396ecbd01032381df23899047b40523e42758e692e5d",
+    "sarif": "a54d74d7e284bd76b387965dd378f9d0532089acaf8e0f687ef04177ce7e71de",
+    "text": "2871fa6fc751517551dc37c02873afaaa3954f4aca6e8a409d6d7cf377e8cb47"
+   }
+  },
+  "fixtures/config/SW-CFG-006/positive": {
+   "exit_code": 1,
+   "outputs": {
+    "cyclonedx": "37c80fb84b3cc5f9e221a1a2da6235b1d2f53c2f78979878411fd73bb3fd5049",
+    "gitlab-codequality": "9ac22df4093b1c415d52b75652c9027d769ec30b29314ce52d5bb5366cded221",
+    "html": "3fd902ebf5a8b868b1d5dae76f5742c4a1fd8f63d77346fead11beff02d70247",
+    "json": "fe626a8809e05a2ea1d2045c9d3d84d62f0d7088806eb9005fb1aa46841cd680",
+    "markdown": "89a3edf8ed7e0a64ca142cef455d4e3fe3a18ee5242769a2d7312422b6474d65",
+    "sarif": "7f914e4ae85eaf872a818a754642c8d4bea5ab8b6a1e1c97fc5355cba2bcf668",
+    "text": "caf8df8aaaec7edb4b33f286188c1a89cb608b361bfd6d7e668f9d59e282079b"
+   }
+  },
+  "fixtures/config/SW-CFG-007/negative": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "793718e95ff97d44fdc6d9cc6e2480a671463d351417ab992631082ee7377263",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "dc97de26045ff9746b02e48f3bbc7467257724eb976a43ec1bb7c69038aa6739",
+    "json": "b44e5f8e2f6e9ad1d78cf303e8d46df3d79c884346c1342480536c9cd28e9068",
+    "markdown": "d63a7afdc5fda0bb268f396ecbd01032381df23899047b40523e42758e692e5d",
+    "sarif": "a54d74d7e284bd76b387965dd378f9d0532089acaf8e0f687ef04177ce7e71de",
+    "text": "a74969998724bea62cc6347df55b9f81eef2c92ea3186beaaf0aaee3ed1a75a5"
+   }
+  },
+  "fixtures/config/SW-CFG-007/positive": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "793718e95ff97d44fdc6d9cc6e2480a671463d351417ab992631082ee7377263",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "dc97de26045ff9746b02e48f3bbc7467257724eb976a43ec1bb7c69038aa6739",
+    "json": "b44e5f8e2f6e9ad1d78cf303e8d46df3d79c884346c1342480536c9cd28e9068",
+    "markdown": "d63a7afdc5fda0bb268f396ecbd01032381df23899047b40523e42758e692e5d",
+    "sarif": "a54d74d7e284bd76b387965dd378f9d0532089acaf8e0f687ef04177ce7e71de",
+    "text": "a74969998724bea62cc6347df55b9f81eef2c92ea3186beaaf0aaee3ed1a75a5"
+   }
+  },
+  "fixtures/config/SW-CFG-008/negative": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "cd117b6ec1b074f6594cd40980529bc0d0cc47706e45de3ae64d12b42a894298",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "2f673ded886b0e0502cb92495e3e9db1a006a5a185dc99fbc53a392cf7401d86",
+    "json": "dd6742b0d323e75d29837a318e072e9b8b92cdaa91af996820abfb3b6d1cc360",
+    "markdown": "d63a7afdc5fda0bb268f396ecbd01032381df23899047b40523e42758e692e5d",
+    "sarif": "a54d74d7e284bd76b387965dd378f9d0532089acaf8e0f687ef04177ce7e71de",
+    "text": "2871fa6fc751517551dc37c02873afaaa3954f4aca6e8a409d6d7cf377e8cb47"
+   }
+  },
+  "fixtures/config/SW-CFG-008/positive": {
+   "exit_code": 1,
+   "outputs": {
+    "cyclonedx": "616894b18844ee90572b08b89e06c52184ad36b1bb9ee76cf83d8d3a5b99fa5e",
+    "gitlab-codequality": "e6ffa7c311bea0eb838c87af72396b2eceded8f318023cdf339ab355aae25eb0",
+    "html": "6d055101bd51314d77dd027ef2b5ae31131579b129b9890d0b7a3cd56804effd",
+    "json": "fcef1eea95a5a603ede83564894008642321899c5127b4423b867a790843ef85",
+    "markdown": "bc42ac5dacfe294d58c5453e8dd57931bd69162638b8e335e7fcfaa903678570",
+    "sarif": "8e356814ebbe727a769a76c5c193ccf9aee5bc2be308d07e645b664a4c8d5b2d",
+    "text": "6f467bae3c07e76b64987209fcb4ea9ba1192701cc65f3ab0e5ed341d319840d"
+   }
+  },
+  "fixtures/config/SW-CFG-009/negative": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "01e85b6353e04003eaa9810eb408359f888474af0e7b296876c127d11ac53ccc",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "c2fa467aaf734b321714f70e0e9df2705d1ded9510bef10cc8f314b7c5fe0bd0",
+    "json": "4097cae4d7717897162c514ba0502195c04ca9bdd9594c34ddc707666037b08b",
+    "markdown": "d63a7afdc5fda0bb268f396ecbd01032381df23899047b40523e42758e692e5d",
+    "sarif": "a54d74d7e284bd76b387965dd378f9d0532089acaf8e0f687ef04177ce7e71de",
+    "text": "2871fa6fc751517551dc37c02873afaaa3954f4aca6e8a409d6d7cf377e8cb47"
+   }
+  },
+  "fixtures/config/SW-CFG-009/positive": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "24399cde0546281347f3a61254c69e227c38729902feacc7a9735c60322b6313",
+    "gitlab-codequality": "4f8a5e0405a9dd948c041f1bd630ea9761ecc428951903aeb5d8f56bbea4be2e",
+    "html": "f8d4bdc4fab95ab79fe3a6533a04ee810d5e1fa0d94561984b92589e59b613d2",
+    "json": "42015a0298d1e06c71e1d402046b344b6e58c6f1b3665bbfb5721e628f7da659",
+    "markdown": "293f3eb4080e8dfcc97e0aa2457b2301dfc4b71ad375bb082d0a1f9bd23de710",
+    "sarif": "cab5bdada6ed7d34ad0253bc9579cf9e01f164fd28a81c38d0a6595f8e65f088",
+    "text": "2fa43b204e90b217622cece9dc1aaef1754c0058d64a7e0f96e7b5d2f7d53bd7"
+   }
+  },
+  "fixtures/config/SW-CFG-010/negative": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "a407c5422e5afbbbe3a903716f8eb1fcf87927b1ed803f98d99f5494ba5b2ab8",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "a947077c6ef407cf8167af4906ac957ba795472aad356a6a2264a6813b9bde93",
+    "json": "89f22b557f0f0eb7a859be4f42067214afbc30d3dabe01bfabec32b2ba8276a1",
+    "markdown": "d63a7afdc5fda0bb268f396ecbd01032381df23899047b40523e42758e692e5d",
+    "sarif": "a54d74d7e284bd76b387965dd378f9d0532089acaf8e0f687ef04177ce7e71de",
+    "text": "2871fa6fc751517551dc37c02873afaaa3954f4aca6e8a409d6d7cf377e8cb47"
+   }
+  },
+  "fixtures/config/SW-CFG-010/positive": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "793718e95ff97d44fdc6d9cc6e2480a671463d351417ab992631082ee7377263",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "dc97de26045ff9746b02e48f3bbc7467257724eb976a43ec1bb7c69038aa6739",
+    "json": "b44e5f8e2f6e9ad1d78cf303e8d46df3d79c884346c1342480536c9cd28e9068",
+    "markdown": "d63a7afdc5fda0bb268f396ecbd01032381df23899047b40523e42758e692e5d",
+    "sarif": "a54d74d7e284bd76b387965dd378f9d0532089acaf8e0f687ef04177ce7e71de",
+    "text": "a74969998724bea62cc6347df55b9f81eef2c92ea3186beaaf0aaee3ed1a75a5"
+   }
+  },
+  "fixtures/config/SW-CFG-012/negative": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "06506552c223c23e0d67217bdbec849842804dab8e9c1dc023a1a26658dbf3c3",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "ef8a4222bf5755202a63f845f7a7a7d78f878bb3c16fd7958d36bba3c688f58f",
+    "json": "33a0e9b23e57f442a66d027dfcbdd6d1380a5a58bb7d5f737d4b01617e4183b4",
+    "markdown": "d63a7afdc5fda0bb268f396ecbd01032381df23899047b40523e42758e692e5d",
+    "sarif": "a54d74d7e284bd76b387965dd378f9d0532089acaf8e0f687ef04177ce7e71de",
+    "text": "2871fa6fc751517551dc37c02873afaaa3954f4aca6e8a409d6d7cf377e8cb47"
+   }
+  },
+  "fixtures/config/SW-CFG-012/positive": {
+   "exit_code": 1,
+   "outputs": {
+    "cyclonedx": "3a6afbc54c56d5a0fc5d3225aaec937ea86fe4687cda28dbcfb4eb51eaed76d2",
+    "gitlab-codequality": "9b6aed0e876d40263516c63eaaebc7effebc94b539f3460af189e57bf277461d",
+    "html": "3999a20e466fe1f51eb32fcf5088d9766b727e362059e1d6a45f85b9aabef5cd",
+    "json": "71a8ba19665849c14d750a60f53a0cb49bc784d516abe16f467ae962d8998889",
+    "markdown": "bb71901318ce8a467f68881fc1498053473371e819b87c21d7832c0ff8f8aecc",
+    "sarif": "579954804133f99f6663be45bfd6c422807bc535be0ce7a4469bbd8b32de21df",
+    "text": "0ab8983086dd4d70623df779b5f3645819b51afddca4fd993d5e87b6d5831a3f"
+   }
+  },
+  "fixtures/config/SW-CFG-013/negative": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "a0596b206ee061439d4d46eac053c24d81bcae4b1ae4da3ba490e40be9c9d8f8",
+    "gitlab-codequality": "9fd4f9808790ace6583c2f5e9edc6ec5a9f19845ff7a86a010a1f317d70c397e",
+    "html": "b79860aa3069776a07f8c9b2b727b8a61a93f5f3d123ff88cf5164aa6bf47d0b",
+    "json": "a1643ed4ee9dfaee63e116a0bb4017809a99be42ac9ca5f327c0b45f025ccf2b",
+    "markdown": "474a11476809258d9469a06a042fdf9cc408c2a3ef52cebcaaf7442a9f5bef19",
+    "sarif": "e833502799338317c6f139f00b02c923b46def90b413db5ed69c47c7e64deeba",
+    "text": "313754b91fbf970a31fcef5f459b35b0022c89bb1142d9511cb8cce6bda66ca3"
+   }
+  },
+  "fixtures/config/SW-CFG-013/positive": {
+   "exit_code": 1,
+   "outputs": {
+    "cyclonedx": "25b89cb65ac8d7135081c231039dfc8a554cabc9b519f16fa0f4458ea9094372",
+    "gitlab-codequality": "b9a8ef4d99faa474063bebb776fcdb5fc338a5c6dafefc7ab9f7013b2501f82b",
+    "html": "92b0a5430aff3dfa5853b5c92575f2726c32a369f24b15d2403526a7ac532341",
+    "json": "7c166a49cc184759a57a63d1e5eac95b223411daebc310391312c9580fb63e7a",
+    "markdown": "dc64fa81c72c0e1d378712e85997cdc866ccd6263416a07a14b503fe917fa0d8",
+    "sarif": "e8d8130bce7b1349c5e2ad0400197e840a1584461c1d4a3edd2ec726b0cc6796",
+    "text": "9b42ea6a49bc3e9693d4c5558ac2b266331b89f411f21332849aa4e548606b75"
+   }
+  },
+  "fixtures/config/plugins-settings": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "cec9692ad75a01201c8c08e78c78a51489098f6db54557001f5ad2445be3c40b",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "2f673ded886b0e0502cb92495e3e9db1a006a5a185dc99fbc53a392cf7401d86",
+    "json": "dd6742b0d323e75d29837a318e072e9b8b92cdaa91af996820abfb3b6d1cc360",
+    "markdown": "d63a7afdc5fda0bb268f396ecbd01032381df23899047b40523e42758e692e5d",
+    "sarif": "a54d74d7e284bd76b387965dd378f9d0532089acaf8e0f687ef04177ce7e71de",
+    "text": "2871fa6fc751517551dc37c02873afaaa3954f4aca6e8a409d6d7cf377e8cb47"
+   }
+  },
+  "fixtures/html-escape": {
+   "exit_code": 1,
+   "outputs": {
+    "cyclonedx": "b1601d29d5e8549990eaf5a04d47caaaba883f2d7c51730ee96cdadb8d7d97ef",
+    "gitlab-codequality": "e4370684bc1408774d336c58c545bf4981309fd42f1aeb93672ca4790a4ec367",
+    "html": "4b89e3872f0e8db602e22a6821ae38fdb06df8ff51e8e603706f7d11a1a83654",
+    "json": "15442140a3c47f3295dd9781f40433ee4b8ae74f4447ee74688a190e7ab146d5",
+    "markdown": "ee4a1af2afcacb450cef93cada9edb132f92d809f729486d0be564c19675d4bd",
+    "sarif": "9ad1dd7c1b11634fa2bf333bcc176294f82a095b1772af59464902453d358717",
+    "text": "820fd1f294f95cc03b4256cab0609dc0209a7d6f2d09f7974f5cd6aa25df40ce"
+   }
+  },
+  "fixtures/orgrules/skills/raw-ip": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "89902e581d7421423148b0d6bb6854a107fccd32084fdabc8030d712f151d6ad",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "a3dc56cc2160e47df8d3612e9626cd2ccce68d610c1055e16fd6ca75c46ad755",
+    "json": "75e1eb6e30a3a03f5d897068c77457b9919a79a4a6953a96064eb8d42e87cc66",
+    "markdown": "c338582e98de7669645a528f0f114a55c5d1f5eccdf156db685e4e0e7fcd3c6c",
+    "sarif": "f0805a323c56ba0531fba24e50a730051b69540b7e5425accea1b6a08c788862",
+    "text": "67cebca34d7f0e384c936312a7271ff4532553b793fd1116302e9d78ab270429"
+   }
+  },
+  "fixtures/presets": {
+   "exit_code": 1,
+   "outputs": {
+    "cyclonedx": "0da4567adca2d7f82586dd7d1d372560bf1533d6294ea909401bb1bcac8e3263",
+    "gitlab-codequality": "869d92ca318c4c31c52025202e2a9e330b7084bb34ffacf373eefc0003f8dfe8",
+    "html": "4bb855bcf3239925f66e1638cf6324cc33ddb82741801bf7a76e1e9878a56689",
+    "json": "8440cc57025c3dac4f78856c4e5b0d7fe3eb42aabe1a62b31f6f5def23b4a1e7",
+    "markdown": "ca1fd5d52173732e32c7a241a2f7099cf12bb75835d8cd180c9f333deeb5f23a",
+    "sarif": "50de034e57d38b3e525166020548d849b40ee23e8651d8170c56335d2f5e8d0c",
+    "text": "e74b41806ad93b0e7a8fd54989a89c3655a3edbc624bc280ffab0e7d71be6b74"
+   }
+  },
+  "fixtures/repos/a2a/repo": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "678a9baa5e788882b445b1ca9554bf9b0237f70d5910146579ba37679529bb4e",
+    "gitlab-codequality": "49a7ce6ff4d2c74766e4b2d151411024e7bd071debd6064bbe07f4f1e254c072",
+    "html": "b5908656eccec287adb23acf85ad52327121ce81c6c51b4766d7c5f91622afc5",
+    "json": "5b08bc0856ec3e938fb1e5ab55a4be562570ec740e891e93deb2b9ca88a96f8e",
+    "markdown": "84fc2cfa174ca5ee6ca37143487b0ab7dd620b8db1437686d7494b1c04920847",
+    "sarif": "98c3e404789d8d205929cdd858e9d1a10da995149209a42ae1a54d7a5181ee23",
+    "text": "6def77c4fe6534e60c33797836818f54d098969aac8a4968727fa4045c87f71d"
+   }
+  },
+  "fixtures/repos/base-settings/repo": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "793718e95ff97d44fdc6d9cc6e2480a671463d351417ab992631082ee7377263",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "dc97de26045ff9746b02e48f3bbc7467257724eb976a43ec1bb7c69038aa6739",
+    "json": "b44e5f8e2f6e9ad1d78cf303e8d46df3d79c884346c1342480536c9cd28e9068",
+    "markdown": "d63a7afdc5fda0bb268f396ecbd01032381df23899047b40523e42758e692e5d",
+    "sarif": "a54d74d7e284bd76b387965dd378f9d0532089acaf8e0f687ef04177ce7e71de",
+    "text": "a74969998724bea62cc6347df55b9f81eef2c92ea3186beaaf0aaee3ed1a75a5"
+   }
+  },
+  "fixtures/repos/broken-config/repo": {
+   "exit_code": 2,
+   "outputs": {
+    "cyclonedx": "29b40e7586dca2a38a77402b48efe99e41862e5bdd860eda0d13dffcbb74ae33",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "bcc35f89bbe4621f4a3b04b048a661e525c78f88797e09b1cd307dd982f9076e",
+    "json": "7a64e621ad17c8c25a4a921f7b543feb2ec1d1f4d5406062c8ec7015eb9703fb",
+    "markdown": "4c0ee0e147da2590ad99ff113bb160e3e50ca44f5460d308e31c952c8802c3fb",
+    "sarif": "a54d74d7e284bd76b387965dd378f9d0532089acaf8e0f687ef04177ce7e71de",
+    "text": "1464a4dc9405483ad2f3ac2ca725cd93f1b267761ec064e27be990da08ba6ead"
+   }
+  },
+  "fixtures/repos/clean/repo": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "77f2b948e8e28d6c4f185fe211a30843631a909a814b59daed363985e6cabb85",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "746f50eb185f6617df80184032da9a1f7efa5ef0aeb4dd858e9c9b080b92cbf0",
+    "json": "4797a5b387cd685c754e3ea093cf8ab510db3b8d6fb3b83c8f619006dbd14ca2",
+    "markdown": "e6e8b4783870c6a94a450a228b2d80516e95f7e33e294ef378671e385700285d",
+    "sarif": "fcca7b185c16ff8b7f0096170e7f4384523060c4b32c26a21234d8f7d06c92e7",
+    "text": "7d46c280bdd15cf0578b76ee0226d8f0e0f24259151fa0c95ebc4d1b938aed39"
+   }
+  },
+  "fixtures/repos/connected/repo": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "4c72dc9f5d5caf690a4aebde0c86eb83a797062b7edc806202dc3307b5e41cd1",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "d865929688410240ec429d666bf01f880c7fb01d0364fa2c432d1482e011ad77",
+    "json": "32fcc00c469397eacb50a55c8b2bbc60bc45874a09536888005cfab80f3616bc",
+    "markdown": "a1564e3dafe9b5cd45c8ef3c734a55c27a05f09d33b20c96febcfb3f21ff9f5f",
+    "sarif": "a83bdac5bca6ec8d301750b980e9d1a4f8f96ee97594b85b1a6fb34ec16f8dc6",
+    "text": "df7d272f5ad6f42026732d21d68df74de1da2f0f601bbae8d34d1d126dc73adc"
+   }
+  },
+  "fixtures/repos/exec-bit/repo": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "996e18fb36e837c25502e7f9d0dd02ea93e97f172ace29c111706dffca80d200",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "29ee1bea828c7eaa3cba7f9313923460ded59d2a5a2778b3e078375248e603cf",
+    "json": "a2ff1331ba8de8f634c3d5b04a42c02903021ce76ca11f21262258f170c9cdd6",
+    "markdown": "de18c3660d489eb57d52693153d63e375a79ee69a52ed268ad70c6a9c68433ac",
+    "sarif": "7d28fe43606402c63e79726001aa86056b5cfaee4dac66e5343e1a7f84edc947",
+    "text": "e2b3022f3c547b66b95b6bf16b40cc80f0dca6d83ff56f35f900cb2fca943592"
+   }
+  },
+  "fixtures/repos/findings/repo": {
+   "exit_code": 1,
+   "outputs": {
+    "cyclonedx": "90578251ab550bbc1d6f73d331124c8652198698334b8eb236d0225f2af5b35e",
+    "gitlab-codequality": "1fc9649846302fa98b1cb90163cb5186d4770bd670b55adebd6d4f9dc86fee79",
+    "html": "40ee4e1e8dd09838a787bb3539c3a122d39b18271d0383273a3e1e777cfd6065",
+    "json": "a9640401fca0fa73e1fe3baf1dab79a5baaebb69809be1ba239eb4a7f70d04a3",
+    "markdown": "ccb0383ceca885b7b7c49f94c43183dbc19b17f935adf7fe4d898eed088dae76",
+    "sarif": "92112b0459ef39885c8f84d503b2313221fa3a9da9cd172b7b86083a73a0079c",
+    "text": "29002430d8f509099612378391a5653957912d77c48541ad4493053108170ebb"
+   }
+  },
+  "fixtures/repos/path-with-spaces/repo": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "e1e632986b97d685c7976c4bb8e678fd5e6ab899974379fc6430934a3d403cc5",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "a55079f72e2cfab799db3a83ed9d2f668fc84e8d652bdc64bdfef34a042b9bb1",
+    "json": "11c2f44d91b323b9cfb0d5f0b3636576045e41f6f06775de8525ef642d105843",
+    "markdown": "992c59b1844c8be7c773df348d31900b0f4d3a6880dd28e540f7b4a1c6dab8ea",
+    "sarif": "05cff85a6d6ffcdcacee064277874ed5ac200359c0ed5e0b3f5ae501bedac3ff",
+    "text": "80b124425503d7c69ed8d4c957595a71b72f9b8ceb7f3f7b16954cbba4e2213b"
+   }
+  },
+  "fixtures/repos/preset/repo": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "c388a796354a309c9d9b5bc9ca0b16aec2c8446d138f234242932060dcf958ad",
+    "gitlab-codequality": "94b1ae28bb26ac7d4185bcaf1c83cfa237f33d3067dc9780a08e8c2949e4a595",
+    "html": "68a3bc87cc3c77e0695ec62e82739e63d908538390308dd7328513fb0d3d9a30",
+    "json": "4e1b08923f4a63def2bb8037479fa231e2fcecbedfe33c1cfc2783dbaf2245f5",
+    "markdown": "506eb9b3ba492c282d12f3aedfb28cf7f3b42c81ff99115da703d65768b60a17",
+    "sarif": "d9777275dae5d9901cae31cdcf959e46091cfe581e2748bc6915e11a9979ba6e",
+    "text": "622c9606ded4f72b5e96da087377f264468f1181bea52e7db7ffc81cd1091b9d"
+   }
+  },
+  "fixtures/repos/probe/repo": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "f0848cbec5ea07f4f18ada8e430f3ccde0c35ec1399057f888a2fdf6dc2cbe40",
+    "gitlab-codequality": "2bbf52f823abf05cfbe59cb484c1eadf1797334453ddafe683761f179d3e4e66",
+    "html": "a7be3b6daf6365a3c32926210b80d2f5b8d7485d4219b67cfa15e0f6188df3eb",
+    "json": "7c12fcd100073b4d3b594e6d3d9f8e2d43e659cbd0c6e919676dee463f2c4fd0",
+    "markdown": "aa29619bbb9399c6189618877d330874bfb9528eb7d89ea8b7c0ba593b6faa7a",
+    "sarif": "eb2ad12032ea86e95d3c28da8723c9474d76a27b608f6b1adf65f519c7895dfe",
+    "text": "bb5e0a1f01d62733f1e6327986f4c40865b15a559b1cfc16a602bf9d269beb58"
+   }
+  },
+  "fixtures/repos/subdir/repo": {
+   "exit_code": 1,
+   "outputs": {
+    "cyclonedx": "dbf4f61a040ae80cc6310c9ead38b13769f6199b6296b19506fad6f363521f70",
+    "gitlab-codequality": "82bdf7368d8509d73897c90e50516b1665c53785c2a7f4931a7807837edd472b",
+    "html": "31fb761dff3203b4b62fa141b57d2009d8fd8b8340f984905f896d692fd76816",
+    "json": "1aab826cb443bad0bafa83f41ac4b7d3f1548ba3f740a082e373be58025d04d0",
+    "markdown": "f4929120f19ad35c50be082054249609e53839e0eaba229d1fed33615cfcbb26",
+    "sarif": "cb5721b14a3ca8b169215b969a110c232d702f2564c86250d38fabf545c2cdde",
+    "text": "3c00e5120d57700a318766e8c2652c12b9cc8abeb84e5831f35425343d02d19b"
+   }
+  },
+  "fixtures/skills/SW-SKL-001/negative": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "d65641c193a1ea0ec531f6adbf26fdfd3d77009426b24a09d66cb513fce7b05c",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "e9700d5ce88d868d06fbb234080f50706e78f324bd30d878764e0ba0b074fa18",
+    "json": "983076eaf3bc8e1dbe3bac9ff903a50194c6cd2b59671955a1f7d7ecef338c95",
+    "markdown": "b8a00b1e204bca3280b38db7657ba066d79c8fa1a24c720616524efc3a318b49",
+    "sarif": "724fdbfe3cd0a90d21ef8285ba03ba2839d25cc67a1ca23879ba97c549d13d1c",
+    "text": "5231d8969cee2ad2927dc933d092a9207137eac9a3f2357dfecb57fc4d0502dd"
+   }
+  },
+  "fixtures/skills/SW-SKL-001/positive": {
+   "exit_code": 1,
+   "outputs": {
+    "cyclonedx": "be68b00be263ba67db5f570a653ddae20f2a88484751b485e621c590f678e130",
+    "gitlab-codequality": "5e507c6dacafd797b1553501ad71f9cbc62656b21a25089c75d9093c90652f6c",
+    "html": "ed14d50e7dfa94ebb48d528de395acf7efdf07ddf7e4c9e1dcdfb2a9bbc790e4",
+    "json": "6a6752fa83f0a1c92171b03d81491b1693fa7ca5d64a43708a9c4cf1b10b313a",
+    "markdown": "e4b3dc6b61d104329666c7469cb2d77e15d4dda227e048821424a0afca0b5e23",
+    "sarif": "92a39ad9088fbbd84cd38f11beb455ea17afd2af7ee1d301aee2f12a37214aa7",
+    "text": "1dfb12b5b94ff07192635dbba08f51ed7f67ac67648776b5c2b87ec4db8c489f"
+   }
+  },
+  "fixtures/skills/SW-SKL-002/negative": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "793718e95ff97d44fdc6d9cc6e2480a671463d351417ab992631082ee7377263",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "dc97de26045ff9746b02e48f3bbc7467257724eb976a43ec1bb7c69038aa6739",
+    "json": "b44e5f8e2f6e9ad1d78cf303e8d46df3d79c884346c1342480536c9cd28e9068",
+    "markdown": "d63a7afdc5fda0bb268f396ecbd01032381df23899047b40523e42758e692e5d",
+    "sarif": "a54d74d7e284bd76b387965dd378f9d0532089acaf8e0f687ef04177ce7e71de",
+    "text": "a74969998724bea62cc6347df55b9f81eef2c92ea3186beaaf0aaee3ed1a75a5"
+   }
+  },
+  "fixtures/skills/SW-SKL-002/positive": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "793718e95ff97d44fdc6d9cc6e2480a671463d351417ab992631082ee7377263",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "dc97de26045ff9746b02e48f3bbc7467257724eb976a43ec1bb7c69038aa6739",
+    "json": "b44e5f8e2f6e9ad1d78cf303e8d46df3d79c884346c1342480536c9cd28e9068",
+    "markdown": "d63a7afdc5fda0bb268f396ecbd01032381df23899047b40523e42758e692e5d",
+    "sarif": "a54d74d7e284bd76b387965dd378f9d0532089acaf8e0f687ef04177ce7e71de",
+    "text": "a74969998724bea62cc6347df55b9f81eef2c92ea3186beaaf0aaee3ed1a75a5"
+   }
+  },
+  "fixtures/skills/SW-SKL-003/negative": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "ef5c21c03bc9a25adf40e976f6c14d0fb5a25ab7465847e8d7f8d8b49b2cf4b4",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "e9700d5ce88d868d06fbb234080f50706e78f324bd30d878764e0ba0b074fa18",
+    "json": "983076eaf3bc8e1dbe3bac9ff903a50194c6cd2b59671955a1f7d7ecef338c95",
+    "markdown": "b8a00b1e204bca3280b38db7657ba066d79c8fa1a24c720616524efc3a318b49",
+    "sarif": "724fdbfe3cd0a90d21ef8285ba03ba2839d25cc67a1ca23879ba97c549d13d1c",
+    "text": "5231d8969cee2ad2927dc933d092a9207137eac9a3f2357dfecb57fc4d0502dd"
+   }
+  },
+  "fixtures/skills/SW-SKL-003/positive": {
+   "exit_code": 1,
+   "outputs": {
+    "cyclonedx": "5dfef41848a00cee27e4855bcedb228cc757b4e88431a0c8b0915a7f9f4a2996",
+    "gitlab-codequality": "be7c8496ddc4b33f92406f8505c40f7ddc7c08350e324a4b23a826aeb6817a26",
+    "html": "6fc0614bec60523f5ee80eab3cc68f2e1c153e7359efc565b54beea75a1fefe9",
+    "json": "433ae2b2c8401624faf19870985220d7ddbe40d6b43cf3baf35cdd9e189b9ec8",
+    "markdown": "4b092c8afc86e08aecce617d39285a8b6f2fd8730662fb7196ad2efee27eecf1",
+    "sarif": "34617705fe852949946b4828d07de7e0fcfaabde8e632672175fa6eef28e5877",
+    "text": "5de789e81ac780779e601997ed369ba0042a8ce6045d02cecad7da21d1d17545"
+   }
+  },
+  "fixtures/skills/SW-SKL-004/negative": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "6f01241f47dd54da777a4eecf9b5480a42760308c02d6dc1987a3b957c4fa7d8",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "e9700d5ce88d868d06fbb234080f50706e78f324bd30d878764e0ba0b074fa18",
+    "json": "983076eaf3bc8e1dbe3bac9ff903a50194c6cd2b59671955a1f7d7ecef338c95",
+    "markdown": "b8a00b1e204bca3280b38db7657ba066d79c8fa1a24c720616524efc3a318b49",
+    "sarif": "724fdbfe3cd0a90d21ef8285ba03ba2839d25cc67a1ca23879ba97c549d13d1c",
+    "text": "5231d8969cee2ad2927dc933d092a9207137eac9a3f2357dfecb57fc4d0502dd"
+   }
+  },
+  "fixtures/skills/SW-SKL-004/positive": {
+   "exit_code": 1,
+   "outputs": {
+    "cyclonedx": "9b99daf8ff85bda905553181054e4d46e2ef38ba1acd47fb1994de8b3e6f98d2",
+    "gitlab-codequality": "9b5e9c7a538af476fa102e39b3c91a462ddca6a37f70bae9bf0e77941702710d",
+    "html": "42a5910fb3e94092bef7f4769c0a84e1ecf4239dacde48f6c1e88dfaf4f49c06",
+    "json": "24e6e2b9e2603c9af56cdc52a17d1af40b26584f64d17f3eb7eedc35d3c1ad35",
+    "markdown": "90a48e6f1a5ab73ed78d12445c72207e48b6202bd54a90217c0fcd9801f27dba",
+    "sarif": "526b4e393ab6b8fabd992853334eeb2ad598ab900926d1757c14b9276432ac19",
+    "text": "87ed2479b916397a12cbd8ac0b78402649b5da02c94cd45c5d7c5ece92964c0b"
+   }
+  },
+  "fixtures/skills/SW-SKL-005/negative": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "f7cc6cdd0645a50903af7c8de526f9388e12c7383db80a6685e05bb2c03cb289",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "e9700d5ce88d868d06fbb234080f50706e78f324bd30d878764e0ba0b074fa18",
+    "json": "983076eaf3bc8e1dbe3bac9ff903a50194c6cd2b59671955a1f7d7ecef338c95",
+    "markdown": "b8a00b1e204bca3280b38db7657ba066d79c8fa1a24c720616524efc3a318b49",
+    "sarif": "724fdbfe3cd0a90d21ef8285ba03ba2839d25cc67a1ca23879ba97c549d13d1c",
+    "text": "5231d8969cee2ad2927dc933d092a9207137eac9a3f2357dfecb57fc4d0502dd"
+   }
+  },
+  "fixtures/skills/SW-SKL-005/positive": {
+   "exit_code": 1,
+   "outputs": {
+    "cyclonedx": "092da85e2d543f97c7614652d3eb7d51db0ace4c106af73e398aaebdac27b36e",
+    "gitlab-codequality": "d374ba9bef8ff171ac216ec62ebceee34d7cfcd276631124e310a22d9d3fda94",
+    "html": "f2fb4a39845c7d40b9cb9a5473a10f05b9531ddc6112c88357442566a54b422e",
+    "json": "22ee90ef8072f4a7dcd5bea259ef7ca51679753ed2ac77150b00b9c2b4747d39",
+    "markdown": "28737f7e3058c9c6a0145d0c476a21f68c5b719db1b6924c32132c97dcd3b495",
+    "sarif": "0e8e68c8b5e8938ad59591384e34711adc023a04acfe9ba224159811d35be550",
+    "text": "d973a58d279eab29968cfc2ec76a0f025512f9eab25c19ffb176ff55126c8971"
+   }
+  },
+  "fixtures/skills/SW-SKL-006/negative": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "e23db43fe37261daa251f1df15dfdd3b33557152a969d4082025c16060505116",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "e9700d5ce88d868d06fbb234080f50706e78f324bd30d878764e0ba0b074fa18",
+    "json": "983076eaf3bc8e1dbe3bac9ff903a50194c6cd2b59671955a1f7d7ecef338c95",
+    "markdown": "b8a00b1e204bca3280b38db7657ba066d79c8fa1a24c720616524efc3a318b49",
+    "sarif": "724fdbfe3cd0a90d21ef8285ba03ba2839d25cc67a1ca23879ba97c549d13d1c",
+    "text": "5231d8969cee2ad2927dc933d092a9207137eac9a3f2357dfecb57fc4d0502dd"
+   }
+  },
+  "fixtures/skills/SW-SKL-006/positive": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "f2c657380ae170ecf547cef771e5e745306150e7b11422a701e0d50471170c6a",
+    "gitlab-codequality": "6b18376af5802e05543bffe9455f7e18de26ebdeec2995de8f8b612b49b68cbf",
+    "html": "6b33efda54750f535b6fe2b8f9a78d7018bc928bfe75333695e831f3fd6d3d5e",
+    "json": "21eeffb16c3bda5530c6ca657ebb2c36726a00b6453f8fd12d76c10363f18804",
+    "markdown": "d69910b52b3f9d936717b1913267dd8c0d30811f6b923795d1f252af3d1dc054",
+    "sarif": "043c87e3a0750cc73fde52ecf1262109c78a52a00454ca72e8df92726c04b843",
+    "text": "6dbc894daa26f3a2f499008a966219f1a29650f7cc7bd07aab18dc98ca27b9bd"
+   }
+  },
+  "fixtures/skills/SW-SKL-007/negative": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "94485f48d9c4f9a3181034c42eebe65cb5af47a6033c729917620d42c44902e7",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "e9700d5ce88d868d06fbb234080f50706e78f324bd30d878764e0ba0b074fa18",
+    "json": "983076eaf3bc8e1dbe3bac9ff903a50194c6cd2b59671955a1f7d7ecef338c95",
+    "markdown": "b8a00b1e204bca3280b38db7657ba066d79c8fa1a24c720616524efc3a318b49",
+    "sarif": "724fdbfe3cd0a90d21ef8285ba03ba2839d25cc67a1ca23879ba97c549d13d1c",
+    "text": "5231d8969cee2ad2927dc933d092a9207137eac9a3f2357dfecb57fc4d0502dd"
+   }
+  },
+  "fixtures/skills/SW-SKL-007/positive": {
+   "exit_code": 1,
+   "outputs": {
+    "cyclonedx": "e77dc9748002c829746362928274a7a29cbeb9ab7c4280ec8c68e4cc2437c85b",
+    "gitlab-codequality": "a498357aa61273465176eb35ed5bbce9af2fc69b592e0442989d33dc6d088ee2",
+    "html": "1a78c2c3b8d2f42e38c7d8ed02778ae15f783e27cdd1f81336b36933f5f5cafd",
+    "json": "dd33350aed9497ede500bd1b9169a536178dcc0b6f2ff70d719a922b5146f4c9",
+    "markdown": "8d484d645202c2a520640941a9550d69c2d3e608de4d6fd3b6654f7eb78e4e87",
+    "sarif": "7cb386bff584b8ee79658a750eb21a38634a170cef6632a5c6957a045d553023",
+    "text": "f423589f77180a4cb3cf34c110918826079c8de2f47ee3d7e3536c92a5d3f808"
+   }
+  },
+  "fixtures/skills/SW-SKL-008/negative": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "bbc05fa8e263594d6cf46bf3dcdb8102952cab6490b3b16821405c001ebce84b",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "e9700d5ce88d868d06fbb234080f50706e78f324bd30d878764e0ba0b074fa18",
+    "json": "983076eaf3bc8e1dbe3bac9ff903a50194c6cd2b59671955a1f7d7ecef338c95",
+    "markdown": "b8a00b1e204bca3280b38db7657ba066d79c8fa1a24c720616524efc3a318b49",
+    "sarif": "724fdbfe3cd0a90d21ef8285ba03ba2839d25cc67a1ca23879ba97c549d13d1c",
+    "text": "5231d8969cee2ad2927dc933d092a9207137eac9a3f2357dfecb57fc4d0502dd"
+   }
+  },
+  "fixtures/skills/SW-SKL-008/positive": {
+   "exit_code": 1,
+   "outputs": {
+    "cyclonedx": "0fc1eecac4ec74a6cfb32307eb97a6cab06b04d4f5e38be1547adef4c62f33f8",
+    "gitlab-codequality": "b0b59545557a268e04330271c9353ff5dbfb91ed7d68e1e6335965ef8516bd7a",
+    "html": "9d172621e21d5d3b1464074064cbcf59d31fc0b7a1c7f04803262d8d77b01cf5",
+    "json": "8bb3d7441d6219970a45b9e5b2a9cfd789ddee59047f7b9a77b120a4e6a051f8",
+    "markdown": "0c9e2ef0b339ffe247138e72c1f27f9d504802e6ec080fb1a54397927b3e6c0a",
+    "sarif": "a0fd1771d01468e4bddf032ba7f606ffad9348b0c2f4a32b7bf8842eeac0d053",
+    "text": "4a3fc68c94e653d6d307d7eb46139d9942730eb8858a362003b221b77a41d37e"
+   }
+  },
+  "fixtures/skills/SW-SKL-009/negative": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "5e9e9c4e4df164cd3dee51d26d7a5336ccf6023a2dcdf938da14ce0e620ecc0f",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "e9700d5ce88d868d06fbb234080f50706e78f324bd30d878764e0ba0b074fa18",
+    "json": "983076eaf3bc8e1dbe3bac9ff903a50194c6cd2b59671955a1f7d7ecef338c95",
+    "markdown": "b8a00b1e204bca3280b38db7657ba066d79c8fa1a24c720616524efc3a318b49",
+    "sarif": "724fdbfe3cd0a90d21ef8285ba03ba2839d25cc67a1ca23879ba97c549d13d1c",
+    "text": "5231d8969cee2ad2927dc933d092a9207137eac9a3f2357dfecb57fc4d0502dd"
+   }
+  },
+  "fixtures/skills/SW-SKL-009/positive": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "a26a2d0caf88fbda9fb270190343b6242c89e82c8a758131c1fd327c9f00d54c",
+    "gitlab-codequality": "ad12fa177e186fbb9e8ed3054828af46a302a22345005864c0eeb33a0fef501c",
+    "html": "af5ec8cc9157b199a249df5d0623c8c8515b0b1f13ed511c07b6465357e7a061",
+    "json": "f769bce06770aff26f0e234308b7500f2eb7b53cc7fbc55c8dd420c5706ef837",
+    "markdown": "60950c8addafdc646b06807556ea1f16bf4032e938f35930be0d47e3f89af872",
+    "sarif": "f705a2c5143470842dc2330fffa01ce05d6bd7ea07fcf3802e95cf754bb2aaa9",
+    "text": "d67326fe3e36e479794aeed25f782d308ce4dbcb0a0b7e917ad58a7461474195"
+   }
+  },
+  "fixtures/skills/SW-SKL-010/negative": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "35d09546f72ed040a51dd85e2f3880dbc342941e196e4af9108581d481071656",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "e9700d5ce88d868d06fbb234080f50706e78f324bd30d878764e0ba0b074fa18",
+    "json": "983076eaf3bc8e1dbe3bac9ff903a50194c6cd2b59671955a1f7d7ecef338c95",
+    "markdown": "b8a00b1e204bca3280b38db7657ba066d79c8fa1a24c720616524efc3a318b49",
+    "sarif": "724fdbfe3cd0a90d21ef8285ba03ba2839d25cc67a1ca23879ba97c549d13d1c",
+    "text": "5231d8969cee2ad2927dc933d092a9207137eac9a3f2357dfecb57fc4d0502dd"
+   }
+  },
+  "fixtures/skills/SW-SKL-010/positive": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "8094a740eee442e18cd621c4cd1d0f4cb580728752baf58f288b7a9cc0ebfb8f",
+    "gitlab-codequality": "56e4f4745f231a115a54190b0aedead95f8091e15cff73cbd6ae21bab6b5285b",
+    "html": "5a4e5f23ded2e839d5af72e4ae831756b44c1258addd201477e502b07dd1a2d9",
+    "json": "e5c633b5bc7d9cf54990584397c5da122ab151aa6c7995e806c5c2acf76add0d",
+    "markdown": "5dcd4513c9ea7bf35183e23c1a43491d47aa289ab694a55664c5d501666b90bd",
+    "sarif": "b2f206f8b001772553c73d3972d844f95b73c01bb370e477bbfa47b199eb0a72",
+    "text": "df00d2808711a73e3e3847c677e52cf3ef435392f73414fda8526c9d8f26712a"
+   }
+  },
+  "fixtures/skills/SW-SKL-011/negative": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "3e726451644562e17ffb6210505fa484cf88a65cb8f39a2e16c75ecb4a419faa",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "e9700d5ce88d868d06fbb234080f50706e78f324bd30d878764e0ba0b074fa18",
+    "json": "983076eaf3bc8e1dbe3bac9ff903a50194c6cd2b59671955a1f7d7ecef338c95",
+    "markdown": "b8a00b1e204bca3280b38db7657ba066d79c8fa1a24c720616524efc3a318b49",
+    "sarif": "724fdbfe3cd0a90d21ef8285ba03ba2839d25cc67a1ca23879ba97c549d13d1c",
+    "text": "5231d8969cee2ad2927dc933d092a9207137eac9a3f2357dfecb57fc4d0502dd"
+   }
+  },
+  "fixtures/skills/SW-SKL-011/positive": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "793718e95ff97d44fdc6d9cc6e2480a671463d351417ab992631082ee7377263",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "dc97de26045ff9746b02e48f3bbc7467257724eb976a43ec1bb7c69038aa6739",
+    "json": "b44e5f8e2f6e9ad1d78cf303e8d46df3d79c884346c1342480536c9cd28e9068",
+    "markdown": "d63a7afdc5fda0bb268f396ecbd01032381df23899047b40523e42758e692e5d",
+    "sarif": "a54d74d7e284bd76b387965dd378f9d0532089acaf8e0f687ef04177ce7e71de",
+    "text": "a74969998724bea62cc6347df55b9f81eef2c92ea3186beaaf0aaee3ed1a75a5"
+   }
+  },
+  "fixtures/skills/SW-SKL-012/negative": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "b297fdce700d52160aaa877c9cebb8b63e158d02b936d99cebdbffa4b5e921e6",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "e9700d5ce88d868d06fbb234080f50706e78f324bd30d878764e0ba0b074fa18",
+    "json": "983076eaf3bc8e1dbe3bac9ff903a50194c6cd2b59671955a1f7d7ecef338c95",
+    "markdown": "b8a00b1e204bca3280b38db7657ba066d79c8fa1a24c720616524efc3a318b49",
+    "sarif": "724fdbfe3cd0a90d21ef8285ba03ba2839d25cc67a1ca23879ba97c549d13d1c",
+    "text": "5231d8969cee2ad2927dc933d092a9207137eac9a3f2357dfecb57fc4d0502dd"
+   }
+  },
+  "fixtures/skills/SW-SKL-012/positive": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "ed9cc736a741a8793398cc37a8b557dc057a1a314baef2172d469f7b42062ecc",
+    "gitlab-codequality": "abeb95ed854b0342b6af733cf450e58c32aeb6aad9d501a003cc89fd8de08799",
+    "html": "4dbe3861a808b804a44795895a2e6345d01a11ee818c477abfc3be1b0d859c5b",
+    "json": "6012b0f2cb2c20efe6a3fbaab38dbaa4ed0790692c6df118c931d7660dab9ff7",
+    "markdown": "e508d125fa53e82a7b4d6126d9aaf4c5eb8d3fed19717b328031481916117a45",
+    "sarif": "8c2adbd27fdb9550d7f897c7eafa76322a0788d11449611a159eeb3a0695d2a4",
+    "text": "217915662cdd8c037fee006c91c3fd409a43aa2dc3a691d203186795e2d3342a"
+   }
+  },
+  "fixtures/skills/SW-SKL-013/negative": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "77b17fdd063a8497d1d1805a7620b5ab584f2e38ed1c0d24e0aa453d7b91b244",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "e9700d5ce88d868d06fbb234080f50706e78f324bd30d878764e0ba0b074fa18",
+    "json": "983076eaf3bc8e1dbe3bac9ff903a50194c6cd2b59671955a1f7d7ecef338c95",
+    "markdown": "b8a00b1e204bca3280b38db7657ba066d79c8fa1a24c720616524efc3a318b49",
+    "sarif": "724fdbfe3cd0a90d21ef8285ba03ba2839d25cc67a1ca23879ba97c549d13d1c",
+    "text": "5231d8969cee2ad2927dc933d092a9207137eac9a3f2357dfecb57fc4d0502dd"
+   }
+  },
+  "fixtures/skills/SW-SKL-013/positive": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "de25761948f94b0c1d9d7771c7b1ccfc78bcbe1e54ca701f29f199b6f06c7445",
+    "gitlab-codequality": "f89324b16b7a529148cd25437193c1db71c73820145c51ca9aa403130c641020",
+    "html": "2f560e7a120aa9316b6f758b29c5363a5989c91c1f00ee27eb299114f8bf9d71",
+    "json": "4338f89c58087b674666fc2d320d5caf178684bb2caccf2d8059c1cb98612f0e",
+    "markdown": "d09b95401c86a62f673020cf3b573ebb79c715a191d496c47f4720172ea80dd8",
+    "sarif": "7f665863272a241caaaefa49ae1d6acdcc2a8458009a73acb078e6015a2f512f",
+    "text": "886c73dd6f3eb7db82621a86314a6903a9f296dacd982b8fbd681c393261077a"
+   }
+  },
+  "fixtures/skills/SW-SKL-014/negative": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "e8522b015c2be4c4eca981cdebaa16e7e6f1e43d678b7a00727706df9bc06183",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "e9700d5ce88d868d06fbb234080f50706e78f324bd30d878764e0ba0b074fa18",
+    "json": "983076eaf3bc8e1dbe3bac9ff903a50194c6cd2b59671955a1f7d7ecef338c95",
+    "markdown": "b8a00b1e204bca3280b38db7657ba066d79c8fa1a24c720616524efc3a318b49",
+    "sarif": "724fdbfe3cd0a90d21ef8285ba03ba2839d25cc67a1ca23879ba97c549d13d1c",
+    "text": "5231d8969cee2ad2927dc933d092a9207137eac9a3f2357dfecb57fc4d0502dd"
+   }
+  },
+  "fixtures/skills/SW-SKL-014/positive": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "da910181021e5e592865bb826673aadbe2974b3bdf003e1db167d7228bbf905a",
+    "gitlab-codequality": "1d8b1956956d3fe922993b201eda9fde4e99935fbb6cdbcfe76322532efbfd60",
+    "html": "9c5fa5b1323c2b87530c8154a2c324dab1147bef4c2458083eb803195be2ba3f",
+    "json": "30be4ce3aa1cf149fe7fe6ce52b986089aa617208f957a8324b765f3cbe3979a",
+    "markdown": "e4a257ac8863be1e0a96003ca3584afc8acaeeca32b1f74b024dd504a40104af",
+    "sarif": "f7a31be8cc7dc735bd89985cb845625252c2e3045c99b19801145b22a27ad440",
+    "text": "095282f04af3c057a10a2afb34adf776dd32a6bf2db65327e55152a4d24a72a2"
+   }
+  },
+  "fixtures/skills/SW-SKL-015/negative": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "3ea6bfab55df4eb5a340d0962110c56202cb9eba1e9efdf9fdfde52916848649",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "e9700d5ce88d868d06fbb234080f50706e78f324bd30d878764e0ba0b074fa18",
+    "json": "983076eaf3bc8e1dbe3bac9ff903a50194c6cd2b59671955a1f7d7ecef338c95",
+    "markdown": "b8a00b1e204bca3280b38db7657ba066d79c8fa1a24c720616524efc3a318b49",
+    "sarif": "724fdbfe3cd0a90d21ef8285ba03ba2839d25cc67a1ca23879ba97c549d13d1c",
+    "text": "5231d8969cee2ad2927dc933d092a9207137eac9a3f2357dfecb57fc4d0502dd"
+   }
+  },
+  "fixtures/skills/SW-SKL-015/positive": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "bf5df38ae65a9a1fe5995af797f5650f2f9cd4a45ce618449817f4793e56d0aa",
+    "gitlab-codequality": "cfd3caf003693fd6817faf359fafa6eb95feda0c0a4020445e3372b7600f7301",
+    "html": "e2ba37c648e2550ee64dd9c570e76e3c7ddc7848c0bebc7adc8f7af6497ed792",
+    "json": "b17bf3b57bfb27d6ddf7e09cad2e0996333e2f4d6cb7ddc60b005ad8cc77ff95",
+    "markdown": "1802f92e2c77893de306a685756fbe6c7f68e5aac81884b28a9c42568eb38cbe",
+    "sarif": "0be972ca7d6ec7f356b32a66d229b403beeb9236a7d8487ee2a31b33d98ec153",
+    "text": "2c16f5b1114f3396d58b450c37268249ac07c3a7b85967c6cbf97d0fda3f1c50"
+   }
+  },
+  "fixtures/skills/SW-SKL-019/negative": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "82ee295fd88eb0a4c63e2f8924c4aba0a2889cae9e54aeeec42c30f40aa86608",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "e9700d5ce88d868d06fbb234080f50706e78f324bd30d878764e0ba0b074fa18",
+    "json": "983076eaf3bc8e1dbe3bac9ff903a50194c6cd2b59671955a1f7d7ecef338c95",
+    "markdown": "b8a00b1e204bca3280b38db7657ba066d79c8fa1a24c720616524efc3a318b49",
+    "sarif": "724fdbfe3cd0a90d21ef8285ba03ba2839d25cc67a1ca23879ba97c549d13d1c",
+    "text": "5231d8969cee2ad2927dc933d092a9207137eac9a3f2357dfecb57fc4d0502dd"
+   }
+  },
+  "fixtures/skills/SW-SKL-019/positive": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "f7b0f70a5a972e52dac39683265b7060c5179f7a569e783feb5e60cb81685078",
+    "gitlab-codequality": "31f26d6a95ba210feebe27a5d7024eed1ff9143b2b8b991d20260818cc67afda",
+    "html": "e37a193173bc92098458b63b2ef881934a5f8bf1b403898f97e0527bc201e885",
+    "json": "a8c5ed0fd0b793fbd0174e7bc13397037bd92e8cd3a1ea05d50d94718c29e98e",
+    "markdown": "c2ab15217eead3d489134c9ff79ad761f352e87a42b5caa8295a4f3e8b5453d9",
+    "sarif": "1f289ac70718a669d99f1130a8ba5444e2519241a30b93c5e2f3c0d2991a9a94",
+    "text": "12a9d5fa207321de383d25a62ee49b404ea025c5efbfdc2d6184f4149863207d"
+   }
+  },
+  "fixtures/skills/SW-SKL-031/negative": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "3ea6bfab55df4eb5a340d0962110c56202cb9eba1e9efdf9fdfde52916848649",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "e9700d5ce88d868d06fbb234080f50706e78f324bd30d878764e0ba0b074fa18",
+    "json": "983076eaf3bc8e1dbe3bac9ff903a50194c6cd2b59671955a1f7d7ecef338c95",
+    "markdown": "b8a00b1e204bca3280b38db7657ba066d79c8fa1a24c720616524efc3a318b49",
+    "sarif": "724fdbfe3cd0a90d21ef8285ba03ba2839d25cc67a1ca23879ba97c549d13d1c",
+    "text": "5231d8969cee2ad2927dc933d092a9207137eac9a3f2357dfecb57fc4d0502dd"
+   }
+  },
+  "fixtures/skills/SW-SKL-031/positive": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "aae84c59aa0c24f2fc09564559f44254650e09440b6b9ccfa48ce0f25ac5a49e",
+    "gitlab-codequality": "09e9f6827ac88e0d68b03c966b688e366b148868a15b81ca6c5ead2e92cd3880",
+    "html": "82cd32b84e4c4002f32e7a9bc58e766f1d58eb429f82e7e6e8f47c0a0b53b669",
+    "json": "3af2b6e685f6cf4865a9659b76842f71bbf599c59663fca184108d736b1f8b70",
+    "markdown": "9bef8e487be8f0a0caefd9ab4f72a7b239c758be9a59f3c0ed44eecc5d9c05f1",
+    "sarif": "584c409e7c189b45979655fa013f22c5ffbbb85ee81ed25df8df8cef58fa2851",
+    "text": "fbfa66bf69282b089607e5dcd4db18ddcb8c3fb2fc4f57cb7553b4e0e70a9dca"
+   }
+  },
+  "fixtures/skills/SW-SKL-032/negative": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "2a1bbd3b02d63189b16472105142290cde8e1d96595d1f8c9c39f509df955e78",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "e593754a01a3e8de97dea6737fe7b7d4ee5494badb8930fae2a8cf6caecd5d8c",
+    "json": "5dc32649b5d81d959b343002988fca8ef247d407e9f006cfe81daf0021150a66",
+    "markdown": "87bda8140f94d6ddd7a5606ec7f89fe5112118e46db8e77312dd86202a79e389",
+    "sarif": "9958d4d838413d95522b3584fd005510a36342447c331d172d903f79f4f9556d",
+    "text": "570de06759f1ab5eae1bcc4cb21ae51be106b74b1ec0ad3631fd3e70606da45c"
+   }
+  },
+  "fixtures/skills/SW-SKL-032/positive": {
+   "exit_code": 1,
+   "outputs": {
+    "cyclonedx": "e7642dfecf428a7084951d7835855c19cb3bb6ca58392223ef4317a574437b49",
+    "gitlab-codequality": "12703c643cf72a9d733bf02d6133a9b51e454e985fc35a5c660ee0f5121cdaf6",
+    "html": "f7273520f073122f76211602e1f1ed62516cec961f808c0d37f668691a22ea8a",
+    "json": "98c5a351775da033604861d60dccb7c0120e52dd0f6f21b0f539604b9846bce5",
+    "markdown": "756faed33fc968a1ed8c5a4fa54cdaeae7107427fe88c367b9e655fbd68b6864",
+    "sarif": "fa1814ccff3fb12d56c6d705edc6f9f9d788e75c444d38fc6997e3c2f40fb0cb",
+    "text": "fc21bf19bd986abf7bfdb6320bff1873b60e62675c69eee12aa823dbc66d6641"
+   }
+  },
+  "fixtures/skills/SW-SKL-036/negative": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "621b4f300dc17ffe98087c28cbe0afd489819df9602ca1966992a0e01904b322",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "f7feb6dc43c1c55fd85189697eb7383fd3a04f3273678e87dff6f2f53764ff9d",
+    "json": "b10dbb1816f309b82daee23f72d0532d788a7c91ba80da6cf8eb92bc888b2146",
+    "markdown": "938c4a11ca8d18b9cb7c04a0b92295012194b1c6e7832efc483cd91d65c73402",
+    "sarif": "44292bfd360746bbcad72c534e5ec86c5dbabeef35bac6d7d620cd51bbd882ed",
+    "text": "a9764500dcf72b27ebe966b691743f25751a81b9da0f0cd10c52d6543bd7e86f"
+   }
+  },
+  "fixtures/skills/SW-SKL-036/positive": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "7b1e0af21b4b9bf05291d6c84cdff5c2d9f34a9b72a2b3ef901147ff25b870a8",
+    "gitlab-codequality": "7bcfca491b7c59785eec73c59d7776b4575619318709c13e770053a184cfd17c",
+    "html": "da05a022d17f4f52567ead64f3ae4110f8da23ed0a4b186f62c6bb6253378b0d",
+    "json": "f0a264533690fc3dacf7a8d9301e3809da3d3e8488d8ce5dd26fe59566b7a2d1",
+    "markdown": "f1ea35168a748a8c60fca13cff0cb12e9ab15b562f00c921248dc36e8e32671d",
+    "sarif": "88d7a3360734bae3d201af114c3fd3251bfd978a6587841b0711cc4a61bff17d",
+    "text": "430d493e159a4d9fd016a8e4dbdb45377caa66b0270a40da093e8fb56bfba5e7"
+   }
+  },
+  "fixtures/skills/SW-SKL-037/negative": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "a204f63207b50d65c36b7c7673409352c91e8f22ac5dc20e3e7dec60f00991cf",
+    "gitlab-codequality": "6f125b1d4c04ccfd3104382ebd9b8aef68565c04f4b442b770cafe3d3d4d7f6a",
+    "html": "d38dfc0440937f98551fe051c1467c0563827d0cc0a7f46cca9e44f3ead6bd40",
+    "json": "e0f1657fda40cf85c2c7b6090664adc7c5ce48f1867bf3d2abb9ae3b0f482653",
+    "markdown": "bfd1f2e08c673a7fe356c42864adc7b18f83959091d6af5cd916af35bbe13278",
+    "sarif": "41280cf2e74c788361a8a402d8593b7f52ff61ae0c804456aa94986bad957b44",
+    "text": "3d8383a08f720cc83eeac60fb21586b57c9d987c69c550e2c720c31aedd39097"
+   }
+  },
+  "fixtures/skills/SW-SKL-037/positive": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "e2b4fcc748de561c51b16ea26565c8273d2015c069f077d89d1638840101cd93",
+    "gitlab-codequality": "5bfa4b7237994499eb53c8bb3934915b1bec6fb125e64eb2873177d4b9ff3b9c",
+    "html": "deed0ecad126535cef4d1dd2fcfc6229d30f31470e77b71582fa77431ecb56e3",
+    "json": "1821b63991e9956bebf6ad7d9165ac4b9626fe5aa2820d3d902a031c74edc0a4",
+    "markdown": "14a294914fe38d78e2f83e0108279e4b83de9b8bfbb7f02c7dbaeec8c30e3544",
+    "sarif": "7cf264733d1257fcde33d4c78761c572eb88a66459f2aeae4123e1c752c8d603",
+    "text": "cb3eed63f23b1419dcfb875e0619ead4bff5ca687de5946967dc50cb2ee2d850"
+   }
+  },
+  "tests/fixtures/a2a": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "793718e95ff97d44fdc6d9cc6e2480a671463d351417ab992631082ee7377263",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "dc97de26045ff9746b02e48f3bbc7467257724eb976a43ec1bb7c69038aa6739",
+    "json": "b44e5f8e2f6e9ad1d78cf303e8d46df3d79c884346c1342480536c9cd28e9068",
+    "markdown": "d63a7afdc5fda0bb268f396ecbd01032381df23899047b40523e42758e692e5d",
+    "sarif": "a54d74d7e284bd76b387965dd378f9d0532089acaf8e0f687ef04177ce7e71de",
+    "text": "a74969998724bea62cc6347df55b9f81eef2c92ea3186beaaf0aaee3ed1a75a5"
+   }
+  },
+  "tests/fixtures/homes/common": {
+   "exit_code": 1,
+   "outputs": {
+    "cyclonedx": "88caa12c260b9e65edcf9f210efb0cc5355d507144a0bfafb2b203b0fcb2e968",
+    "gitlab-codequality": "e1a2d48278b67940b09db3cf5a86aa3d7fbdb80d838fbf7114e95510640260dc",
+    "html": "bf20e36466593cc711659a888d573127499c5b7748d733ab487d897dd5583124",
+    "json": "d947ae3f42d5f1ff9312a7e062022b559bdbfdcbbb9fa6a73346af7d69f084fa",
+    "markdown": "63d10aaad5c767a4a7f0e0e1ba691d022535a64f46c373f330434502b7ea89ad",
+    "sarif": "b14778b575cb41b98772e9d4e0d254e059e657ba0d44b4a45da5eb1b731e400b",
+    "text": "33e16df52bf95a98aa248e294c3fb236d88979479a9ea26efd17cc04922eb734"
+   }
+  },
+  "tests/fixtures/homes/linux": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "793718e95ff97d44fdc6d9cc6e2480a671463d351417ab992631082ee7377263",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "dc97de26045ff9746b02e48f3bbc7467257724eb976a43ec1bb7c69038aa6739",
+    "json": "b44e5f8e2f6e9ad1d78cf303e8d46df3d79c884346c1342480536c9cd28e9068",
+    "markdown": "d63a7afdc5fda0bb268f396ecbd01032381df23899047b40523e42758e692e5d",
+    "sarif": "a54d74d7e284bd76b387965dd378f9d0532089acaf8e0f687ef04177ce7e71de",
+    "text": "a74969998724bea62cc6347df55b9f81eef2c92ea3186beaaf0aaee3ed1a75a5"
+   }
+  },
+  "tests/fixtures/homes/macos": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "793718e95ff97d44fdc6d9cc6e2480a671463d351417ab992631082ee7377263",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "dc97de26045ff9746b02e48f3bbc7467257724eb976a43ec1bb7c69038aa6739",
+    "json": "b44e5f8e2f6e9ad1d78cf303e8d46df3d79c884346c1342480536c9cd28e9068",
+    "markdown": "d63a7afdc5fda0bb268f396ecbd01032381df23899047b40523e42758e692e5d",
+    "sarif": "a54d74d7e284bd76b387965dd378f9d0532089acaf8e0f687ef04177ce7e71de",
+    "text": "a74969998724bea62cc6347df55b9f81eef2c92ea3186beaaf0aaee3ed1a75a5"
+   }
+  },
+  "tests/fixtures/homes/windows": {
+   "exit_code": 0,
+   "outputs": {
+    "cyclonedx": "793718e95ff97d44fdc6d9cc6e2480a671463d351417ab992631082ee7377263",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "dc97de26045ff9746b02e48f3bbc7467257724eb976a43ec1bb7c69038aa6739",
+    "json": "b44e5f8e2f6e9ad1d78cf303e8d46df3d79c884346c1342480536c9cd28e9068",
+    "markdown": "d63a7afdc5fda0bb268f396ecbd01032381df23899047b40523e42758e692e5d",
+    "sarif": "a54d74d7e284bd76b387965dd378f9d0532089acaf8e0f687ef04177ce7e71de",
+    "text": "a74969998724bea62cc6347df55b9f81eef2c92ea3186beaaf0aaee3ed1a75a5"
+   }
+  },
+  "tests/golden/1.0.0/repo": {
+   "exit_code": 2,
+   "outputs": {
+    "cyclonedx": "a9f0450f0de5a0bdbd15a189e05ac654100bb77a4b7b1db49fe0741389f44694",
+    "gitlab-codequality": "7256809131403f328f8745123beba04ac5940a0e0a951d798c0cb1c12dd475c1",
+    "html": "72a60ef262a43b4dde270ace57dd200e0359c9e3fd375110075022a3f4892017",
+    "json": "4967898aa8500ad7094cdc71a9096b84445e816cf300254ad1ed222d43348f2f",
+    "markdown": "088f43e43e0d0cd4de21e1f06ed1afe2a78d7c9aa86af00cf7b46429bc653093",
+    "sarif": "ea75d647db742cf08f6c162299f7a51dd431ff080ad16dc433aea802d35874bf",
+    "text": "d36966599326fb9dd2f9d117cf52ffc2a5c3891f124d4ad3758cf760c49f7ddd"
+   }
+  },
+  "tests/golden/1.13.0/repo": {
+   "exit_code": 1,
+   "outputs": {
+    "cyclonedx": "5352144deed6d5c81df2ec4fa9a2efe11a8197a341ff1b3873bc24e760b794dd",
+    "gitlab-codequality": "af8ce7739e7fd48392d967d57ac2e3fd9b0bb47b92409bcbf426c475524778be",
+    "html": "3a879548392641d702e17f209ec6b3f87e8818808ab46b3ae7c9e1fc4e5a6bf5",
+    "json": "0daf3c3e758a1a8482f768e48b257b040fdf9873e18c58a4a97d9b8bb71c33d5",
+    "markdown": "4bc7fe46ca4e1933cd761be727c3ac383e8bcee58eafdc65864ca175171f37a3",
+    "sarif": "8b0d3c23327c3e5d1822b736f5bb8f6fbb25034a575f6d96aed6f47054f26a60",
+    "text": "bbd09caefec868f508e2788b816efaffc5b866f747db506f94c4cd61cb627df1"
+   }
+  }
+ },
+ "scanner_version": "1.18.0"
+}

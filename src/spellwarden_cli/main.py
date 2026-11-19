@@ -16,7 +16,7 @@ from spellwarden_scan import RULES_VERSION, RuleSet, __version__
 
 import dataclasses
 
-from spellwarden_cli import api, run
+from spellwarden_cli import api, files, run
 from spellwarden_cli.output import FORMATS, write_stdout
 from spellwarden_cli.presets import PRESETS
 from spellwarden_cli.report import LockState, Notice, Report
@@ -26,6 +26,12 @@ from spellwarden_cli.settings import FAIL_ON, Flags, SettingsError, load_setting
 
 MODEL_KEY_VARIABLE = "SPELLWARDEN_MODEL_KEY"  # 1.17.0 (spec 11.3): the analyzer's key, from the environment only
 ANALYZE_MAX_BYTES_LIMIT = 10_000_000
+# 1.19.0: the one notice of `scan --staged` when SPELLWARDEN_ORG or SPELLWARDEN_API_KEY is set
+STAGED_CREDENTIALS_IGNORED = "--staged sends nothing to Spellwarden; SPELLWARDEN_ORG and the key are ignored."
+# 1.19.0: the notice of `scan --staged` in CI when the settings say `connected.required: true`, which a scan without it obeys
+STAGED_CONNECTED_REQUIRED = ("connected.required is set in .spellwarden/config.yml, but --staged sends nothing to Spellwarden, "
+                             "so connected mode was not evaluated: the organisation's rules and the registry gate were not "
+                             "applied. A scan without --staged applies them.")
 
 
 def _iso_date(text: str) -> date:
@@ -88,6 +94,10 @@ def _add_scan(commands) -> None:
                         help="in connected mode, upload the results in CI (default: on); with --user, upload the "
                              "workstation inventory (default: off)")
     upload.add_argument("--no-upload", dest="upload", action="store_false")
+    # 1.19.0: the file set, the settings, the baseline and the lock from the git index; nothing sent to Spellwarden (the hook)
+    scan.add_argument("--staged", action="store_true",
+                      help="scan what is staged in the git index only, never untracked files or unstaged changes; sends "
+                           "nothing to Spellwarden (what the pre-commit hook runs)")
     # 1.17.0 (Phase 4 batch B spec 11.3): the model-assisted analyzer, off by default; the key comes from
     # SPELLWARDEN_MODEL_KEY only, never a flag
     scan.add_argument("--analyze", action="store_true",
@@ -153,38 +163,57 @@ def _error_report(fail_on: str, as_of: date, code: str, path: str, message: str,
 def _scan_report(args: argparse.Namespace, context, credentials: Credentials,
                  scope: str | None = "", model_key: Secret | None = None) -> tuple[Report, bool]:
     """The report and the effective telemetry setting (False when the settings were refused: no ping). On a pull or
-    merge request in CI the settings file and the baseline come from the base revision (`ci.revision_source`, D35)."""
+    merge request in CI the settings file and the baseline come from the base revision (`ci.revision_source`, D35).
+    Under `--staged` (1.19.0) they come from the git index, as the files do (`files.StagedIndex`); nothing is sent to
+    Spellwarden, so the telemetry setting is False and no connected call is made."""
     from spellwarden_cli import ci
 
     as_of = args.as_of or datetime.now(UTC).date()
     fail_on = args.fail_on or "high"
     root = os.path.abspath(args.path)
+    caller = tuple(getattr(args, "notices", ()))
     if not os.path.isdir(root):
         return _error_report(fail_on, as_of, "path_not_directory", args.path, "the scan path must be a directory",
-                             tuple(getattr(args, "notices", ()))), False
+                             caller), False
     flags = Flags(fail_on=args.fail_on, probe=args.probe, probe_private=args.probe_private,
                   telemetry=False if args.no_telemetry else None, upload=args.upload, preset=getattr(args, "preset", None))
     log = _stderr if args.verbose else run._silent
     api_url, overridden = api.api_url(os.environ, log)  # the ignore line is api_url's own
-    try:
-        source = ci.revision_source(root, context, config=args.config is None, baseline=args.baseline is None,
-                                    env=os.environ)
-        # P47: under --config on a request, `connected.pack` and `connected.required` still come from the base revision.
-        connected_source = (ci.revision_source(root, context, config=True, baseline=False, env=os.environ)
-                            if args.config is not None else None)
-    except Exception as exc:  # a crash before the settings are read still writes every output (spec 6.2); no ping
-        return _error_report(fail_on, as_of, "crash", "", f"internal error: {type(exc).__name__}: {exc}",
-                             tuple(getattr(args, "notices", ()))), False
-    # The caller's notices (`main(notices=...)`) travel with the base revision's, into every report from here on.
-    source = dataclasses.replace(source, notices=(*source.notices, *getattr(args, "notices", ())))
+    staged = None
+    connected_source = None
+    if getattr(args, "staged", False):
+        try:
+            staged = files.StagedIndex(root, env=os.environ)
+        except files.StagedUnavailable as exc:  # outside a git repository, no git, or an index git cannot read: exit 2
+            return _error_report(fail_on, as_of, "staged_unavailable", "", str(exc), caller), False
+        except Exception as exc:  # a crash before the settings are read still writes every output (spec 6.2); no ping
+            return _error_report(fail_on, as_of, "crash", "", f"internal error: {type(exc).__name__}: {exc}", caller), False
+        source = ci.RevisionSource(read=staged.read, notices=caller)
+    else:
+        try:
+            source = ci.revision_source(root, context, config=args.config is None, baseline=args.baseline is None,
+                                        env=os.environ)
+            # P47: under --config on a request, `connected.pack` and `connected.required` still come from the base revision.
+            connected_source = (ci.revision_source(root, context, config=True, baseline=False, env=os.environ)
+                                if args.config is not None else None)
+        except Exception as exc:  # a crash before the settings are read still writes every output (spec 6.2); no ping
+            return _error_report(fail_on, as_of, "crash", "", f"internal error: {type(exc).__name__}: {exc}", caller), False
+        # The caller's notices (`main(notices=...)`) travel with the base revision's, into every report from here on.
+        source = dataclasses.replace(source, notices=(*source.notices, *caller))
     try:
         settings = load_settings(root, config=args.config, flags=flags, env=os.environ, read=source.read,
                                  connected_read=connected_source.read if connected_source is not None else None,
                                  connected_credential=bool(credentials.org) or credentials.key is not None)
     except SettingsError as exc:
+        if staged is not None:  # 1.19.0: the index's git process ends here, not when the object is collected
+            staged.close()
         return _error_report(fail_on, as_of, "settings_invalid", args.config or ".spellwarden/config.yml", str(exc),
                              source.notices), False
     connected_mode = bool(credentials.org) or credentials.key is not None or settings.connected.required
+    if staged is not None and settings.connected.required and context is not None and context.provider is not None:
+        # 1.19.0: in CI a scan without --staged would connect for `required`; a staged scan says that it did not (a notice)
+        source = dataclasses.replace(source, notices=(*source.notices,
+                                                      Notice("staged_connected_required", "", STAGED_CONNECTED_REQUIRED)))
     # The base revision's notices travel in connected mode: `settings_from_base` when it set something, and
     # `base_unavailable` always (an unreadable base silently defaulting pack and required would hide invariant 5).
     if connected_source is not None and connected_mode and (
@@ -193,19 +222,23 @@ def _scan_report(args: argparse.Namespace, context, credentials: Credentials,
         codes = {notice.code for notice in source.notices}
         source = dataclasses.replace(source, notices=(*source.notices,
                                                       *(n for n in connected_source.notices if n.code not in codes)))
-    telemetry = settings.telemetry
+    telemetry = settings.telemetry and staged is None  # 1.19.0: a staged scan never sends the usage ping
     if telemetry and args.config is None and source.read is not None and _request_opts_out(root):
         telemetry = False
     options = run.ScanOptions(root=root, settings=settings, as_of=as_of, locked=args.locked, baseline=args.baseline,
                               env=dict(os.environ), log=log, context=context, revision=source, credentials=credentials,
-                              api_url=api_url if overridden else None, as_of_given=args.as_of is not None, scope=scope,
-                              config=args.config, analyze=_analyze_options(args, model_key))
+                              api_url=api_url if overridden and staged is None else None,
+                              as_of_given=args.as_of is not None, scope=scope, config=args.config,
+                              analyze=_analyze_options(args, model_key), staged=staged)
     started = time.monotonic()
     try:
         report = run.scan(options)
     except Exception as exc:  # a scanner crash still writes every output (spec 6.2)
         return _error_report(settings.fail_on, as_of, "crash", "", f"internal error: {type(exc).__name__}: {exc}",
                              source.notices), telemetry
+    finally:
+        if staged is not None:  # 1.19.0: every staged read is done; the index's git process ends here
+            staged.close()
     options.log(f"scan took {time.monotonic() - started:.2f} s")
     return report, telemetry
 
@@ -287,6 +320,11 @@ def _usage_problem(args: argparse.Namespace, outputs: list[tuple[str, str | None
     analyze = _analyze_problem(args)
     if analyze is not None:
         return analyze
+    if getattr(args, "staged", False):  # 1.19.0
+        if args.user:
+            return "--user scans the home directory and cannot be used with --staged"
+        if args.upload:
+            return "--staged sends nothing to Spellwarden and cannot be used with --upload"
     if not args.user:
         for flag, given in (("--inventory", args.inventory), ("--device-label", args.device_label is not None)):
             if given:
@@ -320,6 +358,10 @@ def cmd_scan(args: argparse.Namespace) -> int:
         from spellwarden_cli import workstation  # here: the user scan and the upload are this command's other mode
 
         return workstation.cmd_user(args, outputs, credentials)
+    if getattr(args, "staged", False):  # 1.19.0: read and taken out of the environment above, then not used
+        if credentials.org or credentials.key is not None:
+            args.notices = (*getattr(args, "notices", ()), Notice("staged_credentials_ignored", "", STAGED_CREDENTIALS_IGNORED))
+        credentials = Credentials(None, None, None, None, None)
     args.path = "." if args.path is None else args.path
     root = os.path.abspath(args.path)
     context = ci.detect(os.environ, git_remote=lambda: ci.git_remote_of(root, env=os.environ),

@@ -9,7 +9,7 @@ import unicodedata
 from collections.abc import Iterable, Iterator
 
 from spellwarden_scan.evidence import bounded_evidence, code_point_names, excerpt, fingerprint
-from spellwarden_scan.frontmatter import FrontmatterError, parse_frontmatter
+from spellwarden_scan.frontmatter import FrontmatterError, FrontmatterLimit, parse_frontmatter
 from spellwarden_scan.model import Finding, Location
 from spellwarden_scan.package import SCRIPT_EXTENSIONS, CodeBlock, Package, TextFile
 from spellwarden_scan.rules import Rule, make_rule
@@ -652,6 +652,8 @@ def _allowlist_declared(package: Package) -> bool:
         return False
     try:
         mapping, _ = parse_frontmatter(text_file.text)
+    except FrontmatterLimit as exc:  # 1.19.0: not read, so the caller's error to report, never "no allowlist"
+        raise exc.at(text_file.path) from None
     except FrontmatterError:
         return False
     for key in _ALLOWLIST_KEYS:

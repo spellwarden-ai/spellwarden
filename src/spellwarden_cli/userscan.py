@@ -643,7 +643,10 @@ def scan(home: str, sys_platform: str, env: Mapping[str, str], *, settings: Sett
     findings: list[ReportFinding] = []
     probes: list = []
     if not inventory:
-        findings = [_without_evidence(finding, rules) for finding in run.engine_findings(found, rules, notices, errors)]
+        # 1.19.0: a front matter past a limit names the way out of a user scan, which reads no settings file (no `exclude`)
+        way_out = "make the front matter smaller, or remove the skill if it is not used"
+        findings = [_without_evidence(finding, rules)
+                    for finding in run.engine_findings(found, rules, notices, errors, way_out=way_out)]
         options = run.ScanOptions(root=os.path.abspath(home), settings=settings, as_of=as_of, env=dict(env), log=log)
         probes = run.run_probes(options, found, rules, findings, notices)
     report = Report(scanner_version=__version__, rules_version=RULES_VERSION, as_of=as_of.isoformat(), fail_on=settings.fail_on,
