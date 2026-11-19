@@ -1,5 +1,6 @@
-"""The current release is 1.18.0, which adds a pre-commit hook definition, the HTML report and presets without changing a
-rule. 1.17.0 added the model-assisted analyzer (`spellwarden scan --analyze`, advisory and off by
+"""The current release is 1.19.0, which adds `spellwarden scan --staged` (the pre-commit hook runs it), limits on SKILL.md
+front matter and the analyzer's span rule without changing a rule (1.18.0 added a pre-commit hook definition, the HTML report
+and presets without changing a rule). 1.17.0 added the model-assisted analyzer (`spellwarden scan --analyze`, advisory and off by
 default) and the description lint without changing a rule (1.16.2: `spellwarden lock` and `lock --check` exit 2 and write or confirm no lock when content was
 left unread, the workstation upload counts each client's roots and the CI upload's field table names the instruction file fields,
 without changing a rule (1.16.1: unread agent content no longer looks like a pass (an oversize repository file of agent
@@ -25,7 +26,7 @@ PYPROJECT = Path(__file__).resolve().parents[1] / "pyproject.toml"
 
 
 def test_the_versions():
-    assert __version__ == "1.18.0"
+    assert __version__ == "1.19.0"
     assert tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))["project"]["version"] == __version__
     assert RULES_VERSION == "2026.11.7"
     assert len(RuleSet.baseline()) == 66
@@ -112,6 +113,32 @@ def test_the_changelog_has_the_1_18_0_entry_above_1_17_0():
             and "Every request to the service is valid UTF-8" in entry)
     assert ("When two keys of one object would become equal, both are kept: the later one gets U+FFFD and a number appended, so "
             "no value is dropped.") in entry
+    for character in ("\u2014", "\u2013", "!"):
+        assert character not in raw
+
+
+def test_the_changelog_has_the_1_19_0_entry_above_1_18_0():
+    """1.19.0: `--staged` and the hook, the front-matter limits, the span rule, the unread file's path, and the dated correction
+    of 1.18.0's sentence on unchanged outputs."""
+    text = (PYPROJECT.parent / "CHANGELOG.md").read_text(encoding="utf-8").replace("\r\n", "\n")
+    assert text.index("## 1.19.0 (2026-11-") < text.index("## 1.18.0 (")
+    raw = text[text.index("## 1.19.0 ("):text.index("## 1.18.0 (")]
+    entry = " ".join(raw.split())
+    for needle in ("Rules version 2026.11.7, unchanged (66 rules)",
+                   "under `--analyze`, the `limit` of a skill with a file the scan did not read gains `path`",
+                   "the hook now reads the request's own settings file, baseline and `a2a.keys` file",
+                   "1.19.0: added `spellwarden scan --staged`, which reads the git index only and sends nothing to Spellwarden, "
+                   "and the pre-commit hook now runs it",
+                   "`staged_credentials_ignored`", "`staged_unavailable` (exit 2)",
+                   "`.pre-commit-hooks.yaml` runs `spellwarden scan --staged`",
+                   "64 KiB of text, 2,000 YAML nodes, a nesting depth of 32 and 50 aliases",
+                   "`spellwarden_scan.frontmatter.FrontmatterLimit`", "`no_verdict` with the reason `off_schema`",
+                   '`ANALYZER_VERSION` stays "1"', "its `limit` now names the file in `path`",
+                   "1.18.0 had two exceptions to unchanged outputs: a `--probe` exit path, and the lock hash of a tool input "
+                   "schema holding a lone surrogate, which changes once and raises SW-MCP-012, so exit 3 under `--locked` once "
+                   "after upgrading."):
+        assert needle in entry, needle
+    assert "runs offline" not in entry
     for character in ("\u2014", "\u2013", "!"):
         assert character not in raw
 

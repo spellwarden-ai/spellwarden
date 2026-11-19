@@ -1157,7 +1157,7 @@ Since 1.18.0 this repository is a hook repository of the [pre-commit framework](
 ```yaml
 repos:
   - repo: https://github.com/spellwarden-ai/spellwarden
-    rev: v1.18.0
+    rev: v1.19.0
     hooks:
       - id: spellwarden
         # args: [--preset, low-noise]   # any `spellwarden scan` option

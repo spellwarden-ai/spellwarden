@@ -1,5 +1,55 @@
 # Changelog
 
+## 1.19.0 (2026-11-NN)
+
+Rules version 2026.11.7, unchanged (66 rules). A scan without `--staged` gives the same reports, findings, items and exit code
+as on 1.18.0, apart from the version, for every front matter within the new limits and every analyzer reply that keeps the
+span rule; under `--analyze`, the `limit` of a skill with a file the scan did not read gains `path`.
+
+1.19.0: added `spellwarden scan --staged`, which reads the git index only and sends nothing to Spellwarden, and the pre-commit
+hook now runs it; limits on SKILL.md front matter; the span rule of the analyzer's replies; the path of a skill file the
+analyzer could not read. Unchanged: the rules and their versions (`RULES_VERSION` 2026.11.7).
+
+- `--staged`: the file set is the git index under the scan root (`git ls-files -s -z`), the content the staged blobs
+  (`git cat-file --batch`, the bytes as stored) and the executable mode the index mode. No untracked file and no unstaged
+  change is read, and a path removed from the index is not scanned. `.spellwarden/config.yml`, the baseline and, under
+  `--locked`, the lock file come from the index too; a `--config` or `--baseline` file named on the command line is read as
+  given. It sends nothing to Spellwarden: no connected mode, no upload and no usage ping; `SPELLWARDEN_ORG` and
+  `SPELLWARDEN_API_KEY` are ignored with the notice `staged_credentials_ignored`, and `--upload` and `--user` cannot be used
+  with it. `--probe` and `--analyze` work as in any scan. Outside a git repository, or when git cannot read the index, it is
+  the error `staged_unavailable` (exit 2), which `schemas/report.schema.json` lists; a path the index holds only as an
+  unresolved merge conflict is the error `unreadable`.
+- The hook: `.pre-commit-hooks.yaml` runs `spellwarden scan --staged` (1.18.0 ran `spellwarden scan --no-upload`), at the same
+  three stages. An untracked file no longer fails a commit, an untracked `.spellwarden/config.yml` no longer excludes what a
+  commit holds, and the hook sends no usage ping in CI any more. On a pull or merge request in CI the hook now reads the
+  request's own settings file, baseline and `a2a.keys` file from the index (1.18.0's hook read the base revision's there, as
+  a scan without `--staged` still does), so a request can change what its own hook run judges: keep the Action, the GitLab
+  component or a scan without `--staged` as the check that decides a merge. A team whose only CI check is `pre-commit run`
+  loses the base-revision protection that 1.18.0's hook had when its `rev` moves to `v1.19.0`. A `.pre-commit-config.yaml`
+  keeps 1.18.0's hook until its `rev` moves to `v1.19.0`.
+- Front-matter limits: the YAML front matter of a `SKILL.md`, and of a Markdown file in a skill's `commands/` or `agents/`
+  directory, is read up to 64 KiB of text, 2,000 YAML nodes, a nesting depth of 32 and 50 aliases. Past one of them the file
+  is the error `unreadable` naming the limit and the way out (`exclude`), the skill is not judged and the scan is incomplete
+  (exit 2); it is never a front-matter finding. A front matter nested deep enough to exhaust the YAML reader's stack was an
+  internal error (exit 2) and is now that error. Callers of the library: `parse_frontmatter`, `metadata_of` and
+  `scan_skill_package` raise `spellwarden_scan.frontmatter.FrontmatterLimit` (a `FrontmatterError`, so a `ValueError`) for
+  such a front matter.
+- The analyzer's span rule: a reply that gives a category the verdict `issue` without a span, or `none` with spans, is
+  `no_verdict` with the reason `off_schema`. The request already asked for exactly that, so nothing sent to a model changes
+  and `ANALYZER_VERSION` stays "1"; a result cached before 1.19.0 that breaks the rule is served as stored.
+- The analyzer's unread file: a skill whose SKILL.md or script the scan did not read is still `incomplete` with `too_large`,
+  and its `limit` now names the file in `path`.
+- Words: the README says what the analyzer's nonce does (it checks that the reply answers this request in the schema; it does
+  not stop a skill that tells the model to repeat it, and the defences are the advisory result and the rules beside it) and
+  that the rates will be measured on fresh held-out skills.
+- A correction to the 1.18.0 entry, dated 2026-11-NN: 1.18.0 had two exceptions to unchanged outputs: a `--probe` exit path,
+  and the lock hash of a tool input schema holding a lone surrogate, which changes once and raises SW-MCP-012, so exit 3
+  under `--locked` once after upgrading.
+- Tests: hostile input in the HTML report's probed server, agent card, analysis span, lint and lock-change sections; the
+  hook's two cases (an untracked skill, an untracked settings file) through `spellwarden scan --staged` everywhere and
+  through `pre-commit try-repo` in the CI job `pre-commit-hook` on Linux and Windows; every fixture root's seven reports
+  against the released 1.18.0.
+
 ## 1.18.0 (2026-11-19)
 
 Rules version 2026.11.7, unchanged (66 rules). Without a preset, or with `balanced`, a scan gives the same reports, findings,
