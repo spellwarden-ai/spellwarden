@@ -108,6 +108,8 @@ def test_the_changelog_has_the_1_18_0_entry_above_1_17_0():
     assert "holding what the JSON report holds" not in entry
     assert ("Lone surrogates: a string with a lone surrogate (a `\\uD800` to `\\uDFFF` escape without its pair) in the JSON answer "
             "of a probed server or of the service is read with U+FFFD in its place") in entry
+    assert ("SKILL.md front matter and the settings and baseline files are read the same way" in entry
+            and "Every request to the service is valid UTF-8" in entry)
     for character in ("\u2014", "\u2013", "!"):
         assert character not in raw
 
