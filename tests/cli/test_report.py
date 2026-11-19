@@ -113,7 +113,9 @@ def test_notice_and_error_codes_are_todays_plus_the_closed_lists_of_spec_6_9():
         # 1.17.0: `ci-run gitlab` on a merge request from a fork without SPELLWARDEN_MODEL_KEY
         "analyzer_no_key",
         # 1.18.0: a preset other than balanced applied
-        "preset")
+        "preset",
+        # 1.19.0: `scan --staged` ignored SPELLWARDEN_ORG or SPELLWARDEN_API_KEY
+        "staged_credentials_ignored")
     assert ERROR_CODES == TODAYS_ERROR_CODES + (
         "connected_config", "connected_key_invalid", "connected_no_credential", "connected_auth", "connected_subscription",
         "connected_ci_key_required", "connected_forbidden", "connected_rate_limited", "connected_unavailable",
@@ -125,7 +127,9 @@ def test_notice_and_error_codes_are_todays_plus_the_closed_lists_of_spec_6_9():
         "user_instructions_limit", "user_skills_limit", "workstation_no_credential", "workstation_label_missing",
         "workstation_upload_too_large", "workstation_upload_failed",
         # 1.17.0: spec:Q4, written when `analysis.incomplete_analysis_is_scan_error` says so
-        "analysis_incomplete")
+        "analysis_incomplete",
+        # 1.19.0: `scan --staged` outside a git repository, or the index could not be read
+        "staged_unavailable")
     assert len(set(NOTICE_CODES)) == len(NOTICE_CODES) and len(set(ERROR_CODES)) == len(ERROR_CODES)
 
 

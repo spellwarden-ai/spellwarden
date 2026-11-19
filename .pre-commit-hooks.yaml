@@ -3,7 +3,7 @@
 - id: spellwarden
   name: Spellwarden (scan agent skills, MCP configuration and hooks)
   description: Scans the repository's agent content when it changes.
-  entry: spellwarden scan --no-upload
+  entry: spellwarden scan --staged
   language: python
   pass_filenames: false
   require_serial: true

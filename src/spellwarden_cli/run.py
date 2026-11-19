@@ -55,6 +55,9 @@ class ScanOptions:
     scope: str | None = ""  # the scan root below its work tree (`ci.scan_scope`, P41); None: outside the grammar of 8.4
     config: str | None = None  # the `--config` argument (O4 spec 6.5: where findings on remote agents point), None without it
     analyze: AnalyzeOptions | None = None  # 1.17.0 (Phase 4 batch B spec 11.3): `--analyze` and its flags; None without it
+    # 1.19.0: `--staged`, the git index the files, the settings, the baseline and the lock come from (nothing is sent to
+    # Spellwarden); None: the working tree
+    staged: files.StagedIndex | None = None
 
 
 def connected_config_problem(options: ScanOptions) -> Notice | None:
@@ -102,24 +105,27 @@ def scan(options: ScanOptions) -> Report:
     if options.api_url is not None:
         early.append(Notice("api_url_override", "", "SPELLWARDEN_API_URL is honoured: the connected calls go to a loopback "
                                                     "address, not to the Spellwarden service."))
-    problem = connected_config_problem(options)
+    problem = connected_config_problem(options) if options.staged is None else None  # 1.19.0: no connected mode staged
     if problem is not None:
         return _stopped(options, early, problem)
     # Connected mode (O3 spec 6.2 to 6.5): the session and the policy come first, but a failure before the session is
     # only kept: `required` decides after discovery, which the Dependabot exemption needs (P35).
     credentials = options.credentials if options.credentials is not None else Credentials(None, None, None, None, None)
     context = options.context
-    if context is None and (credentials.org or credentials.key is not None or options.settings.connected.required):
+    if options.staged is None and context is None and (credentials.org or credentials.key is not None
+                                                       or options.settings.connected.required):
         context = ci.detect(options.env)
     state = stop = None
-    if context is not None and connected.activation(options.settings, context, credentials) is not None:
+    if options.staged is None and context is not None and connected.activation(options.settings, context,
+                                                                               credentials) is not None:
         try:
             state = connected.establish(options, context, credentials, options.scope, connected.make_client)
         except connected.ConnectedStop as caught:
             stop = caught
         except connected.ConnectedFail as failed:
             return _stopped(options, early, Notice(failed.code, "", failed.message))
-    fileset = files.list_files(options.root, options.settings, env=options.env)
+    fileset = (options.staged.fileset(options.settings) if options.staged is not None
+               else files.list_files(options.root, options.settings, env=options.env))
     a2a = options.settings.a2a
     found = discover.discover(fileset, listed_cards=a2a.cards, agents_configured=bool(a2a.agents),
                               instructions=options.settings.instructions)
@@ -349,12 +355,13 @@ def check_lock(options: ScanOptions, found: Discovery, errors: list[Notice], *, 
     without it as `tools_changed` notices, both appended to `notices`."""
     from spellwarden_cli import lockfile  # here, not at the top: lockfile's command imports this module
 
+    read = options.staged.read if options.staged is not None else None  # 1.19.0: under --staged, the lock as staged
     if not options.locked:
         if probes is not None and notices is not None:
-            notices.extend(lockfile.changed_pin_notices(options.root, probes))
+            notices.extend(lockfile.changed_pin_notices(options.root, probes, read=read))
         return LockState()
     try:
-        return lockfile.compare_lock(options.root, lockfile.compute_lock(found), probes=probes, notices=notices)
+        return lockfile.compare_lock(options.root, lockfile.compute_lock(found), probes=probes, notices=notices, read=read)
     except lockfile.LockUnreadable as exc:
         errors.append(Notice("lock_unreadable", lockfile.LOCK_PATH, str(exc)))
         return LockState()
