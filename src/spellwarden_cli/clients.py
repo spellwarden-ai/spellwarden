@@ -57,6 +57,9 @@ class Row:
     shared: bool = False  # a directory other clients read too: finding it does not show that this client is installed
     # Batch 2c spec 11.3: the pages the path is derived from, when the source names the file but not where it is
     path_from: tuple[str, ...] = ()
+    # the base's default folder is read as well when its variable moves the base (`default_base`): for a client whose pages
+    # name the default folder and not the variable (Devin Desktop), reading only the moved folder could leave its files unread
+    default_too: bool = False
 
 
 _CLAUDE_DIRECTORY = "https://code.claude.com/docs/en/claude-directory"
@@ -116,9 +119,11 @@ def _devin(row_id: str, paths: tuple[str, ...], reader: str, reads: str, source:
            path_from: tuple[str, ...] = (_DEVIN_CUSTOMIZATIONS,)) -> tuple[Row, Row]:
     """A file of Devin Desktop's configuration folder (Engine 1.20.0: scan selection, 7.9, D19): `$XDG_CONFIG_HOME/devin/` on
     Linux and macOS (`~/.config/devin/` when the variable is not set) and `%APPDATA%/devin/` on Windows, one row each; the
-    customisations page gives the folder (`path_from`)."""
+    customisations page gives the folder (`path_from`). Devin's pages name `~/.config/devin/` and say it follows the XDG
+    conventions, without naming the variable, so on Linux and macOS `~/.config/devin/` is read too when the variable points
+    elsewhere (`default_too`): reading a folder Devin does not load costs nothing, leaving one unread that it loads would."""
     return (Row(row_id, "windsurf", ("linux", "macos"), "$XDG_CONFIG_HOME", paths, reader, reads, source, CHECKED_SELECTION,
-                format=format, path_from=path_from),
+                format=format, path_from=path_from, default_too=True),
             Row(f"{row_id}-windows", "windsurf", ("windows",), "%APPDATA%", paths, reader, reads, source, CHECKED_SELECTION,
                 format=format, path_from=path_from))
 
@@ -318,6 +323,16 @@ def resolve_base(row: Row, home: str, system: str, env: Mapping[str, str]) -> st
     return _join(home, _DEFAULTS[row.base])
 
 
+def default_base(row: Row, home: str, system: str, env: Mapping[str, str]) -> str | None:
+    """The default folder of the row's base, for a row that reads it as well (`default_too`) while a variable moves the base
+    somewhere else; None for every other row, and when the variable is not set or names the default folder itself."""
+    base = resolve_base(row, home, system, env)
+    if not row.default_too or base is None or row.base not in _DEFAULTS:
+        return None
+    default = _join(home, _DEFAULTS[row.base])
+    return None if relative_to(base, default) == "" else default
+
+
 def base_variable(row: Row, env: Mapping[str, str]) -> str | None:
     """The variable that decides where the row's base is (`resolve_base`): its `moved_by` when that is set, else the variable
     of its base token; None for a base no variable moves (`~`, `~/Library/Application Support`)."""
@@ -370,6 +385,8 @@ def table_markdown() -> str:
         paths = "<br>".join(f"`{row.base}/{path}`" for path in row.paths)
         if row.moved_by is not None:
             paths += f" (`${row.moved_by}/{posixpath.basename(row.paths[0])}` when `{row.moved_by}` is set)"
+        if row.default_too:
+            paths += f" (and below `~/{_DEFAULTS[row.base]}/` when `{_VARIABLES[row.base]}` points elsewhere)"
         source = f"<{row.source}>"
         if row.path_from:
             source += " (the folder from " + " and ".join(f"<{page}>" for page in row.path_from) + ")"
@@ -386,5 +403,6 @@ def readme_block() -> str:
     return f"{table_markdown()}\nNot read:\n\n{not_read_markdown()}"
 
 
-__all__ = ["BASES", "CLIENTS", "CLIENT_NAMES", "NOT_READ", "READERS", "ROWS", "SYSTEMS", "Row", "base_variable", "display",
+__all__ = ["BASES", "CLIENTS", "CLIENT_NAMES", "NOT_READ", "READERS", "ROWS", "SYSTEMS", "Row", "base_variable",
+           "default_base", "display",
            "platform_of", "readme_block", "relative_to", "resolve_base", "rows_for"]

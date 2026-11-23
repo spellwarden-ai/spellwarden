@@ -533,6 +533,29 @@ def test_the_devin_folder_follows_xdg_config_home_on_linux_and_macos(tmp_path):
         assert "$XDG_CONFIG_HOME/devin/mcp_config.json#t" in paths, system
 
 
+def test_the_default_devin_folder_is_read_too_when_xdg_config_home_points_elsewhere(tmp_path):
+    """Devin's pages name `~/.config/devin/`, not the variable: a file there must not go unread because the variable is set."""
+    home = _bare_home(tmp_path)
+    xdg = tmp_path / "xdg"
+    for folder, name in ((xdg / "devin", "moved"), (home / ".config" / "devin", "default")):
+        folder.mkdir(parents=True)
+        (folder / "mcp_config.json").write_text(json.dumps({"mcpServers": {name: {"serverUrl": "https://t.example.com/mcp"}}}),
+                                                encoding="utf-8")
+    (home / ".config" / "devin" / "AGENTS.md").write_text("Be brief.\n", encoding="utf-8")
+    for system in ("linux", "macos"):
+        found = userscan.discover_home(str(home), system, {"XDG_CONFIG_HOME": str(xdg)}).found
+        paths = {item.path for item in found.items}
+        assert {"$XDG_CONFIG_HOME/devin/mcp_config.json#moved", "~/.config/devin/mcp_config.json#default",
+                "~/.config/devin/AGENTS.md"} <= paths, system
+        assert not found.errors, system
+    # the variable naming the default folder itself, or not set, reads that folder once
+    for env in ({}, {"XDG_CONFIG_HOME": str(home / ".config")}):
+        paths = [item.path for item in userscan.discover_home(str(home), "linux", env).found.items]
+        assert paths.count("~/.config/devin/mcp_config.json#default") == 1 and paths.count("~/.config/devin/AGENTS.md") == 1
+    windows = {item.path for item in userscan.discover_home(str(home), "windows", {"XDG_CONFIG_HOME": str(xdg)}).found.items}
+    assert not any("devin" in path for path in windows)
+
+
 def test_windows_reads_the_devin_folder_under_appdata_and_no_longer_under_config(tmp_path):
     paths = {item.path for item in userscan.discover_home(str(make_home(tmp_path, "windows")), "windows", {}).found.items}
     assert "~/AppData/Roaming/devin/mcp_config.json#tickets" in paths

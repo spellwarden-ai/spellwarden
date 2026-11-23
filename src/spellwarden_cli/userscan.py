@@ -293,12 +293,17 @@ class _Home:
             base = clients.resolve_base(row, self.home, self.system, self.env)
             if base is None:
                 continue
-            for pattern in row.paths:
-                for real, shown in self.expand(base, pattern, clients.base_variable(row, self.env)):
-                    self.roots[row.client].add(shown)
-                    if not row.shared:
-                        self.own.add(row.client)
-                    self.read_row(row, real, shown)
+            bases = [(base, clients.base_variable(row, self.env))]
+            default = clients.default_base(row, self.home, self.system, self.env)
+            if default is not None:  # the default folder too, which no variable moves: a file there is not left unread
+                bases.append((default, None))
+            for start, variable in bases:
+                for pattern in row.paths:
+                    for real, shown in self.expand(start, pattern, variable):
+                        self.roots[row.client].add(shown)
+                        if not row.shared:
+                            self.own.add(row.client)
+                        self.read_row(row, real, shown)
         for shown, variables in self.linked_out.items():  # one error per link, however many rows reached it
             self.errors.append(Notice("unreadable", shown, _linked_out_message(variables)))
         for client, left in self.instruction_left.items():

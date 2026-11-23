@@ -46,7 +46,8 @@ follows a linked directory in an instruction folder, off by default.
   its plugins' commands and agents; Cursor's skills, subagents and local plugins; Copilot's instruction files, custom agents,
   hooks, settings and installed plugins; Codex's prompts and cached plugins; Gemini CLI's subagents and the skills and subagents
   of its extensions; Windsurf's `~/.codeium/windsurf/` files. The Devin folder is `$XDG_CONFIG_HOME/devin/` on Linux and macOS
-  (`~/.config/devin/` when the variable is not set) and `%APPDATA%/devin/` on Windows, which no longer reads `~/.config/devin/`.
+  (`~/.config/devin/` when the variable is not set, and read as well when the variable points elsewhere, since Devin's pages
+  name that folder) and `%APPDATA%/devin/` on Windows, which no longer reads `~/.config/devin/`.
   A folder that several clients read names each client found. An installed Claude Code plugin that is one skill (a root
   `SKILL.md` and no `skills/` folder) is read as that skill, with its `commands/` and `agents/` as the skill's files; 1.19.0
   read no skill for it, so such a home gains the skill and its findings. A home gives more items toward the 2,000 of a
