@@ -244,7 +244,7 @@ def instruction_scope(format: str, path: str, front_matter: dict | None) -> str:
         return ALWAYS
     if format in ("claude-output-style", "codex-prompt"):
         return ASKED  # the user picks a style or invokes a prompt (Engine 1.20.0: scan selection, 7.6, D14)
-    if format in ("windsurf-rules", "devin-rules") and posixpath.basename(path) == "global_rules.md" and (
+    if format in ("windsurf-rules", "devin-rules") and _fold(posixpath.basename(path)) == "global_rules.md" and (
             path.startswith("~/") or _fold(posixpath.basename(posixpath.dirname(path))) in (".windsurf", ".devin")):
         return ALWAYS  # the global rules of Windsurf and Devin apply to every conversation, in the home and in a repository
     given = front_matter or {}

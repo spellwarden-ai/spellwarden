@@ -238,6 +238,9 @@ def test_apply_to_is_read_as_globs_and_a_block_description_of_a_new_format_is_no
     ("windsurf-rules", ".windsurf/global_rules.md", "x\n", "Applied: always"),
     ("windsurf-rules", "svc/.devin/global_rules.md", "x\n", "Applied: always"),
     ("windsurf-rules", ".windsurf/rules/global_rules.md", "x\n", "Applied when asked for"),
+    # the name is compared folded, as `format_of` decides the format, so the two cannot disagree about one file
+    ("windsurf-rules", ".windsurf/Global_Rules.md", "x\n", "Applied: always"),
+    ("devin-rules", "~/.devin/GLOBAL_RULES.md", "x\n", "Applied: always"),
     ("copilot-instructions", "~/.copilot/copilot-instructions.md", "x\n", "Applied: always"),
     ("agents-md", "AGENTS.override.md", "x\n", "Applied: always"),
     ("claude-rule", ".claude/rules/a.md", "x\n", "Applied: always"),
