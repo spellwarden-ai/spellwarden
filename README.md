@@ -600,6 +600,44 @@ Paths are relative to the scan root, except in SARIF and Code Quality, where the
 
 The file is built for content you do not trust. Every string from the scanned repository or a probed server is escaped (`&`, `<`, `>`, `"` and `'` as character references, hidden characters and lone surrogates as `\u{NNNN}`, control characters as `\xNN`), so a skill whose text holds `<script>` shows it as text. There is no script element, no event attribute, no form, no frame, no image, no font and no stylesheet but one inline style without `url(`, and a Content-Security-Policy (`default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'`) forbids every fetch: opening the file makes no network request. The only links are the rule pages on spellwarden.ai, plain links a person may click. The report has no size cap of its own (see [Limits](#limits)).
 
+### How to fix
+
+Since 1.21.0 every finding of a baseline rule says how to fix it: its rule's fix sentence (`Rule.fix`, one sentence, the same in every report) and the address of the rule's page, `https://spellwarden.ai/docs/rules/<id in lower case>` (`Rule.page`), where the full steps are. Each report shows them its own way:
+
+| Report | What it shows |
+|---|---|
+| `json` | each finding's `fix` and `rule_url` (the page with `utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix`), and `fix_lines` where the finding has setting lines |
+| `text` | a "How to fix" section after the findings, with each rule that has an open finding, its sentence and its page, and a `write in` line under a finding that has setting lines |
+| `markdown` | a "How to fix" section under the findings table for the rules of the rows the table shows, with the setting lines under their rule; the pull request comment and the merge request note are this report |
+| `html` | the sentence and the setting lines in each finding, above its link to the rule page |
+| `sarif` | each baseline rule's `help` (text and Markdown) and its page as its `helpUri`, which a code scanning alert shows; a result's setting lines as `properties.fix_lines` |
+| `cyclonedx` | each vulnerability's `recommendation`, the sentence |
+| `gitlab-codequality` | nothing new: GitLab shows only the description, and the merge request note carries the fix |
+
+The text report's section, for a scan with findings of two rules:
+
+```
+How to fix
+  SW-CFG-013 Add the server's read-only switch, and give write access to a separate entry that stays disabled until the work needs it.
+    https://spellwarden.ai/docs/rules/sw-cfg-013?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix
+  SW-SKL-009 Pin each install to an exact version, for example package==1.4.2 for pip, and add a lock file or hashes where the tool supports them.
+    https://spellwarden.ai/docs/rules/sw-skl-009?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix
+```
+
+Setting lines are text to copy, never applied: no report changes your files, and the SARIF file holds no `fixes` object. They are fixed words of the scanner, never text from your files, and only three rules write them, each where the lines are exact for every finding of the row:
+
+| The finding is about | Rule | Where to write | Lines |
+|---|---|---|---|
+| the hosted Supabase endpoint without `read_only=true` | SW-CFG-013 | the query of the mcp.supabase.com address | `read_only=true` |
+| `mcp-server-kubernetes` with no restricting switch, in a JSON configuration | SW-CFG-013 | the server's env | `"ALLOW_ONLY_NON_DESTRUCTIVE_TOOLS": "true"` |
+| `mcp-server-kubernetes` with no restricting switch, in Codex's `config.toml` | SW-CFG-013 | the server's env table | `ALLOW_ONLY_NON_DESTRUCTIVE_TOOLS = "true"` |
+| an authorization code flow without PKCE required | SW-A2A-006 | the authorizationCode flow of the card's OAuth scheme | `"pkceRequired": true` |
+| dynamic client registration | SW-MCP-003 | the authorization server's metadata | `"client_id_metadata_document_supported": true` |
+
+Each row is a switch its server's or protocol's own documentation names; `src/spellwarden_scan/rules/fix_lines.py` names the page and the date it was read. A line follows the syntax of the file its finding is in: the `mcp-server-kubernetes` line is a JSON member in a JSON configuration and a TOML key in Codex's `config.toml`, in the form Codex's documentation gives for a server's environment variables. Every other server SW-CFG-013 finds, the `@supabase/mcp-server-supabase` package and `kubernetes-mcp-server` among them, gets the sentence alone.
+
+An organisation rule has no fix sentence and no page, because its policy pack holds no fix text: its findings have `fix` and `rule_url` null, and the text and Markdown sections end with one line that says to ask the people who manage the pack. The upload of connected mode leaves out `fix`, `rule_url` and `fix_lines`, as it leaves out `tags`.
+
 ### Presets
 
 `--preset strict|balanced|low-noise` (since 1.18.0), the setting `preset` in `.spellwarden/config.yml` and the variable `SPELLWARDEN_PRESET` change the severity of named rules, or leave a rule's findings out of the reports, from the table below. As for every setting, the flag wins over the environment, which wins over the file; without any of them there is no preset.
@@ -1151,7 +1189,7 @@ A package's identity is a hash over its bytes, as a forge archive of its directo
 
 ### Schemas and compatibility
 
-`schemas/` holds JSON Schemas (draft 2020-12) for the settings, the baseline, the lock file and the JSON report, including every closed list of values. Readers of the report must ignore fields they do not know; the settings and the baseline refuse them. From 1.0.0, removing or renaming a field or a value, or changing an exit code, is a major version; adding an optional field, a notice code or a rule is a minor one. Since 1.3.0 the report holds an optional `agents` list (one entry per A2A agent card the run read or fetched, written only when there is one), the rule-id pattern of the report and the baseline schema is `^SW-(SKL|MCP|CFG|REG|A2A|ORG)-[0-9]{3}$`, and the settings schema has the `a2a` mapping. A 1.2.x scanner refuses a settings file with an `a2a` mapping (`settings_invalid`, unknown key) and a baseline with an `SW-A2A` entry, as it would any later key or rule; a team that runs two scanner versions against one repository must upgrade both. In the same way a 1.3.x scanner refuses a baseline with an `SW-A2A-019` entry, the rule 1.4.0 added. Unlike `SW-A2A-019`, the rules 1.8.0 added (`SW-SKL-032`, `SW-SKL-036`, `SW-SKL-037`, `SW-CFG-012`, `SW-CFG-013`, rules version `2026.11.1`) keep an older baseline readable: a scanner older than 1.8.0 reads a baseline that names one of them without error, but the entry matches nothing there, so `baseline list` shows it as unmatched, `baseline prune` removes it, and the older scanner reports none of the new findings. `SW-SKL-032` is a malicious-indicator rule, so an entry for it may last at most 30 days from 1.8.0 on. Since 1.2.0 the report holds an optional `connected` block when a run was connected (the credential kind, the organisation, the run, the policy applied, the registry gate's counts and items, and the upload outcome), and `upload_truncated` and `upload_truncated_fields` after an upload that was cut; a free run adds none of them. Since 1.13.0 each finding of the report also holds `tags` (the framework ids of its rule: `owasp_agentic`, `owasp_mcp`, `nist`, `atlas`, `owasp_ast`), an item of kind `instructions` holds `format` and `front_matter`, the lock schema has the item kind `instructions`, and the settings schema has the key `instructions`; the report's `schema` stays 1. Since 1.15.0 the lock schema has the item kind `mcp-tools`, a change in the report's `lock` may name it, and the notice codes `tools_changed` and `tools_not_compared` are new. Since 1.18.0 the report holds an optional `preset` block and each finding an optional `preset_from`, both only when a preset other than `balanced` applied, and the settings schema has the key `preset`; a scanner older than 1.18.0 refuses a settings file with `preset` (`settings_invalid`, unknown key), so a team that runs two scanner versions against one repository upgrades both before setting it.
+`schemas/` holds JSON Schemas (draft 2020-12) for the settings, the baseline, the lock file and the JSON report, including every closed list of values. Readers of the report must ignore fields they do not know; the settings and the baseline refuse them. From 1.0.0, removing or renaming a field or a value, or changing an exit code, is a major version; adding an optional field, a notice code or a rule is a minor one. Since 1.3.0 the report holds an optional `agents` list (one entry per A2A agent card the run read or fetched, written only when there is one), the rule-id pattern of the report and the baseline schema is `^SW-(SKL|MCP|CFG|REG|A2A|ORG)-[0-9]{3}$`, and the settings schema has the `a2a` mapping. A 1.2.x scanner refuses a settings file with an `a2a` mapping (`settings_invalid`, unknown key) and a baseline with an `SW-A2A` entry, as it would any later key or rule; a team that runs two scanner versions against one repository must upgrade both. In the same way a 1.3.x scanner refuses a baseline with an `SW-A2A-019` entry, the rule 1.4.0 added. Unlike `SW-A2A-019`, the rules 1.8.0 added (`SW-SKL-032`, `SW-SKL-036`, `SW-SKL-037`, `SW-CFG-012`, `SW-CFG-013`, rules version `2026.11.1`) keep an older baseline readable: a scanner older than 1.8.0 reads a baseline that names one of them without error, but the entry matches nothing there, so `baseline list` shows it as unmatched, `baseline prune` removes it, and the older scanner reports none of the new findings. `SW-SKL-032` is a malicious-indicator rule, so an entry for it may last at most 30 days from 1.8.0 on. Since 1.2.0 the report holds an optional `connected` block when a run was connected (the credential kind, the organisation, the run, the policy applied, the registry gate's counts and items, and the upload outcome), and `upload_truncated` and `upload_truncated_fields` after an upload that was cut; a free run adds none of them. Since 1.13.0 each finding of the report also holds `tags` (the framework ids of its rule: `owasp_agentic`, `owasp_mcp`, `nist`, `atlas`, `owasp_ast`), an item of kind `instructions` holds `format` and `front_matter`, the lock schema has the item kind `instructions`, and the settings schema has the key `instructions`; the report's `schema` stays 1. Since 1.15.0 the lock schema has the item kind `mcp-tools`, a change in the report's `lock` may name it, and the notice codes `tools_changed` and `tools_not_compared` are new. Since 1.18.0 the report holds an optional `preset` block and each finding an optional `preset_from`, both only when a preset other than `balanced` applied, and the settings schema has the key `preset`; a scanner older than 1.18.0 refuses a settings file with `preset` (`settings_invalid`, unknown key), so a team that runs two scanner versions against one repository upgrades both before setting it. Since 1.21.0 each finding of the report also holds `fix` (its rule's fix sentence) and `rule_url` (its rule's page), both null for an organisation rule, and a finding of SW-CFG-013, SW-A2A-006 or SW-MCP-003 may hold `fix_lines`; the report's `schema` stays 1.
 
 ## What Spellwarden keeps from your telemetry
 
@@ -1233,7 +1271,7 @@ Since 1.18.0 this repository is a hook repository of the [pre-commit framework](
 ```yaml
 repos:
   - repo: https://github.com/spellwarden-ai/spellwarden
-    rev: v1.20.0
+    rev: v1.21.0
     hooks:
       - id: spellwarden
         # args: [--preset, low-noise]   # any `spellwarden scan` option

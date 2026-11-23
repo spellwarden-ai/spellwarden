@@ -27,6 +27,7 @@ A rule that is merged has:
 
 - an id that the maintainers assign. Unused numbers stay reserved;
 - a title, a severity and its mappings to the OWASP lists, NIST SP 800-53 and MITRE ATLAS, given to `make_rule` in `src/spellwarden_scan/rules/`;
+- a fix sentence beside its title: one sentence that tells the reader what to do, at most 200 characters, opening with one of the verbs of `FIX_VERBS`. `make_rule` refuses a sentence that breaks the form, and `RuleSet.baseline()` refuses a rule without one;
 - a fixture it must find and a fixture it must not find. `tests/test_fixture_coverage.py` fails the build without both;
 - its row in the rules table of the README and a line in `CHANGELOG.md`.
 

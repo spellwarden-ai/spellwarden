@@ -17,7 +17,7 @@ def section(heading: str) -> str:
 
 def test_the_readme_explains_the_hook():
     text = section("### Pre-commit hook")
-    for needle in (GUIDE, "repo: https://github.com/spellwarden-ai/spellwarden", "rev: v1.20.0", "id: spellwarden",
+    for needle in (GUIDE, "repo: https://github.com/spellwarden-ai/spellwarden", "rev: v1.21.0", "id: spellwarden",
                    "`spellwarden scan --staged`", "pre-commit 3.2.0 or later", "`pre-commit`, `pre-push` and `manual`",
                    "never uploads", "exit 1", "exit 2", "exit 3", "`SKIP=spellwarden git commit`"):
         assert needle in text, needle
