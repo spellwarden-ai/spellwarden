@@ -428,7 +428,13 @@ jobs:
         run: |
           set -euo pipefail
           previous="$(gh release list --exclude-drafts --limit 1 --json tagName --jq '.[0].tagName // ""')"
-          if [ -n "$previous" ] && gh release view "$previous" --json assets --jq '.assets[].name' | grep -qx rule-benchmark.json; then
+          # The asset names are read into a variable first: a pipe into `grep -q` could end gh early with SIGPIPE, which under
+          # pipefail would skip this check without an error (review r0:F3). A failed `gh` call fails the step.
+          names=""
+          if [ -n "$previous" ]; then
+            names="$(gh release view "$previous" --json assets --jq '.assets[].name')"
+          fi
+          if grep -qx rule-benchmark.json <<<"$names"; then
             gh release download "$previous" --pattern rule-benchmark.json --dir "$RUNNER_TEMP/previous"
             "$BENCH_PY" benchmarks/rule_benchmark.py check-history --previous "$RUNNER_TEMP/previous/rule-benchmark.json"
           else
