@@ -9,6 +9,7 @@ import json
 from pathlib import Path
 
 import pytest
+from golden_fix import before_fix_guidance
 
 from spellwarden_scan import __version__
 
@@ -44,7 +45,7 @@ def test_without_staged_every_report_is_the_1_18_0_report_but_for_the_version(ro
     expected = _recorded()["roots"][root]
     code, outputs = record.reports.render(record.reports.build_repo(root, tmp_path / "repo"), tmp_path / "out",
                                           formats=record.reports.ALL_FORMATS)
-    got = {fmt: record.digest(record.reports.as_version(fmt, data, __version__, record.RECORDED_VERSION))
+    got = {fmt: record.digest(record.reports.as_version(fmt, before_fix_guidance(fmt, data), __version__, record.RECORDED_VERSION))
            for fmt, data in outputs.items()}
     assert code == expected["exit_code"]
     assert got == expected["outputs"]

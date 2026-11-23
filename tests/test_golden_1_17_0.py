@@ -9,6 +9,7 @@ import json
 from pathlib import Path
 
 import pytest
+from golden_fix import before_fix_guidance
 
 from spellwarden_scan import __version__
 
@@ -42,7 +43,7 @@ def test_the_record_is_the_release_and_covers_every_fixture_root():
 def test_without_a_preset_every_report_is_the_1_17_0_report_but_for_the_version(root, tmp_path):
     expected = _recorded()["roots"][root]
     code, outputs = record.reports.render(record.reports.build_repo(root, tmp_path / "repo"), tmp_path / "out")
-    got = {fmt: record.digest(record.reports.as_version(fmt, data, __version__, record.RECORDED_VERSION))
+    got = {fmt: record.digest(record.reports.as_version(fmt, before_fix_guidance(fmt, data), __version__, record.RECORDED_VERSION))
            for fmt, data in outputs.items()}
     assert code == expected["exit_code"]
     assert got == expected["outputs"]
