@@ -25,13 +25,15 @@ GOLDEN = Path(__file__).resolve().parent / "1.17.0"
 RELEASE_TAG = "v1.17.0"
 RECORDED_VERSION = "1.17.0"
 # Every directory the tests treat as a repository: the rule fixtures, the end-to-end repositories, the fixture homes and the A2A
-# cards read as repositories, the fixtures 1.18.0 adds, and the golden repositories. A pattern that matches nothing adds nothing.
+# cards read as repositories, the fixtures 1.18.0 and 1.20.0 add, and the golden repositories. A pattern that matches nothing adds
+# nothing.
 ROOT_GLOBS = ("fixtures/skills/*/positive", "fixtures/skills/*/negative", "fixtures/config/*/positive",
               "fixtures/config/*/negative", "fixtures/config/plugins-settings", "fixtures/orgrules/skills/*",
-              "fixtures/repos/*/repo", "fixtures/html-escape", "fixtures/presets", "tests/fixtures/a2a",
+              "fixtures/repos/*/repo", "fixtures/html-escape", "fixtures/presets", "fixtures/selection", "tests/fixtures/a2a",
               "tests/fixtures/homes/*", "tests/golden/1.0.0/repo", "tests/golden/1.13.0/repo")
-# Fixtures 1.18.0 adds: not in the record. The last is the wrappers' case for their `preset` input.
-ADDED_AFTER_1_17_0 = ("fixtures/html-escape", "fixtures/presets", "fixtures/repos/preset/repo")
+# Fixtures added after 1.17.0: not in the record. `fixtures/repos/preset/repo` is the wrappers' case for their `preset` input;
+# `fixtures/selection` holds every path 1.20.0 newly reads (Engine 1.20.0: scan selection, D33).
+ADDED_AFTER_1_17_0 = ("fixtures/html-escape", "fixtures/presets", "fixtures/repos/preset/repo", "fixtures/selection")
 
 
 def _module(name: str, path: Path):

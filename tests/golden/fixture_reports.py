@@ -1,7 +1,7 @@
 """Fixture reports for the golden tests of 1.18.0: a fixture directory copied into a fresh git repository (`build_repo`, so
 executable bits come from the index and match on every OS), scanned in this process with a clean environment (`render`), and a
-report's scanner version set to a given one (`as_version`), so a golden file holds the same bytes whatever version the tree
-carries. tests/golden/record_1_17_0.py, tests/golden/record_1_18_0.py and their tests use it."""
+report's scanner version, and since 1.20.0 its rules version, set to a given release's (`as_version`), so a golden file holds
+the same bytes whatever version the tree carries. tests/golden/record_1_17_0.py, tests/golden/record_1_18_0.py and their tests use it."""
 from __future__ import annotations
 
 import contextlib
@@ -26,6 +26,17 @@ HERMETIC_GIT = {"GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1", "GI
 # Where a report prints the scanner's version: the JSON report, the SARIF driver, the Markdown footer and the HTML report's
 # first line. The CycloneDX document is rewritten instead; the text and Code Quality reports print none.
 VERSION_TEMPLATES = ('"scanner_version": "{}"', '"semanticVersion": "{}"', "Spellwarden {}, rules")
+# Where a report prints the rules version (Engine 1.20.0: scan selection, D45): the JSON report, the Markdown footer and the HTML
+# report's first line. The CycloneDX document's `spellwarden:rules_version` property is rewritten instead; SARIF, text and Code
+# Quality reports print none.
+RULES_TEMPLATES = ('"rules_version": "{}"', ", rules {}")
+# The rules version each recorded release printed. 1.20.0 moved it to 2026.11.8 (SW-CFG-012 and SW-CFG-013 read settings
+# documents), so a golden test of an older release sets it back as it sets the scanner's version back.
+RECORDED_RULES = {"1.17.0": "2026.11.7", "1.18.0": "2026.11.7", "1.19.0": "2026.11.7"}
+# The fixture roots whose files 1.20.0 changes (Engine 1.20.0: scan selection, C40a): a file planted there for a new row of the
+# client table is read by the repository scan of every version (a `SKILL.md`, an `AGENTS.md`), so the digests that 1.17.0 and
+# 1.18.0 took from the fixture trees of their day no longer hold there. Their records keep the roots; their tests skip them.
+FIXTURES_CHANGED_IN_1_20_0 = ("tests/fixtures/homes/common", "tests/fixtures/homes/windows")
 
 
 def clean_environment(extra: Mapping[str, str] | None = None) -> dict[str, str]:
@@ -82,17 +93,30 @@ def render(repo: Path, out: Path, *, formats: Sequence[tuple[str, str]] = SIX_FO
     return code, {fmt: (out / name).read_bytes() for fmt, name in formats}
 
 
-def as_version(fmt: str, data: bytes, current: str, target: str) -> bytes:
-    """`data` with the scanner's version `current` set to `target` wherever the report prints it. A CycloneDX document also loses
-    its `serialNumber`, a digest of the whole document that changes with the version."""
+def as_version(fmt: str, data: bytes, current: str, target: str, *, current_rules: str | None = None) -> bytes:
+    """`data` with the scanner's version `current` set to `target` wherever the report prints it and, when `target` is a release
+    of `RECORDED_RULES` that printed another rules version, the rules version `current_rules` (default: this tree's
+    `RULES_VERSION`) set to that one. A CycloneDX document also loses its `serialNumber`, a digest of the whole document that
+    changes with either version."""
+    from spellwarden_scan import RULES_VERSION
+
+    rules_now = RULES_VERSION if current_rules is None else current_rules
+    rules_then = RECORDED_RULES.get(target, rules_now)
     text = data.decode("utf-8")
     if fmt == "cyclonedx":
         document = json.loads(text)
         document.pop("serialNumber", None)
-        for tool in document.get("metadata", {}).get("tools", {}).get("components", []):
+        metadata = document.get("metadata", {})
+        for tool in metadata.get("tools", {}).get("components", []):
             if tool.get("name") == "Spellwarden" and tool.get("version") == current:
                 tool["version"] = target
+        for prop in metadata.get("properties", []):
+            if prop.get("name") == "spellwarden:rules_version" and prop.get("value") == rules_now:
+                prop["value"] = rules_then
         return (json.dumps(document, indent=2, ensure_ascii=True) + "\n").encode("utf-8")
     for template in VERSION_TEMPLATES:
         text = text.replace(template.format(current), template.format(target))
+    if rules_then != rules_now:
+        for template in RULES_TEMPLATES:
+            text = text.replace(template.format(rules_now), template.format(rules_then))
     return text.encode("utf-8")
