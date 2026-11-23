@@ -148,3 +148,24 @@ def test_the_hook_file_ships_in_the_sdist_and_pre_commit_is_a_development_depend
     project = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
     assert ".pre-commit-hooks.yaml" in project["tool"]["hatch"]["build"]["targets"]["sdist"]["include"]
     assert any(entry.startswith("pre-commit>=") for entry in project["dependency-groups"]["dev"])
+
+
+def test_the_changelog_has_the_1_20_0_entry_above_1_19_0():
+    """Engine 1.20.0 (spec 7.18): the two rules first, then selection, `--follow-links`, `scan --user` and two versions on one
+    repository."""
+    text = (PYPROJECT.parent / "CHANGELOG.md").read_text(encoding="utf-8").replace("\r\n", "\n")
+    assert text.index("## 1.20.0 (2026-11-") < text.index("## 1.19.0 (")
+    raw = text[text.index("## 1.20.0 ("):text.index("## 1.19.0 (")]
+    entry = " ".join(raw.split())
+    assert entry.startswith("## 1.20.0 (2026-11-NN) Rules version 2026.11.8: SW-CFG-012 and SW-CFG-013 also judge the MCP servers "
+                            "of settings documents; no other rule changed (66 rules).")
+    for needle in ("`trust: true`", '`default_tools_approval_mode = "approve"`', "`scan --user` takes no baseline",
+                   "No fingerprint of an existing finding changes", "has not been measured", "`.codex/config.toml`",
+                   "`.github/hooks/`", "`github-agent`", "registry gate", "exit 3", "`instructions_limit`", "`--follow-links`",
+                   "off by default", "`symlink_skipped`", "`lock --check`", "`scan --locked`", "`SW_FOLLOW_LINKS`",
+                   "`%APPDATA%/devin/`", "1.19.0 read no skill for it", "`workstation_upload_too_large`", "`removed`"):
+        assert needle in entry, needle
+    assert entry.index("The two rules.") < entry.index("Selection.") < entry.index("`--follow-links`:") \
+        < entry.index("`scan --user`:")
+    for character in ("—", "–", "!"):
+        assert character not in raw

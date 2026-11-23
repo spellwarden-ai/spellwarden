@@ -1,5 +1,59 @@
 # Changelog
 
+## 1.20.0 (2026-11-NN)
+
+Rules version 2026.11.8: SW-CFG-012 and SW-CFG-013 also judge the MCP servers of settings documents; no other rule changed (66
+rules).
+
+1.20.0: the scan reads every agent file the vendors document that its readers and rules can judge, in a repository and in the
+home; SW-CFG-012 and SW-CFG-013 judge the servers of Codex's `config.toml` and Gemini CLI's `settings.json`; `--follow-links`
+follows a linked directory in an instruction folder, off by default.
+
+- The two rules. SW-CFG-012 (automatic approval) and SW-CFG-013 (write access) now read the MCP servers of settings documents:
+  Codex's `config.toml` and Gemini CLI's `settings.json`, in a repository and, with `scan --user`, in the home. A Gemini
+  `trust: true`, a Codex `default_tools_approval_mode = "approve"` or tool `approval_mode = "approve"`, and a database or cluster
+  server with write access are findings there. Both rules are high, so a scan that passed can fail. `scan --user` takes no
+  baseline: the way out there is the client's own setting, or `--fail-on critical`. In a repository the baseline accepts them as
+  any finding. No fingerprint of an existing finding changes. How often the two rules are right on Codex and Gemini CLI servers
+  has not been measured.
+- Selection. The repository scan reads `.codex/config.toml` (TOML; its `[plugins]` and `[marketplaces]` are listed, and `notify`
+  is no hook in a project file), `.codex/hooks.json`, `.gemini/settings.json`, `.cursor/hooks.json`, `.windsurf/hooks.json`,
+  `.devin/mcp_config.json`, `.devin/mcp_config.local.json`, `.devin/hooks.v1.json`, `.devin/config.json`,
+  `.devin/config.local.json`, the `.json` files of `.github/hooks/`, `.github/copilot/settings.json`,
+  `.github/copilot/settings.local.json` and `.github/mcp.json`, at any depth, with the readers of `scan --user`. It reads as
+  instruction files Claude Code's rules, commands, subagents and output styles, `CLAUDE.local.md`, `AGENTS.override.md`,
+  `AGENTS.local.md`, `AGENT.md`, Windsurf and Devin rules at every depth and their `global_rules.md`, Copilot's instruction files
+  and custom agents, the subagents of Cursor, Codex, Gemini CLI and Devin, and the commands and agents of a local plugin
+  directory. Eleven `format` values are new (`claude-command`, `claude-agent`, `claude-output-style`, `cursor-agent`,
+  `cursor-command`, `codex-agent`, `codex-prompt`, `gemini-agent`, `devin-agent`, `github-instructions`, `github-agent`), and
+  `schemas/report.schema.json` and `schemas/lock.schema.json` list them. A repository or home without these files, and without
+  an MCP server in a settings document, gives the same reports as on 1.19.0 apart from the version and the rules version. One
+  that holds them can see new findings, so a gate that passed can fail; new lock items `added` and a `stale` lock, exit 3 until
+  `spellwarden lock` runs once; in connected mode, new MCP servers and Copilot marketplaces that the registry gate judges, so an
+  Enterprise build can fail on a server that was always in the repository; and more files toward the 300 instruction files of a
+  scan root, so a scan can become incomplete (`instructions_limit`, exit 2). The way out is `exclude`. Precision of the skill
+  rules on commands and subagents has not been measured. `.github/prompts/*.prompt.md` is not read.
+- `--follow-links`: with it, `scan` follows a linked directory in an instruction folder
+  (`.claude/rules/shared -> ../../shared-rules`) whose target is a directory inside the scan root, and judges its files under
+  the link's path, one level, at most 50 links per scan root (`instructions_limit` past that). It is off by default, and nothing changes while it is off:
+  such a link is the notice `symlink_skipped`, and the rule files reached only through it are not judged, so the scan can pass.
+  With it, a link that cannot be followed is the error `unsafe_path` (exit 2), and one whose target is outside the scan root a
+  notice. The lock does not record it: give `spellwarden lock`, `lock --check`, `scan --locked` and `baseline add`, `prune` and
+  `list` the same argument as `scan`. The GitLab job adds it when `SW_FOLLOW_LINKS` is `true`; the Action and the GitLab
+  component gain an input when they release 1.20.0. Never followed: a link out of the scan root, a linked folder above an
+  instruction folder or anywhere else, a link inside a skill or a local plugin directory. `scan --user` refuses it.
+- `scan --user`: about forty rows added or changed in the client table: Claude Code's commands, subagents and output styles and
+  its plugins' commands and agents; Cursor's skills, subagents and local plugins; Copilot's instruction files, custom agents,
+  hooks, settings and installed plugins; Codex's prompts and cached plugins; Gemini CLI's subagents and the skills and subagents
+  of its extensions; Windsurf's `~/.codeium/windsurf/` files. The Devin folder is `$XDG_CONFIG_HOME/devin/` on Linux and macOS
+  (`~/.config/devin/` when the variable is not set) and `%APPDATA%/devin/` on Windows, which no longer reads `~/.config/devin/`.
+  A folder that several clients read names each client found. An installed Claude Code plugin that is one skill (a root
+  `SKILL.md` and no `skills/` folder) is read as that skill, with its `commands/` and `agents/` as the skill's files; 1.19.0
+  read no skill for it, so such a home gains the skill and its findings. A home gives more items toward the 2,000 of a
+  workstation upload, which sends nothing when they are passed (`workstation_upload_too_large`): remove unused plugins.
+- A team that runs 1.19.0 and 1.20.0 on one repository sees 1.20.0's new lock items as `removed` under 1.19.0 (exit 3): upgrade
+  both.
+
 ## 1.19.0 (2026-11-20)
 
 Rules version 2026.11.7, unchanged (66 rules). A scan without `--staged` gives the same reports, findings, items and exit code
