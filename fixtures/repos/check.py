@@ -143,6 +143,7 @@ def _check_report(expect: dict, report: dict) -> list[str]:
     problems += _check_agents(expect, report)
     problems += _check_analysis(expect, report)
     problems += _check_preset(expect, report)
+    problems += _check_finding_paths(expect, report)
     if expect["probes"] is not None:
         got = {p["item"]: (p["status"], p["skip_reason"]) for p in report["probes"]}
         for wanted in expect["probes"]:
@@ -200,6 +201,17 @@ def _check_preset(expect: dict, report: dict) -> list[str]:
     if not isinstance(block, dict):
         return ["the report holds no preset block"]
     return [f"preset {key} is {block.get(key)!r}, expected {value!r}" for key, value in wanted.items() if block.get(key) != value]
+
+
+def _check_finding_paths(expect: dict, report: dict) -> list[str]:
+    """The `finding_paths` key of a case (scanner 1.20.0, `--follow-links`): the findings that are not accepted sit at exactly
+    the paths the case names, so a file read through a linked directory is named by the link's path and never by its own; a
+    case without the key does not check the paths."""
+    wanted = expect["finding_paths"]
+    if wanted is None:
+        return []
+    got = sorted({finding["location"]["path"] for finding in report["findings"] if not finding["suppressed"]})
+    return [] if got == sorted(wanted) else [f"the findings are at {got}, expected {sorted(wanted)}"]
 
 
 def _check_connected(expect: dict, report: dict) -> list[str]:

@@ -67,4 +67,4 @@ def test_the_selection_fixture_is_a_root_added_after_both_records():
     release = _module("record_release_1_18_0_for_roots", ROOT / "tests" / "golden" / "record_release_1_18_0.py")
     assert "fixtures/selection" in record.ROOT_GLOBS
     assert "fixtures/selection" in record.ADDED_AFTER_1_17_0
-    assert release.ADDED_AFTER_1_18_0 == ("fixtures/selection",)
+    assert release.ADDED_AFTER_1_18_0 == ("fixtures/selection", "fixtures/repos/follow-links/repo")

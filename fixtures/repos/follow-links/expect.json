@@ -1,0 +1,18 @@
+{
+  "links": {".claude/rules/shared": "../../shared-rules"},
+  "exit_code": 0,
+  "findings": 0,
+  "report": "required",
+  "notices": ["symlink_skipped"],
+  "finding_paths": [],
+  "variants": {
+    "on": {
+      "inputs": {"follow-links": "true"},
+      "exit_code": 1,
+      "findings": 1,
+      "notices": [],
+      "finding_paths": [".claude/rules/shared/deploy.md"]
+    },
+    "bad-value": {"inputs": {"follow-links": "yes"}, "exit_code": 2, "report": "absent", "notices": []}
+  }
+}
