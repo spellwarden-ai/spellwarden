@@ -2,6 +2,8 @@
 and `codex_toml` gives Codex's TOML the lines findings point at."""
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from spellwarden_scan.agentconfig import parse_selected
@@ -154,3 +156,91 @@ def test_a_codex_server_with_the_item_path_of_a_marketplace_keeps_both_apart_and
     assert config.document is not None
     assert [entry.path for entry in config.listing.entries] == []
     assert config.error is not None and "marketplaces.github" in config.error
+
+
+# --- Engine 1.20.0 (scan selection, 7.2.2): the Copilot, Devin and project Codex readers ---------------------------------
+
+COPILOT_HOOKS = b'''{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      {"type": "command", "bash": "./guard.sh", "powershell": "./guard.ps1", "matcher": "shell", "env": {"T": "x"}},
+      {"type": "http", "url": "https://hooks.example.com/x"},
+      {"type": "prompt", "prompt": "Check the call"},
+      {"command": "./both.sh"},
+      {"matcher": "Write", "hooks": [{"type": "command", "command": "./claude-shaped.sh"}]}
+    ]
+  }
+}
+'''
+
+
+def _hooks(document):
+    return [(hook.event, hook.matcher, hook.command, hook.line) for hook in document.hooks]
+
+
+def test_copilot_hooks_give_one_hook_per_shell_and_keep_a_claude_shaped_group():
+    document = userdocs.read_copilot_hooks(".github/hooks/guard.json", COPILOT_HOOKS)
+    assert (document.kind, document.error, document.servers) == ("hooks", None, ())
+    assert _hooks(document) == [("preToolUse", "shell", "./guard.sh", 5), ("preToolUse", "shell", "./guard.ps1", 5),
+                                ("preToolUse", None, "./both.sh", 8), ("preToolUse", "Write", "./claude-shaped.sh", 9)]
+
+
+def test_copilot_settings_keep_plugins_marketplaces_and_hooks_and_drop_the_setting_flags():
+    text = json.dumps({
+        "permissions": {"defaultMode": "bypassPermissions"}, "enableAllProjectMcpServers": True,
+        "enabledPlugins": {"fmt@tools": True},
+        "extraKnownMarketplaces": {"tools": {"source": {"source": "github", "repo": "acme/tools"}}},
+        "hooks": {"sessionStart": [{"type": "command", "bash": "./start.sh"}],
+                  "PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": "./guard.sh"}]}]},
+    }, indent=2).encode()
+    document = userdocs.read_copilot_settings(".github/copilot/settings.json", text)
+    assert (document.kind, document.error, document.settings) == ("settings", None, ())
+    assert [decl.name for decl in document.marketplaces] == ["tools"]
+    assert [(entry.plugin, entry.marketplace) for entry in document.enabled_plugins] == [("fmt", "tools")]
+    assert sorted(hook.command for hook in document.hooks) == ["./guard.sh", "./start.sh"]  # each hook once
+    assert userdocs.read_settings(".claude/settings.json", text).settings != ()  # Claude Code's own parser reads the flags
+    refused = userdocs.read_copilot_settings(".github/copilot/settings.json", b'{"hooks": {}, "hooks": {}}')
+    assert (refused.error, refused.hooks, refused.marketplaces) == ("duplicate_key", (), ())
+
+
+def test_github_mcp_json_reads_a_bare_map_and_the_two_wrapped_forms():
+    bare = json.dumps({"$schema": "https://example.com/s.json", "inputs": [],
+                       "github": {"type": "http", "url": "https://api.example.com/mcp"},
+                       "local": {"command": "npx", "args": ["local-mcp@1.0.0"]}}, indent=2).encode()
+    document = userdocs.read_copilot_mcp(".github/mcp.json", bare)
+    assert (document.kind, document.error) == ("mcp", None)
+    assert sorted(server.name for server in document.servers) == ["github", "local"]
+    for key in ("mcpServers", "servers"):
+        wrapped = json.dumps({key: {"one": {"command": "npx"}}}).encode()
+        assert userdocs.read_copilot_mcp(".github/mcp.json", wrapped) == userdocs.read_mcp(".github/mcp.json", wrapped)
+    assert userdocs.read_copilot_mcp(".github/mcp.json", b"{nope").error == "not_json"
+
+
+def test_devin_hooks_file_is_the_event_map_and_a_prompt_entry_is_no_hook():
+    text = b'''{
+  "PreToolUse": [
+    {"matcher": "Bash", "hooks": [{"type": "command", "command": "./guard.sh"}, {"type": "prompt", "prompt": "Is it safe?"}]}
+  ]
+}
+'''
+    document = userdocs.read_devin_hooks(".devin/hooks.v1.json", text)
+    assert (document.kind, document.error) == ("hooks", None)
+    assert _hooks(document) == [("PreToolUse", "Bash", "./guard.sh", 3)]
+
+
+def test_devin_config_reads_its_hooks_and_nothing_else():
+    text = json.dumps({"permissions": {"allow": ["Bash(*)"]}, "mcpServers": {"x": {"command": "x"}},
+                       "hooks": {"Stop": [{"hooks": [{"type": "command", "command": "./done.sh"}]}]}}, indent=2).encode()
+    document = userdocs.read_devin_config(".devin/config.json", text)
+    assert (document.kind, document.error, document.settings, document.servers) == ("settings", None, (), ())
+    assert [hook.command for hook in document.hooks] == ["./done.sh"]
+
+
+def test_codex_notify_is_a_hook_of_the_user_file_only():
+    user = userdocs.read_codex_config("~/.codex/config.toml", CODEX)
+    project = userdocs.read_codex_config(".codex/config.toml", CODEX, notify=False)
+    assert "notify" in {hook.event for hook in user.document.hooks}
+    assert [(hook.event, hook.command) for hook in project.document.hooks] == [("PreToolUse", "./guard.sh")]
+    assert project.listing == userdocs.read_codex_config(".codex/config.toml", CODEX).listing
+    assert [server.name for server in project.document.servers] == ["docs", "remote"]

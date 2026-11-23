@@ -4,13 +4,16 @@ and hooks as they judge a repository's. Pure functions of a display path and byt
 
 Client shapes that differ from the five document kinds are mapped key by key, never by re-serialising: a Windsurf or Devin
 `serverUrl` and a Gemini CLI `httpUrl` are the server's `url` (Gemini's `url` is SSE), Cursor's flat hook entries are hook
-groups, and Codex's `notify` command is a hook of the event `notify`. Values are never read for secrets beyond what the
+groups, each shell of a GitHub Copilot hook entry (`bash`, `powershell`, `command`) is a hook, and Codex's `notify` command is a
+hook of the event `notify` in the user's own `config.toml` (a project file's `notify` is ignored by Codex, so it is no hook).
+Since 1.20.0 the repository scan reads the same shapes with these readers (Engine 1.20.0: scan selection, 7.2).
+Values are never read for secrets beyond what the
 engine's parser keeps (`env`, `headers` and `args` stay in the in-memory entry for the rules, and no output prints them)."""
 from __future__ import annotations
 
 import hashlib
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from spellwarden_scan._json import MAX_DOCUMENT_BYTES, Arr, Obj, Refused, load_json
@@ -100,6 +103,54 @@ def _cursor_events(hooks: Any) -> Any:
     return _obj(events, hooks.line, {event: hooks.lines[event] for event in events})
 
 
+def _copilot_events(hooks: Any) -> Any:
+    """GitHub Copilot's hooks (`.github/hooks/*.json`, `$COPILOT_HOME/hooks/*.json` and the `hooks` of its settings files, the
+    hooks reference): `{event: [entry]}`. An entry that holds a `hooks` array is a Claude-shaped group, kept as it is. Any other
+    entry whose `type` is absent or `command` gives one hook for each of its string keys `bash`, `powershell` and `command`, in
+    that order, each at its own key's line, grouped with the entry's `matcher` when it is a string. An entry of another `type`
+    (`http`, `prompt`) runs no shell and gives none; the document's hash still covers it (Engine 1.20.0: scan selection, D6)."""
+    if not isinstance(hooks, Obj):
+        return None
+    events: dict = {}
+    event_lines: dict = {}
+    for event, entries in hooks.items():
+        if not isinstance(entries, Arr):
+            continue
+        groups, lines = [], []
+        for index, entry in enumerate(entries):
+            if not isinstance(entry, Obj):
+                continue
+            if isinstance(entry.get("hooks"), Arr):
+                groups.append(entry)
+                lines.append(entries.lines[index])
+                continue
+            if entry.get("type", "command") != "command":
+                continue
+            shells = [key for key in ("bash", "powershell", "command") if isinstance(entry.get(key), str)]
+            if not shells:
+                continue
+            made = [_obj({"type": "command", "command": entry[key]}, entry.lines[key],
+                         {"type": entry.lines[key], "command": entry.lines[key]}) for key in shells]
+            group = {"hooks": _arr(made, entry.line, [entry.lines[key] for key in shells])}
+            group_lines = {"hooks": entries.lines[index]}
+            if isinstance(entry.get("matcher"), str):
+                group["matcher"], group_lines["matcher"] = entry["matcher"], entry.lines["matcher"]
+            groups.append(_obj(group, entry.line, group_lines))
+            lines.append(entries.lines[index])
+        events[event] = _arr(groups, entries.line, lines)
+        event_lines[event] = hooks.lines[event]
+    return _obj(events, hooks.line, event_lines)
+
+
+def _bare_servers(root: Any) -> Any:
+    """The servers of a `.github/mcp.json` written as a bare map: every object value of the root (a string or array value such
+    as `$schema` or `inputs` is no server)."""
+    if not isinstance(root, Obj):
+        return None
+    names = [name for name, value in root.items() if isinstance(value, Obj)]
+    return _obj({name: root[name] for name in names}, root.line, {name: root.lines[name] for name in names})
+
+
 def read_mcp(path: str, content: bytes) -> ConfigDocument:
     return parse_document("mcp", path, content)
 
@@ -123,6 +174,52 @@ def read_gemini_settings(path: str, content: bytes) -> ConfigDocument:
 
 def read_cursor_hooks(path: str, content: bytes) -> ConfigDocument:
     return parse_selected("hooks", path, content, lambda root: ([], _cursor_events(root.get("hooks"))))
+
+
+def read_copilot_hooks(path: str, content: bytes) -> ConfigDocument:
+    """A GitHub Copilot hooks file: `{"version": 1, "hooks": {...}}`, read by `_copilot_events`. The `version` key is not
+    checked."""
+    return parse_selected("hooks", path, content, lambda root: ([], _copilot_events(root.get("hooks"))))
+
+
+def read_copilot_settings(path: str, content: bytes) -> ConfigDocument:
+    """A GitHub Copilot settings file (`.github/copilot/settings*.json`, `$COPILOT_HOME/settings.json`): Claude Code's settings
+    parser for `extraKnownMarketplaces` and `enabledPlugins` (Copilot uses Claude's keys for plugins), with the setting flags
+    removed (Copilot ignores `permissions` and `enableAllProjectMcpServers`, so SW-CFG-008 must not fire on them) and the hooks
+    of `_copilot_events` in place of Claude's. A refusal of either parse is the document's error (Engine 1.20.0: scan
+    selection, D5)."""
+    document = parse_document("settings", path, content)
+    hooks = parse_selected("settings", path, content, lambda root: ([], _copilot_events(root.get("hooks"))))
+    for refused in (document, hooks):
+        if refused.error not in (None, "truncated"):
+            return replace(document, error=refused.error, servers=(), hooks=(), settings=(), plugins=(), references=(),
+                           truncated=False, marketplaces=(), enabled_plugins=(), sha256=refused.sha256)
+    truncated = document.truncated or hooks.truncated
+    return replace(document, settings=(), hooks=hooks.hooks, truncated=truncated,
+                   error="truncated" if truncated else None)
+
+
+def read_copilot_mcp(path: str, content: bytes) -> ConfigDocument:
+    """`.github/mcp.json` (Copilot CLI's MCP reference): read as `.mcp.json` is when the root has `mcpServers` or `servers`, else
+    as a bare map of servers (`_bare_servers`). `.mcp.json` itself does not learn the bare map (Engine 1.20.0: scan selection,
+    D7)."""
+    try:
+        root = _load(content)
+    except Refused:
+        return parse_document("mcp", path, content)
+    if not isinstance(root, Obj) or "mcpServers" in root or "servers" in root:
+        return parse_document("mcp", path, content)
+    return parse_selected("mcp", path, content, lambda tree: ([_bare_servers(tree)], None))
+
+
+def read_devin_hooks(path: str, content: bytes) -> ConfigDocument:
+    """Devin's `hooks.v1.json`: the whole file is the event map, Claude-shaped. An entry of `type` `prompt` runs no shell."""
+    return parse_selected("hooks", path, content, lambda root: ([], root))
+
+
+def read_devin_config(path: str, content: bytes) -> ConfigDocument:
+    """Devin's `config.json`: its `hooks` only. Its permissions are not read (Engine 1.20.0: scan selection, D16)."""
+    return parse_selected("settings", path, content, lambda root: ([], root.get("hooks")))
 
 
 def read_claude_json(path: str, content: bytes, scope_of: Callable[[str], str]) -> list[tuple[ConfigDocument, str | None]]:
@@ -253,18 +350,20 @@ def _notify_events(root: Obj) -> Any:
     return _obj(events, hooks.line if isinstance(hooks, Obj) else line, lines)
 
 
-def read_codex_config(path: str, content: bytes) -> CodexConfig:
-    """`config.toml`: one settings document (`[mcp_servers.<id>]`, `[hooks]`, `notify`), and the entries of `[plugins]`
-    (`"<name>@<marketplace>"`, the default `_default` left out) and `[marketplaces]` (`source`, `source_type` `git` or
-    `local`); their item paths are `<path>#marketplaces.<name>` and `<path>#plugins.<key>`, so a server of the same name
-    keeps its own."""
+def read_codex_config(path: str, content: bytes, *, notify: bool = True) -> CodexConfig:
+    """`config.toml`: one settings document (`[mcp_servers.<id>]`, `[hooks]` and, with `notify`, the user file's
+    `notify`), and the entries of `[plugins]` (`"<name>@<marketplace>"`, the default `_default` left out) and
+    `[marketplaces]` (`source`, `source_type` `git` or `local`); their item paths are `<path>#marketplaces.<name>` and
+    `<path>#plugins.<key>`, so a server of the same name keeps its own. The repository scan passes `notify=False`: Codex
+    ignores `notify` in a project file (Engine 1.20.0: scan selection, D3)."""
     try:
         root = codex_toml.read(content)
     except (ValueError, RecursionError) as exc:
         # RecursionError: a value nested past what the parser can follow is this one file's error, never the whole scan's
         # crash (review r0:F3)
         return CodexConfig(None, Listing(), f"is not valid UTF-8 TOML ({type(exc).__name__})")
-    document = parse_selected("settings", path, content, lambda tree: ([tree.get("mcp_servers")], _notify_events(tree)),
+    document = parse_selected("settings", path, content,
+                              lambda tree: ([tree.get("mcp_servers")], _notify_events(tree) if notify else tree.get("hooks")),
                               root=root)
     entries: list[Entry] = []
     marketplaces = root.get("marketplaces")
@@ -319,5 +418,6 @@ def read_gemini_extension(path: str, content: bytes) -> Extension:
 
 
 __all__ = ["STATE_MAX_BYTES", "CodexConfig", "Entry", "Extension", "Listing", "read_claude_json", "read_claude_marketplaces",
-           "read_claude_plugins", "read_codex_config", "read_cursor_hooks", "read_gemini_extension", "read_gemini_settings",
+           "read_claude_plugins", "read_codex_config", "read_copilot_hooks", "read_copilot_mcp", "read_copilot_settings",
+           "read_cursor_hooks", "read_devin_config", "read_devin_hooks", "read_gemini_extension", "read_gemini_settings",
            "read_hooks", "read_mcp", "read_settings", "read_windsurf_mcp"]
