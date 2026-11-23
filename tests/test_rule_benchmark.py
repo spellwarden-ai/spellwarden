@@ -1195,7 +1195,14 @@ def test_the_readme_has_the_measured_rates_section_after_the_rules_and_names_the
     for character in ("\u2014", "\u2013", "!"):
         assert character not in paragraph
     assert section.count(rb.README_START) == 1 and section.count(rb.README_END) == 1
-    assert "spellwarden.ai/research/rule-benchmark" not in text
+    # Review r0:F1: the link to the page on spellwarden.ai is added by the preparation of the first release with a table (spec
+    # 12.1, benchmarks/README.md "Releases"), so it is absent while the history is empty and present, with its campaign tags, after.
+    history = json.loads((ROOT / "benchmarks" / "results.json").read_text(encoding="utf-8"))
+    link = "https://spellwarden.ai/research/rule-benchmark?utm_source=github&utm_medium=readme&utm_campaign=rule-benchmark"
+    if history["entries"]:
+        assert link in paragraph
+    else:
+        assert "spellwarden.ai/research/rule-benchmark" not in text
     releases = " ".join(text[text.index("## Releases\n"):text.index("## Development\n")].split())
     assert "the `rule-benchmark` job installs the built wheel on Linux and Windows" in releases
     assert "`rule-benchmark.json` and `rule-benchmark.md`" in releases

@@ -195,7 +195,12 @@ The release preparation records the entry before the tag, because a workflow sta
 2. Build the wheel, install it and `benchmarks/requirements.txt` in a fresh virtual environment, and run
    `python benchmarks/rule_benchmark.py run --expect-version X.Y.Z --record benchmarks/results.json` (add `--note TEXT` to
    label the release, for example the precision pass).
-3. Paste the output of `changelog-lines` into the CHANGELOG section, run `render`, then `make check`.
+3. Paste the output of `changelog-lines` into the CHANGELOG section: each sentence may sit in a paragraph wrapped as the file
+   wraps, but each `- ` line of worse rates stays on one line of its own, right under its sentence. Run `render`. For the first
+   release with a table, also end the paragraph of `## Measured rates` in the repository's README with the sentence that links
+   the page (spec 12.1): "The same table, release by release, is at
+   [spellwarden.ai/research/rule-benchmark](https://spellwarden.ai/research/rule-benchmark?utm_source=github&utm_medium=readme&utm_campaign=rule-benchmark)."
+   `make check` then requires it. Then run `make check`.
 4. Commit and push the release branch, then rehearse the release job on it with the workflow `rule-benchmark.yml`:
    `gh workflow run rule-benchmark.yml --ref <release branch> -f verify=true`. Wait until both runners reproduce the entry.
 5. Merge and tag. The release workflow's `rule-benchmark` job measures again from the built wheel on Linux and Windows and stops
