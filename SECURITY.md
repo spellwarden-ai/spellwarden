@@ -10,7 +10,7 @@ Say what you found and where: the command, the file or the API route, what you s
 
 If you need to run tests against the hosted product to confirm a problem, ask first: its terms ask users not to attack, overload or test the security of the service without written permission. The scanner runs on your own machine, so you can test it there as you like.
 
-The address is for security reports only. Mail to it is screened for spam before anyone reads it.
+You get a first answer within five working days. The address is for security reports only, and mail to it is screened for spam before anyone reads it.
 
 ## A way past a rule
 
