@@ -103,7 +103,7 @@ def test_findings_map_to_vulnerabilities_with_their_analysis(repository):
     assert accepted["affects"] == [{"ref": "marketplace:.claude-plugin/marketplace.json"}]
     opened = vulnerabilities["SW-SKL-007"]
     assert opened["analysis"] == {"state": "in_triage"} and opened["affects"] == [{"ref": "skill:.claude/skills/deploy"}]
-    assert opened["source"]["url"] == f"https://spellwarden.ai/docs/rules/SW-SKL-007?{TAGS}"
+    assert opened["source"]["url"] == f"https://spellwarden.ai/docs/rules/sw-skl-007?{TAGS}"
     assert opened["ratings"] == [{"source": opened["source"], "severity": "high", "method": "other"}]
     assert vulnerabilities["SW-A2A-002"]["affects"] == [{"ref": "agent:a2a-card:.well-known/agent-card.json"}]
     tool = repository["metadata"]["tools"]["components"][0]

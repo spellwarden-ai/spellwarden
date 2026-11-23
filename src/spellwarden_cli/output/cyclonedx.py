@@ -9,7 +9,7 @@ import json
 
 from spellwarden_scan import cyclonedx as cdx
 
-from spellwarden_cli.report import Report, ReportFinding
+from spellwarden_cli.report import Report, ReportFinding, rule_fix
 
 TAGS = "utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"  # spec 4.6
 HOME_URL = f"https://spellwarden.ai/?{TAGS}"
@@ -113,9 +113,12 @@ def _vulnerability(report: Report, finding: ReportFinding, ref: str, target: str
     baseline = finding.baseline or {}
     if finding.suppressed and baseline.get("expires"):
         properties.append(cdx.prop("expires", baseline["expires"]))
+    # 1.21.0 (P6-15 O-12, spec 6.9): the page's own address, the id in lower case (up to 1.20.0 the upper-case id answered
+    # Page not found), and the rule's fix sentence as the vulnerability's `recommendation`
     return cdx.vulnerability(ref=ref, title=f.title, severity=f.severity, affects=[target] if target else [], state=state,
-                             response=response, rule_id=f.rule_id, url=RULE_URL.format(f.rule_id) if public else None,
-                             detail=baseline.get("reason") if finding.suppressed else None, properties=properties)
+                             response=response, rule_id=f.rule_id, url=RULE_URL.format(f.rule_id.lower()) if public else None,
+                             detail=baseline.get("reason") if finding.suppressed else None, properties=properties,
+                             recommendation=rule_fix(rule) if public else None)
 
 
 def build(report: Report) -> dict:

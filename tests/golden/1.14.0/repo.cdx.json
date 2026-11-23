@@ -2,7 +2,7 @@
   "$schema": "http://cyclonedx.org/schema/bom-1.7.schema.json",
   "bomFormat": "CycloneDX",
   "specVersion": "1.7",
-  "serialNumber": "urn:uuid:4fbe49af-140c-5161-a688-49fccdd16557",
+  "serialNumber": "urn:uuid:b0187f11-d453-5247-8155-6c162a5fb217",
   "version": 1,
   "metadata": {
     "timestamp": "2026-11-14T00:00:00Z",
@@ -11,7 +11,7 @@
         {
           "type": "application",
           "name": "Spellwarden",
-          "version": "1.14.0",
+          "version": "1.20.0",
           "externalReferences": [
             {
               "type": "website",
@@ -32,7 +32,7 @@
       },
       {
         "name": "spellwarden:rules_version",
-        "value": "2026.11.6"
+        "value": "2026.11.8"
       },
       {
         "name": "spellwarden:as_of",
@@ -256,19 +256,20 @@
       "id": "SW-CFG-005",
       "source": {
         "name": "Spellwarden",
-        "url": "https://spellwarden.ai/docs/rules/SW-CFG-005?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+        "url": "https://spellwarden.ai/docs/rules/sw-cfg-005?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
       },
       "ratings": [
         {
           "source": {
             "name": "Spellwarden",
-            "url": "https://spellwarden.ai/docs/rules/SW-CFG-005?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+            "url": "https://spellwarden.ai/docs/rules/sw-cfg-005?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
           },
           "severity": "high",
           "method": "other"
         }
       ],
       "description": "Hook pipes remote content to a shell",
+      "recommendation": "Commit the script to the repository and call that file from the hook, or check the download's SHA-256 against a value kept in the repository before it runs.",
       "analysis": {
         "state": "in_triage"
       },
@@ -297,19 +298,20 @@
       "id": "SW-SKL-007",
       "source": {
         "name": "Spellwarden",
-        "url": "https://spellwarden.ai/docs/rules/SW-SKL-007?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+        "url": "https://spellwarden.ai/docs/rules/sw-skl-007?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
       },
       "ratings": [
         {
           "source": {
             "name": "Spellwarden",
-            "url": "https://spellwarden.ai/docs/rules/SW-SKL-007?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+            "url": "https://spellwarden.ai/docs/rules/sw-skl-007?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
           },
           "severity": "high",
           "method": "other"
         }
       ],
       "description": "Remote script piped to a shell",
+      "recommendation": "Download the script to a file and check it against a published checksum before you run it, or install the tool from a package manager at a pinned version.",
       "analysis": {
         "state": "in_triage"
       },
@@ -338,19 +340,20 @@
       "id": "SW-A2A-002",
       "source": {
         "name": "Spellwarden",
-        "url": "https://spellwarden.ai/docs/rules/SW-A2A-002?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+        "url": "https://spellwarden.ai/docs/rules/sw-a2a-002?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
       },
       "ratings": [
         {
           "source": {
             "name": "Spellwarden",
-            "url": "https://spellwarden.ai/docs/rules/SW-A2A-002?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+            "url": "https://spellwarden.ai/docs/rules/sw-a2a-002?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
           },
           "severity": "medium",
           "method": "other"
         }
       ],
       "description": "Agent card uses a format older than A2A 1.0",
+      "recommendation": "Move the card to the A2A 1.0 format, with supportedInterfaces and securityRequirements in place of the old members, then sign it again.",
       "analysis": {
         "state": "in_triage"
       },
@@ -379,19 +382,20 @@
       "id": "SW-CFG-003",
       "source": {
         "name": "Spellwarden",
-        "url": "https://spellwarden.ai/docs/rules/SW-CFG-003?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+        "url": "https://spellwarden.ai/docs/rules/sw-cfg-003?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
       },
       "ratings": [
         {
           "source": {
             "name": "Spellwarden",
-            "url": "https://spellwarden.ai/docs/rules/SW-CFG-003?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+            "url": "https://spellwarden.ai/docs/rules/sw-cfg-003?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
           },
           "severity": "medium",
           "method": "other"
         }
       ],
       "description": "MCP server launched from an unpinned package",
+      "recommendation": "Launch the server at an exact version, such as name@1.4.2 for npx, name==1.4.2 for uvx or an image digest, and update it through a reviewed change.",
       "analysis": {
         "state": "in_triage"
       },
@@ -420,19 +424,20 @@
       "id": "SW-CFG-009",
       "source": {
         "name": "Spellwarden",
-        "url": "https://spellwarden.ai/docs/rules/SW-CFG-009?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+        "url": "https://spellwarden.ai/docs/rules/sw-cfg-009?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
       },
       "ratings": [
         {
           "source": {
             "name": "Spellwarden",
-            "url": "https://spellwarden.ai/docs/rules/SW-CFG-009?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+            "url": "https://spellwarden.ai/docs/rules/sw-cfg-009?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
           },
           "severity": "medium",
           "method": "other"
         }
       ],
       "description": "Marketplace plugin source not pinned to a commit",
+      "recommendation": "Add a sha with the full 40-character commit id the plugin was reviewed at, and move to a newer commit only through a reviewed change.",
       "analysis": {
         "state": "exploitable",
         "response": [
@@ -469,19 +474,20 @@
       "id": "SW-A2A-012",
       "source": {
         "name": "Spellwarden",
-        "url": "https://spellwarden.ai/docs/rules/SW-A2A-012?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+        "url": "https://spellwarden.ai/docs/rules/sw-a2a-012?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
       },
       "ratings": [
         {
           "source": {
             "name": "Spellwarden",
-            "url": "https://spellwarden.ai/docs/rules/SW-A2A-012?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+            "url": "https://spellwarden.ai/docs/rules/sw-a2a-012?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
           },
           "severity": "low",
           "method": "other"
         }
       ],
       "description": "Agent card is not signed",
+      "recommendation": "Sign the card as the last step of each release, and list the public key in the file that a2a.keys names.",
       "analysis": {
         "state": "in_triage"
       },

@@ -186,16 +186,17 @@ def service(*, ref: str, name: str, version: str | None = None, endpoints: Seque
 
 def vulnerability(*, ref: str, title: str, severity: str, affects: Sequence[str], state: str, rule_id: str | None = None,
                   url: str | None = None, response: Sequence[str] = (), detail: str | None = None,
-                  created: str | None = None, properties: Sequence[dict] = ()) -> dict:
+                  created: str | None = None, properties: Sequence[dict] = (), recommendation: str | None = None) -> dict:
     """A finding. `state` and `response` are CycloneDX analysis values (`ANALYSIS` maps a status to them). `rule_id=None`
     writes no `id` (a manual finding); `url=None` writes the source with its name alone (a manual finding and an
-    organisation rule's finding have no public rule page, spec D42)."""
+    organisation rule's finding have no public rule page, spec D42). `recommendation` (1.21.0, P6-15 spec 6.9) is the rule's
+    fix sentence, written after `description`; None writes none."""
     source = _drop_empty((("name", SOURCE_NAME), ("url", url)))
     analysis = _drop_empty((("state", state), ("response", list(response)), ("detail", detail)))
     return _drop_empty((
         ("bom-ref", ref), ("id", rule_id), ("source", source),
         ("ratings", [{"source": source, "severity": SEVERITY[severity], "method": "other"}]),
-        ("description", title), ("created", created), ("analysis", analysis),
+        ("description", title), ("recommendation", recommendation), ("created", created), ("analysis", analysis),
         ("affects", [{"ref": target} for target in affects]), ("properties", list(properties)),
     ))
 

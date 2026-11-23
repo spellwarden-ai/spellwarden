@@ -10,7 +10,7 @@ from html.parser import HTMLParser
 from spellwarden_cli import escape
 
 CSP = "default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'"
-RULE_LINK = re.compile(r"https://spellwarden\.ai/docs/rules/SW-(SKL|MCP|CFG|REG|A2A)-[0-9]{3}"
+RULE_LINK = re.compile(r"https://spellwarden\.ai/docs/rules/sw-(skl|mcp|cfg|reg|a2a)-[0-9]{3}"
                        r"\?utm_source=scanner&utm_medium=html-report&utm_campaign=rule-docs")
 ALLOWED_TAGS = frozenset({"html", "head", "meta", "title", "style", "body", "main", "h1", "h2", "h3", "p", "span", "a", "code",
                           "pre", "table", "tr", "th", "td", "ul", "li", "section", "article", "br"})

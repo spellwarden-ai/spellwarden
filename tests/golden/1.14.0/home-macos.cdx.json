@@ -2,7 +2,7 @@
   "$schema": "http://cyclonedx.org/schema/bom-1.7.schema.json",
   "bomFormat": "CycloneDX",
   "specVersion": "1.7",
-  "serialNumber": "urn:uuid:77606739-1300-55ea-b61a-805f576d237c",
+  "serialNumber": "urn:uuid:f902ab0a-a282-564f-abd8-a4aeb4b9cf21",
   "version": 1,
   "metadata": {
     "timestamp": "2026-11-14T00:00:00Z",
@@ -1020,7 +1020,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "9acf59f8375c93cefad9ff2fe3bf1bed1c375bf1ab5438ee56afe1d68acc75cc"
+          "content": "be2fee6b98f8af116fb72fa723203a4b34a1177ce06c821b026c90efd101a191"
         }
       ],
       "properties": [
@@ -1041,7 +1041,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "9acf59f8375c93cefad9ff2fe3bf1bed1c375bf1ab5438ee56afe1d68acc75cc"
+          "content": "be2fee6b98f8af116fb72fa723203a4b34a1177ce06c821b026c90efd101a191"
         }
       ],
       "properties": [
@@ -1066,7 +1066,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "9acf59f8375c93cefad9ff2fe3bf1bed1c375bf1ab5438ee56afe1d68acc75cc"
+          "content": "be2fee6b98f8af116fb72fa723203a4b34a1177ce06c821b026c90efd101a191"
         }
       ],
       "properties": [
@@ -2485,19 +2485,20 @@
       "id": "SW-CFG-002",
       "source": {
         "name": "Spellwarden",
-        "url": "https://spellwarden.ai/docs/rules/SW-CFG-002?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+        "url": "https://spellwarden.ai/docs/rules/sw-cfg-002?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
       },
       "ratings": [
         {
           "source": {
             "name": "Spellwarden",
-            "url": "https://spellwarden.ai/docs/rules/SW-CFG-002?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+            "url": "https://spellwarden.ai/docs/rules/sw-cfg-002?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
           },
           "severity": "critical",
           "method": "other"
         }
       ],
       "description": "Credential written into an MCP server configuration",
+      "recommendation": "Revoke the credential at its provider, then replace the value in the file with a reference such as ${NAME} that your client expands.",
       "analysis": {
         "state": "in_triage"
       },
@@ -2526,19 +2527,20 @@
       "id": "SW-CFG-005",
       "source": {
         "name": "Spellwarden",
-        "url": "https://spellwarden.ai/docs/rules/SW-CFG-005?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+        "url": "https://spellwarden.ai/docs/rules/sw-cfg-005?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
       },
       "ratings": [
         {
           "source": {
             "name": "Spellwarden",
-            "url": "https://spellwarden.ai/docs/rules/SW-CFG-005?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+            "url": "https://spellwarden.ai/docs/rules/sw-cfg-005?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
           },
           "severity": "high",
           "method": "other"
         }
       ],
       "description": "Hook pipes remote content to a shell",
+      "recommendation": "Commit the script to the repository and call that file from the hook, or check the download's SHA-256 against a value kept in the repository before it runs.",
       "analysis": {
         "state": "in_triage"
       },
@@ -2567,19 +2569,20 @@
       "id": "SW-CFG-010",
       "source": {
         "name": "Spellwarden",
-        "url": "https://spellwarden.ai/docs/rules/SW-CFG-010?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+        "url": "https://spellwarden.ai/docs/rules/sw-cfg-010?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
       },
       "ratings": [
         {
           "source": {
             "name": "Spellwarden",
-            "url": "https://spellwarden.ai/docs/rules/SW-CFG-010?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+            "url": "https://spellwarden.ai/docs/rules/sw-cfg-010?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
           },
           "severity": "high",
           "method": "other"
         }
       ],
       "description": "Literal value under a secret name in an MCP server configuration",
+      "recommendation": "Change the secret at its source, then replace the literal value with a reference such as ${NAME} that your client expands.",
       "analysis": {
         "state": "in_triage"
       },
@@ -2608,19 +2611,20 @@
       "id": "SW-CFG-010",
       "source": {
         "name": "Spellwarden",
-        "url": "https://spellwarden.ai/docs/rules/SW-CFG-010?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+        "url": "https://spellwarden.ai/docs/rules/sw-cfg-010?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
       },
       "ratings": [
         {
           "source": {
             "name": "Spellwarden",
-            "url": "https://spellwarden.ai/docs/rules/SW-CFG-010?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+            "url": "https://spellwarden.ai/docs/rules/sw-cfg-010?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
           },
           "severity": "high",
           "method": "other"
         }
       ],
       "description": "Literal value under a secret name in an MCP server configuration",
+      "recommendation": "Change the secret at its source, then replace the literal value with a reference such as ${NAME} that your client expands.",
       "analysis": {
         "state": "in_triage"
       },
@@ -2649,19 +2653,20 @@
       "id": "SW-CFG-010",
       "source": {
         "name": "Spellwarden",
-        "url": "https://spellwarden.ai/docs/rules/SW-CFG-010?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+        "url": "https://spellwarden.ai/docs/rules/sw-cfg-010?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
       },
       "ratings": [
         {
           "source": {
             "name": "Spellwarden",
-            "url": "https://spellwarden.ai/docs/rules/SW-CFG-010?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+            "url": "https://spellwarden.ai/docs/rules/sw-cfg-010?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
           },
           "severity": "high",
           "method": "other"
         }
       ],
       "description": "Literal value under a secret name in an MCP server configuration",
+      "recommendation": "Change the secret at its source, then replace the literal value with a reference such as ${NAME} that your client expands.",
       "analysis": {
         "state": "in_triage"
       },
@@ -2690,19 +2695,20 @@
       "id": "SW-CFG-010",
       "source": {
         "name": "Spellwarden",
-        "url": "https://spellwarden.ai/docs/rules/SW-CFG-010?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+        "url": "https://spellwarden.ai/docs/rules/sw-cfg-010?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
       },
       "ratings": [
         {
           "source": {
             "name": "Spellwarden",
-            "url": "https://spellwarden.ai/docs/rules/SW-CFG-010?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+            "url": "https://spellwarden.ai/docs/rules/sw-cfg-010?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
           },
           "severity": "high",
           "method": "other"
         }
       ],
       "description": "Literal value under a secret name in an MCP server configuration",
+      "recommendation": "Change the secret at its source, then replace the literal value with a reference such as ${NAME} that your client expands.",
       "analysis": {
         "state": "in_triage"
       },
@@ -2731,19 +2737,20 @@
       "id": "SW-CFG-010",
       "source": {
         "name": "Spellwarden",
-        "url": "https://spellwarden.ai/docs/rules/SW-CFG-010?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+        "url": "https://spellwarden.ai/docs/rules/sw-cfg-010?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
       },
       "ratings": [
         {
           "source": {
             "name": "Spellwarden",
-            "url": "https://spellwarden.ai/docs/rules/SW-CFG-010?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+            "url": "https://spellwarden.ai/docs/rules/sw-cfg-010?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
           },
           "severity": "high",
           "method": "other"
         }
       ],
       "description": "Literal value under a secret name in an MCP server configuration",
+      "recommendation": "Change the secret at its source, then replace the literal value with a reference such as ${NAME} that your client expands.",
       "analysis": {
         "state": "in_triage"
       },
@@ -2772,19 +2779,20 @@
       "id": "SW-CFG-010",
       "source": {
         "name": "Spellwarden",
-        "url": "https://spellwarden.ai/docs/rules/SW-CFG-010?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+        "url": "https://spellwarden.ai/docs/rules/sw-cfg-010?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
       },
       "ratings": [
         {
           "source": {
             "name": "Spellwarden",
-            "url": "https://spellwarden.ai/docs/rules/SW-CFG-010?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+            "url": "https://spellwarden.ai/docs/rules/sw-cfg-010?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
           },
           "severity": "high",
           "method": "other"
         }
       ],
       "description": "Literal value under a secret name in an MCP server configuration",
+      "recommendation": "Change the secret at its source, then replace the literal value with a reference such as ${NAME} that your client expands.",
       "analysis": {
         "state": "in_triage"
       },
@@ -2813,19 +2821,20 @@
       "id": "SW-SKL-007",
       "source": {
         "name": "Spellwarden",
-        "url": "https://spellwarden.ai/docs/rules/SW-SKL-007?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+        "url": "https://spellwarden.ai/docs/rules/sw-skl-007?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
       },
       "ratings": [
         {
           "source": {
             "name": "Spellwarden",
-            "url": "https://spellwarden.ai/docs/rules/SW-SKL-007?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+            "url": "https://spellwarden.ai/docs/rules/sw-skl-007?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
           },
           "severity": "high",
           "method": "other"
         }
       ],
       "description": "Remote script piped to a shell",
+      "recommendation": "Download the script to a file and check it against a published checksum before you run it, or install the tool from a package manager at a pinned version.",
       "analysis": {
         "state": "in_triage"
       },
@@ -2854,19 +2863,20 @@
       "id": "SW-SKL-031",
       "source": {
         "name": "Spellwarden",
-        "url": "https://spellwarden.ai/docs/rules/SW-SKL-031?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+        "url": "https://spellwarden.ai/docs/rules/sw-skl-031?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
       },
       "ratings": [
         {
           "source": {
             "name": "Spellwarden",
-            "url": "https://spellwarden.ai/docs/rules/SW-SKL-031?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+            "url": "https://spellwarden.ai/docs/rules/sw-skl-031?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
           },
           "severity": "low",
           "method": "other"
         }
       ],
       "description": "Missing license and version metadata",
+      "recommendation": "Add a license line, such as MIT or Apache-2.0, and a version line to the skill, and raise the version whenever the skill changes.",
       "analysis": {
         "state": "in_triage"
       },
@@ -2895,19 +2905,20 @@
       "id": "SW-SKL-031",
       "source": {
         "name": "Spellwarden",
-        "url": "https://spellwarden.ai/docs/rules/SW-SKL-031?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+        "url": "https://spellwarden.ai/docs/rules/sw-skl-031?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
       },
       "ratings": [
         {
           "source": {
             "name": "Spellwarden",
-            "url": "https://spellwarden.ai/docs/rules/SW-SKL-031?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+            "url": "https://spellwarden.ai/docs/rules/sw-skl-031?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
           },
           "severity": "low",
           "method": "other"
         }
       ],
       "description": "Missing license and version metadata",
+      "recommendation": "Add a license line, such as MIT or Apache-2.0, and a version line to the skill, and raise the version whenever the skill changes.",
       "analysis": {
         "state": "in_triage"
       },
@@ -2936,19 +2947,20 @@
       "id": "SW-SKL-031",
       "source": {
         "name": "Spellwarden",
-        "url": "https://spellwarden.ai/docs/rules/SW-SKL-031?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+        "url": "https://spellwarden.ai/docs/rules/sw-skl-031?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
       },
       "ratings": [
         {
           "source": {
             "name": "Spellwarden",
-            "url": "https://spellwarden.ai/docs/rules/SW-SKL-031?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+            "url": "https://spellwarden.ai/docs/rules/sw-skl-031?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
           },
           "severity": "low",
           "method": "other"
         }
       ],
       "description": "Missing license and version metadata",
+      "recommendation": "Add a license line, such as MIT or Apache-2.0, and a version line to the skill, and raise the version whenever the skill changes.",
       "analysis": {
         "state": "in_triage"
       },
@@ -2977,19 +2989,20 @@
       "id": "SW-SKL-031",
       "source": {
         "name": "Spellwarden",
-        "url": "https://spellwarden.ai/docs/rules/SW-SKL-031?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+        "url": "https://spellwarden.ai/docs/rules/sw-skl-031?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
       },
       "ratings": [
         {
           "source": {
             "name": "Spellwarden",
-            "url": "https://spellwarden.ai/docs/rules/SW-SKL-031?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+            "url": "https://spellwarden.ai/docs/rules/sw-skl-031?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
           },
           "severity": "low",
           "method": "other"
         }
       ],
       "description": "Missing license and version metadata",
+      "recommendation": "Add a license line, such as MIT or Apache-2.0, and a version line to the skill, and raise the version whenever the skill changes.",
       "analysis": {
         "state": "in_triage"
       },
@@ -3018,19 +3031,20 @@
       "id": "SW-SKL-031",
       "source": {
         "name": "Spellwarden",
-        "url": "https://spellwarden.ai/docs/rules/SW-SKL-031?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+        "url": "https://spellwarden.ai/docs/rules/sw-skl-031?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
       },
       "ratings": [
         {
           "source": {
             "name": "Spellwarden",
-            "url": "https://spellwarden.ai/docs/rules/SW-SKL-031?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+            "url": "https://spellwarden.ai/docs/rules/sw-skl-031?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
           },
           "severity": "low",
           "method": "other"
         }
       ],
       "description": "Missing license and version metadata",
+      "recommendation": "Add a license line, such as MIT or Apache-2.0, and a version line to the skill, and raise the version whenever the skill changes.",
       "analysis": {
         "state": "in_triage"
       },

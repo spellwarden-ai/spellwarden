@@ -13,7 +13,7 @@ from spellwarden_scan.text import replace_lone_surrogates, utf8
 
 from spellwarden_cli import escape, instruction_files
 from spellwarden_cli.output.upload import upload_path
-from spellwarden_cli.report import Report, ReportFinding
+from spellwarden_cli.report import Report, ReportFinding, rule_fix, rule_url
 
 SCHEMA_URI = "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json"
 INFORMATION_URI = "https://github.com/spellwarden-ai/spellwarden"
@@ -37,7 +37,7 @@ def _name(rule: Rule) -> str:
 
 
 def _rule(rule: Rule) -> dict:
-    return {
+    entry = {
         "id": rule.id,
         "name": _name(rule),
         "shortDescription": {"text": rule.title},
@@ -46,6 +46,11 @@ def _rule(rule: Rule) -> dict:
         "properties": {"tags": ["security", *rule.owasp_agentic, *rule.owasp_mcp, *rule.nist, *rule.atlas, *rule.owasp_ast],
                        "security-severity": SECURITY_SEVERITY[rule.severity_default]},
     }
+    sentence, url = rule_fix(rule), rule_url(rule)
+    if sentence is not None and url is not None:  # 1.21.0 (P6-15 spec 6.8): what a code scanning alert shows as its help
+        entry["help"] = {"text": sentence, "markdown": f"{escape.markdown(sentence)}\n\n[How to fix {rule.id}]({url})"}
+        entry["helpUri"] = url
+    return entry
 
 
 def _result(report: Report, item: ReportFinding, index: dict[str, int], instructions: dict[str, dict],
@@ -75,6 +80,8 @@ def _result(report: Report, item: ReportFinding, index: dict[str, int], instruct
         result.setdefault("properties", {})["clients"] = clients_of.get(item.item, [])
     if item.preset_from is not None:  # 1.18.0: the severity without the preset
         result.setdefault("properties", {})["preset_from"] = item.preset_from
+    if finding.fix_lines is not None:  # 1.21.0 (P6-15 spec 6.8): the setting lines, text to copy; never a SARIF `fixes` object
+        result.setdefault("properties", {})["fix_lines"] = finding.fix_lines.to_dict()
     if item.suppressed:
         reason = (item.baseline or {}).get("reason", "")
         result["suppressions"] = [{"kind": "external", "justification": escape.message(reason)}]
