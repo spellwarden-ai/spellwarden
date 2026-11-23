@@ -1,0 +1,63 @@
+# Contributing
+
+Thank you for reading this before you open an issue or a pull request. The scanner is Apache-2.0, and reports, samples and rules from people who use it make it better.
+
+A security problem does not belong in a public issue: see [SECURITY.md](SECURITY.md). Everyone who takes part follows the [code of conduct](CODE_OF_CONDUCT.md).
+
+## Report a false positive or a missed detection
+
+Open an issue and give:
+
+- the rule id, for a false positive, or what you expected to be found, for a miss;
+- the scanner version and the rules version. Every report carries both, and `spellwarden version` prints them;
+- the smallest sample that shows it, made safe to publish: take out every secret, address and private name, and make a malicious sample harmless first. An issue is public.
+
+Until a rule changes, a false positive can be accepted in the baseline file with a reason and an end date: [how to handle false positives](https://spellwarden.ai/docs/false-positives?utm_source=github&utm_medium=readme&utm_campaign=contributing).
+
+## Propose a rule
+
+Open an issue before you write code, so that the idea can be discussed first. Say:
+
+- what the rule detects, in one sentence, and which kind of content it reads (a skill, an MCP client configuration, Claude Code settings or hooks, a plugin marketplace, an instruction file, an A2A agent card or a probed MCP server);
+- a public example of the problem, or a sample you wrote;
+- why no rule in [the rules table](README.md#the-rules) finds it today;
+- which harmless content the pattern would also match, as far as you checked. A rule that fires on most harmless content is not merged as it is.
+
+A rule that is merged has:
+
+- an id that the maintainers assign. Unused numbers stay reserved;
+- a title, a severity and its mappings to the OWASP lists, NIST SP 800-53 and MITRE ATLAS, given to `make_rule` in `src/spellwarden_scan/rules/`;
+- a fixture it must find and a fixture it must not find. `tests/test_fixture_coverage.py` fails the build without both;
+- its row in the rules table of the README and a line in `CHANGELOG.md`.
+
+A change to what a rule detects raises the rules version and the scanner's minor version. The maintainers make the release.
+
+## Work on the code
+
+You need Python 3.11 or newer and [uv](https://docs.astral.sh/uv/).
+
+```
+make check        # ruff, pytest and the package build: the gate for every pull request
+make check-node   # the Zuplo export's guard and check script; needs Node 24 or newer
+```
+
+Three tests hold the design, and a pull request must keep them green:
+
+- `tests/test_pure.py`: the engine, `spellwarden_scan`, never reaches for the network, the file system or the environment. You hand it bytes and it hands back findings.
+- `tests/test_network_boundary.py`: in the command, `spellwarden_cli`, only the named modules may reach the network.
+- `tests/test_fixture_coverage.py`: every rule has a fixture it finds and one it does not.
+
+Every test runs offline. HTTP exchanges are recorded under `tests/recorded/`, and the tests make the git repositories they need.
+
+The scanner's limits follow one rule, which a change must keep: content the scanner leaves unread never looks like a pass. The README explains it under [Limits](README.md#limits).
+
+## Pull requests
+
+- One concern in each pull request, with a test that fails without the change.
+- The checks run on Linux and Windows and on Python 3.11, 3.12 and 3.13.
+- Keep fixtures harmless and free of real credentials and of other people's data.
+- Do not change a field, a value or an exit code that a report already has: the README's [Schemas and compatibility](README.md#schemas-and-compatibility) says what counts as a breaking change.
+
+## Licence
+
+Your contribution is under the Apache License 2.0, the licence of this repository, as its section 5 says.
