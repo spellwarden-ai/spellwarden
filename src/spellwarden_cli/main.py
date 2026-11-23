@@ -98,6 +98,11 @@ def _add_scan(commands) -> None:
     scan.add_argument("--staged", action="store_true",
                       help="scan what is staged in the git index only, never untracked files or unstaged changes; sends "
                            "nothing to Spellwarden (what the pre-commit hook runs)")
+    # Engine 1.20.0 (owner decision spec:Q5): follow a linked directory in an instruction folder; off by default, and not
+    # recorded in the lock, so `lock` and `baseline` take it too
+    scan.add_argument("--follow-links", action="store_true",
+                      help="follow a linked directory in an instruction folder and judge its files under the link's path (off "
+                           "by default; give lock and baseline the same argument)")
     # 1.17.0 (Phase 4 batch B spec 11.3): the model-assisted analyzer, off by default; the key comes from
     # SPELLWARDEN_MODEL_KEY only, never a flag
     scan.add_argument("--analyze", action="store_true",
@@ -229,7 +234,8 @@ def _scan_report(args: argparse.Namespace, context, credentials: Credentials,
                               env=dict(os.environ), log=log, context=context, revision=source, credentials=credentials,
                               api_url=api_url if overridden and staged is None else None,
                               as_of_given=args.as_of is not None, scope=scope, config=args.config,
-                              analyze=_analyze_options(args, model_key), staged=staged)
+                              analyze=_analyze_options(args, model_key), staged=staged,
+                              follow_links=getattr(args, "follow_links", False))
     started = time.monotonic()
     try:
         report = run.scan(options)
@@ -331,7 +337,8 @@ def _usage_problem(args: argparse.Namespace, outputs: list[tuple[str, str | None
                 return f"{flag} needs --user"
         return None
     for flag, given in (("PATH", args.path is not None), ("--locked", args.locked), ("--baseline", args.baseline is not None),
-                        ("--config", args.config is not None), ("--preset", getattr(args, "preset", None) is not None)):
+                        ("--config", args.config is not None), ("--preset", getattr(args, "preset", None) is not None),
+                        ("--follow-links", getattr(args, "follow_links", False))):
         if given:
             return f"--user scans the home directory and cannot be used with {flag}"
     if args.inventory and args.probe:

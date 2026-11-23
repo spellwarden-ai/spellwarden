@@ -966,7 +966,8 @@ def gitlab_argv(env: Mapping[str, str], notices: list[Notice] | None = None
     job sets for the scan (O3 spec 11, P12: `SW_ORG` becomes `SPELLWARDEN_ORG`; the component only passes
     variables). Every boolean is passed as an explicit positive or negative flag, so the scanned settings file cannot
     change what an input chose (6.3). The notices the scan's report must carry (1.17.0: `analyzer_no_key`) are appended
-    to `notices`. 1.18.0: `SW_PRESET` (the input `preset`) adds `--preset VALUE` when it is not empty."""
+    to `notices`. 1.18.0: `SW_PRESET` (the input `preset`) adds `--preset VALUE` when it is not empty. 1.20.0:
+    `SW_FOLLOW_LINKS` (`true` or `false`, default `false`) adds `--follow-links` when it is `true`."""
     problems: list[str] = []
     path = env.get("SW_PATH") or "."
     fail_on = _choice(env, "SW_FAIL_ON", "fail-on", FAIL_ON, problems)
@@ -978,6 +979,9 @@ def gitlab_argv(env: Mapping[str, str], notices: list[Notice] | None = None
     upload = env.get("SW_UPLOAD", "")
     if upload:
         _choice(env, "SW_UPLOAD", "upload", ("true", "false"), problems)
+    follow_links = env.get("SW_FOLLOW_LINKS", "")
+    if follow_links:  # Engine 1.20.0 (spec 7.20.1): unset or empty is `false`, as the component's default
+        _choice(env, "SW_FOLLOW_LINKS", "follow-links", ("true", "false"), problems)
     org = env.get("SW_ORG", "").strip()
     updates: dict[str, str] = {}
     if org:
@@ -999,6 +1003,8 @@ def gitlab_argv(env: Mapping[str, str], notices: list[Notice] | None = None
         argv.append("--no-telemetry")
     if upload in ("true", "false"):
         argv.append("--upload" if upload == "true" else "--no-upload")
+    if follow_links == "true":
+        argv.append("--follow-links")
     argv += analyzer
     if preset in PRESETS:  # empty: no flag, so the scanner's own settings decide, as before 1.18.0
         argv += ["--preset", preset]

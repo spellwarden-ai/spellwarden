@@ -296,6 +296,8 @@ def add_parser(commands_: argparse._SubParsersAction) -> None:
     for sub in (add, prune, listing):
         sub.add_argument("--as-of", type=commands.iso_date, dest="as_of", metavar="YYYY-MM-DD",
                          help="The evaluation date (default: today in UTC).")
+        sub.add_argument("--follow-links", action="store_true", dest="follow_links",
+                         help="Follow a linked directory in an instruction folder, as `scan --follow-links` does.")
 
 
 def _prepare(args: argparse.Namespace, *, rewrite: bool) -> tuple[str, date, Baseline]:
@@ -353,7 +355,7 @@ def cmd_add(args: argparse.Namespace) -> int:
         if args.rule is not None:
             chosen = [_connected_finding(args)]
         else:
-            report = commands.current_report(root, as_of=as_of, env=os.environ)
+            report = commands.current_report(root, as_of=as_of, env=os.environ, follow_links=args.follow_links)
             if any(error.code == "baseline_invalid" for error in report.errors):
                 raise commands.CommandError(f"{BASELINE_PATH} has invalid entries; fix them first")
             if args.all:
@@ -384,7 +386,7 @@ def cmd_prune(args: argparse.Namespace) -> int:
         if not existing.entries:
             print("Nothing to prune.")
             return 0
-        report = commands.current_report(root, as_of=as_of, env=os.environ)
+        report = commands.current_report(root, as_of=as_of, env=os.environ, follow_links=args.follow_links)
         current = {item.finding.fingerprint for item in report.findings}
         cutoff = as_of - timedelta(days=PRUNE_GRACE_DAYS)
         # A registry or organisation entry cannot match anything in an offline scan: it stays until it has expired.
@@ -402,7 +404,7 @@ def cmd_prune(args: argparse.Namespace) -> int:
 def cmd_list(args: argparse.Namespace) -> int:
     try:
         root, as_of, existing = _prepare(args, rewrite=False)
-        report = commands.current_report(root, as_of=as_of, env=os.environ)
+        report = commands.current_report(root, as_of=as_of, env=os.environ, follow_links=args.follow_links)
     except commands.CommandError as exc:
         return commands.fail(str(exc))
     current = {item.finding.fingerprint: item.finding for item in report.findings}

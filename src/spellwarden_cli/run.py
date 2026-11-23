@@ -58,6 +58,8 @@ class ScanOptions:
     # 1.19.0: `--staged`, the git index the files, the settings, the baseline and the lock come from (nothing is sent to
     # Spellwarden); None: the working tree
     staged: files.StagedIndex | None = None
+    # Engine 1.20.0 (scan selection, 7.20.1): `--follow-links`, a linked directory in an instruction folder is followed
+    follow_links: bool = False
 
 
 def connected_config_problem(options: ScanOptions) -> Notice | None:
@@ -128,7 +130,7 @@ def scan(options: ScanOptions) -> Report:
                else files.list_files(options.root, options.settings, env=options.env))
     a2a = options.settings.a2a
     found = discover.discover(fileset, listed_cards=a2a.cards, agents_configured=bool(a2a.agents),
-                              instructions=options.settings.instructions)
+                              instructions=options.settings.instructions, follow_links=options.follow_links)
     notices: list[Notice] = [*fileset.notices, *found.notices, *early]
     errors: list[Notice] = [*fileset.errors, *found.errors]
     options.log(f"{len(fileset.entries)} files listed, {len(found.items)} items discovered")
