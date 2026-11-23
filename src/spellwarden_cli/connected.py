@@ -837,6 +837,10 @@ def _cap(report: dict, name: str, limit: int, cut: list[str]) -> None:
 LOCAL_NOTICES = ("description_lint", "model_assisted", "analysis_incomplete", "analyzer_no_key")
 
 
+# The keys of a report finding that the upload document leaves out (`reduce_report`)
+REPORT_ONLY_FINDING_KEYS = ("tags", "fix", "rule_url", "fix_lines")
+
+
 def reduce_report(report_dict: dict, limits: dict, envelope: dict | None = None) -> tuple[dict, int, list[str]]:
     """O3 spec 6.7, invariant 3: the report as the body carries it, `(body report, findings dropped, lists cut)`. No
     `connected.upload`; probes keep the seven fields of 8.4 (no findings, no checklist) and agents the nine of O4 spec 6.8 (at
@@ -850,9 +854,10 @@ def reduce_report(report_dict: dict, limits: dict, envelope: dict | None = None)
     # on its own scan, and an analysis stays with whoever ran it
     report = {key: value for key, value in report_dict.items() if key not in ("lint", "analysis")}
     cut: list[str] = []
-    # `tags` (1.13.0) is derived from `rule_id`, which the server holds as well: leaving it out keeps the body, and so what the
-    # size limit lets through, as it was
-    report["findings"] = sorted(({key: value for key, value in f.items() if key != "tags"} for f in report_dict["findings"]),
+    # `tags` (1.13.0) and `fix`, `rule_url` and `fix_lines` (1.21.0, P6-15 spec 6.10) come from `rule_id` and the rule's own
+    # tables, which the server holds as well: leaving them out keeps the body, and so what the size limit lets through, as it was
+    report["findings"] = sorted(({key: value for key, value in f.items() if key not in REPORT_ONLY_FINDING_KEYS}
+                                 for f in report_dict["findings"]),
                                 key=lambda f: SEVERITY_RANK[f["severity"]])  # stable: report order
     report["items"] = list(report_dict["items"])
     report["probes"] = [{name: probe.get(name) for name in PROBE_FIELDS} for probe in report_dict["probes"]]

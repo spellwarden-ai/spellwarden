@@ -12,6 +12,7 @@ import jsonschema
 import pytest
 import yaml
 from conftest import _RUNNER_VARIABLES
+from golden_fix import without_fix_guidance
 from golden_lint import without_lint
 
 from spellwarden_scan import RULES_VERSION, __version__
@@ -197,7 +198,9 @@ def test_reports_differ_from_the_recorded_ones_only_in_the_normalised_difference
     for _fmt, name in record.OUTPUTS:
         recorded = (GOLDEN / "out" / name).read_bytes().decode("utf-8")
         # 1.17.0: the description lint is taken out first (Phase 4 batch B spec 11.4, claim E-1)
-        produced = _without_finding_tags(name, without_lint(name, (fresh[1] / name).read_bytes().decode("utf-8")))
+        # 1.21.0: the fix guidance is taken out first, and the rule links set back as 1.20.0 wrote them (golden_fix.py, E-7)
+        produced = (fresh[1] / name).read_bytes().decode("utf-8")
+        produced = _without_finding_tags(name, without_lint(name, without_fix_guidance(name, produced)))
         if name == "report.sarif":
             assert _normalised_sarif(produced, produced=True) == _normalised_sarif(recorded, produced=False)
             continue

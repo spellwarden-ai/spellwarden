@@ -14,7 +14,7 @@ from spellwarden_scan.rules import RULE_ID_RE
 from spellwarden_cli import escape, presets
 from spellwarden_cli.output import agents as agent_view
 from spellwarden_cli.output.text import client_lines, not_done_why
-from spellwarden_cli.report import Report, ReportFinding
+from spellwarden_cli.report import Report, ReportFinding, rule_fix
 
 CSP = "default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'"
 RULE_DOCS = "https://spellwarden.ai/docs/rules/{}?utm_source=scanner&utm_medium=html-report&utm_campaign=rule-docs"
@@ -54,7 +54,8 @@ def _rule_link(report: Report, rule_id: str) -> str | None:
     organisation rule, a rule the set lacks or an id that is not an id."""
     if RULE_ID_RE.fullmatch(rule_id) is None or rule_id.startswith("SW-ORG-") or report.rules.get(rule_id) is None:
         return None
-    return escape.html(RULE_DOCS.format(rule_id))
+    # 1.21.0 (P6-15 O-12): the id in lower case, the page's own address; up to 1.20.0 the upper-case id answered Page not found
+    return escape.html(RULE_DOCS.format(rule_id.lower()))
 
 
 def _verdict(report: Report) -> tuple[str, str]:
@@ -85,6 +86,12 @@ def _finding(report: Report, row: ReportFinding, number: int) -> list[str]:
         until = f" until {baseline['expires']}" if baseline.get("expires") else ""
         lines.append(f'<p class="accepted">Accepted by the baseline{_e(until)}: {_e(baseline.get("reason", ""))}</p>')
     if link:
+        sentence = rule_fix(report.rules.get(f.rule_id))
+        if sentence is not None:  # 1.21.0 (P6-15 spec 6.7): the rule's fix sentence and, for three rules, the lines to write
+            lines.append(f'<p class="fix-sentence">{_e(sentence)}</p>')
+        if f.fix_lines is not None:
+            lines += [f'<p class="fix-lines-where">In {_e(f.fix_lines.where)}, write:</p>',
+                      f'<pre class="fix-lines">{_e(f.fix_lines.text)}</pre>']
         lines.append(f'<p class="fix">How to fix: <a href="{link}">the rule page</a></p>')
     return [*lines, "</article>"]
 

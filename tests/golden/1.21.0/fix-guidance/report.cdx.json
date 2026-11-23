@@ -1,0 +1,329 @@
+{
+  "$schema": "http://cyclonedx.org/schema/bom-1.7.schema.json",
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.7",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-11-17T00:00:00Z",
+    "tools": {
+      "components": [
+        {
+          "type": "application",
+          "name": "Spellwarden",
+          "version": "1.21.0",
+          "externalReferences": [
+            {
+              "type": "website",
+              "url": "https://spellwarden.ai/?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+            }
+          ]
+        }
+      ]
+    },
+    "component": {
+      "type": "application",
+      "name": "repo"
+    },
+    "properties": [
+      {
+        "name": "spellwarden:mode",
+        "value": "repository"
+      },
+      {
+        "name": "spellwarden:rules_version",
+        "value": "2026.11.8"
+      },
+      {
+        "name": "spellwarden:as_of",
+        "value": "2026-11-17"
+      },
+      {
+        "name": "spellwarden:exit_code",
+        "value": "1"
+      },
+      {
+        "name": "spellwarden:complete",
+        "value": "true"
+      },
+      {
+        "name": "spellwarden:errors",
+        "value": "0"
+      }
+    ]
+  },
+  "components": [
+    {
+      "bom-ref": "document:.mcp.json",
+      "type": "file",
+      "name": ".mcp.json",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "dd33e3a0bde9121eaafdd29c071c4052c778e37c61e7e8129f09c2a2453420e5"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "mcp-config"
+        }
+      ]
+    },
+    {
+      "bom-ref": "skill:skills/report",
+      "type": "library",
+      "name": "report",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "a1cdbfd69db27b22e1c8b2bf80fb1b0ec15965eb287749689a9e81901271c001"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "skill"
+        },
+        {
+          "name": "spellwarden:path",
+          "value": "skills/report"
+        }
+      ]
+    }
+  ],
+  "services": [
+    {
+      "bom-ref": "mcp-server:.mcp.json#cluster",
+      "name": "cluster",
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "mcp-server"
+        },
+        {
+          "name": "spellwarden:transport",
+          "value": "stdio"
+        },
+        {
+          "name": "spellwarden:command",
+          "value": "cmd:npx mcp-server-kubernetes@2.4.0"
+        }
+      ]
+    },
+    {
+      "bom-ref": "mcp-server:.mcp.json#supabase-hosted",
+      "name": "supabase-hosted",
+      "endpoints": [
+        "https://mcp.supabase.com/mcp"
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "mcp-server"
+        },
+        {
+          "name": "spellwarden:transport",
+          "value": "http"
+        }
+      ]
+    },
+    {
+      "bom-ref": "mcp-server:.mcp.json#supabase-local",
+      "name": "supabase-local",
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "mcp-server"
+        },
+        {
+          "name": "spellwarden:transport",
+          "value": "stdio"
+        },
+        {
+          "name": "spellwarden:command",
+          "value": "cmd:npx @supabase/mcp-server-supabase@0.5.9 args=5694c19e306e4c40d06babc9edc3cf1d"
+        }
+      ]
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "document:.mcp.json",
+      "dependsOn": [
+        "mcp-server:.mcp.json#cluster",
+        "mcp-server:.mcp.json#supabase-hosted",
+        "mcp-server:.mcp.json#supabase-local"
+      ]
+    }
+  ],
+  "vulnerabilities": [
+    {
+      "bom-ref": "finding:71b7b0cc90fdb1c2abcac23e0bd016832d5b11931e1489c3fdd879535722e43b",
+      "id": "SW-CFG-013",
+      "source": {
+        "name": "Spellwarden",
+        "url": "https://spellwarden.ai/docs/rules/sw-cfg-013?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "Spellwarden",
+            "url": "https://spellwarden.ai/docs/rules/sw-cfg-013?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+          },
+          "severity": "high",
+          "method": "other"
+        }
+      ],
+      "description": "Database or cluster MCP server with write access although a read-only mode exists",
+      "recommendation": "Add the server's read-only switch, and give write access to a separate entry that stays disabled until the work needs it.",
+      "analysis": {
+        "state": "in_triage"
+      },
+      "affects": [
+        {
+          "ref": "document:.mcp.json"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:location",
+          "value": ".mcp.json:3"
+        },
+        {
+          "name": "spellwarden:origin",
+          "value": "rule"
+        },
+        {
+          "name": "spellwarden:status",
+          "value": "open"
+        }
+      ]
+    },
+    {
+      "bom-ref": "finding:03e0b17fd38441d99b5f9a742ff78203bcf37ce55ab0f7821f0f32307774c99c",
+      "id": "SW-CFG-013",
+      "source": {
+        "name": "Spellwarden",
+        "url": "https://spellwarden.ai/docs/rules/sw-cfg-013?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "Spellwarden",
+            "url": "https://spellwarden.ai/docs/rules/sw-cfg-013?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+          },
+          "severity": "high",
+          "method": "other"
+        }
+      ],
+      "description": "Database or cluster MCP server with write access although a read-only mode exists",
+      "recommendation": "Add the server's read-only switch, and give write access to a separate entry that stays disabled until the work needs it.",
+      "analysis": {
+        "state": "in_triage"
+      },
+      "affects": [
+        {
+          "ref": "document:.mcp.json"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:location",
+          "value": ".mcp.json:4"
+        },
+        {
+          "name": "spellwarden:origin",
+          "value": "rule"
+        },
+        {
+          "name": "spellwarden:status",
+          "value": "open"
+        }
+      ]
+    },
+    {
+      "bom-ref": "finding:e81808c24d679d36e82ca4249c0a170eb7546f3c1dff5acfc23165ff4e71cdde",
+      "id": "SW-CFG-013",
+      "source": {
+        "name": "Spellwarden",
+        "url": "https://spellwarden.ai/docs/rules/sw-cfg-013?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "Spellwarden",
+            "url": "https://spellwarden.ai/docs/rules/sw-cfg-013?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+          },
+          "severity": "high",
+          "method": "other"
+        }
+      ],
+      "description": "Database or cluster MCP server with write access although a read-only mode exists",
+      "recommendation": "Add the server's read-only switch, and give write access to a separate entry that stays disabled until the work needs it.",
+      "analysis": {
+        "state": "in_triage"
+      },
+      "affects": [
+        {
+          "ref": "document:.mcp.json"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:location",
+          "value": ".mcp.json:5"
+        },
+        {
+          "name": "spellwarden:origin",
+          "value": "rule"
+        },
+        {
+          "name": "spellwarden:status",
+          "value": "open"
+        }
+      ]
+    },
+    {
+      "bom-ref": "finding:5324aa085fc6b9b352707c2910b801498129354aeebee5c0951706a4b6b02acb",
+      "id": "SW-SKL-009",
+      "source": {
+        "name": "Spellwarden",
+        "url": "https://spellwarden.ai/docs/rules/sw-skl-009?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "Spellwarden",
+            "url": "https://spellwarden.ai/docs/rules/sw-skl-009?utm_source=scanner&utm_medium=cyclonedx&utm_campaign=ai-bom"
+          },
+          "severity": "medium",
+          "method": "other"
+        }
+      ],
+      "description": "Unpinned dependency install",
+      "recommendation": "Pin each install to an exact version, for example package==1.4.2 for pip, and add a lock file or hashes where the tool supports them.",
+      "analysis": {
+        "state": "in_triage"
+      },
+      "affects": [
+        {
+          "ref": "skill:skills/report"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:location",
+          "value": "skills/report/SKILL.md:13"
+        },
+        {
+          "name": "spellwarden:origin",
+          "value": "rule"
+        },
+        {
+          "name": "spellwarden:status",
+          "value": "open"
+        }
+      ]
+    }
+  ]
+}

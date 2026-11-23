@@ -91,7 +91,7 @@ def test_a_rule_id_or_a_path_cannot_leave_an_attribute():
 
 def test_rule_links_are_the_tagged_rule_pages():
     text = FORMATS["html"](report_of([make()]))
-    link = ("https://spellwarden.ai/docs/rules/SW-SKL-007?utm_source=scanner&amp;utm_medium=html-report"
+    link = ("https://spellwarden.ai/docs/rules/sw-skl-007?utm_source=scanner&amp;utm_medium=html-report"
             "&amp;utm_campaign=rule-docs")
     assert f'<a href="{link}">SW-SKL-007</a>' in text and f'How to fix: <a href="{link}">the rule page</a>' in text
 

@@ -1,0 +1,18 @@
+.mcp.json
+  high SW-CFG-013 .mcp.json:3 Database or cluster MCP server with write access although a read-only mode exists
+    write in the query of the mcp.supabase.com address: read_only=true
+  high SW-CFG-013 .mcp.json:4 Database or cluster MCP server with write access although a read-only mode exists
+  high SW-CFG-013 .mcp.json:5 Database or cluster MCP server with write access although a read-only mode exists
+    write in the server's env: "ALLOW_ONLY_NON_DESTRUCTIVE_TOOLS": "true"
+
+skills/report
+  medium SW-SKL-009 skills/report/SKILL.md:13 Unpinned dependency install
+
+How to fix
+  SW-CFG-013 Add the server's read-only switch, and give write access to a separate entry that stays disabled until the work needs it.
+    https://spellwarden.ai/docs/rules/sw-cfg-013?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix
+  SW-SKL-009 Pin each install to an exact version, for example package==1.4.2 for pip, and add a lock file or hashes where the tool supports them.
+    https://spellwarden.ai/docs/rules/sw-skl-009?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix
+
+notice description_lint : Description lint: 0 notes on 0 of 1 skill, informational, never changing the exit code. What each check means: https://spellwarden.ai/docs/activation-checks?utm_source=scanner&utm_medium=cli&utm_campaign=description-lint
+4 findings (0 critical, 3 high, 1 medium, 0 low), 0 accepted; failed at high

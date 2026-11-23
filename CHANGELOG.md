@@ -1,5 +1,49 @@
 # Changelog
 
+## 1.21.0 (2026-11-24)
+
+Rules version 2026.11.8, unchanged (66 rules): no rule detects anything new, and no exit code, fingerprint or existing field
+changes apart from the correction at the end of this entry.
+
+1.21.0: every finding says how to fix it. Each rule has one fix sentence and a page, shown in every report, in code scanning
+alerts and in the pull request comment and merge request note; three rules also show the lines to write.
+
+- The JSON report. Each finding holds `fix` (its rule's fix sentence) and `rule_url` (its rule's page,
+  `https://spellwarden.ai/docs/rules/<id in lower case>` with campaign tags), both null for an organisation rule; a finding of
+  SW-CFG-013, SW-A2A-006 or SW-MCP-003 may hold `fix_lines` (`where` and `text`). All three are optional in
+  `schemas/report.schema.json`, and the report's `schema` stays 1. `spellwarden rules --format json` lists each rule's `fix` and
+  `page`.
+- The text and Markdown reports. The text report has a "How to fix" section after its findings: each rule with an open finding,
+  its sentence and its page; a finding with setting lines has a `write in` line under it. The Markdown report, and so the pull
+  request comment and the merge request note, has a "How to fix" section under its table for the rules of the rows the table
+  shows, with the setting lines under their rule.
+- The HTML report shows the sentence and the setting lines in each finding, above the rule page link. In SARIF each baseline
+  rule has `help` (text and Markdown) and its own `helpUri`, the rule's page, so a code scanning alert shows the fix; a result
+  with setting lines carries them as `properties.fix_lines`. No `fixes` object is written: nothing is applied for you. In
+  CycloneDX each vulnerability of a baseline rule has `recommendation`, the sentence. GitLab Code Quality is unchanged.
+- Setting lines. SW-CFG-013 writes them for the hosted Supabase endpoint (`read_only=true` in the address's query) and for
+  `mcp-server-kubernetes` (`"ALLOW_ONLY_NON_DESTRUCTIVE_TOOLS": "true"` in its env); SW-A2A-006 writes `"pkceRequired": true` and
+  SW-MCP-003 `"client_id_metadata_document_supported": true`. Each is a switch its server's or protocol's own documentation
+  names, read on 2026-11-23. A line follows the syntax of the file its finding is in: in Codex's `config.toml`, a TOML file,
+  the `mcp-server-kubernetes` line is `ALLOW_ONLY_NON_DESTRUCTIVE_TOOLS = "true"` in the server's env table, the form Codex's
+  documentation gives. The Supabase package and `kubernetes-mcp-server` get the sentence alone: their documentation did not
+  confirm `--read-only` that day. The lines are fixed text, never taken from your files.
+- Organisation rules have no fix text, since their policy pack holds none: the text and Markdown sections end with one line
+  that says to ask the people who manage the pack.
+- The upload of connected mode leaves out `fix`, `rule_url` and `fix_lines`, as it leaves out `tags`.
+- Correction. The rule link of the HTML report and the `source.url` of the CycloneDX file now write the rule id in lower case,
+  the address of the rule's page. Up to 1.20.0 they wrote it in upper case, an address that answered with Page not found.
+- The release workflow checks that every rule's page answers before it publishes.
+- Compatibility pledge. A rule id is never reused or renamed, and a deprecation is announced in this changelog at least one minor
+  version before it takes effect; a retired rule's id stays reserved and is listed in the README's "The rules".
+  `tests/data/released_rule_ids.json` holds every rule id released so far with its first title, and a test that every build runs
+  fails when a released id goes missing without being retired, a retired id comes back, or an id's title changes without a
+  recorded rename.
+
+Rule benchmark: first published table, see benchmarks/RESULTS.md. The release workflow measures the 20 skill rules
+again on every release, on fixed public sets of malicious and harmless skills, rules only and with no model, and attaches the
+table to the release; `benchmarks/README.md` says how to run it yourself.
+
 ## 1.20.0 (2026-11-23)
 
 Rules version 2026.11.8: SW-CFG-012 and SW-CFG-013 also judge the MCP servers of settings documents; no other rule changed (66

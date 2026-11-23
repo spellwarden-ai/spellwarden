@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "supabase-hosted": {"type": "http", "url": "https://mcp.supabase.com/mcp?project_ref=abcdefghijklmnop"},
+    "supabase-local": {"command": "npx", "args": ["-y", "@supabase/mcp-server-supabase@0.5.9", "--project-ref=abcdefghijklmnop"]},
+    "cluster": {"command": "npx", "args": ["-y", "mcp-server-kubernetes@2.4.0"]}
+  }
+}

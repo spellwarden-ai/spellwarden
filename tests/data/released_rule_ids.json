@@ -1,0 +1,278 @@
+{
+  "how": "Built once on 2026-11-23 from RuleSet.baseline() of every release tag v1.0.0 to v1.20.0: the engine source of each tag (git archive TAG src/spellwarden_scan), imported on its own. Each id holds its title in the release it first shipped in; renamed lists each later change of a title alone, in release order. A rule added later gets its row in the commit that adds it, with the release it first ships in; a retired id moves to retired and keeps its row.",
+  "renamed": [
+    {
+      "from": "Tool description contains instruction-like text",
+      "id": "SW-MCP-011",
+      "release": "1.13.0",
+      "to": "MCP server text contains instruction-like text"
+    }
+  ],
+  "retired": [],
+  "rules": {
+    "SW-A2A-001": {
+      "first_released": "1.3.0",
+      "title": "Agent card does not follow A2A 1.0"
+    },
+    "SW-A2A-002": {
+      "first_released": "1.3.0",
+      "title": "Agent card uses a format older than A2A 1.0"
+    },
+    "SW-A2A-003": {
+      "first_released": "1.3.0",
+      "title": "Agent card at the path used before A2A 0.3"
+    },
+    "SW-A2A-004": {
+      "first_released": "1.3.0",
+      "title": "Agent endpoint or authentication URL not served over HTTPS"
+    },
+    "SW-A2A-005": {
+      "first_released": "1.3.0",
+      "title": "OAuth implicit or password flow declared (deprecated in A2A 1.0)"
+    },
+    "SW-A2A-006": {
+      "first_released": "1.3.0",
+      "title": "OAuth authorization code flow without PKCE required"
+    },
+    "SW-A2A-007": {
+      "first_released": "1.3.0",
+      "title": "Agent declares no authentication"
+    },
+    "SW-A2A-008": {
+      "first_released": "1.3.0",
+      "title": "API key sent in the URL query"
+    },
+    "SW-A2A-009": {
+      "first_released": "1.3.0",
+      "title": "Skill inherits every scope of the agent"
+    },
+    "SW-A2A-010": {
+      "first_released": "1.3.0",
+      "title": "Agent card signature does not verify"
+    },
+    "SW-A2A-011": {
+      "first_released": "1.3.0",
+      "title": "Agent card signature is malformed or uses a refused algorithm"
+    },
+    "SW-A2A-012": {
+      "first_released": "1.3.0",
+      "title": "Agent card is not signed"
+    },
+    "SW-A2A-013": {
+      "first_released": "1.3.0",
+      "title": "Signing key not bound to the card's host"
+    },
+    "SW-A2A-014": {
+      "first_released": "1.3.0",
+      "title": "Agent card text contains injected instructions or hidden characters"
+    },
+    "SW-A2A-015": {
+      "first_released": "1.3.0",
+      "title": "Credential in the agent card"
+    },
+    "SW-A2A-016": {
+      "first_released": "1.3.0",
+      "title": "Agent card fetched through a redirect to another host"
+    },
+    "SW-A2A-017": {
+      "first_released": "1.3.0",
+      "title": "Agent card signed with a shared secret that only the agent can check"
+    },
+    "SW-A2A-018": {
+      "first_released": "1.3.0",
+      "title": "Agent card cannot be read"
+    },
+    "SW-A2A-019": {
+      "first_released": "1.4.0",
+      "title": "Agent card member spelled two ways"
+    },
+    "SW-CFG-001": {
+      "first_released": "1.0.0",
+      "title": "Remote MCP server over plain HTTP"
+    },
+    "SW-CFG-002": {
+      "first_released": "1.0.0",
+      "title": "Credential written into an MCP server configuration"
+    },
+    "SW-CFG-003": {
+      "first_released": "1.0.0",
+      "title": "MCP server launched from an unpinned package"
+    },
+    "SW-CFG-004": {
+      "first_released": "1.0.0",
+      "title": "MCP server at a raw IP address or behind a URL shortener"
+    },
+    "SW-CFG-005": {
+      "first_released": "1.0.0",
+      "title": "Hook pipes remote content to a shell"
+    },
+    "SW-CFG-006": {
+      "first_released": "1.0.0",
+      "title": "Hook sends local file contents to an external host"
+    },
+    "SW-CFG-007": {
+      "first_released": "1.0.0",
+      "title": "Hook decodes and runs an encoded payload"
+    },
+    "SW-CFG-008": {
+      "first_released": "1.0.0",
+      "title": "Settings switch off approval prompts"
+    },
+    "SW-CFG-009": {
+      "first_released": "1.0.0",
+      "title": "Marketplace plugin source not pinned to a commit"
+    },
+    "SW-CFG-010": {
+      "first_released": "1.0.0",
+      "title": "Literal value under a secret name in an MCP server configuration"
+    },
+    "SW-CFG-012": {
+      "first_released": "1.8.0",
+      "title": "MCP server configured to approve every tool call automatically"
+    },
+    "SW-CFG-013": {
+      "first_released": "1.8.0",
+      "title": "Database or cluster MCP server with write access although a read-only mode exists"
+    },
+    "SW-MCP-001": {
+      "first_released": "1.0.0",
+      "title": "Server lists tools without authentication"
+    },
+    "SW-MCP-002": {
+      "first_released": "1.0.0",
+      "title": "Static key authentication instead of OAuth"
+    },
+    "SW-MCP-003": {
+      "first_released": "1.0.0",
+      "title": "OAuth dynamic client registration (deprecated; use Client ID Metadata Documents)"
+    },
+    "SW-MCP-004": {
+      "first_released": "1.0.0",
+      "title": "HTTP+SSE transport (deprecated)"
+    },
+    "SW-MCP-005": {
+      "first_released": "1.0.0",
+      "title": "Spec version older than 2026-07-28"
+    },
+    "SW-MCP-006": {
+      "first_released": "1.0.0",
+      "title": "Protocol sessions (Mcp-Session-Id) in use"
+    },
+    "SW-MCP-007": {
+      "first_released": "1.0.0",
+      "title": "Requires the initialize handshake; no server/discover"
+    },
+    "SW-MCP-008": {
+      "first_released": "1.0.0",
+      "title": "Uses deprecated Roots, Sampling or Logging"
+    },
+    "SW-MCP-009": {
+      "first_released": "1.0.0",
+      "title": "Endpoint not served over HTTPS"
+    },
+    "SW-MCP-010": {
+      "first_released": "1.0.0",
+      "title": "No protected resource metadata, or issuer not validated"
+    },
+    "SW-MCP-011": {
+      "first_released": "1.0.0",
+      "title": "Tool description contains instruction-like text"
+    },
+    "SW-MCP-012": {
+      "first_released": "1.15.0",
+      "title": "MCP server's tools changed since they were approved"
+    },
+    "SW-REG-001": {
+      "first_released": "1.2.0",
+      "title": "Skill package not admitted in the organisation's private registry"
+    },
+    "SW-REG-002": {
+      "first_released": "1.2.0",
+      "title": "MCP server not admitted in the organisation's private registry"
+    },
+    "SW-REG-003": {
+      "first_released": "1.2.0",
+      "title": "Agent content the private registry cannot judge"
+    },
+    "SW-SKL-001": {
+      "first_released": "1.0.0",
+      "title": "Prompt-injection phrases in skill instructions"
+    },
+    "SW-SKL-002": {
+      "first_released": "1.0.0",
+      "title": "Hidden text: zero-width or bidirectional control characters"
+    },
+    "SW-SKL-003": {
+      "first_released": "1.0.0",
+      "title": "Instructions to skip approvals or disable hooks"
+    },
+    "SW-SKL-004": {
+      "first_released": "1.0.0",
+      "title": "Encoded payload decoded and executed"
+    },
+    "SW-SKL-005": {
+      "first_released": "1.0.0",
+      "title": "Writes to agent configuration"
+    },
+    "SW-SKL-006": {
+      "first_released": "1.0.0",
+      "title": "Destructive command without a confirmation step"
+    },
+    "SW-SKL-007": {
+      "first_released": "1.0.0",
+      "title": "Remote script piped to a shell"
+    },
+    "SW-SKL-008": {
+      "first_released": "1.0.0",
+      "title": "Sends local file contents to an external host"
+    },
+    "SW-SKL-009": {
+      "first_released": "1.0.0",
+      "title": "Unpinned dependency install"
+    },
+    "SW-SKL-010": {
+      "first_released": "1.0.0",
+      "title": "Bundled binary or executable file"
+    },
+    "SW-SKL-011": {
+      "first_released": "1.0.0",
+      "title": "Hard-coded credential in the package"
+    },
+    "SW-SKL-012": {
+      "first_released": "1.0.0",
+      "title": "Reads a credential file path without stating purpose"
+    },
+    "SW-SKL-013": {
+      "first_released": "1.0.0",
+      "title": "Network calls to raw IP addresses or URL shorteners"
+    },
+    "SW-SKL-014": {
+      "first_released": "1.0.0",
+      "title": "Obfuscated script code"
+    },
+    "SW-SKL-015": {
+      "first_released": "1.0.0",
+      "title": "Frontmatter missing or invalid (name, description)"
+    },
+    "SW-SKL-019": {
+      "first_released": "1.0.0",
+      "title": "Fetches external URL content into context without an allowlist"
+    },
+    "SW-SKL-031": {
+      "first_released": "1.0.0",
+      "title": "Missing license and version metadata"
+    },
+    "SW-SKL-032": {
+      "first_released": "1.8.0",
+      "title": "Instructions lure the user into running a password-protected download or a pasted script"
+    },
+    "SW-SKL-036": {
+      "first_released": "1.8.0",
+      "title": "Frontmatter pre-approves an unscoped shell or interpreter"
+    },
+    "SW-SKL-037": {
+      "first_released": "1.8.0",
+      "title": "Executable downloaded from a moving reference and run without an integrity check"
+    }
+  }
+}

@@ -1,4 +1,4 @@
-"""The current release is 1.20.0, which reads more of the agent files the vendors document and makes SW-CFG-012 and SW-CFG-013 judge
+"""The current release is 1.21.0, which gives every finding its rule's fix sentence and page without changing a rule; 1.20.0 reads more of the agent files the vendors document and makes SW-CFG-012 and SW-CFG-013 judge
 the servers of settings documents (rules version 2026.11.8); 1.19.0 added `spellwarden scan --staged` (the pre-commit hook runs it), limits on SKILL.md
 front matter and the analyzer's span rule without changing a rule (1.18.0 added a pre-commit hook definition, the HTML report
 and presets without changing a rule). 1.17.0 added the model-assisted analyzer (`spellwarden scan --analyze`, advisory and off by
@@ -27,7 +27,7 @@ PYPROJECT = Path(__file__).resolve().parents[1] / "pyproject.toml"
 
 
 def test_the_versions():
-    assert __version__ == "1.20.0"
+    assert __version__ == "1.21.0"
     assert tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))["project"]["version"] == __version__
     assert RULES_VERSION == "2026.11.8"
     assert len(RuleSet.baseline()) == 66
@@ -167,5 +167,27 @@ def test_the_changelog_has_the_1_20_0_entry_above_1_19_0():
         assert needle in entry, needle
     assert entry.index("The two rules.") < entry.index("Selection.") < entry.index("`--follow-links`:") \
         < entry.index("`scan --user`:")
+    for character in ("—", "–", "!"):
+        assert character not in raw
+
+
+def test_the_changelog_has_the_1_21_0_entry_above_1_20_0():
+    """P6-15 spec 6.11: every output change of the fix guidance, no rule detects anything new, and the correction of the two rule
+    links, in the spec's words; the date is set when the release is tagged."""
+    text = (PYPROJECT.parent / "CHANGELOG.md").read_text(encoding="utf-8").replace("\r\n", "\n")
+    assert text.index("## 1.21.0 (") < text.index("## 1.20.0 (")
+    raw = text[text.index("## 1.21.0 ("):text.index("## 1.20.0 (")]
+    entry = " ".join(raw.split())
+    assert "Rules version 2026.11.8, unchanged (66 rules): no rule detects anything new" in entry
+    for needle in ("`fix`", "`rule_url`", "`fix_lines`", "`schemas/report.schema.json`", "\"How to fix\"", "`write in`", "`help`",
+                   "`helpUri`", "`properties.fix_lines`", "No `fixes` object is written", "`recommendation`",
+                   "GitLab Code Quality is unchanged", "`read_only=true`", "`mcp-server-kubernetes`", "`kubernetes-mcp-server`",
+                   "`\"ALLOW_ONLY_NON_DESTRUCTIVE_TOOLS\": \"true\"`", "`ALLOW_ONLY_NON_DESTRUCTIVE_TOOLS = \"true\"`",
+                   "Codex's `config.toml`",
+                   "leaves out `fix`, `rule_url` and `fix_lines`",
+                   "The rule link of the HTML report and the `source.url` of the CycloneDX file now write the rule id in lower case, "
+                   "the address of the rule's page. Up to 1.20.0 they wrote it in upper case, an address that answered with Page "
+                   "not found."):
+        assert needle in entry, needle
     for character in ("—", "–", "!"):
         assert character not in raw

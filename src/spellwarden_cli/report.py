@@ -278,14 +278,31 @@ def rule_tags(rule: Rule | None) -> dict[str, list[str]]:
     return {key: [] if rule is None else list(getattr(rule, key)) for key in TAG_KEYS}
 
 
+# 1.21.0 (P6-15 spec 4.3, D6): the campaign tags of every rule page link the fix guidance writes (the JSON `rule_url`, the text
+# and Markdown "How to fix" sections, SARIF `helpUri` and `help.markdown`)
+FIX_TAGS = "utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix"
+
+
+def rule_fix(rule: Rule | None) -> str | None:
+    """The fix sentence of `rule` (P6-15 spec 6.2); None for an organisation rule, a rule without one and a rule the set
+    lacks."""
+    return rule.fix if rule is not None and rule.fix else None
+
+
+def rule_url(rule: Rule | None) -> str | None:
+    """The page of `rule` with the tags of `FIX_TAGS` (P6-15 spec 4.3), None for an organisation rule and a rule the set lacks."""
+    page = rule.page if rule is not None else None
+    return f"{page}?{FIX_TAGS}" if page is not None else None
+
+
 def to_json_dict(report: Report) -> dict:
-    """The JSON format of spec 6.9 (`schemas/report.schema.json`). Since 1.13.0 each finding also carries `tags`, looked up
-    through the report's rule set."""
+    """The JSON format of spec 6.9 (`schemas/report.schema.json`). Since 1.13.0 each finding also carries `tags`, and since 1.21.0
+    `fix` and `rule_url`, looked up through the report's rule set."""
     by_id = {rule.id: rule for rule in report.rules}
     document = {
         "schema": 1, "scanner_version": report.scanner_version, "rules_version": report.rules_version,
         "as_of": report.as_of, "items": [item.to_dict() for item in report.items],
-        "findings": [{**rf.to_dict(), "tags": rule_tags(by_id.get(rf.finding.rule_id))} for rf in report.findings],
+        "findings": [_finding_entry(rf, by_id.get(rf.finding.rule_id)) for rf in report.findings],
         "probes": [probe.to_dict() for probe in report.probes],
         "lock": report.lock.to_dict(), "notices": [n.to_dict() for n in report.notices],
         "errors": [e.to_dict() for e in report.errors], "fail_on": report.fail_on, "exit_code": report.exit_code(),
@@ -303,3 +320,7 @@ def to_json_dict(report: Report) -> dict:
     if report.preset is not None:
         document["preset"] = dict(report.preset)
     return document
+
+
+def _finding_entry(rf: ReportFinding, rule: Rule | None) -> dict:
+    return {**rf.to_dict(), "tags": rule_tags(rule), "fix": rule_fix(rule), "rule_url": rule_url(rule)}

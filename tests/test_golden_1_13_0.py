@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 from conftest import _RUNNER_VARIABLES
+from golden_fix import without_fix_guidance
 from golden_lint import without_lint
 
 from spellwarden_scan import RULES_VERSION, __version__
@@ -39,7 +40,8 @@ def test_the_scan_still_fails_on_its_findings(fresh):
 def test_each_report_is_the_1_13_0_report_byte_for_byte(fresh, fmt, name):
     _, out = fresh
     # 1.17.0: the description lint is the one addition (Phase 4 batch B spec 11.4); taken out, every byte is 1.13.0's
-    produced = without_lint(name, (out / name).read_bytes().decode("utf-8"))
+    # 1.21.0: so is the fix guidance, with the rule links set back as 1.20.0 wrote them (golden_fix.py, E-7)
+    produced = without_lint(name, without_fix_guidance(name, (out / name).read_bytes().decode("utf-8")))
     recorded = (GOLDEN / "out" / name).read_bytes().decode("utf-8")
     if name == "report.sarif":
         produced = record.sarif_as_recorded(produced)

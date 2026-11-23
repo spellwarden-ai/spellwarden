@@ -25,10 +25,11 @@ Open an issue before you write code, so that the idea can be discussed first. Sa
 
 A rule that is merged has:
 
-- an id that the maintainers assign. Unused numbers stay reserved;
+- an id that the maintainers assign. Unused numbers stay reserved, and an id is never reused or renamed, also after its rule is retired;
 - a title, a severity and its mappings to the OWASP lists, NIST SP 800-53 and MITRE ATLAS, given to `make_rule` in `src/spellwarden_scan/rules/`;
+- a fix sentence beside its title: one sentence that tells the reader what to do, at most 200 characters, opening with one of the verbs of `FIX_VERBS`. `make_rule` refuses a sentence that breaks the form, and `RuleSet.baseline()` refuses a rule without one;
 - a fixture it must find and a fixture it must not find. `tests/test_fixture_coverage.py` fails the build without both;
-- its row in the rules table of the README and a line in `CHANGELOG.md`.
+- its row in the rules table of the README, its row in `tests/data/released_rule_ids.json` with the release it first ships in, and a line in `CHANGELOG.md`.
 
 A change to what a rule detects raises the rules version and the scanner's minor version. The maintainers make the release.
 

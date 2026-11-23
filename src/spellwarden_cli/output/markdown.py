@@ -11,6 +11,7 @@ from spellwarden_scan.gate import GATE_REASONS
 
 from spellwarden_cli import escape, instruction_files, presets
 from spellwarden_cli.output import agents as agent_view
+from spellwarden_cli.output.fixes import ORG_LINE, rule_fixes
 from spellwarden_cli.output.text import client_lines, connected_lines, not_done_why
 from spellwarden_cli.report import CONNECTED_ERRORS, Report, ReportFinding
 
@@ -86,7 +87,26 @@ def _findings(report: Report, open_findings: Sequence[ReportFinding]) -> list[st
         lines.append(f"| {severity} | {finding.rule_id} | {_code_cell(_location(item))} | {_text(finding.title)} |")
     if len(open_findings) > MAX_ROWS:
         lines += ["", f"{len(open_findings) - MAX_ROWS} more findings are in the JSON and SARIF reports."]
+    fixes = _fixes(report, open_findings[:MAX_ROWS])
+    if fixes:
+        lines += ["", *fixes]
     return lines + [""]
+
+
+def _fixes(report: Report, shown: Sequence[ReportFinding]) -> list[str]:
+    """1.21.0 (P6-15 spec 6.6): the section "How to fix" for the rows the table shows: one bullet per baseline rule, in rule id
+    order, with its fix sentence and its page, and under it one bullet per distinct set of setting lines; then the organisation
+    line when a shown row is an organisation rule's. The JSON and SARIF reports hold every rule's fix."""
+    fixes, organisation = rule_fixes(report, shown)
+    if not fixes and not organisation:
+        return []
+    lines = ["**How to fix**", ""]
+    for entry in fixes:
+        lines.append(f"- **{entry.rule_id}** {escape.markdown(entry.sentence)} [Rule page]({entry.url})")
+        lines += [f"  - In {escape.markdown(fix.where)}, write: {escape.code_span(fix.text)}" for fix in entry.lines]
+    if organisation:
+        lines.append(f"- {escape.markdown(ORG_LINE)}")
+    return lines
 
 
 def _preset(report: Report) -> list[str]:

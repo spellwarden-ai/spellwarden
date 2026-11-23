@@ -3,3 +3,4 @@ tests/golden/** -text
 tests/fixtures/homes/** -text
 tests/fixtures/cyclonedx/** -text
 tests/fixtures/gateways/** -text
+fixtures/fix-guidance/** -text

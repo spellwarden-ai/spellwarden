@@ -10,6 +10,7 @@ from collections import Counter
 from spellwarden_cli import clients, instruction_files, presets
 from spellwarden_cli.escape import log_lines, terminal
 from spellwarden_cli.output import agents as agent_view
+from spellwarden_cli.output.fixes import ORG_LINE, rule_fixes
 from spellwarden_cli.report import FREE_MODE_NOTICES, Report
 
 _VERDICT = {0: "passed", 2: "incomplete: see the errors above"}
@@ -186,6 +187,21 @@ def analysis_lines(report: Report) -> list[str]:
     return [*lines, ""]
 
 
+def how_to_fix_lines(report: Report) -> list[str]:
+    """1.21.0 (P6-15 spec 6.5): the "How to fix" section: per baseline rule with an open finding, in rule id order, its fix
+    sentence and its page; then the organisation line when an open finding is an organisation rule's; nothing without an open
+    finding."""
+    fixes, organisation = rule_fixes(report, report.unsuppressed())
+    if not fixes and not organisation:
+        return []
+    lines = ["How to fix"]
+    for entry in fixes:
+        lines += [f"  {entry.rule_id} {entry.sentence}", f"    {entry.url}"]
+    if organisation:
+        lines.append(f"  {ORG_LINE}")
+    return [*lines, ""]
+
+
 def render(report: Report) -> str:
     lines: list[str] = []
     if report.connected is None:
@@ -210,7 +226,10 @@ def render(report: Report) -> str:
             lines.append(f"  {f.severity} {f.rule_id} {terminal(f.location.path)}:{line} {terminal(f.title)}{moved}{accepted}")
             if item in scopes:
                 lines.append(f"    {terminal(scopes[item])}")
+            if f.fix_lines is not None:  # 1.21.0 (P6-15 spec 6.5): the setting lines, text to copy
+                lines.append(f"    write in {terminal(f.fix_lines.where)}: {terminal(f.fix_lines.text)}")
         lines.append("")
+    lines.extend(how_to_fix_lines(report))
     if report.lock.status in ("stale", "absent"):
         lines.append(f"lock: {report.lock.status}")
         for label, changes in (("added", report.lock.added), ("removed", report.lock.removed),

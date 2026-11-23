@@ -1,0 +1,206 @@
+{
+  "as_of": "2026-11-17",
+  "errors": [],
+  "exit_code": 1,
+  "fail_on": "high",
+  "findings": [
+    {
+      "baseline": null,
+      "evidence": "supabase-hosted: hosted endpoint without read_only=true",
+      "fingerprint": "71b7b0cc90fdb1c2abcac23e0bd016832d5b11931e1489c3fdd879535722e43b",
+      "fix": "Add the server's read-only switch, and give write access to a separate entry that stays disabled until the work needs it.",
+      "fix_lines": {
+        "text": "read_only=true",
+        "where": "the query of the mcp.supabase.com address"
+      },
+      "item": ".mcp.json",
+      "location": {
+        "line": 3,
+        "path": ".mcp.json"
+      },
+      "malicious_indicator": false,
+      "rule_id": "SW-CFG-013",
+      "rule_url": "https://spellwarden.ai/docs/rules/sw-cfg-013?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+      "severity": "high",
+      "suppressed": false,
+      "tags": {
+        "atlas": [
+          "AML.T0053"
+        ],
+        "nist": [
+          "AC-3",
+          "AC-6"
+        ],
+        "owasp_agentic": [
+          "ASI03"
+        ],
+        "owasp_ast": [],
+        "owasp_mcp": [
+          "MCP02"
+        ]
+      },
+      "title": "Database or cluster MCP server with write access although a read-only mode exists"
+    },
+    {
+      "baseline": null,
+      "evidence": "supabase-local: package without --read-only",
+      "fingerprint": "03e0b17fd38441d99b5f9a742ff78203bcf37ce55ab0f7821f0f32307774c99c",
+      "fix": "Add the server's read-only switch, and give write access to a separate entry that stays disabled until the work needs it.",
+      "item": ".mcp.json",
+      "location": {
+        "line": 4,
+        "path": ".mcp.json"
+      },
+      "malicious_indicator": false,
+      "rule_id": "SW-CFG-013",
+      "rule_url": "https://spellwarden.ai/docs/rules/sw-cfg-013?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+      "severity": "high",
+      "suppressed": false,
+      "tags": {
+        "atlas": [
+          "AML.T0053"
+        ],
+        "nist": [
+          "AC-3",
+          "AC-6"
+        ],
+        "owasp_agentic": [
+          "ASI03"
+        ],
+        "owasp_ast": [],
+        "owasp_mcp": [
+          "MCP02"
+        ]
+      },
+      "title": "Database or cluster MCP server with write access although a read-only mode exists"
+    },
+    {
+      "baseline": null,
+      "evidence": "cluster: neither --read-only nor --disable-destructive nor ALLOW_ONLY_NON_DESTRUCTIVE_TOOLS=true",
+      "fingerprint": "e81808c24d679d36e82ca4249c0a170eb7546f3c1dff5acfc23165ff4e71cdde",
+      "fix": "Add the server's read-only switch, and give write access to a separate entry that stays disabled until the work needs it.",
+      "fix_lines": {
+        "text": "\"ALLOW_ONLY_NON_DESTRUCTIVE_TOOLS\": \"true\"",
+        "where": "the server's env"
+      },
+      "item": ".mcp.json",
+      "location": {
+        "line": 5,
+        "path": ".mcp.json"
+      },
+      "malicious_indicator": false,
+      "rule_id": "SW-CFG-013",
+      "rule_url": "https://spellwarden.ai/docs/rules/sw-cfg-013?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+      "severity": "high",
+      "suppressed": false,
+      "tags": {
+        "atlas": [
+          "AML.T0053"
+        ],
+        "nist": [
+          "AC-3",
+          "AC-6"
+        ],
+        "owasp_agentic": [
+          "ASI03"
+        ],
+        "owasp_ast": [],
+        "owasp_mcp": [
+          "MCP02"
+        ]
+      },
+      "title": "Database or cluster MCP server with write access although a read-only mode exists"
+    },
+    {
+      "baseline": null,
+      "evidence": "pip install requests",
+      "fingerprint": "5324aa085fc6b9b352707c2910b801498129354aeebee5c0951706a4b6b02acb",
+      "fix": "Pin each install to an exact version, for example package==1.4.2 for pip, and add a lock file or hashes where the tool supports them.",
+      "item": "skills/report",
+      "location": {
+        "line": 13,
+        "path": "skills/report/SKILL.md"
+      },
+      "malicious_indicator": false,
+      "rule_id": "SW-SKL-009",
+      "rule_url": "https://spellwarden.ai/docs/rules/sw-skl-009?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+      "severity": "medium",
+      "suppressed": false,
+      "tags": {
+        "atlas": [
+          "AML.T0010.005"
+        ],
+        "nist": [
+          "SR-3"
+        ],
+        "owasp_agentic": [
+          "ASI04"
+        ],
+        "owasp_ast": [
+          "AST02",
+          "AST07"
+        ],
+        "owasp_mcp": [
+          "MCP04"
+        ]
+      },
+      "title": "Unpinned dependency install"
+    }
+  ],
+  "items": [
+    {
+      "kind": "mcp-config",
+      "name": ".mcp.json",
+      "path": ".mcp.json",
+      "plugin": null
+    },
+    {
+      "kind": "mcp-server",
+      "name": "cluster",
+      "path": ".mcp.json#cluster",
+      "plugin": null
+    },
+    {
+      "kind": "mcp-server",
+      "name": "supabase-hosted",
+      "path": ".mcp.json#supabase-hosted",
+      "plugin": null
+    },
+    {
+      "kind": "mcp-server",
+      "name": "supabase-local",
+      "path": ".mcp.json#supabase-local",
+      "plugin": null
+    },
+    {
+      "kind": "skill",
+      "name": "report",
+      "path": "skills/report",
+      "plugin": null
+    }
+  ],
+  "lint": [
+    {
+      "left_out": 0,
+      "notes": [],
+      "skill": "skills/report"
+    }
+  ],
+  "lock": {
+    "added": [],
+    "changed": [],
+    "removed": [],
+    "status": "not_checked"
+  },
+  "notices": [
+    {
+      "code": "description_lint",
+      "message": "Description lint: 0 notes on 0 of 1 skill, informational, never changing the exit code. What each check means: https://spellwarden.ai/docs/activation-checks?utm_source=scanner&utm_medium=cli&utm_campaign=description-lint",
+      "path": ""
+    }
+  ],
+  "probes": [],
+  "rules_version": "2026.11.8",
+  "scanner_version": "1.21.0",
+  "schema": 1
+}
