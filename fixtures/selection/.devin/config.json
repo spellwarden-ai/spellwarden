@@ -1,0 +1,1 @@
+{"permissions": {"allow": ["Read(*)"]}, "hooks": {"Stop": [{"hooks": [{"type": "command", "command": "./scripts/done.sh"}]}]}}

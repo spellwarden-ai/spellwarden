@@ -175,7 +175,7 @@ def scan(options: ScanOptions) -> Report:
         scanner_version=__version__, rules_version=RULES_VERSION, as_of=options.as_of.isoformat(),
         fail_on=options.settings.fail_on, items=found.items, findings=tuple(findings), probes=tuple(probes), lock=lock,
         notices=tuple(notices), errors=tuple(errors), repo_prefix=fileset.repo_prefix, rules=rules,
-        agents=tuple(agent_reports), root_name=os.path.basename(options.root), details=details.item_details(found),
+        agents=tuple(agent_reports), root_name=os.path.basename(options.root), details=scan_details(found),
         connected=({**connected.report_block(state, context), "registry": registry}
                    if state is not None and context is not None else None), lint=skill_lints,
         analysis=analysed)
@@ -193,6 +193,15 @@ def scan(options: ScanOptions) -> Report:
     settings = options.settings
     return presets.apply(report, settings.preset, source=settings.preset_source or "flag",
                          origin=settings.preset_origin or "--preset")
+
+
+def scan_details(found: Discovery) -> dict[str, dict]:
+    """`details.item_details`, plus the facts discovery found for items that are no document, server or skill (Engine 1.20.0:
+    scan selection, 7.8: the Codex entries of a repository's `config.toml`), merged as `scan --user` merges its own."""
+    merged = details.item_details(found)
+    for path, extra in found.facts.items():
+        merged[path] = {**merged.get(path, {}), **extra}
+    return merged
 
 
 # 1.19.0: a repository scan's way out of a front matter past a limit; `scan --user` reads no settings file and passes its own

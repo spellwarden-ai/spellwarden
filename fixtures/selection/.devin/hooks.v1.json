@@ -1,0 +1,1 @@
+{"PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": "./scripts/guard.sh"}, {"type": "prompt", "prompt": "Check the call"}]}]}

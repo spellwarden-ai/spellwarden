@@ -1,0 +1,1 @@
+{"$schema": "https://example.com/mcp.schema.json", "github": {"type": "http", "url": "https://api.example.com/mcp"}}

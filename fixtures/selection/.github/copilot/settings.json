@@ -1,0 +1,1 @@
+{"enabledPlugins": {"fmt@tools": true}, "extraKnownMarketplaces": {"tools": {"source": {"source": "github", "repo": "example/copilot-tools"}}}, "hooks": {"sessionStart": [{"type": "command", "bash": "./scripts/start.sh"}]}}

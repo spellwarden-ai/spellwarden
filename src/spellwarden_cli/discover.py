@@ -16,7 +16,7 @@ from typing import NamedTuple
 
 from spellwarden_scan import parse_agent_card
 from spellwarden_scan.a2a import AgentCardDocument
-from spellwarden_scan.agentconfig import ConfigDocument, parse_document, reference_kind
+from spellwarden_scan.agentconfig import MAX_PLUGINS, ConfigDocument, parse_document, reference_kind
 from spellwarden_scan.archive import DEFAULT_LIMITS
 # The skill-file rule and the folding of names live in the engine (O3 plan P52): the gate's package identity and this
 # module must call a file a skill file for the same reasons. `_fold`: NFC, then case folding, as macOS and Windows open
@@ -28,7 +28,7 @@ from spellwarden_scan.identity import is_skill_file as _is_skill_file
 from spellwarden_scan.identity import is_skill_name_variant as _is_skill_name_variant
 from spellwarden_scan.relpath import UnsafePath, contain
 
-from spellwarden_cli import instruction_files, paths
+from spellwarden_cli import instruction_files, paths, userdocs
 from spellwarden_cli.files import FILE_MAX, FileEntry, FileSet
 from spellwarden_cli.report import Notice
 
@@ -180,6 +180,9 @@ class Discovery:
     agent_cards: tuple[CardFile, ...] = ()
     # Phase 3 batch 1 spec 10.2: the instruction files, sorted by path, each also an item of kind `instructions` and a lock item.
     instruction_files: tuple[InstructionFile, ...] = ()
+    # Engine 1.20.0 (scan selection, 7.8): the facts of the items that are no document, server or skill (the `[plugins]` and
+    # `[marketplaces]` entries of a repository's `.codex/config.toml`), merged into `details` by `run.scan_details`.
+    facts: dict[str, dict] = field(default_factory=dict, compare=False)
 
 
 def _lock_path() -> str:
@@ -192,16 +195,59 @@ def _named(path: str, suffix: str) -> bool:
     return path == suffix or path.endswith("/" + suffix)
 
 
+@dataclass(frozen=True)
+class _Reader:
+    """How the repository scan reads a configuration document at a path (Engine 1.20.0: scan selection, 7.1, 7.2, D1): `kind` is
+    the document's kind; `read` the workstation scan's reader of the same shape, None for the three kinds of 1.19.0, which
+    `_parse` reads as before; `toml` marks Codex's `config.toml`, read by `userdocs.read_codex_config` without `notify` (D3)."""
+    kind: str
+    read: Callable[[str, bytes], ConfigDocument] | None = None
+    toml: bool = False
+
+
+def _named_any(path: str, *suffixes: str) -> bool:
+    return any(_named(path, suffix) for suffix in suffixes)
+
+
+def _copilot_hooks_file(path: str) -> bool:
+    """A `.json` file directly in a `.github/hooks/` folder, at any depth (a folded path)."""
+    parts = path.split("/")
+    return len(parts) >= 3 and parts[-3:-1] == [".github", "hooks"] and parts[-1].endswith(".json")
+
+
+# One table from a path to its reader (Engine 1.20.0: scan selection, 7.2.1, D1, D10), matched on the folded path at any depth,
+# first match wins. Its first three rows are the `_global_kind` of 1.19.0, unchanged. The link loop, the document loop,
+# `_oversize_files` and the gate's base revision (`base_parses`) all read it.
+_READERS: tuple[tuple[Callable[[str], bool], _Reader], ...] = (
+    (lambda p: posixpath.basename(p) == ".mcp.json" or _named_any(p, ".vscode/mcp.json", ".cursor/mcp.json"), _Reader("mcp")),
+    (lambda p: _named_any(p, ".claude/settings.json", ".claude/settings.local.json"), _Reader("settings")),
+    (lambda p: _named(p, ".claude-plugin/marketplace.json"), _Reader("marketplace")),
+    (lambda p: _named(p, ".codex/config.toml"), _Reader("settings", toml=True)),
+    (lambda p: _named(p, ".codex/hooks.json"), _Reader("hooks", userdocs.read_hooks)),
+    (lambda p: _named(p, ".gemini/settings.json"), _Reader("settings", userdocs.read_gemini_settings)),
+    (lambda p: _named_any(p, ".cursor/hooks.json", ".windsurf/hooks.json"), _Reader("hooks", userdocs.read_cursor_hooks)),
+    (lambda p: _named_any(p, ".devin/mcp_config.json", ".devin/mcp_config.local.json"),
+     _Reader("mcp", userdocs.read_windsurf_mcp)),
+    (lambda p: _named(p, ".devin/hooks.v1.json"), _Reader("hooks", userdocs.read_devin_hooks)),
+    (lambda p: _named_any(p, ".devin/config.json", ".devin/config.local.json"), _Reader("settings", userdocs.read_devin_config)),
+    (_copilot_hooks_file, _Reader("hooks", userdocs.read_copilot_hooks)),
+    (lambda p: _named_any(p, ".github/copilot/settings.json", ".github/copilot/settings.local.json"),
+     _Reader("settings", userdocs.read_copilot_settings)),
+    (lambda p: _named(p, ".github/mcp.json"), _Reader("mcp", userdocs.read_copilot_mcp)),
+)
+
+
+def _reader(path: str) -> _Reader | None:
+    """The row of `_READERS` whose path `path` is, after NFC and case folding; None for any other path."""
+    folded = _fold(path)
+    return next((reader for matches, reader in _READERS if matches(folded)), None)
+
+
 def _global_kind(path: str) -> str | None:
-    """The document kind a file has by its name alone, wherever it sits (spec 6.5), whatever its case."""
-    path = _fold(path)
-    if posixpath.basename(path) == ".mcp.json" or _named(path, ".vscode/mcp.json") or _named(path, ".cursor/mcp.json"):
-        return "mcp"
-    if _named(path, ".claude/settings.json") or _named(path, ".claude/settings.local.json"):
-        return "settings"
-    if _named(path, ".claude-plugin/marketplace.json"):
-        return "marketplace"
-    return None
+    """The document kind a file has by its name alone, wherever it sits (spec 6.5), whatever its case: the kind of its row of
+    `_READERS`."""
+    reader = _reader(path)
+    return None if reader is None else reader.kind
 
 
 def _card_form(path: str) -> str | None:
@@ -321,6 +367,10 @@ class _Builder:
         self.card_failures: dict[str, tuple[str, str]] = {}  # card links that could not be followed or read -> (code, message)
         self.too_large = frozenset(fileset.too_large)  # files over `FILE_MAX`: not read, never entries (1.16.1)
         self.too_large_links: set[str] = set()  # links refused because their target is one of them
+        # Engine 1.20.0 (scan selection, 7.2.1, 7.8): the `.codex/config.toml` paths read by the TOML reader, whether it read them
+        # or refused them (no JSON role is parsed over one), and the `[plugins]` and `[marketplaces]` entries of each it read
+        self.toml: set[str] = set()
+        self.listings: dict[str, userdocs.Listing] = {}
 
     def read(self, path: str) -> bytes | None:
         if path in self.contents:
@@ -583,20 +633,28 @@ class _Builder:
         return "/".join(stack[len(root):])
 
     def document(self, kind: str, path: str, plugin: str | None = None, *,
-                 drop_references: bool = False) -> ConfigDocument | None:
+                 drop_references: bool = False, reader: _Reader | None = None) -> ConfigDocument | None:
         """The one document of `path`. A file reached in a second role (a global name, a plugin's conventional
         path, a manifest reference read by its JSON shape) stays one document of its first kind, but is also
         parsed in the new role and keeps what that role finds (r1:F1): what an agent loads in either role is
-        judged, listed and locked. A path the file set holds only in another spelling is `unsafe_path` (`twin`)."""
+        judged, listed and locked. A path the file set holds only in another spelling is `unsafe_path` (`twin`).
+        `reader` (Engine 1.20.0: scan selection, 7.2.1): the row of `_READERS` that reaches a path by its name first. A row of
+        1.19.0's three kinds reads it as before; a new row reads it with its own reader, which counts as no role, so a later
+        role of any kind, the row's own included, parses the bytes again and adds what it finds; the TOML row takes no JSON
+        role at all."""
         if path in self.documents:
             if plugin is not None:
                 self.owners.setdefault(path, plugin)
+            if path in self.toml:  # 7.2.1: no JSON role is parsed over Codex's TOML
+                return self.documents[path]
             if kind not in self.roles[path]:
                 self.roles[path].add(kind)
                 content = self.contents.get(path)
                 if content is not None:
                     self.documents[path] = self._merge(self.documents[path], _parse(kind, path, content))
             return self.documents[path]
+        if path in self.toml:  # a `config.toml` the TOML reader refused: its error is reported once
+            return None
         if (twin := self.twin(path)) is not None:
             if path not in self.twins:  # reported once, whichever role asks again
                 self.twins.add(path)
@@ -608,15 +666,47 @@ class _Builder:
         content = self.read(path)
         if content is None:
             return None
-        parsed = _parse(kind, path, content)
+        if reader is not None and reader.toml:
+            return self._codex(path, content, plugin)
+        roles = {kind}
+        if reader is not None and reader.read is not None:
+            parsed = reader.read(path, content)
+            roles = set()  # the row's own read is no role (7.2.1)
+        else:
+            parsed = _parse(kind, path, content)
         if drop_references:
             parsed = replace(parsed, references=())
         self.documents[path] = parsed
-        self.roles[path] = {kind}
+        self.roles[path] = roles
         if plugin is not None:
             self.owners[path] = plugin
         self._report(parsed.error, path)
         return parsed
+
+    def _codex(self, path: str, content: bytes, plugin: str | None) -> ConfigDocument | None:
+        """A repository's `.codex/config.toml` (Engine 1.20.0: scan selection, 7.2.3, 7.8): one settings document without
+        `notify` (D3) and its `[plugins]` and `[marketplaces]` entries (`listings`). A file that is not UTF-8 TOML is the error
+        `unreadable` with its way out and no document; entries whose item path a server takes, and more than `MAX_PLUGINS`
+        plugins or marketplaces, are errors as in `scan --user`: the scan is incomplete, never a pass."""
+        self.toml.add(path)
+        config = userdocs.read_codex_config(path, content, notify=False)
+        if config.document is None:
+            self.errors.append(Notice("unreadable", path, f"{config.error}; not judged, so the scan is incomplete: fix the file, "
+                                      "or leave it out with `exclude` in .spellwarden/config.yml"))
+            return None
+        self.documents[path] = config.document
+        self.roles[path] = set()
+        if plugin is not None:
+            self.owners[path] = plugin
+        self._report(config.document.error, path)
+        self.listings[path] = config.listing
+        if config.error is not None:
+            self.errors.append(Notice("unreadable", path, f"{config.error}; not judged"))
+        if config.listing.cut:
+            self.errors.append(Notice("truncated", path, f"{config.listing.cut} more entries were not read: the scanner reads at "
+                                      f"most {MAX_PLUGINS} plugins and {MAX_PLUGINS} marketplaces per file, so the scan is "
+                                      "incomplete; leave the file out with `exclude` in .spellwarden/config.yml"))
+        return config.document
 
     def _report(self, error: str | None, path: str) -> None:
         if error is not None:
@@ -652,6 +742,19 @@ def _parse(kind: str, path: str, content: bytes) -> ConfigDocument:
     parent = posixpath.dirname(posixpath.dirname(path))
     parsed = parse_document(kind, posixpath.join(parent, ".claude-plugin", "marketplace.json"), content)
     return replace(parsed, path=path)
+
+
+def base_parses(kind: str, path: str, content: bytes) -> tuple[ConfigDocument, ...]:
+    """The parses of a gated document's base revision (`connected._base_view`; Engine 1.20.0: scan selection, 7.2.1): at a path
+    of 1.19.0's three kinds, or a path no row of `_READERS` names, by `kind` and then by the MCP parser, as before; at a new JSON
+    path by its row's reader and then by the MCP parser; at `.codex/config.toml` by the TOML reader only, none when it refuses."""
+    reader = _reader(path)
+    if reader is None or (reader.read is None and not reader.toml):
+        return tuple(_parse(parse_as, path, content) for parse_as in dict.fromkeys((kind, "mcp")))
+    if reader.toml:
+        config = userdocs.read_codex_config(path, content, notify=False)
+        return () if config.document is None else (config.document,)
+    return reader.read(path, content), _parse("mcp", path, content)
 
 
 _SKILL_NAME_CASE = ("an agent on a case-insensitive file system may load this as SKILL.md; rename it to SKILL.md to "
@@ -742,11 +845,12 @@ def discover(fileset: FileSet, *, listed_cards: Sequence[str] = (), agents_confi
             directory = source.local_path
             plugin_dirs.setdefault(directory, plugin.name)
     # A file's kind is the first role that reaches it: its global name, then a plugin's conventional path, then a
-    # manifest reference; every later role adds what it finds to that one document (r1:F1).
+    # manifest reference; every later role adds what it finds to that one document (r1:F1). Since 1.20.0 the global name's row
+    # of `_READERS` picks the reader (Engine 1.20.0: scan selection, 7.2.1).
     for path in sorted(builder.paths):
-        kind = _global_kind(path)
-        if kind is not None and kind != "marketplace":
-            builder.document(kind, path)
+        reader = _reader(path)
+        if reader is not None and reader.kind != "marketplace":
+            builder.document(reader.kind, path, reader=reader)
     for directory, name in plugin_dirs.items():
         builder.document("mcp", _join(directory, ".mcp.json"), name)
         builder.document("hooks", _join(directory, "hooks/hooks.json"), name)
@@ -797,7 +901,7 @@ def discover(fileset: FileSet, *, listed_cards: Sequence[str] = (), agents_confi
         builder.notices.append(Notice("no_agent_content", "", "No agent content found"))
     return Discovery(tuple(items), tuple(skills), tuple(builder.documents[p] for p in sorted(builder.documents)),
                      tuple(dirs), tuple(builder.notices), tuple(builder.errors), fileset, tuple(cards),
-                     instruction_files=tuple(instruction_list))
+                     instruction_files=tuple(instruction_list), facts=_facts(builder))
 
 
 def _oversize_files(builder: _Builder, skill_directories: frozenset[str], plugin_dirs: dict[str, str],
@@ -1068,7 +1172,27 @@ def _items(builder: _Builder, skills: list[SkillPackage], plugin_items: list[Ite
         items.append(Item(_ITEM_KIND[document.kind], path, posixpath.basename(path), owner))
         for server in document.servers:
             items.append(Item("mcp-server", f"{path}#{server.name}", server.name, owner))
+    for path, listing in builder.listings.items():  # 1.20.0 (7.8): Codex's entries, covered by the document's lock hash
+        owner = builder.owners.get(path)
+        items.extend(Item(entry.kind, entry.path, entry.name, owner) for entry in listing.entries)
     return sorted(items, key=lambda item: (item.kind, item.path))
+
+
+def _facts(builder: _Builder) -> dict[str, dict]:
+    """The facts of the `[plugins]` and `[marketplaces]` entries of each `.codex/config.toml` read (Engine 1.20.0: scan selection,
+    7.8), as `scan --user` gives them: a marketplace's reduced source URL, or its local source as the file wrote it; a plugin's
+    `marketplace_item` when the same file lists that marketplace."""
+    facts: dict[str, dict] = {}
+    for path, listing in builder.listings.items():
+        listed = {entry.path for entry in listing.entries}
+        for entry in listing.entries:
+            if entry.kind == "marketplace":
+                source = entry.facts.get("source_url") or entry.facts.get("source_path")
+                facts[entry.path] = {"source": source} if source else {}
+            elif entry.facts.get("marketplace"):
+                item = f"{path}#marketplaces.{entry.facts['marketplace']}"
+                facts[entry.path] = {"marketplace_item": item} if item in listed else {}
+    return facts
 
 
 __all__ = ["Discovery", "InstructionFile", "Item", "PluginDir", "SkillPackage", "discover"]
