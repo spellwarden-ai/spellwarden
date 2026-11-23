@@ -890,8 +890,12 @@ def test_the_changelog_must_hold_the_lines_the_history_requires():
     first = history(entry("1.21.0"))
     assert rb.changelog_lines(first) == [rb.FIRST_TABLE]
     assert rb.check_changelog(first, "# Changelog\n\n## 1.21.0 (2026-12-01)\n\nText.\n") == [
-        f"the CHANGELOG section of 1.21.0 lacks the line: {rb.FIRST_TABLE}"]
+        f"the CHANGELOG section of 1.21.0 lacks the sentence: {rb.FIRST_TABLE}"]
     assert rb.check_changelog(first, f"# Changelog\n\n## 1.21.0 (2026-12-01)\n\n{rb.FIRST_TABLE}\n") == []
+    # Review r0:F2: the sentence may open a paragraph the file wraps at its usual width.
+    head, tail = rb.FIRST_TABLE.split(" see ")
+    wrapped = f"## 1.21.0 (2026-12-01)\n\n{head}\nsee {tail} The benchmark measures the 20 skill\nrules on fixed public sets.\n"
+    assert rb.check_changelog(first, wrapped) == []
     assert rb.check_changelog(first, "# Changelog\n\n## 1.20.0 (2026-11-25)\n") == ["CHANGELOG.md has no section for 1.21.0"]
     same = history(entry("1.21.0"), entry("1.22.0"))
     assert rb.changelog_lines(same) == ["Rule benchmark: no rate got worse than in 1.21.0."]
@@ -903,6 +907,8 @@ def test_the_changelog_must_hold_the_lines_the_history_requires():
     assert rb.check_changelog(worse, good) == []
     shuffled = "## 1.22.0 (2026-12-08)\n\n" + "\n".join([lines[0], "Something else.", *lines[1:]]) + "\n"
     assert rb.check_changelog(worse, shuffled) and "in order" in rb.check_changelog(worse, shuffled)[0]
+    wrapped_list = "## 1.22.0 (2026-12-08)\n\n" + "\n".join([lines[0], *(line[:20] + "\n  " + line[20:] if line.startswith("- ") else line for line in lines[1:])]) + "\n"
+    assert rb.check_changelog(worse, wrapped_list), "a worse-rate line must stay on one line"
     assert rb.check_changelog(history(), "") == []
 
 
