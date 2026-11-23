@@ -175,10 +175,23 @@ The numbers SW-SKL-016 to 018, SW-SKL-020 to 030, SW-SKL-033 to 035, SW-CFG-011 
 
 ## Measured rates
 
-What the rules find on fixed public sets of malicious and harmless skills, measured again for every release by the release workflow. Rules only: no model is called. A skill is found when the rules report at least one finding at or above the line (medium or above, or high or above, the lines `--fail-on` and the presets use), at each rule's own severity (no preset). A rate counts skills, with its 95% Wilson interval. Skills the scanner could not read whole are counted apart, never as found and never as clean. A set of four skills is too small for a rate: each of its skills is shown as found or not found. Only the 20 skill rules can be measured on skills; the MCP, configuration, registry and A2A rules are not measured here. The full table per rule and per stratum, every release so far and the ids of the malicious skills the rules missed are in [benchmarks/RESULTS.md](benchmarks/RESULTS.md); how to run it yourself, the sources and their licences are in [benchmarks/README.md](benchmarks/README.md).
+What the rules find on fixed public sets of malicious and harmless skills, measured again for every release by the release workflow. Rules only: no model is called. A skill is found when the rules report at least one finding at or above the line (medium or above, or high or above, the lines `--fail-on` and the presets use), at each rule's own severity (no preset). A rate counts skills, with its 95% Wilson interval. Skills the scanner could not read whole are counted apart, never as found and never as clean. A set of four skills is too small for a rate: each of its skills is shown as found or not found. Only the 20 skill rules can be measured on skills; the MCP, configuration, registry and A2A rules are not measured here. The full table per rule and per stratum, every release so far and the ids of the malicious skills the rules missed are in [benchmarks/RESULTS.md](benchmarks/RESULTS.md); how to run it yourself, the sources and their licences are in [benchmarks/README.md](benchmarks/README.md). The same table, release by release, is at
+[spellwarden.ai/research/rule-benchmark](https://spellwarden.ai/research/rule-benchmark?utm_source=github&utm_medium=readme&utm_campaign=rule-benchmark).
 
 <!-- benchmark:start -->
-No release has published a table yet. The first one ships with the next release.
+| Set | Skills | Line | Detection | False positives | Not read whole |
+|---|---|---|---|---|---|
+| Held-out half of Spellwarden's labelled set | 163 | medium or above | 54.7% (29 of 53; 41.5% to 67.3%) | 29.1% (32 of 110; 21.4% to 38.2%) | 0 |
+|  |  | high or above | 37.7% (20 of 53; 25.9% to 51.2%) | 6.4% (7 of 110; 3.1% to 12.6%) | 0 |
+| MaliciousSkillBench test split (source-disjoint) | 1384 | medium or above | 36.0% (302 of 839; 32.8% to 39.3%) | 26.6% (145 of 545; 23.1% to 30.5%) | 0 |
+|  |  | high or above | 3.7% (31 of 839; 2.6% to 5.2%) | 9.7% (53 of 545; 7.5% to 12.5%) | 0 |
+| Tuning half of Spellwarden's labelled set (tuning) | 170 | medium or above | 47.5% (29 of 61; 35.5% to 59.8%) | 34.9% (38 of 109; 26.6% to 44.2%) | 0 |
+|  |  | high or above | 23.0% (14 of 61; 14.2% to 34.9%) | 6.4% (7 of 109; 3.1% to 12.7%) | 0 |
+
+Trail of Bits scanner-bypass skills, medium or above: found `m-tob-csv-summarizer`, `m-tob-dev-env-setup`, `m-tob-simple-formatter`; not found `m-tob-context-loader`.
+Trail of Bits scanner-bypass skills, high or above: not found `m-tob-context-loader`, `m-tob-csv-summarizer`, `m-tob-dev-env-setup`, `m-tob-simple-formatter`.
+
+Scanner 1.21.0, rules version 2026.11.8, released 2026-11-24.
 <!-- benchmark:end -->
 
 ## Org rules, packs and exports

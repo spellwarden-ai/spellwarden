@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.21.0 (2026-11-NN)
+## 1.21.0 (2026-11-24)
 
 Rules version 2026.11.8, unchanged (66 rules): no rule detects anything new, and no exit code, fingerprint or existing field
 changes apart from the correction at the end of this entry.
@@ -39,6 +39,10 @@ alerts and in the pull request comment and merge request note; three rules also 
   `tests/data/released_rule_ids.json` holds every rule id released so far with its first title, and a test that every build runs
   fails when a released id goes missing without being retired, a retired id comes back, or an id's title changes without a
   recorded rename.
+
+Rule benchmark: first published table, see benchmarks/RESULTS.md. The release workflow measures the 20 skill rules
+again on every release, on fixed public sets of malicious and harmless skills, rules only and with no model, and attaches the
+table to the release; `benchmarks/README.md` says how to run it yourself.
 
 ## 1.20.0 (2026-11-23)
 

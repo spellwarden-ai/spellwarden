@@ -14,6 +14,8 @@ Since 1.21.0 every finding carries its rule's fix sentence and a link to the rul
 
 Since 1.21.0 a rule id is never reused or renamed and a deprecation is announced at least one minor version ahead, held by a test that every build runs ([Schemas and compatibility](README.md#schemas-and-compatibility)).
 
+Since 1.21.0 every release measures the skill rules on fixed public sets of malicious and harmless skills, rules only and with no model, and publishes each rule's detection and false-positive rates with the samples the rules missed ([Measured rates](README.md#measured-rates), [benchmarks/RESULTS.md](benchmarks/RESULTS.md)).
+
 ## Being built now
 
 Nothing at the moment: the next item comes from the list below.
@@ -22,7 +24,6 @@ Nothing at the moment: the next item comes from the list below.
 
 In no fixed order.
 
-- **A public benchmark of the rules.** One command that runs the released scanner over fixed, public sets of malicious and harmless content and prints the detection and false-positive rates for each rule, published with every release, with the samples the rules missed.
 - **Disguised content.** A measurement of how many detections survive when the same content is written another way (look-alike letters, hidden characters, encoding layers), then a normalisation step before the rules match, where the measurement shows a gain.
 - **Published rates for the model-assisted analyzer.** `--analyze` says "Unmeasured model" today. Its detection and false-positive rates are to be measured on held-out skills and published.
 - **The analyzer beyond skills.** Today it reads a skill's `SKILL.md` and scripts. Next it reads instruction files, plugin commands and agents, hooks and the descriptions a probed MCP server sends, and a documented recipe covers one open model on a local server.
