@@ -157,7 +157,7 @@ def test_the_changelog_has_the_1_20_0_entry_above_1_19_0():
     assert text.index("## 1.20.0 (2026-11-") < text.index("## 1.19.0 (")
     raw = text[text.index("## 1.20.0 ("):text.index("## 1.19.0 (")]
     entry = " ".join(raw.split())
-    assert entry.startswith("## 1.20.0 (2026-11-NN) Rules version 2026.11.8: SW-CFG-012 and SW-CFG-013 also judge the MCP servers "
+    assert entry.startswith("## 1.20.0 (2026-11-23) Rules version 2026.11.8: SW-CFG-012 and SW-CFG-013 also judge the MCP servers "
                             "of settings documents; no other rule changed (66 rules).")
     for needle in ("`trust: true`", '`default_tools_approval_mode = "approve"`', "`scan --user` takes no baseline",
                    "No fingerprint of an existing finding changes", "has not been measured", "`.codex/config.toml`",
