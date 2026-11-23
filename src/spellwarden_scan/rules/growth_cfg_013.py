@@ -1,7 +1,9 @@
 """SW-CFG-013: database or cluster MCP server with write access although a read-only mode exists.
 
-Read over the servers of MCP client configurations (`.mcp.json`, `.vscode/mcp.json`, `.cursor/mcp.json`, at any
-depth; no other document kind). A small registry names the write-capable servers and the switch that restricts each:
+Read over the servers of MCP client configurations (`.mcp.json`, `.vscode/mcp.json`, `.cursor/mcp.json` and the other `mcp`
+documents, at any depth), of plugin manifests and, since 1.20.0, of settings documents (Codex's `config.toml` and Gemini CLI's
+`settings.json`, in a repository and in the home; Engine 1.20.0: scan selection, 7.19); hooks and marketplace documents are not
+read. A small registry names the write-capable servers and the switch that restricts each:
 
 * the hosted Supabase endpoint (`mcp.supabase.com`, in the server's `url` or in a launcher argument) without
   `read_only=true` in its query;
@@ -214,7 +216,7 @@ def detect(config) -> Iterator[Finding]:
     from spellwarden_scan.rules.config import config_matched
 
     for doc, entry in config.servers():
-        if doc.kind not in ("mcp", "plugin") or _disabled(entry) or _under_tests(doc.path):
+        if doc.kind not in ("mcp", "plugin", "settings") or _disabled(entry) or _under_tests(doc.path):  # settings: 1.20.0
             continue
         missing = _missing(entry)
         if missing is None:
