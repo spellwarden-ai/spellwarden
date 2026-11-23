@@ -25,7 +25,8 @@ from __future__ import annotations
 from collections.abc import Iterator
 
 from spellwarden_scan.evidence import bounded_evidence, fingerprint
-from spellwarden_scan.model import Finding, Location, McpServerEntry
+from spellwarden_scan.model import Finding, FixLines, Location, McpServerEntry
+from spellwarden_scan.rules.fix_lines import KUBERNETES_ENV, KUBERNETES_ENV_TOML, SUPABASE_HOSTED
 
 RULE_ID = "SW-CFG-013"
 TITLE = "Database or cluster MCP server with write access although a read-only mode exists"
@@ -194,6 +195,33 @@ def _unrestricted(entry: McpServerEntry) -> str | None | bool:
 _CHECKS = (_hosted_supabase, _supabase_package, _kubernetes, _unrestricted)
 
 
+def _kubernetes_package(entry: McpServerEntry) -> str | None:
+    """The first Kubernetes package the entry names (its arguments, then its command), or None."""
+    for candidate in [*entry.args, *([entry.command] if entry.command else [])]:
+        package = _package(candidate)
+        if package is not None and package[1] in _KUBERNETES_PACKAGES:
+            return package[1]
+    return None
+
+
+def _setting_lines(path: str, entry: McpServerEntry) -> FixLines | None:
+    """1.21.0 (P6-15 spec 4.4): the lines to write for a write-capable server of the document at `path`, decided by the registry
+    entry that recognised it, as `_missing` decides: the hosted endpoint's query parameter, the environment variable of
+    `mcp-server-kubernetes`, and none for the Supabase package and `kubernetes-mcp-server` (their switch was not confirmed by
+    their documentation, `fix_lines`) or for any other server (the switch that restricts it is not known). A line follows the
+    syntax of its document (the owner's answer to plan Q2 of 1.21.0): the environment variable is a TOML key for a server of a
+    TOML document (Codex's `config.toml`, the one TOML file servers are read from) and a JSON member for every other."""
+    if _hosted_supabase(entry) is not False:
+        return SUPABASE_HOSTED
+    if _supabase_package(entry) is not False:
+        return None
+    if _kubernetes(entry) is not False:
+        if _kubernetes_package(entry) != "mcp-server-kubernetes":
+            return None
+        return KUBERNETES_ENV_TOML if path.lower().endswith(".toml") else KUBERNETES_ENV
+    return None
+
+
 def _missing(entry: McpServerEntry) -> str | None:
     """The missing switch of a write-capable server, or None when the entry is not one or is restricted. The first
     registry entry that recognises the server decides."""
@@ -223,4 +251,5 @@ def detect(config) -> Iterator[Finding]:
             continue
         matched = config_matched("server", entry.name, "write_access", missing)
         yield Finding(RULE_ID, SEVERITY, TITLE, Location(doc.path, entry.line),
-                      bounded_evidence(f"{entry.name}: {missing}"), fingerprint(RULE_ID, doc.path, matched), MALICIOUS)
+                      bounded_evidence(f"{entry.name}: {missing}"), fingerprint(RULE_ID, doc.path, matched), MALICIOUS,
+                      fix_lines=_setting_lines(doc.path, entry))

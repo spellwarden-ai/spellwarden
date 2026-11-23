@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import ipaddress
 from collections.abc import Iterator, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from spellwarden_scan._json import Arr, Obj
 from spellwarden_scan.a2a import (
@@ -33,6 +33,7 @@ from spellwarden_scan.evidence import EVIDENCE_MAX, bounded_evidence, code_point
 from spellwarden_scan.model import CardOrigin, Finding, Location, SignatureOutcome
 from spellwarden_scan.rules import Rule, make_rule
 from spellwarden_scan.rules import patterns as P
+from spellwarden_scan.rules.fix_lines import A2A_PKCE
 from spellwarden_scan.rules.mcp import TOOL_INJECTION_SECRET, TOOL_INJECTION_TAG
 from spellwarden_scan.rules.mcp import _redacted as redacted_url
 from spellwarden_scan.rules.skill import has_credential, hidden_characters, visible
@@ -380,8 +381,9 @@ def _a2a_006(subject: CardSubject) -> Iterator[Finding]:
             continue
         for flow, entry, pointer in _flows(body, base):
             if flow == "authorizationCode" and entry.get("pkceRequired") is not True:
-                yield _finding("SW-A2A-006", subject, f"scheme:{name}", "pkceRequired", "not_required",
-                               _at(pointer, "pkceRequired is not true"), _line(body.get("flows"), flow))
+                finding = _finding("SW-A2A-006", subject, f"scheme:{name}", "pkceRequired", "not_required",
+                                   _at(pointer, "pkceRequired is not true"), _line(body.get("flows"), flow))
+                yield replace(finding, fix_lines=A2A_PKCE)  # 1.21.0 (P6-15 spec 4.4)
 
 
 def _requirements(node: Obj, *, legacy: str = "security") -> list:

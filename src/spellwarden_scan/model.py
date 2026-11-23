@@ -70,6 +70,15 @@ class Location(_Model):
 
 
 @dataclass(frozen=True, slots=True)
+class FixLines(_Model):
+    """1.21.0 (P6-15 spec 4.4, 6.3): the lines to write where a finding's fix is a setting the engine can state exactly. `where`
+    says where they go, `text` is the lines; both are fixed engine words (`rules.fix_lines`), never the scanned content. Text to
+    copy: nothing applies it."""
+    where: str
+    text: str
+
+
+@dataclass(frozen=True, slots=True)
 class Finding(_Model):
     rule_id: str
     severity: str
@@ -78,6 +87,15 @@ class Finding(_Model):
     evidence: str
     fingerprint: str
     malicious_indicator: bool = False
+    # 1.21.0 (P6-15 spec 6.3): set by SW-CFG-013, SW-A2A-006 and SW-MCP-003 only; the fingerprint and baseline matching never
+    # read it, and `to_dict` leaves the key out when it is None, so every other finding serialises as in 1.20.0
+    fix_lines: FixLines | None = None
+
+    def to_dict(self) -> dict:
+        data = _Model.to_dict(self)
+        if self.fix_lines is None:
+            del data["fix_lines"]
+        return data
 
 
 @dataclass(frozen=True, slots=True)
@@ -472,6 +490,7 @@ class A2aScanResult(_Model):
 # (class, field) -> ("one" | "many", nested class)
 _NESTED: dict[tuple[str, str], tuple[str, type]] = {
     ("Finding", "location"): ("one", Location),
+    ("Finding", "fix_lines"): ("one", FixLines),
     ("SkillScanResult", "findings"): ("many", Finding),
     ("SkillScanResult", "metadata"): ("one", Metadata),
     ("SkillScanResult", "lint"): ("many", LintNote),

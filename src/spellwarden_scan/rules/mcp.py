@@ -8,6 +8,7 @@ from __future__ import annotations
 import bisect
 import re
 from collections.abc import Iterator
+from dataclasses import replace
 
 from spellwarden_scan import toolhash
 from spellwarden_scan.evidence import bounded_evidence, fingerprint
@@ -18,6 +19,7 @@ from spellwarden_scan.probe import LOCATION_CUT, _address, probe_texts, text_of
 from spellwarden_scan.probe import auth_mode_of, classify, deprecated_capabilities, initialize_only, spec_version_of, transport_of
 from spellwarden_scan.rules import Rule, make_rule
 from spellwarden_scan.rules import patterns as P
+from spellwarden_scan.rules.fix_lines import MCP_CIMD
 from spellwarden_scan.rules.skill import visible
 
 SPEC_BASELINE = "2026-07-28"
@@ -880,7 +882,7 @@ def _mcp_002(probe: ProbeResult) -> Iterator[Finding]:
 def _mcp_003(probe: ProbeResult) -> Iterator[Finding]:
     if _probeable(probe) and auth_mode_of(probe) == "oauth-dcr":
         endpoint = probe.auth_server_metadata.registration_endpoint if probe.auth_server_metadata else ""
-        yield _finding("SW-MCP-003", "medium", probe, f"registration_endpoint {endpoint}")
+        yield replace(_finding("SW-MCP-003", "medium", probe, f"registration_endpoint {endpoint}"), fix_lines=MCP_CIMD)
 
 
 def _mcp_004(probe: ProbeResult) -> Iterator[Finding]:
