@@ -104,7 +104,7 @@ jobs:
           python-version: "3.13"
       - run: uv python pin 3.13
       - run: uv sync --locked
-      - run: uv run --locked ruff check src tests
+      - run: uv run --locked ruff check src tests benchmarks
       # A test that runs past 120 s prints every thread's stack, so a hang shows where it waits.
       - run: uv run --locked pytest -q -o faulthandler_timeout=120
       - run: uv build
