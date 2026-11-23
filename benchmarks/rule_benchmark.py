@@ -1029,8 +1029,8 @@ def check_changelog(results: dict, text: str) -> list[str]:
     if section is None:
         return [f"CHANGELOG.md has no section for {version}"]
     # A sentence may sit inside a paragraph that the file wraps at its usual width, so sentences are matched with whitespace
-    # joined (review r0:F2). The list of worse rates is matched line by line: each `- ` line stands on a line of its own, unwrapped,
-    # in order, after the sentence that introduces it.
+    # joined (review r0:F2). The list of worse rates is matched line by line: each `- ` line stands on a line of its own,
+    # unwrapped, in order, right after the sentence that introduces it.
     have = [line.rstrip() for line in section.splitlines()]
     flat = " ".join(section.split())
     problems = []
@@ -1047,7 +1047,8 @@ def check_changelog(results: dict, text: str) -> list[str]:
             first = " ".join(worse_lines[0].split()) if worse_lines else ""
             right_under = bool(worse_lines) and flat.find(f"{sentence} {first}") != -1
             if not starts or not right_under:
-                problems.append(f"the CHANGELOG section of {version} must list under that sentence, one line each, in order: {listed}")
+                problems.append(f"the CHANGELOG section of {version} must list under that sentence, one line each, "
+                                f"in order: {listed}")
     return problems
 
 
