@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.20.0 (2026-11-NN)
+## 1.20.0 (2026-11-23)
 
 Rules version 2026.11.8: SW-CFG-012 and SW-CFG-013 also judge the MCP servers of settings documents; no other rule changed (66
 rules).
