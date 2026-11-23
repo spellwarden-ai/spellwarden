@@ -13,9 +13,12 @@ from __future__ import annotations
 
 import hashlib
 import http.client
+import io
 import json
+import math
 import os
 import re
+import tarfile
 import tempfile
 import time
 import urllib.error
@@ -27,6 +30,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import NamedTuple
 
+from spellwarden_scan import RULES_VERSION, SEVERITY_RANK, RuleSet, scan_skill_package
+from spellwarden_scan import __version__ as SCANNER_VERSION
+from spellwarden_scan.frontmatter import FrontmatterLimit
 from spellwarden_scan.identity import nested_skill_roots, package_files, package_sha256
 
 REPOSITORY = Path(__file__).resolve().parents[1]
@@ -539,3 +545,303 @@ def fetch(manifest: Manifest, cache: Cache, *, opener: Opener, offline: bool, to
     if errors:
         raise errors[0]
     return FetchReport(len(needs), len(missing))
+
+
+# --- rebuilding and verifying a skill (10.4) -------------------------------------------------------------------------------
+
+PYARROW_FIX = "pip install --require-hashes -r benchmarks/requirements.txt"
+
+
+class Objects:
+    """The verified source objects a run reads, each opened once: the members of a tar.gz source that the manifest lists, the
+    rows of a parquet source, and url files from the cache. Nothing is extracted to disk."""
+
+    def __init__(self, manifest: Manifest, cache: Cache) -> None:
+        self._manifest = manifest
+        self._cache = cache
+        self._members: dict[str, dict[str, bytes]] = {}
+        self._rows: dict[str, dict[str, list[tuple[object, object]]]] = {}
+        self._wanted: dict[str, set[str]] = {}
+        for item in manifest.items:
+            for root in item["roots"]:
+                for entry in root["files"]:
+                    if "member" in entry["from"]:
+                        self._wanted.setdefault(entry["from"]["source"], set()).add(entry["from"]["member"])
+
+    def _object(self, source_id: str) -> bytes:
+        source = self._manifest.sources[source_id]
+        data = self._cache.get(source["sha256"])
+        if data is None:
+            raise BenchmarkError("object_missing", f"source {source_id} is not in the cache {self._cache.directory}")
+        return data
+
+    def member(self, source_id: str, name: str, item_id: str) -> bytes:
+        if source_id not in self._members:
+            found: dict[str, bytes] = {}
+            wanted = self._wanted.get(source_id, set())
+            with tarfile.open(fileobj=io.BytesIO(self._object(source_id)), mode="r:gz") as archive:
+                for info in archive:
+                    if info.name not in wanted:
+                        continue
+                    if info.isreg():
+                        handle = archive.extractfile(info)
+                        found[info.name] = handle.read() if handle is not None else b""
+                    else:
+                        found.pop(info.name, None)
+            self._members[source_id] = found
+        data = self._members[source_id].get(name)
+        if data is None:
+            raise BenchmarkError("sample_changed", f"item {item_id}: the member {name} of source {source_id} is missing or not a "
+                                                   "regular file")
+        return data
+
+    def row(self, source_id: str, row_id: str, item_id: str) -> bytes:
+        if source_id not in self._rows:
+            try:
+                import pyarrow.parquet as parquet
+            except ImportError:
+                raise BenchmarkError("pyarrow_missing", f"reading source {source_id} needs pyarrow: {PYARROW_FIX}") from None
+            table = parquet.read_table(io.BytesIO(self._object(source_id)),
+                                       columns=["benchmark_id", "skill_text", "text_available"])
+            rows: dict[str, list[tuple[object, object]]] = {}
+            for key, text, available in zip(table.column("benchmark_id").to_pylist(), table.column("skill_text").to_pylist(),
+                                            table.column("text_available").to_pylist(), strict=True):
+                rows.setdefault(str(key), []).append((text, available))
+            self._rows[source_id] = rows
+        found = self._rows[source_id].get(row_id, [])
+        if len(found) != 1:
+            raise BenchmarkError("sample_changed", f"item {item_id}: source {source_id} holds the row {row_id} "
+                                                   f"{len(found)} times, not once")
+        text, available = found[0]
+        if available is not True or not isinstance(text, str):
+            raise BenchmarkError("sample_changed", f"item {item_id}: the row {row_id} of source {source_id} has no text "
+                                                   "available")
+        return text.encode("utf-8")
+
+    def url_file(self, entry: dict, item_id: str) -> bytes:
+        data = self._cache.get(entry["sha256"])
+        if data is None:
+            raise BenchmarkError("object_missing", f"item {item_id}, file {entry['path']} is not in the cache "
+                                                   f"{self._cache.directory}")
+        return data
+
+
+def rebuild(item: dict, objects: Objects) -> list[dict[str, bytes]]:
+    """One `{path: bytes}` per skill root of the item, from verified objects, checked file by file and root by root (10.4.2).
+    A difference is the error `sample_changed`, naming the item, the file or root and both hashes, never content."""
+    roots = []
+    for number, root in enumerate(item["roots"], start=1):
+        files: dict[str, bytes] = {}
+        for entry in root["files"]:
+            origin = entry["from"]
+            if "member" in origin:
+                data = objects.member(origin["source"], origin["member"], item["id"])
+            elif "row" in origin:
+                data = objects.row(origin["source"], origin["row"], item["id"])
+            else:
+                data = objects.url_file(entry, item["id"])
+            actual = hashlib.sha256(data).hexdigest()
+            if len(data) != entry["bytes"] or actual != entry["sha256"]:
+                raise BenchmarkError("sample_changed", f"item {item['id']}, file {entry['path']}: sha256 {actual} "
+                                                       f"({len(data)} bytes), the manifest says {entry['sha256']} "
+                                                       f"({entry['bytes']} bytes)")
+            files[entry["path"]] = data
+        actual = sample_hash(files)
+        if actual != root["package_sha256"]:
+            raise BenchmarkError("sample_changed", f"item {item['id']}, root {number}: package hash {actual}, the manifest says "
+                                                   f"{root['package_sha256']}")
+        roots.append(files)
+    return roots
+
+
+# --- scanning (10.5) ---------------------------------------------------------------------------------------------------------
+
+LINES = ("medium", "high")
+LINE_RANK = {line: SEVERITY_RANK[line] for line in LINES}
+NONE = "none"
+SCAN_CAP = 1_000_000
+
+
+class ItemResult(NamedTuple):
+    """One item's result: `unread` is the reason it was not read whole (None when it was), `worst` its worst severity over
+    every rule (`none` without a finding) and `rules` the worst severity per rule that found something."""
+    unread: str | None
+    worst: str
+    rules: dict[str, str]
+
+
+def worse(first: str, second: str) -> str:
+    """The worse of two severities, `none` being better than any."""
+    if first == NONE:
+        return second
+    if second == NONE:
+        return first
+    return first if SEVERITY_RANK[first] <= SEVERITY_RANK[second] else second
+
+
+def at_or_above(severity: str, line: str) -> bool:
+    return severity != NONE and SEVERITY_RANK[severity] <= LINE_RANK[line]
+
+
+def scan_root(files: Mapping[str, bytes], rules: RuleSet) -> tuple[str | None, dict[str, str]]:
+    """The reason one root was not read whole (or None) and the worst severity per rule of its findings (10.5.1, 10.5.2)."""
+    try:
+        result = scan_skill_package(files, rules, root="", nested_roots=nested_skill_roots(files, ""),
+                                    max_findings=SCAN_CAP, max_per_rule=SCAN_CAP)
+    except FrontmatterLimit:
+        return "frontmatter_limit", {}
+    except Exception as exc:  # any scanner failure is unread content, never a clean skill
+        return f"scanner_error:{type(exc).__name__}", {}
+    if result.truncated > 0:
+        return "findings_truncated", {}
+    found: dict[str, str] = {}
+    for finding in result.findings:
+        found[finding.rule_id] = worse(found.get(finding.rule_id, NONE), finding.severity)
+    return None, found
+
+
+def scan_item(roots: list[dict[str, bytes]], rules: RuleSet) -> ItemResult:
+    """Folds the roots of one item (10.5.3): any unread root makes the whole item unread (the first such root's reason);
+    otherwise each rule's worst severity is the worst over the roots."""
+    merged: dict[str, str] = {}
+    for files in roots:
+        reason, found = scan_root(files, rules)
+        if reason is not None:
+            return ItemResult(reason, NONE, {})
+        for rule_id, severity in found.items():
+            merged[rule_id] = worse(merged.get(rule_id, NONE), severity)
+    overall = NONE
+    for severity in merged.values():
+        overall = worse(overall, severity)
+    return ItemResult(None, overall, merged)
+
+
+# --- counting (10.6) and the entry (10.7) ------------------------------------------------------------------------------------
+
+def count_stratum(title: str, label: str, results: list[tuple[str, ItemResult]], rule_ids: list[str], *,
+                  per_item: bool) -> dict:
+    """The counts of one stratum from its items' results, in id order."""
+    stratum: dict = {"title": title, "label": label, "items": len(results), "unread": {},
+                     "found": {line: 0 for line in LINES},
+                     "rules": {rule_id: {line: 0 for line in LINES} for rule_id in rule_ids}}
+    if label == "malicious":
+        stratum["missed"] = {}
+    if per_item:
+        stratum["outcomes"] = {}
+    for item_id, result in results:
+        if result.unread is not None:
+            stratum["unread"][item_id] = result.unread
+            continue
+        for line in LINES:
+            stratum["found"][line] += at_or_above(result.worst, line)
+            for rule_id in rule_ids:
+                stratum["rules"][rule_id][line] += at_or_above(result.rules.get(rule_id, NONE), line)
+        if label == "malicious" and not at_or_above(result.worst, "high"):
+            stratum["missed"][item_id] = result.worst
+        if per_item:
+            stratum["outcomes"][item_id] = result.worst
+    return stratum
+
+
+def measure(manifest: Manifest, cache: Cache, *, progress: Callable[[str], None] | None = None) -> dict:
+    """The measured part of the entry (10.6, 10.7): every item rebuilt, verified and scanned, or an error that stops the run."""
+    rules = RuleSet.baseline()
+    skill_rules = sorted(rules.by_area("skill"), key=lambda rule: rule.id)
+    rule_ids = [rule.id for rule in skill_rules]
+    objects = Objects(manifest, cache)
+    results: dict[tuple[str, str], list[tuple[str, ItemResult]]] = {}
+    for number, item in enumerate(manifest.items, start=1):
+        result = scan_item(rebuild(item, objects), rules)
+        results.setdefault((item["set"], item["stratum"]), []).append((item["id"], result))
+        if progress is not None and number % 250 == 0:
+            progress(f"measured {number} of {len(manifest.items)} items")
+    sets: dict = {}
+    for set_id in sorted(manifest.sets):
+        value = manifest.sets[set_id]
+        per_item = value.get("report") == PER_ITEM
+        block: dict = {"title": value["title"], "role": value["role"], "strata": {}}
+        if per_item:
+            block["report"] = PER_ITEM
+        for stratum_id in sorted(value["strata"]):
+            stratum = value["strata"][stratum_id]
+            block["strata"][stratum_id] = count_stratum(stratum["title"], stratum["label"],
+                                                        results.get((set_id, stratum_id), []), rule_ids, per_item=per_item)
+        sets[set_id] = block
+    return {"version": SCANNER_VERSION, "rules_version": RULES_VERSION, "manifest_sha256": manifest.sha256,
+            "lines": list(LINES), "rules_measured": {rule.id: rule.severity_default for rule in skill_rules},
+            "rules_not_measured": sorted(rule.id for rule in rules if rule.area != "skill"), "sets": sets}
+
+
+# --- rates (10.6) ------------------------------------------------------------------------------------------------------------
+
+WILSON_Z = 1.959963984540054
+
+
+def wilson(found: int, total: int) -> tuple[float, float]:
+    """The 95% Wilson score interval of `found` in `total` ((0.0, 1.0) when `total` is 0), as `measure_analyzer.wilson`."""
+    if total == 0:
+        return 0.0, 1.0
+    share = found / total
+    centre = share + WILSON_Z * WILSON_Z / (2 * total)
+    margin = WILSON_Z * math.sqrt(share * (1 - share) / total + WILSON_Z * WILSON_Z / (4 * total * total))
+    denominator = 1 + WILSON_Z * WILSON_Z / total
+    return max(0.0, (centre - margin) / denominator), min(1.0, (centre + margin) / denominator)
+
+
+def percent(value: float) -> str:
+    """A share as a percentage with one decimal: `floor(v * 1000 + 0.5) / 10`, the landing page's rule too."""
+    return f"{math.floor(value * 1000 + 0.5) / 10:.1f}"
+
+
+def three_decimals(value: float) -> str:
+    return f"{math.floor(value * 1000 + 0.5) / 1000:.3f}"
+
+
+def macro_f1(tp: int, fn: int, fp: int, tn: int) -> float:
+    """The mean of the F1 of the malicious class, 2TP/(2TP+FP+FN), and of the benign class, 2TN/(2TN+FN+FP); 0 for a zero
+    denominator."""
+    malicious = 2 * tp / (2 * tp + fp + fn) if 2 * tp + fp + fn else 0.0
+    benign = 2 * tn / (2 * tn + fn + fp) if 2 * tn + fn + fp else 0.0
+    return (malicious + benign) / 2
+
+
+class Total(NamedTuple):
+    items: int
+    unread: int
+    read: int
+    found: dict[str, int]
+    rules: dict[str, dict[str, int]]
+
+
+def totals(set_block: dict, label: str) -> Total | None:
+    """The sum over a set's strata of one label (None when the set has no stratum of that label)."""
+    strata = [stratum for stratum in set_block["strata"].values() if stratum["label"] == label]
+    if not strata:
+        return None
+    items = sum(stratum["items"] for stratum in strata)
+    unread = sum(len(stratum["unread"]) for stratum in strata)
+    found = {line: sum(stratum["found"][line] for stratum in strata) for line in LINES}
+    rule_ids = sorted({rule_id for stratum in strata for rule_id in stratum["rules"]})
+    rules = {rule_id: {line: sum(stratum["rules"].get(rule_id, {}).get(line, 0) for stratum in strata) for line in LINES}
+             for rule_id in rule_ids}
+    return Total(items, unread, items - unread, found, rules)
+
+
+def stratum_read(stratum: dict) -> int:
+    return stratum["items"] - len(stratum["unread"])
+
+
+def rate_text(found: int, read: int) -> str:
+    """`36.0% (302 of 839; 32.8% to 39.3%)`, or `no skill read whole` when nothing was read."""
+    if read == 0:
+        return "no skill read whole"
+    low, high = wilson(found, read)
+    return f"{percent(found / read)}% ({found} of {read}; {percent(low)}% to {percent(high)}%)"
+
+
+def set_macro_f1(set_block: dict, line: str) -> float | None:
+    malicious, benign = totals(set_block, "malicious"), totals(set_block, "benign")
+    if malicious is None or benign is None:
+        return None
+    tp, fp = malicious.found[line], benign.found[line]
+    return macro_f1(tp, malicious.read - tp, fp, benign.read - fp)
