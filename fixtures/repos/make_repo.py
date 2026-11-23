@@ -2,10 +2,12 @@
 
 <case> is <name> or <name>@<variant>. The repository is `fixtures/<name>/repo/` (or the `repo/` of the
 fixture named by `repo_from`), plus `files`, plus the `generated_files` of this OS (names that cannot be
-committed, such as a `|`, which Windows forbids), then `git init`, every file added, `modes` applied to the
-index with `git update-index --chmod=+x`, and one commit. With `--github-output` the Action inputs of the case
-go to $GITHUB_OUTPUT and its `env` to $GITHUB_ENV; with `--shell-env FILE` both are written as `export` lines
-for the GitLab job (sourced with `.`). Standard library only, Python 3.11."""
+committed, such as a `|`, which Windows forbids), plus the symbolic links of `links` (path to target text, made
+here because the fixtures hold no link), then `git init`, every file added, each link recorded in the index with
+mode 120000, `modes` applied to the index with `git update-index --chmod=+x`, and one commit. With
+`--github-output` the Action inputs of the case go to $GITHUB_OUTPUT and its `env` to $GITHUB_ENV; with
+`--shell-env FILE` both are written as `export` lines for the GitLab job (sourced with `.`). Standard library
+only, Python 3.11."""
 from __future__ import annotations
 
 import datetime
@@ -23,7 +25,7 @@ DEFAULTS: dict = {
     "env": {}, "exit_code": 0, "findings": 0, "accepted": 0, "report": "any", "notices": [], "errors": [],
     "sarif_prefix": None, "lock": None, "probes": None, "ping": False, "absent_files": [], "variants": {},
     "on_request": {}, "on_gitlab_request": {}, "on_fork_request": {}, "annotations": [], "connected": None,
-    "agents": None, "analysis": None, "preset": None,
+    "agents": None, "analysis": None, "preset": None, "links": {}, "finding_paths": None,
 }
 INPUT_DEFAULTS = {
     "path": ".", "fail-on": "high", "locked": "auto", "probe": "false", "probe-private": "false",
@@ -34,15 +36,17 @@ INPUT_DEFAULTS = {
     "analyze": "false", "model-endpoint": "", "model": "",
     # the scanner's presets (1.18.0): empty passes no flag, so the scanner's own settings decide
     "preset": "",
+    # a linked directory in an instruction folder (scanner 1.20.0): not followed, so it is the notice symlink_skipped
+    "follow-links": "false",
 }
 # The variables `spellwarden ci-run gitlab` reads (spec 10.2a), by Action input name.
 GITLAB_VARIABLES = {
     "path": "SW_PATH", "fail-on": "SW_FAIL_ON", "locked": "SW_LOCKED", "probe": "SW_PROBE",
     "probe-private": "SW_PROBE_PRIVATE", "comment": "SW_COMMENT", "telemetry": "SW_TELEMETRY", "org": "SW_ORG",
     "upload": "SW_UPLOAD", "analyze": "SW_ANALYZE", "model-endpoint": "SW_MODEL_ENDPOINT", "model": "SW_MODEL",
-    "preset": "SW_PRESET",
+    "preset": "SW_PRESET", "follow-links": "SW_FOLLOW_LINKS",
 }
-MERGED_KEYS = ("files", "inputs", "env", "generated_files", "modes")
+MERGED_KEYS = ("files", "inputs", "env", "generated_files", "modes", "links")
 BASELINE = ".spellwarden/baseline.yml"
 
 
@@ -78,6 +82,26 @@ def _git(dest: Path, *args: str) -> None:
                    check=True, stdout=subprocess.DEVNULL)
 
 
+def _link(dest: Path, relative: str, target: str, platform: str) -> None:
+    """The symbolic link `relative` with the target text `target` in the working tree. On Windows it is a plain file that
+    holds the target text, which is what a checkout holds when git cannot make links (`core.symlinks=false`, the default of
+    Git for Windows), so no runner needs the right to make one; `_index_link` then says in the index that it is a link."""
+    place = dest / relative
+    place.parent.mkdir(parents=True, exist_ok=True)
+    if platform == "windows":
+        place.write_bytes(target.encode("utf-8"))
+    else:
+        os.symlink(target, place)
+
+
+def _index_link(dest: Path, relative: str, target: str) -> None:
+    """The index entry of the link `relative`: mode 120000 and a blob of the target text, whatever the working tree holds
+    and whatever `core.symlinks` says. The scanner reads a tracked link from this mode, on every OS."""
+    blob = subprocess.run(["git", "-C", str(dest), "hash-object", "-w", "--stdin"], input=target.encode("utf-8"),
+                          check=True, stdout=subprocess.PIPE).stdout.decode("ascii").strip()
+    _git(dest, "update-index", "--add", "--cacheinfo", f"120000,{blob},{relative}")
+
+
 def build(case: str, dest: Path) -> dict:
     expect = load_case(case)
     source = HERE / (expect["repo_from"] or expect["name"]) / "repo"
@@ -98,8 +122,12 @@ def build(case: str, dest: Path) -> dict:
         text = baseline.read_text(encoding="utf-8")
         text = text.replace("__ADDED__", today.isoformat()).replace("__EXPIRES__", (today + datetime.timedelta(days=90)).isoformat())
         baseline.write_bytes(text.encode("utf-8"))
+    for relative, target in sorted(expect["links"].items()):
+        _link(dest, relative, target, platform)
     _git(dest, "init", "-q", "-b", "main")
     _git(dest, "add", "-A")
+    for relative, target in sorted(expect["links"].items()):
+        _index_link(dest, relative, target)
     for relative, mode in sorted(expect["modes"].items()):
         if mode != "100755":
             raise SystemExit(f"{case}: only 100755 is supported in modes, not {mode}")

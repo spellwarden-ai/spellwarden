@@ -77,6 +77,8 @@ def changed_roots() -> set[str]:
     """The fixture roots that hold a path 1.20.0 newly reads (C40): computed, never trusted from a list."""
     found = set()
     for root in record.scan_roots():
+        if root in record.ADDED_AFTER_1_19_0:  # not in the record, so there is nothing of 1.19.0 to compare it with
+            continue
         base = ROOT / root
         if any(path.is_file() and newly_read_file(path.relative_to(base).as_posix()) for path in base.rglob("*")):
             found.add(root)
