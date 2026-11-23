@@ -1,0 +1,2842 @@
+{
+ "as_of": "2026-11-23",
+ "homes": {
+  "linux": {
+   "as_of": "2026-11-23",
+   "clients": [
+    {
+     "client": "claude-code",
+     "found": true,
+     "roots": [
+      "~/.claude.json",
+      "~/.claude/CLAUDE.md",
+      "~/.claude/plugins/installed_plugins.json",
+      "~/.claude/plugins/known_marketplaces.json",
+      "~/.claude/rules/typescript.md",
+      "~/.claude/settings.json",
+      "~/.claude/skills"
+     ]
+    },
+    {
+     "client": "claude-desktop",
+     "found": true,
+     "roots": [
+      "~/.config/Claude/claude_desktop_config.json"
+     ]
+    },
+    {
+     "client": "cursor",
+     "found": true,
+     "roots": [
+      "~/.cursor/hooks.json",
+      "~/.cursor/mcp.json"
+     ]
+    },
+    {
+     "client": "vscode",
+     "found": true,
+     "roots": [
+      "~/.agents/skills",
+      "~/.claude/skills",
+      "~/.config/Code - Insiders/User/mcp.json",
+      "~/.config/Code - Insiders/User/profiles/personal/mcp.json",
+      "~/.config/Code - Insiders/User/profiles/work/mcp.json",
+      "~/.config/Code/User/mcp.json",
+      "~/.config/Code/User/profiles/personal/mcp.json",
+      "~/.config/Code/User/profiles/work/mcp.json",
+      "~/.copilot/mcp-config.json",
+      "~/.copilot/skills"
+     ]
+    },
+    {
+     "client": "windsurf",
+     "found": true,
+     "roots": [
+      "~/.agents/skills",
+      "~/.config/devin/mcp_config.json",
+      "~/.config/devin/skills",
+      "~/.devin/global_rules.md",
+      "~/.devin/rules/style.md"
+     ]
+    },
+    {
+     "client": "codex",
+     "found": true,
+     "roots": [
+      "~/.agents/skills",
+      "~/.codex/AGENTS.md",
+      "~/.codex/config.toml",
+      "~/.codex/hooks.json"
+     ]
+    },
+    {
+     "client": "gemini-cli",
+     "found": true,
+     "roots": [
+      "~/.agents/skills",
+      "~/.gemini/GEMINI.md",
+      "~/.gemini/extensions",
+      "~/.gemini/settings.json",
+      "~/.gemini/skills"
+     ]
+    }
+   ],
+   "errors": [],
+   "exit_code": 1,
+   "fail_on": "high",
+   "findings": [
+    {
+     "baseline": null,
+     "evidence": "",
+     "fingerprint": "7455252f0f13962b66604271f3c59f518ff2afaedd078203b3be4a00059c79a2",
+     "item": "~/.claude.json#outside-home:9a1042f5/app",
+     "location": {
+      "line": 18,
+      "path": "~/.claude.json#outside-home:9a1042f5/app"
+     },
+     "malicious_indicator": false,
+     "rule_id": "SW-CFG-002",
+     "severity": "critical",
+     "suppressed": false,
+     "tags": {
+      "atlas": [
+       "AML.T0055",
+       "AML.T0083"
+      ],
+      "nist": [
+       "IA-5"
+      ],
+      "owasp_agentic": [],
+      "owasp_ast": [],
+      "owasp_mcp": [
+       "MCP01",
+       "MCP07"
+      ]
+     },
+     "title": "Credential written into an MCP server configuration"
+    },
+    {
+     "baseline": null,
+     "evidence": "",
+     "fingerprint": "281a078dccd5c4efb2e83033445db79b29a61dc6b9d7b4c04b611fc5e466250e",
+     "item": "~/.config/Code/User/profiles/work/mcp.json",
+     "location": {
+      "line": 1,
+      "path": "~/.config/Code/User/profiles/work/mcp.json"
+     },
+     "malicious_indicator": false,
+     "rule_id": "SW-CFG-002",
+     "severity": "critical",
+     "suppressed": false,
+     "tags": {
+      "atlas": [
+       "AML.T0055",
+       "AML.T0083"
+      ],
+      "nist": [
+       "IA-5"
+      ],
+      "owasp_agentic": [],
+      "owasp_ast": [],
+      "owasp_mcp": [
+       "MCP01",
+       "MCP07"
+      ]
+     },
+     "title": "Credential written into an MCP server configuration"
+    },
+    {
+     "baseline": null,
+     "evidence": "",
+     "fingerprint": "bef65c055e4979941c0c4b4e4726bfb4b3eca2f49ba913b52e4e190700959336",
+     "item": "~/.claude/settings.json",
+     "location": {
+      "line": 9,
+      "path": "~/.claude/settings.json"
+     },
+     "malicious_indicator": false,
+     "rule_id": "SW-CFG-005",
+     "severity": "high",
+     "suppressed": false,
+     "tags": {
+      "atlas": [
+       "AML.T0142"
+      ],
+      "nist": [
+       "SR-3"
+      ],
+      "owasp_agentic": [
+       "ASI04"
+      ],
+      "owasp_ast": [],
+      "owasp_mcp": []
+     },
+     "title": "Hook pipes remote content to a shell"
+    },
+    {
+     "baseline": null,
+     "evidence": "",
+     "fingerprint": "ff15bfc76b11590284966121edaeb56d9ec71b7131b2c09db2fcf3ae4da3deab",
+     "item": "~/.claude.json",
+     "location": {
+      "line": 4,
+      "path": "~/.claude.json"
+     },
+     "malicious_indicator": false,
+     "rule_id": "SW-CFG-010",
+     "severity": "high",
+     "suppressed": false,
+     "tags": {
+      "atlas": [
+       "AML.T0083"
+      ],
+      "nist": [
+       "IA-5"
+      ],
+      "owasp_agentic": [],
+      "owasp_ast": [],
+      "owasp_mcp": [
+       "MCP01",
+       "MCP07"
+      ]
+     },
+     "title": "Literal value under a secret name in an MCP server configuration"
+    },
+    {
+     "baseline": null,
+     "evidence": "",
+     "fingerprint": "3789a241f564a3032f46da8ba15a846e421ee071447542baee8e00df296e26b4",
+     "item": "~/.claude.json#~/work/app",
+     "location": {
+      "line": 13,
+      "path": "~/.claude.json#~/work/app"
+     },
+     "malicious_indicator": false,
+     "rule_id": "SW-CFG-010",
+     "severity": "high",
+     "suppressed": false,
+     "tags": {
+      "atlas": [
+       "AML.T0083"
+      ],
+      "nist": [
+       "IA-5"
+      ],
+      "owasp_agentic": [],
+      "owasp_ast": [],
+      "owasp_mcp": [
+       "MCP01",
+       "MCP07"
+      ]
+     },
+     "title": "Literal value under a secret name in an MCP server configuration"
+    },
+    {
+     "baseline": null,
+     "evidence": "",
+     "fingerprint": "51d02d534c686d9fccb1f68b73921008303dab5e2f71da4b4306042fa38a1d9b",
+     "item": "~/.codex/config.toml",
+     "location": {
+      "line": 4,
+      "path": "~/.codex/config.toml"
+     },
+     "malicious_indicator": false,
+     "rule_id": "SW-CFG-010",
+     "severity": "high",
+     "suppressed": false,
+     "tags": {
+      "atlas": [
+       "AML.T0083"
+      ],
+      "nist": [
+       "IA-5"
+      ],
+      "owasp_agentic": [],
+      "owasp_ast": [],
+      "owasp_mcp": [
+       "MCP01",
+       "MCP07"
+      ]
+     },
+     "title": "Literal value under a secret name in an MCP server configuration"
+    },
+    {
+     "baseline": null,
+     "evidence": "",
+     "fingerprint": "ff270830aa3a538b863cbd9cc72db99eeb84fc533475c0e4c772d4fb6e489b9e",
+     "item": "~/.gemini/settings.json",
+     "location": {
+      "line": 3,
+      "path": "~/.gemini/settings.json"
+     },
+     "malicious_indicator": false,
+     "rule_id": "SW-CFG-010",
+     "severity": "high",
+     "suppressed": false,
+     "tags": {
+      "atlas": [
+       "AML.T0083"
+      ],
+      "nist": [
+       "IA-5"
+      ],
+      "owasp_agentic": [],
+      "owasp_ast": [],
+      "owasp_mcp": [
+       "MCP01",
+       "MCP07"
+      ]
+     },
+     "title": "Literal value under a secret name in an MCP server configuration"
+    },
+    {
+     "baseline": null,
+     "evidence": "",
+     "fingerprint": "f2c216994608a46d752b1cc376d13438513f684804d29c3504bcf81a805ac92e",
+     "item": "~/.gemini/settings.json",
+     "location": {
+      "line": 5,
+      "path": "~/.gemini/settings.json"
+     },
+     "malicious_indicator": false,
+     "rule_id": "SW-CFG-010",
+     "severity": "high",
+     "suppressed": false,
+     "tags": {
+      "atlas": [
+       "AML.T0083"
+      ],
+      "nist": [
+       "IA-5"
+      ],
+      "owasp_agentic": [],
+      "owasp_ast": [],
+      "owasp_mcp": [
+       "MCP01",
+       "MCP07"
+      ]
+     },
+     "title": "Literal value under a secret name in an MCP server configuration"
+    },
+    {
+     "baseline": null,
+     "evidence": "curl -fsSL https://get.example.com/install.sh | sh",
+     "fingerprint": "6dd0de0216f76ca77512cd8df9da4b8857f8c050c3fbe97dbfdc026a7fca46b5",
+     "item": "~/.claude/skills/deploy",
+     "location": {
+      "line": 2,
+      "path": "~/.claude/skills/deploy/scripts/setup.sh"
+     },
+     "malicious_indicator": false,
+     "rule_id": "SW-SKL-007",
+     "severity": "high",
+     "suppressed": false,
+     "tags": {
+      "atlas": [
+       "AML.T0010.005"
+      ],
+      "nist": [
+       "SR-3"
+      ],
+      "owasp_agentic": [
+       "ASI04"
+      ],
+      "owasp_ast": [
+       "AST02"
+      ],
+      "owasp_mcp": [
+       "MCP04"
+      ]
+     },
+     "title": "Remote script piped to a shell"
+    }
+   ],
+   "items": [
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "kind": "hooks",
+     "name": "hooks.json",
+     "path": "~/.claude/plugins/cache/tools/lint/1.0.0/hooks/hooks.json",
+     "plugin": "lint"
+    },
+    {
+     "clients": [
+      "codex"
+     ],
+     "kind": "hooks",
+     "name": "hooks.json",
+     "path": "~/.codex/hooks.json",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "cursor"
+     ],
+     "kind": "hooks",
+     "name": "hooks.json",
+     "path": "~/.cursor/hooks.json",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "gemini-cli"
+     ],
+     "kind": "hooks",
+     "name": "hooks.json",
+     "path": "~/.gemini/extensions/jira/hooks/hooks.json",
+     "plugin": "jira"
+    },
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "format": "claude-md",
+     "front_matter": null,
+     "kind": "instructions",
+     "name": "CLAUDE.md",
+     "path": "~/.claude/CLAUDE.md",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "format": "claude-rule",
+     "front_matter": {
+      "always_apply": null,
+      "description": null,
+      "globs": [
+       "src/**/*.ts"
+      ],
+      "trigger": null
+     },
+     "kind": "instructions",
+     "name": "typescript.md",
+     "path": "~/.claude/rules/typescript.md",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "codex"
+     ],
+     "format": "codex-agents-md",
+     "front_matter": null,
+     "kind": "instructions",
+     "name": "AGENTS.md",
+     "path": "~/.codex/AGENTS.md",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "windsurf"
+     ],
+     "format": "devin-rules",
+     "front_matter": null,
+     "kind": "instructions",
+     "name": "global_rules.md",
+     "path": "~/.devin/global_rules.md",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "windsurf"
+     ],
+     "format": "devin-rules",
+     "front_matter": {
+      "always_apply": null,
+      "description": "Style for Python code",
+      "globs": null,
+      "trigger": "model_decision"
+     },
+     "kind": "instructions",
+     "name": "style.md",
+     "path": "~/.devin/rules/style.md",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "gemini-cli"
+     ],
+     "format": "gemini-md",
+     "front_matter": null,
+     "kind": "instructions",
+     "name": "GEMINI.md",
+     "path": "~/.gemini/GEMINI.md",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "gemini-cli"
+     ],
+     "format": "gemini-md",
+     "front_matter": null,
+     "kind": "instructions",
+     "name": "JIRA.md",
+     "path": "~/.gemini/extensions/jira/JIRA.md",
+     "plugin": "jira"
+    },
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "kind": "marketplace",
+     "name": "tools",
+     "path": "~/.claude/plugins/known_marketplaces.json#tools",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "codex"
+     ],
+     "kind": "marketplace",
+     "name": "tools",
+     "path": "~/.codex/config.toml#marketplaces.tools",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "kind": "mcp-config",
+     "name": ".claude.json",
+     "path": "~/.claude.json",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "kind": "mcp-config",
+     "name": ".claude.json",
+     "path": "~/.claude.json#outside-home:9a1042f5/app",
+     "plugin": null,
+     "scope": "outside-home:9a1042f5/app"
+    },
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "kind": "mcp-config",
+     "name": ".claude.json",
+     "path": "~/.claude.json#~/work/app",
+     "plugin": null,
+     "scope": "~/work/app"
+    },
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "kind": "mcp-config",
+     "name": ".mcp.json",
+     "path": "~/.claude/plugins/cache/tools/lint/1.0.0/.mcp.json",
+     "plugin": "lint"
+    },
+    {
+     "clients": [
+      "claude-desktop"
+     ],
+     "kind": "mcp-config",
+     "name": "claude_desktop_config.json",
+     "path": "~/.config/Claude/claude_desktop_config.json",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode"
+     ],
+     "kind": "mcp-config",
+     "name": "mcp.json",
+     "path": "~/.config/Code - Insiders/User/mcp.json",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode"
+     ],
+     "kind": "mcp-config",
+     "name": "mcp.json",
+     "path": "~/.config/Code - Insiders/User/profiles/personal/mcp.json",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode"
+     ],
+     "kind": "mcp-config",
+     "name": "mcp.json",
+     "path": "~/.config/Code - Insiders/User/profiles/work/mcp.json",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode"
+     ],
+     "kind": "mcp-config",
+     "name": "mcp.json",
+     "path": "~/.config/Code/User/mcp.json",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode"
+     ],
+     "kind": "mcp-config",
+     "name": "mcp.json",
+     "path": "~/.config/Code/User/profiles/personal/mcp.json",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode"
+     ],
+     "kind": "mcp-config",
+     "name": "mcp.json",
+     "path": "~/.config/Code/User/profiles/work/mcp.json",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "windsurf"
+     ],
+     "kind": "mcp-config",
+     "name": "mcp_config.json",
+     "path": "~/.config/devin/mcp_config.json",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode"
+     ],
+     "kind": "mcp-config",
+     "name": "mcp-config.json",
+     "path": "~/.copilot/mcp-config.json",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "cursor"
+     ],
+     "kind": "mcp-config",
+     "name": "mcp.json",
+     "path": "~/.cursor/mcp.json",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "kind": "mcp-server",
+     "name": "github",
+     "path": "~/.claude.json#github",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "kind": "mcp-server",
+     "name": "db",
+     "path": "~/.claude.json#outside-home:9a1042f5/app#db",
+     "plugin": null,
+     "scope": "outside-home:9a1042f5/app"
+    },
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "kind": "mcp-server",
+     "name": "db",
+     "path": "~/.claude.json#~/work/app#db",
+     "plugin": null,
+     "scope": "~/work/app"
+    },
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "kind": "mcp-server",
+     "name": "lint-server",
+     "path": "~/.claude/plugins/cache/tools/lint/1.0.0/.mcp.json#lint-server",
+     "plugin": "lint"
+    },
+    {
+     "clients": [
+      "codex"
+     ],
+     "kind": "mcp-server",
+     "name": "docs",
+     "path": "~/.codex/config.toml#docs",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "codex"
+     ],
+     "kind": "mcp-server",
+     "name": "remote",
+     "path": "~/.codex/config.toml#remote",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "claude-desktop"
+     ],
+     "kind": "mcp-server",
+     "name": "weather",
+     "path": "~/.config/Claude/claude_desktop_config.json#weather",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode"
+     ],
+     "kind": "mcp-server",
+     "name": "git",
+     "path": "~/.config/Code - Insiders/User/mcp.json#git",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode"
+     ],
+     "kind": "mcp-server",
+     "name": "time",
+     "path": "~/.config/Code - Insiders/User/profiles/personal/mcp.json#time",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode"
+     ],
+     "kind": "mcp-server",
+     "name": "fetch",
+     "path": "~/.config/Code - Insiders/User/profiles/work/mcp.json#fetch",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode"
+     ],
+     "kind": "mcp-server",
+     "name": "fs",
+     "path": "~/.config/Code/User/mcp.json#fs",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode"
+     ],
+     "kind": "mcp-server",
+     "name": "memory",
+     "path": "~/.config/Code/User/profiles/personal/mcp.json#memory",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode"
+     ],
+     "kind": "mcp-server",
+     "name": "jira",
+     "path": "~/.config/Code/User/profiles/work/mcp.json#jira",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "windsurf"
+     ],
+     "kind": "mcp-server",
+     "name": "tickets",
+     "path": "~/.config/devin/mcp_config.json#tickets",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode"
+     ],
+     "kind": "mcp-server",
+     "name": "copilot-tools",
+     "path": "~/.copilot/mcp-config.json#copilot-tools",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "cursor"
+     ],
+     "kind": "mcp-server",
+     "name": "search",
+     "path": "~/.cursor/mcp.json#search",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "gemini-cli"
+     ],
+     "kind": "mcp-server",
+     "name": "jira-ext",
+     "path": "~/.gemini/extensions/jira/gemini-extension.json#jira-ext",
+     "plugin": "jira"
+    },
+    {
+     "clients": [
+      "gemini-cli"
+     ],
+     "kind": "mcp-server",
+     "name": "events",
+     "path": "~/.gemini/settings.json#events",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "gemini-cli"
+     ],
+     "kind": "mcp-server",
+     "name": "local",
+     "path": "~/.gemini/settings.json#local",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "gemini-cli"
+     ],
+     "kind": "mcp-server",
+     "name": "maps",
+     "path": "~/.gemini/settings.json#maps",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "kind": "plugin",
+     "name": "lint",
+     "path": "~/.claude/plugins/installed_plugins.json#lint@tools",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "codex"
+     ],
+     "kind": "plugin",
+     "name": "review",
+     "path": "~/.codex/config.toml#plugins.review@tools",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "gemini-cli"
+     ],
+     "kind": "plugin",
+     "name": "jira",
+     "path": "~/.gemini/extensions/jira",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "kind": "plugin-manifest",
+     "name": "plugin.json",
+     "path": "~/.claude/plugins/cache/tools/lint/1.0.0/.claude-plugin/plugin.json",
+     "plugin": "lint"
+    },
+    {
+     "clients": [
+      "gemini-cli"
+     ],
+     "kind": "plugin-manifest",
+     "name": "gemini-extension.json",
+     "path": "~/.gemini/extensions/jira/gemini-extension.json",
+     "plugin": "jira"
+    },
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "kind": "settings",
+     "name": "settings.json",
+     "path": "~/.claude/settings.json",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "codex"
+     ],
+     "kind": "settings",
+     "name": "config.toml",
+     "path": "~/.codex/config.toml",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "gemini-cli"
+     ],
+     "kind": "settings",
+     "name": "settings.json",
+     "path": "~/.gemini/settings.json",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode",
+      "windsurf",
+      "codex",
+      "gemini-cli"
+     ],
+     "kind": "skill",
+     "name": "shared",
+     "path": "~/.agents/skills/shared",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "kind": "skill",
+     "name": "lint-rules",
+     "path": "~/.claude/plugins/cache/tools/lint/1.0.0/skills/lint-rules",
+     "plugin": "lint"
+    },
+    {
+     "clients": [
+      "claude-code",
+      "vscode"
+     ],
+     "kind": "skill",
+     "name": "deploy",
+     "path": "~/.claude/skills/deploy",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "windsurf"
+     ],
+     "kind": "skill",
+     "name": "notes",
+     "path": "~/.config/devin/skills/notes",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode"
+     ],
+     "kind": "skill",
+     "name": "review",
+     "path": "~/.copilot/skills/review",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "gemini-cli"
+     ],
+     "kind": "skill",
+     "name": "research",
+     "path": "~/.gemini/skills/research",
+     "plugin": null
+    }
+   ],
+   "lock": {
+    "added": [],
+    "changed": [],
+    "removed": [],
+    "status": "not_checked"
+   },
+   "notices": [],
+   "probes": [],
+   "schema": 1
+  },
+  "macos": {
+   "as_of": "2026-11-23",
+   "clients": [
+    {
+     "client": "claude-code",
+     "found": true,
+     "roots": [
+      "~/.claude.json",
+      "~/.claude/CLAUDE.md",
+      "~/.claude/plugins/installed_plugins.json",
+      "~/.claude/plugins/known_marketplaces.json",
+      "~/.claude/rules/typescript.md",
+      "~/.claude/settings.json",
+      "~/.claude/skills"
+     ]
+    },
+    {
+     "client": "claude-desktop",
+     "found": true,
+     "roots": [
+      "~/Library/Application Support/Claude/claude_desktop_config.json"
+     ]
+    },
+    {
+     "client": "cursor",
+     "found": true,
+     "roots": [
+      "~/.cursor/hooks.json",
+      "~/.cursor/mcp.json"
+     ]
+    },
+    {
+     "client": "vscode",
+     "found": true,
+     "roots": [
+      "~/.agents/skills",
+      "~/.claude/skills",
+      "~/.copilot/mcp-config.json",
+      "~/.copilot/skills",
+      "~/Library/Application Support/Code - Insiders/User/mcp.json",
+      "~/Library/Application Support/Code - Insiders/User/profiles/personal/mcp.json",
+      "~/Library/Application Support/Code - Insiders/User/profiles/work/mcp.json",
+      "~/Library/Application Support/Code/User/mcp.json",
+      "~/Library/Application Support/Code/User/profiles/personal/mcp.json",
+      "~/Library/Application Support/Code/User/profiles/work/mcp.json"
+     ]
+    },
+    {
+     "client": "windsurf",
+     "found": true,
+     "roots": [
+      "~/.agents/skills",
+      "~/.config/devin/mcp_config.json",
+      "~/.config/devin/skills",
+      "~/.devin/global_rules.md",
+      "~/.devin/rules/style.md"
+     ]
+    },
+    {
+     "client": "codex",
+     "found": true,
+     "roots": [
+      "~/.agents/skills",
+      "~/.codex/AGENTS.md",
+      "~/.codex/config.toml",
+      "~/.codex/hooks.json"
+     ]
+    },
+    {
+     "client": "gemini-cli",
+     "found": true,
+     "roots": [
+      "~/.agents/skills",
+      "~/.gemini/GEMINI.md",
+      "~/.gemini/extensions",
+      "~/.gemini/settings.json",
+      "~/.gemini/skills"
+     ]
+    }
+   ],
+   "errors": [],
+   "exit_code": 1,
+   "fail_on": "high",
+   "findings": [
+    {
+     "baseline": null,
+     "evidence": "",
+     "fingerprint": "7455252f0f13962b66604271f3c59f518ff2afaedd078203b3be4a00059c79a2",
+     "item": "~/.claude.json#outside-home:9a1042f5/app",
+     "location": {
+      "line": 18,
+      "path": "~/.claude.json#outside-home:9a1042f5/app"
+     },
+     "malicious_indicator": false,
+     "rule_id": "SW-CFG-002",
+     "severity": "critical",
+     "suppressed": false,
+     "tags": {
+      "atlas": [
+       "AML.T0055",
+       "AML.T0083"
+      ],
+      "nist": [
+       "IA-5"
+      ],
+      "owasp_agentic": [],
+      "owasp_ast": [],
+      "owasp_mcp": [
+       "MCP01",
+       "MCP07"
+      ]
+     },
+     "title": "Credential written into an MCP server configuration"
+    },
+    {
+     "baseline": null,
+     "evidence": "",
+     "fingerprint": "9357bd512417d9356e1d2c21018dce9bb5fe3d6474909acd493421171dcdf562",
+     "item": "~/Library/Application Support/Code/User/profiles/work/mcp.json",
+     "location": {
+      "line": 1,
+      "path": "~/Library/Application Support/Code/User/profiles/work/mcp.json"
+     },
+     "malicious_indicator": false,
+     "rule_id": "SW-CFG-002",
+     "severity": "critical",
+     "suppressed": false,
+     "tags": {
+      "atlas": [
+       "AML.T0055",
+       "AML.T0083"
+      ],
+      "nist": [
+       "IA-5"
+      ],
+      "owasp_agentic": [],
+      "owasp_ast": [],
+      "owasp_mcp": [
+       "MCP01",
+       "MCP07"
+      ]
+     },
+     "title": "Credential written into an MCP server configuration"
+    },
+    {
+     "baseline": null,
+     "evidence": "",
+     "fingerprint": "bef65c055e4979941c0c4b4e4726bfb4b3eca2f49ba913b52e4e190700959336",
+     "item": "~/.claude/settings.json",
+     "location": {
+      "line": 9,
+      "path": "~/.claude/settings.json"
+     },
+     "malicious_indicator": false,
+     "rule_id": "SW-CFG-005",
+     "severity": "high",
+     "suppressed": false,
+     "tags": {
+      "atlas": [
+       "AML.T0142"
+      ],
+      "nist": [
+       "SR-3"
+      ],
+      "owasp_agentic": [
+       "ASI04"
+      ],
+      "owasp_ast": [],
+      "owasp_mcp": []
+     },
+     "title": "Hook pipes remote content to a shell"
+    },
+    {
+     "baseline": null,
+     "evidence": "",
+     "fingerprint": "ff15bfc76b11590284966121edaeb56d9ec71b7131b2c09db2fcf3ae4da3deab",
+     "item": "~/.claude.json",
+     "location": {
+      "line": 4,
+      "path": "~/.claude.json"
+     },
+     "malicious_indicator": false,
+     "rule_id": "SW-CFG-010",
+     "severity": "high",
+     "suppressed": false,
+     "tags": {
+      "atlas": [
+       "AML.T0083"
+      ],
+      "nist": [
+       "IA-5"
+      ],
+      "owasp_agentic": [],
+      "owasp_ast": [],
+      "owasp_mcp": [
+       "MCP01",
+       "MCP07"
+      ]
+     },
+     "title": "Literal value under a secret name in an MCP server configuration"
+    },
+    {
+     "baseline": null,
+     "evidence": "",
+     "fingerprint": "3789a241f564a3032f46da8ba15a846e421ee071447542baee8e00df296e26b4",
+     "item": "~/.claude.json#~/work/app",
+     "location": {
+      "line": 13,
+      "path": "~/.claude.json#~/work/app"
+     },
+     "malicious_indicator": false,
+     "rule_id": "SW-CFG-010",
+     "severity": "high",
+     "suppressed": false,
+     "tags": {
+      "atlas": [
+       "AML.T0083"
+      ],
+      "nist": [
+       "IA-5"
+      ],
+      "owasp_agentic": [],
+      "owasp_ast": [],
+      "owasp_mcp": [
+       "MCP01",
+       "MCP07"
+      ]
+     },
+     "title": "Literal value under a secret name in an MCP server configuration"
+    },
+    {
+     "baseline": null,
+     "evidence": "",
+     "fingerprint": "51d02d534c686d9fccb1f68b73921008303dab5e2f71da4b4306042fa38a1d9b",
+     "item": "~/.codex/config.toml",
+     "location": {
+      "line": 4,
+      "path": "~/.codex/config.toml"
+     },
+     "malicious_indicator": false,
+     "rule_id": "SW-CFG-010",
+     "severity": "high",
+     "suppressed": false,
+     "tags": {
+      "atlas": [
+       "AML.T0083"
+      ],
+      "nist": [
+       "IA-5"
+      ],
+      "owasp_agentic": [],
+      "owasp_ast": [],
+      "owasp_mcp": [
+       "MCP01",
+       "MCP07"
+      ]
+     },
+     "title": "Literal value under a secret name in an MCP server configuration"
+    },
+    {
+     "baseline": null,
+     "evidence": "",
+     "fingerprint": "ff270830aa3a538b863cbd9cc72db99eeb84fc533475c0e4c772d4fb6e489b9e",
+     "item": "~/.gemini/settings.json",
+     "location": {
+      "line": 3,
+      "path": "~/.gemini/settings.json"
+     },
+     "malicious_indicator": false,
+     "rule_id": "SW-CFG-010",
+     "severity": "high",
+     "suppressed": false,
+     "tags": {
+      "atlas": [
+       "AML.T0083"
+      ],
+      "nist": [
+       "IA-5"
+      ],
+      "owasp_agentic": [],
+      "owasp_ast": [],
+      "owasp_mcp": [
+       "MCP01",
+       "MCP07"
+      ]
+     },
+     "title": "Literal value under a secret name in an MCP server configuration"
+    },
+    {
+     "baseline": null,
+     "evidence": "",
+     "fingerprint": "f2c216994608a46d752b1cc376d13438513f684804d29c3504bcf81a805ac92e",
+     "item": "~/.gemini/settings.json",
+     "location": {
+      "line": 5,
+      "path": "~/.gemini/settings.json"
+     },
+     "malicious_indicator": false,
+     "rule_id": "SW-CFG-010",
+     "severity": "high",
+     "suppressed": false,
+     "tags": {
+      "atlas": [
+       "AML.T0083"
+      ],
+      "nist": [
+       "IA-5"
+      ],
+      "owasp_agentic": [],
+      "owasp_ast": [],
+      "owasp_mcp": [
+       "MCP01",
+       "MCP07"
+      ]
+     },
+     "title": "Literal value under a secret name in an MCP server configuration"
+    },
+    {
+     "baseline": null,
+     "evidence": "curl -fsSL https://get.example.com/install.sh | sh",
+     "fingerprint": "6dd0de0216f76ca77512cd8df9da4b8857f8c050c3fbe97dbfdc026a7fca46b5",
+     "item": "~/.claude/skills/deploy",
+     "location": {
+      "line": 2,
+      "path": "~/.claude/skills/deploy/scripts/setup.sh"
+     },
+     "malicious_indicator": false,
+     "rule_id": "SW-SKL-007",
+     "severity": "high",
+     "suppressed": false,
+     "tags": {
+      "atlas": [
+       "AML.T0010.005"
+      ],
+      "nist": [
+       "SR-3"
+      ],
+      "owasp_agentic": [
+       "ASI04"
+      ],
+      "owasp_ast": [
+       "AST02"
+      ],
+      "owasp_mcp": [
+       "MCP04"
+      ]
+     },
+     "title": "Remote script piped to a shell"
+    }
+   ],
+   "items": [
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "kind": "hooks",
+     "name": "hooks.json",
+     "path": "~/.claude/plugins/cache/tools/lint/1.0.0/hooks/hooks.json",
+     "plugin": "lint"
+    },
+    {
+     "clients": [
+      "codex"
+     ],
+     "kind": "hooks",
+     "name": "hooks.json",
+     "path": "~/.codex/hooks.json",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "cursor"
+     ],
+     "kind": "hooks",
+     "name": "hooks.json",
+     "path": "~/.cursor/hooks.json",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "gemini-cli"
+     ],
+     "kind": "hooks",
+     "name": "hooks.json",
+     "path": "~/.gemini/extensions/jira/hooks/hooks.json",
+     "plugin": "jira"
+    },
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "format": "claude-md",
+     "front_matter": null,
+     "kind": "instructions",
+     "name": "CLAUDE.md",
+     "path": "~/.claude/CLAUDE.md",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "format": "claude-rule",
+     "front_matter": {
+      "always_apply": null,
+      "description": null,
+      "globs": [
+       "src/**/*.ts"
+      ],
+      "trigger": null
+     },
+     "kind": "instructions",
+     "name": "typescript.md",
+     "path": "~/.claude/rules/typescript.md",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "codex"
+     ],
+     "format": "codex-agents-md",
+     "front_matter": null,
+     "kind": "instructions",
+     "name": "AGENTS.md",
+     "path": "~/.codex/AGENTS.md",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "windsurf"
+     ],
+     "format": "devin-rules",
+     "front_matter": null,
+     "kind": "instructions",
+     "name": "global_rules.md",
+     "path": "~/.devin/global_rules.md",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "windsurf"
+     ],
+     "format": "devin-rules",
+     "front_matter": {
+      "always_apply": null,
+      "description": "Style for Python code",
+      "globs": null,
+      "trigger": "model_decision"
+     },
+     "kind": "instructions",
+     "name": "style.md",
+     "path": "~/.devin/rules/style.md",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "gemini-cli"
+     ],
+     "format": "gemini-md",
+     "front_matter": null,
+     "kind": "instructions",
+     "name": "GEMINI.md",
+     "path": "~/.gemini/GEMINI.md",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "gemini-cli"
+     ],
+     "format": "gemini-md",
+     "front_matter": null,
+     "kind": "instructions",
+     "name": "JIRA.md",
+     "path": "~/.gemini/extensions/jira/JIRA.md",
+     "plugin": "jira"
+    },
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "kind": "marketplace",
+     "name": "tools",
+     "path": "~/.claude/plugins/known_marketplaces.json#tools",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "codex"
+     ],
+     "kind": "marketplace",
+     "name": "tools",
+     "path": "~/.codex/config.toml#marketplaces.tools",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "kind": "mcp-config",
+     "name": ".claude.json",
+     "path": "~/.claude.json",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "kind": "mcp-config",
+     "name": ".claude.json",
+     "path": "~/.claude.json#outside-home:9a1042f5/app",
+     "plugin": null,
+     "scope": "outside-home:9a1042f5/app"
+    },
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "kind": "mcp-config",
+     "name": ".claude.json",
+     "path": "~/.claude.json#~/work/app",
+     "plugin": null,
+     "scope": "~/work/app"
+    },
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "kind": "mcp-config",
+     "name": ".mcp.json",
+     "path": "~/.claude/plugins/cache/tools/lint/1.0.0/.mcp.json",
+     "plugin": "lint"
+    },
+    {
+     "clients": [
+      "windsurf"
+     ],
+     "kind": "mcp-config",
+     "name": "mcp_config.json",
+     "path": "~/.config/devin/mcp_config.json",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode"
+     ],
+     "kind": "mcp-config",
+     "name": "mcp-config.json",
+     "path": "~/.copilot/mcp-config.json",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "cursor"
+     ],
+     "kind": "mcp-config",
+     "name": "mcp.json",
+     "path": "~/.cursor/mcp.json",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "claude-desktop"
+     ],
+     "kind": "mcp-config",
+     "name": "claude_desktop_config.json",
+     "path": "~/Library/Application Support/Claude/claude_desktop_config.json",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode"
+     ],
+     "kind": "mcp-config",
+     "name": "mcp.json",
+     "path": "~/Library/Application Support/Code - Insiders/User/mcp.json",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode"
+     ],
+     "kind": "mcp-config",
+     "name": "mcp.json",
+     "path": "~/Library/Application Support/Code - Insiders/User/profiles/personal/mcp.json",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode"
+     ],
+     "kind": "mcp-config",
+     "name": "mcp.json",
+     "path": "~/Library/Application Support/Code - Insiders/User/profiles/work/mcp.json",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode"
+     ],
+     "kind": "mcp-config",
+     "name": "mcp.json",
+     "path": "~/Library/Application Support/Code/User/mcp.json",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode"
+     ],
+     "kind": "mcp-config",
+     "name": "mcp.json",
+     "path": "~/Library/Application Support/Code/User/profiles/personal/mcp.json",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode"
+     ],
+     "kind": "mcp-config",
+     "name": "mcp.json",
+     "path": "~/Library/Application Support/Code/User/profiles/work/mcp.json",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "kind": "mcp-server",
+     "name": "github",
+     "path": "~/.claude.json#github",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "kind": "mcp-server",
+     "name": "db",
+     "path": "~/.claude.json#outside-home:9a1042f5/app#db",
+     "plugin": null,
+     "scope": "outside-home:9a1042f5/app"
+    },
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "kind": "mcp-server",
+     "name": "db",
+     "path": "~/.claude.json#~/work/app#db",
+     "plugin": null,
+     "scope": "~/work/app"
+    },
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "kind": "mcp-server",
+     "name": "lint-server",
+     "path": "~/.claude/plugins/cache/tools/lint/1.0.0/.mcp.json#lint-server",
+     "plugin": "lint"
+    },
+    {
+     "clients": [
+      "codex"
+     ],
+     "kind": "mcp-server",
+     "name": "docs",
+     "path": "~/.codex/config.toml#docs",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "codex"
+     ],
+     "kind": "mcp-server",
+     "name": "remote",
+     "path": "~/.codex/config.toml#remote",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "windsurf"
+     ],
+     "kind": "mcp-server",
+     "name": "tickets",
+     "path": "~/.config/devin/mcp_config.json#tickets",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode"
+     ],
+     "kind": "mcp-server",
+     "name": "copilot-tools",
+     "path": "~/.copilot/mcp-config.json#copilot-tools",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "cursor"
+     ],
+     "kind": "mcp-server",
+     "name": "search",
+     "path": "~/.cursor/mcp.json#search",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "gemini-cli"
+     ],
+     "kind": "mcp-server",
+     "name": "jira-ext",
+     "path": "~/.gemini/extensions/jira/gemini-extension.json#jira-ext",
+     "plugin": "jira"
+    },
+    {
+     "clients": [
+      "gemini-cli"
+     ],
+     "kind": "mcp-server",
+     "name": "events",
+     "path": "~/.gemini/settings.json#events",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "gemini-cli"
+     ],
+     "kind": "mcp-server",
+     "name": "local",
+     "path": "~/.gemini/settings.json#local",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "gemini-cli"
+     ],
+     "kind": "mcp-server",
+     "name": "maps",
+     "path": "~/.gemini/settings.json#maps",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "claude-desktop"
+     ],
+     "kind": "mcp-server",
+     "name": "weather",
+     "path": "~/Library/Application Support/Claude/claude_desktop_config.json#weather",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode"
+     ],
+     "kind": "mcp-server",
+     "name": "git",
+     "path": "~/Library/Application Support/Code - Insiders/User/mcp.json#git",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode"
+     ],
+     "kind": "mcp-server",
+     "name": "time",
+     "path": "~/Library/Application Support/Code - Insiders/User/profiles/personal/mcp.json#time",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode"
+     ],
+     "kind": "mcp-server",
+     "name": "fetch",
+     "path": "~/Library/Application Support/Code - Insiders/User/profiles/work/mcp.json#fetch",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode"
+     ],
+     "kind": "mcp-server",
+     "name": "fs",
+     "path": "~/Library/Application Support/Code/User/mcp.json#fs",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode"
+     ],
+     "kind": "mcp-server",
+     "name": "memory",
+     "path": "~/Library/Application Support/Code/User/profiles/personal/mcp.json#memory",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode"
+     ],
+     "kind": "mcp-server",
+     "name": "jira",
+     "path": "~/Library/Application Support/Code/User/profiles/work/mcp.json#jira",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "kind": "plugin",
+     "name": "lint",
+     "path": "~/.claude/plugins/installed_plugins.json#lint@tools",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "codex"
+     ],
+     "kind": "plugin",
+     "name": "review",
+     "path": "~/.codex/config.toml#plugins.review@tools",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "gemini-cli"
+     ],
+     "kind": "plugin",
+     "name": "jira",
+     "path": "~/.gemini/extensions/jira",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "kind": "plugin-manifest",
+     "name": "plugin.json",
+     "path": "~/.claude/plugins/cache/tools/lint/1.0.0/.claude-plugin/plugin.json",
+     "plugin": "lint"
+    },
+    {
+     "clients": [
+      "gemini-cli"
+     ],
+     "kind": "plugin-manifest",
+     "name": "gemini-extension.json",
+     "path": "~/.gemini/extensions/jira/gemini-extension.json",
+     "plugin": "jira"
+    },
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "kind": "settings",
+     "name": "settings.json",
+     "path": "~/.claude/settings.json",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "codex"
+     ],
+     "kind": "settings",
+     "name": "config.toml",
+     "path": "~/.codex/config.toml",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "gemini-cli"
+     ],
+     "kind": "settings",
+     "name": "settings.json",
+     "path": "~/.gemini/settings.json",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode",
+      "windsurf",
+      "codex",
+      "gemini-cli"
+     ],
+     "kind": "skill",
+     "name": "shared",
+     "path": "~/.agents/skills/shared",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "kind": "skill",
+     "name": "lint-rules",
+     "path": "~/.claude/plugins/cache/tools/lint/1.0.0/skills/lint-rules",
+     "plugin": "lint"
+    },
+    {
+     "clients": [
+      "claude-code",
+      "vscode"
+     ],
+     "kind": "skill",
+     "name": "deploy",
+     "path": "~/.claude/skills/deploy",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "windsurf"
+     ],
+     "kind": "skill",
+     "name": "notes",
+     "path": "~/.config/devin/skills/notes",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode"
+     ],
+     "kind": "skill",
+     "name": "review",
+     "path": "~/.copilot/skills/review",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "gemini-cli"
+     ],
+     "kind": "skill",
+     "name": "research",
+     "path": "~/.gemini/skills/research",
+     "plugin": null
+    }
+   ],
+   "lock": {
+    "added": [],
+    "changed": [],
+    "removed": [],
+    "status": "not_checked"
+   },
+   "notices": [],
+   "probes": [],
+   "schema": 1
+  },
+  "windows": {
+   "as_of": "2026-11-23",
+   "clients": [
+    {
+     "client": "claude-code",
+     "found": true,
+     "roots": [
+      "~/.claude.json",
+      "~/.claude/CLAUDE.md",
+      "~/.claude/plugins/installed_plugins.json",
+      "~/.claude/plugins/known_marketplaces.json",
+      "~/.claude/rules/typescript.md",
+      "~/.claude/settings.json",
+      "~/.claude/skills"
+     ]
+    },
+    {
+     "client": "claude-desktop",
+     "found": true,
+     "roots": [
+      "~/AppData/Roaming/Claude/claude_desktop_config.json"
+     ]
+    },
+    {
+     "client": "cursor",
+     "found": true,
+     "roots": [
+      "~/.cursor/hooks.json",
+      "~/.cursor/mcp.json"
+     ]
+    },
+    {
+     "client": "vscode",
+     "found": true,
+     "roots": [
+      "~/.agents/skills",
+      "~/.claude/skills",
+      "~/.copilot/mcp-config.json",
+      "~/.copilot/skills",
+      "~/AppData/Roaming/Code - Insiders/User/mcp.json",
+      "~/AppData/Roaming/Code - Insiders/User/profiles/personal/mcp.json",
+      "~/AppData/Roaming/Code - Insiders/User/profiles/work/mcp.json",
+      "~/AppData/Roaming/Code/User/mcp.json",
+      "~/AppData/Roaming/Code/User/profiles/personal/mcp.json",
+      "~/AppData/Roaming/Code/User/profiles/work/mcp.json"
+     ]
+    },
+    {
+     "client": "windsurf",
+     "found": true,
+     "roots": [
+      "~/.agents/skills",
+      "~/.config/devin/mcp_config.json",
+      "~/.config/devin/skills",
+      "~/.devin/global_rules.md",
+      "~/.devin/rules/style.md"
+     ]
+    },
+    {
+     "client": "codex",
+     "found": true,
+     "roots": [
+      "~/.agents/skills",
+      "~/.codex/AGENTS.md",
+      "~/.codex/config.toml",
+      "~/.codex/hooks.json"
+     ]
+    },
+    {
+     "client": "gemini-cli",
+     "found": true,
+     "roots": [
+      "~/.agents/skills",
+      "~/.gemini/GEMINI.md",
+      "~/.gemini/extensions",
+      "~/.gemini/settings.json",
+      "~/.gemini/skills"
+     ]
+    }
+   ],
+   "errors": [],
+   "exit_code": 1,
+   "fail_on": "high",
+   "findings": [
+    {
+     "baseline": null,
+     "evidence": "",
+     "fingerprint": "7455252f0f13962b66604271f3c59f518ff2afaedd078203b3be4a00059c79a2",
+     "item": "~/.claude.json#outside-home:9a1042f5/app",
+     "location": {
+      "line": 18,
+      "path": "~/.claude.json#outside-home:9a1042f5/app"
+     },
+     "malicious_indicator": false,
+     "rule_id": "SW-CFG-002",
+     "severity": "critical",
+     "suppressed": false,
+     "tags": {
+      "atlas": [
+       "AML.T0055",
+       "AML.T0083"
+      ],
+      "nist": [
+       "IA-5"
+      ],
+      "owasp_agentic": [],
+      "owasp_ast": [],
+      "owasp_mcp": [
+       "MCP01",
+       "MCP07"
+      ]
+     },
+     "title": "Credential written into an MCP server configuration"
+    },
+    {
+     "baseline": null,
+     "evidence": "",
+     "fingerprint": "a3914a87de5659abb6fd3fb3d8a57611edb7cc77b4ccd847f069b20c3fad8e01",
+     "item": "~/AppData/Roaming/Code/User/profiles/work/mcp.json",
+     "location": {
+      "line": 1,
+      "path": "~/AppData/Roaming/Code/User/profiles/work/mcp.json"
+     },
+     "malicious_indicator": false,
+     "rule_id": "SW-CFG-002",
+     "severity": "critical",
+     "suppressed": false,
+     "tags": {
+      "atlas": [
+       "AML.T0055",
+       "AML.T0083"
+      ],
+      "nist": [
+       "IA-5"
+      ],
+      "owasp_agentic": [],
+      "owasp_ast": [],
+      "owasp_mcp": [
+       "MCP01",
+       "MCP07"
+      ]
+     },
+     "title": "Credential written into an MCP server configuration"
+    },
+    {
+     "baseline": null,
+     "evidence": "",
+     "fingerprint": "bef65c055e4979941c0c4b4e4726bfb4b3eca2f49ba913b52e4e190700959336",
+     "item": "~/.claude/settings.json",
+     "location": {
+      "line": 9,
+      "path": "~/.claude/settings.json"
+     },
+     "malicious_indicator": false,
+     "rule_id": "SW-CFG-005",
+     "severity": "high",
+     "suppressed": false,
+     "tags": {
+      "atlas": [
+       "AML.T0142"
+      ],
+      "nist": [
+       "SR-3"
+      ],
+      "owasp_agentic": [
+       "ASI04"
+      ],
+      "owasp_ast": [],
+      "owasp_mcp": []
+     },
+     "title": "Hook pipes remote content to a shell"
+    },
+    {
+     "baseline": null,
+     "evidence": "",
+     "fingerprint": "ff15bfc76b11590284966121edaeb56d9ec71b7131b2c09db2fcf3ae4da3deab",
+     "item": "~/.claude.json",
+     "location": {
+      "line": 4,
+      "path": "~/.claude.json"
+     },
+     "malicious_indicator": false,
+     "rule_id": "SW-CFG-010",
+     "severity": "high",
+     "suppressed": false,
+     "tags": {
+      "atlas": [
+       "AML.T0083"
+      ],
+      "nist": [
+       "IA-5"
+      ],
+      "owasp_agentic": [],
+      "owasp_ast": [],
+      "owasp_mcp": [
+       "MCP01",
+       "MCP07"
+      ]
+     },
+     "title": "Literal value under a secret name in an MCP server configuration"
+    },
+    {
+     "baseline": null,
+     "evidence": "",
+     "fingerprint": "3789a241f564a3032f46da8ba15a846e421ee071447542baee8e00df296e26b4",
+     "item": "~/.claude.json#~/work/app",
+     "location": {
+      "line": 13,
+      "path": "~/.claude.json#~/work/app"
+     },
+     "malicious_indicator": false,
+     "rule_id": "SW-CFG-010",
+     "severity": "high",
+     "suppressed": false,
+     "tags": {
+      "atlas": [
+       "AML.T0083"
+      ],
+      "nist": [
+       "IA-5"
+      ],
+      "owasp_agentic": [],
+      "owasp_ast": [],
+      "owasp_mcp": [
+       "MCP01",
+       "MCP07"
+      ]
+     },
+     "title": "Literal value under a secret name in an MCP server configuration"
+    },
+    {
+     "baseline": null,
+     "evidence": "",
+     "fingerprint": "51d02d534c686d9fccb1f68b73921008303dab5e2f71da4b4306042fa38a1d9b",
+     "item": "~/.codex/config.toml",
+     "location": {
+      "line": 4,
+      "path": "~/.codex/config.toml"
+     },
+     "malicious_indicator": false,
+     "rule_id": "SW-CFG-010",
+     "severity": "high",
+     "suppressed": false,
+     "tags": {
+      "atlas": [
+       "AML.T0083"
+      ],
+      "nist": [
+       "IA-5"
+      ],
+      "owasp_agentic": [],
+      "owasp_ast": [],
+      "owasp_mcp": [
+       "MCP01",
+       "MCP07"
+      ]
+     },
+     "title": "Literal value under a secret name in an MCP server configuration"
+    },
+    {
+     "baseline": null,
+     "evidence": "",
+     "fingerprint": "ff270830aa3a538b863cbd9cc72db99eeb84fc533475c0e4c772d4fb6e489b9e",
+     "item": "~/.gemini/settings.json",
+     "location": {
+      "line": 3,
+      "path": "~/.gemini/settings.json"
+     },
+     "malicious_indicator": false,
+     "rule_id": "SW-CFG-010",
+     "severity": "high",
+     "suppressed": false,
+     "tags": {
+      "atlas": [
+       "AML.T0083"
+      ],
+      "nist": [
+       "IA-5"
+      ],
+      "owasp_agentic": [],
+      "owasp_ast": [],
+      "owasp_mcp": [
+       "MCP01",
+       "MCP07"
+      ]
+     },
+     "title": "Literal value under a secret name in an MCP server configuration"
+    },
+    {
+     "baseline": null,
+     "evidence": "",
+     "fingerprint": "f2c216994608a46d752b1cc376d13438513f684804d29c3504bcf81a805ac92e",
+     "item": "~/.gemini/settings.json",
+     "location": {
+      "line": 5,
+      "path": "~/.gemini/settings.json"
+     },
+     "malicious_indicator": false,
+     "rule_id": "SW-CFG-010",
+     "severity": "high",
+     "suppressed": false,
+     "tags": {
+      "atlas": [
+       "AML.T0083"
+      ],
+      "nist": [
+       "IA-5"
+      ],
+      "owasp_agentic": [],
+      "owasp_ast": [],
+      "owasp_mcp": [
+       "MCP01",
+       "MCP07"
+      ]
+     },
+     "title": "Literal value under a secret name in an MCP server configuration"
+    },
+    {
+     "baseline": null,
+     "evidence": "curl -fsSL https://get.example.com/install.sh | sh",
+     "fingerprint": "6dd0de0216f76ca77512cd8df9da4b8857f8c050c3fbe97dbfdc026a7fca46b5",
+     "item": "~/.claude/skills/deploy",
+     "location": {
+      "line": 2,
+      "path": "~/.claude/skills/deploy/scripts/setup.sh"
+     },
+     "malicious_indicator": false,
+     "rule_id": "SW-SKL-007",
+     "severity": "high",
+     "suppressed": false,
+     "tags": {
+      "atlas": [
+       "AML.T0010.005"
+      ],
+      "nist": [
+       "SR-3"
+      ],
+      "owasp_agentic": [
+       "ASI04"
+      ],
+      "owasp_ast": [
+       "AST02"
+      ],
+      "owasp_mcp": [
+       "MCP04"
+      ]
+     },
+     "title": "Remote script piped to a shell"
+    }
+   ],
+   "items": [
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "kind": "hooks",
+     "name": "hooks.json",
+     "path": "~/.claude/plugins/cache/tools/lint/1.0.0/hooks/hooks.json",
+     "plugin": "lint"
+    },
+    {
+     "clients": [
+      "codex"
+     ],
+     "kind": "hooks",
+     "name": "hooks.json",
+     "path": "~/.codex/hooks.json",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "cursor"
+     ],
+     "kind": "hooks",
+     "name": "hooks.json",
+     "path": "~/.cursor/hooks.json",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "gemini-cli"
+     ],
+     "kind": "hooks",
+     "name": "hooks.json",
+     "path": "~/.gemini/extensions/jira/hooks/hooks.json",
+     "plugin": "jira"
+    },
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "format": "claude-md",
+     "front_matter": null,
+     "kind": "instructions",
+     "name": "CLAUDE.md",
+     "path": "~/.claude/CLAUDE.md",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "format": "claude-rule",
+     "front_matter": {
+      "always_apply": null,
+      "description": null,
+      "globs": [
+       "src/**/*.ts"
+      ],
+      "trigger": null
+     },
+     "kind": "instructions",
+     "name": "typescript.md",
+     "path": "~/.claude/rules/typescript.md",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "codex"
+     ],
+     "format": "codex-agents-md",
+     "front_matter": null,
+     "kind": "instructions",
+     "name": "AGENTS.md",
+     "path": "~/.codex/AGENTS.md",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "windsurf"
+     ],
+     "format": "devin-rules",
+     "front_matter": null,
+     "kind": "instructions",
+     "name": "global_rules.md",
+     "path": "~/.devin/global_rules.md",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "windsurf"
+     ],
+     "format": "devin-rules",
+     "front_matter": {
+      "always_apply": null,
+      "description": "Style for Python code",
+      "globs": null,
+      "trigger": "model_decision"
+     },
+     "kind": "instructions",
+     "name": "style.md",
+     "path": "~/.devin/rules/style.md",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "gemini-cli"
+     ],
+     "format": "gemini-md",
+     "front_matter": null,
+     "kind": "instructions",
+     "name": "GEMINI.md",
+     "path": "~/.gemini/GEMINI.md",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "gemini-cli"
+     ],
+     "format": "gemini-md",
+     "front_matter": null,
+     "kind": "instructions",
+     "name": "JIRA.md",
+     "path": "~/.gemini/extensions/jira/JIRA.md",
+     "plugin": "jira"
+    },
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "kind": "marketplace",
+     "name": "tools",
+     "path": "~/.claude/plugins/known_marketplaces.json#tools",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "codex"
+     ],
+     "kind": "marketplace",
+     "name": "tools",
+     "path": "~/.codex/config.toml#marketplaces.tools",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "kind": "mcp-config",
+     "name": ".claude.json",
+     "path": "~/.claude.json",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "kind": "mcp-config",
+     "name": ".claude.json",
+     "path": "~/.claude.json#outside-home:9a1042f5/app",
+     "plugin": null,
+     "scope": "outside-home:9a1042f5/app"
+    },
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "kind": "mcp-config",
+     "name": ".claude.json",
+     "path": "~/.claude.json#~/work/app",
+     "plugin": null,
+     "scope": "~/work/app"
+    },
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "kind": "mcp-config",
+     "name": ".mcp.json",
+     "path": "~/.claude/plugins/cache/tools/lint/1.0.0/.mcp.json",
+     "plugin": "lint"
+    },
+    {
+     "clients": [
+      "windsurf"
+     ],
+     "kind": "mcp-config",
+     "name": "mcp_config.json",
+     "path": "~/.config/devin/mcp_config.json",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode"
+     ],
+     "kind": "mcp-config",
+     "name": "mcp-config.json",
+     "path": "~/.copilot/mcp-config.json",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "cursor"
+     ],
+     "kind": "mcp-config",
+     "name": "mcp.json",
+     "path": "~/.cursor/mcp.json",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "claude-desktop"
+     ],
+     "kind": "mcp-config",
+     "name": "claude_desktop_config.json",
+     "path": "~/AppData/Roaming/Claude/claude_desktop_config.json",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode"
+     ],
+     "kind": "mcp-config",
+     "name": "mcp.json",
+     "path": "~/AppData/Roaming/Code - Insiders/User/mcp.json",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode"
+     ],
+     "kind": "mcp-config",
+     "name": "mcp.json",
+     "path": "~/AppData/Roaming/Code - Insiders/User/profiles/personal/mcp.json",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode"
+     ],
+     "kind": "mcp-config",
+     "name": "mcp.json",
+     "path": "~/AppData/Roaming/Code - Insiders/User/profiles/work/mcp.json",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode"
+     ],
+     "kind": "mcp-config",
+     "name": "mcp.json",
+     "path": "~/AppData/Roaming/Code/User/mcp.json",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode"
+     ],
+     "kind": "mcp-config",
+     "name": "mcp.json",
+     "path": "~/AppData/Roaming/Code/User/profiles/personal/mcp.json",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode"
+     ],
+     "kind": "mcp-config",
+     "name": "mcp.json",
+     "path": "~/AppData/Roaming/Code/User/profiles/work/mcp.json",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "kind": "mcp-server",
+     "name": "github",
+     "path": "~/.claude.json#github",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "kind": "mcp-server",
+     "name": "db",
+     "path": "~/.claude.json#outside-home:9a1042f5/app#db",
+     "plugin": null,
+     "scope": "outside-home:9a1042f5/app"
+    },
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "kind": "mcp-server",
+     "name": "db",
+     "path": "~/.claude.json#~/work/app#db",
+     "plugin": null,
+     "scope": "~/work/app"
+    },
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "kind": "mcp-server",
+     "name": "lint-server",
+     "path": "~/.claude/plugins/cache/tools/lint/1.0.0/.mcp.json#lint-server",
+     "plugin": "lint"
+    },
+    {
+     "clients": [
+      "codex"
+     ],
+     "kind": "mcp-server",
+     "name": "docs",
+     "path": "~/.codex/config.toml#docs",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "codex"
+     ],
+     "kind": "mcp-server",
+     "name": "remote",
+     "path": "~/.codex/config.toml#remote",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "windsurf"
+     ],
+     "kind": "mcp-server",
+     "name": "tickets",
+     "path": "~/.config/devin/mcp_config.json#tickets",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode"
+     ],
+     "kind": "mcp-server",
+     "name": "copilot-tools",
+     "path": "~/.copilot/mcp-config.json#copilot-tools",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "cursor"
+     ],
+     "kind": "mcp-server",
+     "name": "search",
+     "path": "~/.cursor/mcp.json#search",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "gemini-cli"
+     ],
+     "kind": "mcp-server",
+     "name": "jira-ext",
+     "path": "~/.gemini/extensions/jira/gemini-extension.json#jira-ext",
+     "plugin": "jira"
+    },
+    {
+     "clients": [
+      "gemini-cli"
+     ],
+     "kind": "mcp-server",
+     "name": "events",
+     "path": "~/.gemini/settings.json#events",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "gemini-cli"
+     ],
+     "kind": "mcp-server",
+     "name": "local",
+     "path": "~/.gemini/settings.json#local",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "gemini-cli"
+     ],
+     "kind": "mcp-server",
+     "name": "maps",
+     "path": "~/.gemini/settings.json#maps",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "claude-desktop"
+     ],
+     "kind": "mcp-server",
+     "name": "weather",
+     "path": "~/AppData/Roaming/Claude/claude_desktop_config.json#weather",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode"
+     ],
+     "kind": "mcp-server",
+     "name": "git",
+     "path": "~/AppData/Roaming/Code - Insiders/User/mcp.json#git",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode"
+     ],
+     "kind": "mcp-server",
+     "name": "time",
+     "path": "~/AppData/Roaming/Code - Insiders/User/profiles/personal/mcp.json#time",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode"
+     ],
+     "kind": "mcp-server",
+     "name": "fetch",
+     "path": "~/AppData/Roaming/Code - Insiders/User/profiles/work/mcp.json#fetch",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode"
+     ],
+     "kind": "mcp-server",
+     "name": "fs",
+     "path": "~/AppData/Roaming/Code/User/mcp.json#fs",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode"
+     ],
+     "kind": "mcp-server",
+     "name": "memory",
+     "path": "~/AppData/Roaming/Code/User/profiles/personal/mcp.json#memory",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode"
+     ],
+     "kind": "mcp-server",
+     "name": "jira",
+     "path": "~/AppData/Roaming/Code/User/profiles/work/mcp.json#jira",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "kind": "plugin",
+     "name": "lint",
+     "path": "~/.claude/plugins/installed_plugins.json#lint@tools",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "codex"
+     ],
+     "kind": "plugin",
+     "name": "review",
+     "path": "~/.codex/config.toml#plugins.review@tools",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "gemini-cli"
+     ],
+     "kind": "plugin",
+     "name": "jira",
+     "path": "~/.gemini/extensions/jira",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "kind": "plugin-manifest",
+     "name": "plugin.json",
+     "path": "~/.claude/plugins/cache/tools/lint/1.0.0/.claude-plugin/plugin.json",
+     "plugin": "lint"
+    },
+    {
+     "clients": [
+      "gemini-cli"
+     ],
+     "kind": "plugin-manifest",
+     "name": "gemini-extension.json",
+     "path": "~/.gemini/extensions/jira/gemini-extension.json",
+     "plugin": "jira"
+    },
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "kind": "settings",
+     "name": "settings.json",
+     "path": "~/.claude/settings.json",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "codex"
+     ],
+     "kind": "settings",
+     "name": "config.toml",
+     "path": "~/.codex/config.toml",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "gemini-cli"
+     ],
+     "kind": "settings",
+     "name": "settings.json",
+     "path": "~/.gemini/settings.json",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode",
+      "windsurf",
+      "codex",
+      "gemini-cli"
+     ],
+     "kind": "skill",
+     "name": "shared",
+     "path": "~/.agents/skills/shared",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "claude-code"
+     ],
+     "kind": "skill",
+     "name": "lint-rules",
+     "path": "~/.claude/plugins/cache/tools/lint/1.0.0/skills/lint-rules",
+     "plugin": "lint"
+    },
+    {
+     "clients": [
+      "claude-code",
+      "vscode"
+     ],
+     "kind": "skill",
+     "name": "deploy",
+     "path": "~/.claude/skills/deploy",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "windsurf"
+     ],
+     "kind": "skill",
+     "name": "notes",
+     "path": "~/.config/devin/skills/notes",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "vscode"
+     ],
+     "kind": "skill",
+     "name": "review",
+     "path": "~/.copilot/skills/review",
+     "plugin": null
+    },
+    {
+     "clients": [
+      "gemini-cli"
+     ],
+     "kind": "skill",
+     "name": "research",
+     "path": "~/.gemini/skills/research",
+     "plugin": null
+    }
+   ],
+   "lock": {
+    "added": [],
+    "changed": [],
+    "removed": [],
+    "status": "not_checked"
+   },
+   "notices": [],
+   "probes": [],
+   "schema": 1
+  }
+ },
+ "release_tag": "v1.19.0",
+ "scanner_version": "1.19.0"
+}

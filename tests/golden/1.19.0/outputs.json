@@ -1,0 +1,2766 @@
+{
+ "as_of": "2026-11-17",
+ "release_tag": "v1.19.0",
+ "roots": {
+  "fixtures/config/SW-CFG-001/negative": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [
+    [
+     "mcp-config",
+     ".vscode/mcp.json",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".vscode/mcp.json#dev",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".vscode/mcp.json#ipv6",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".vscode/mcp.json#jira",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "653cf184b0c2f8cd36b37dc30678d41f9869cc50a655c3ab953652c0ed65f010",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "affd8fc6be212c4b871b7d68d21ecddc7a7e9b0c3a228ed4d730abeacdb8ee45",
+    "json": "203dbf38eb5eee058c201b8c2e93fbccfda11e743d3a912b2ec7cc204de8fa37",
+    "markdown": "04fa91da3403fc0256d1f4e8069212c85ca1b26025f09e66a1ff804cbd49d0ea",
+    "sarif": "b977778ac7df6f70eac7c9583554256616c007a947459ce300055fccc0602672",
+    "text": "2871fa6fc751517551dc37c02873afaaa3954f4aca6e8a409d6d7cf377e8cb47"
+   }
+  },
+  "fixtures/config/SW-CFG-001/positive": {
+   "exit_code": 1,
+   "findings": [
+    [
+     "SW-CFG-001",
+     "5dbab4a722c54134d87ba1d476d59d1e02368133be96418a972b08f031923b93",
+     ".mcp.json"
+    ]
+   ],
+   "items": [
+    [
+     "mcp-config",
+     ".mcp.json",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#jira",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#local",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "1c02eb18461b83052244a5d3a8431d40f985a1c1872853be1eb2d02f8137a4b5",
+    "gitlab-codequality": "855d278d79bf8e4e60a49461ade08d19988d208f25a414739817022db315de0a",
+    "html": "cc1467ec43468bd3a96457d423cf6a0a760e56e3e74f68a239cac364a71bfa19",
+    "json": "9b65ed4677ac160d68647b1e72ff4ed57e6b8001180a4095103ea60c1482e454",
+    "markdown": "04439ecef2f3b485e381e5fd7179d497aede0911d3d5f90193fba7046971b0de",
+    "sarif": "d9b7362799de7a932e6b15c1064394f57830cf09f81fdb91b8cd14127931e278",
+    "text": "29002430d8f509099612378391a5653957912d77c48541ad4493053108170ebb"
+   }
+  },
+  "fixtures/config/SW-CFG-002/negative": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [
+    [
+     "mcp-config",
+     ".mcp.json",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#github",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#search",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "d4b9e9a2cb35dc69ca2e18e75f6dfd0abf0c75ce173fa1700d125236e87a6b19",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "b663d3161dd0f789623f67d9a46b68484fa128740b17572f9f5aea48065e7dd9",
+    "json": "f13c93414761bb3a5201e0db2e4d39e8d35e5e39727035a614ea075f6ace8179",
+    "markdown": "04fa91da3403fc0256d1f4e8069212c85ca1b26025f09e66a1ff804cbd49d0ea",
+    "sarif": "b977778ac7df6f70eac7c9583554256616c007a947459ce300055fccc0602672",
+    "text": "2871fa6fc751517551dc37c02873afaaa3954f4aca6e8a409d6d7cf377e8cb47"
+   }
+  },
+  "fixtures/config/SW-CFG-002/positive": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [],
+   "outputs": {
+    "cyclonedx": "996cd5cb4f14c79394bfc6a65b8b5bd49a98bcd4cc7bd2d51179ab25e693a545",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "a5b410d580b08a174dd0b363540e4a176d6e49d2c2f004973b133bf729dd0b8f",
+    "json": "fa2980bacb238664b99d019e9aafde344a039dd40e5034b77898b7709bb36688",
+    "markdown": "04fa91da3403fc0256d1f4e8069212c85ca1b26025f09e66a1ff804cbd49d0ea",
+    "sarif": "b977778ac7df6f70eac7c9583554256616c007a947459ce300055fccc0602672",
+    "text": "a74969998724bea62cc6347df55b9f81eef2c92ea3186beaaf0aaee3ed1a75a5"
+   }
+  },
+  "fixtures/config/SW-CFG-003/negative": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [
+    [
+     "mcp-config",
+     ".mcp.json",
+     ""
+    ],
+    [
+     "mcp-config",
+     ".vscode/mcp.json",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#db",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#fetch",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#files",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#local",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#pinned",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".vscode/mcp.json#calendar",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".vscode/mcp.json#clock",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".vscode/mcp.json#notes",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".vscode/mcp.json#probe",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".vscode/mcp.json#script",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".vscode/mcp.json#search",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".vscode/mcp.json#tickets",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".vscode/mcp.json#vault",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".vscode/mcp.json#wiki",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "d028f79b444ba6fc78b950c7cd83bb2f4fc499ad63d34da71ea02090e7be863e",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "7fc4301d3826d00024a29823cb11de68d0c3f7b086f0d5a23630ae0f54ddf7eb",
+    "json": "8457700e3472d4d2ba7348bd84f6fa668ca9d201df46f2356a5508511be3c116",
+    "markdown": "04fa91da3403fc0256d1f4e8069212c85ca1b26025f09e66a1ff804cbd49d0ea",
+    "sarif": "b977778ac7df6f70eac7c9583554256616c007a947459ce300055fccc0602672",
+    "text": "2871fa6fc751517551dc37c02873afaaa3954f4aca6e8a409d6d7cf377e8cb47"
+   }
+  },
+  "fixtures/config/SW-CFG-003/positive": {
+   "exit_code": 0,
+   "findings": [
+    [
+     "SW-CFG-003",
+     "101abbc843e0b6cf549e8f12152039b59481a453ef24015697338d0b78c0e08b",
+     ".vscode/mcp.json"
+    ],
+    [
+     "SW-CFG-003",
+     "164d0af62991f3ecd6dfe37fb2da49546346de00578c5cff57e9ba90ac8ba652",
+     ".vscode/mcp.json"
+    ],
+    [
+     "SW-CFG-003",
+     "1865cd37845e58c0449632bf9665d4bf70a1ecba14f1c7638d9d2f2bc7fd327d",
+     ".vscode/mcp.json"
+    ],
+    [
+     "SW-CFG-003",
+     "2768ccbaa29a4a968a849fe243dc63c23f4bf941465729450d178273787710a6",
+     ".mcp.json"
+    ],
+    [
+     "SW-CFG-003",
+     "282cfb246ed1ef661e3337e817b85a9ec804324b79fa9aa3e67fdd31088afb02",
+     ".vscode/mcp.json"
+    ],
+    [
+     "SW-CFG-003",
+     "28d151666b9df6e8cedc3a91f3d2dc5ce1df652a23c1084b5409fc38556974d8",
+     ".vscode/mcp.json"
+    ],
+    [
+     "SW-CFG-003",
+     "5af71da7f286e8bc436cc654cc54d00f13bb26938f97bb28fedcbb9f9d0c771a",
+     ".mcp.json"
+    ],
+    [
+     "SW-CFG-003",
+     "70251c3fb4edf0d27310ff80fa18740af254cebea019bae23d4ffc52e43f6b38",
+     ".vscode/mcp.json"
+    ],
+    [
+     "SW-CFG-003",
+     "af96a564c8ec291fc04ae228acf60f87fe65fbe9830547ad2572565f0d8b1c51",
+     ".mcp.json"
+    ],
+    [
+     "SW-CFG-003",
+     "cd6c80e9528575e94adaa2237bb9605f9b0f91581e5a57ef23427f0fc862d09e",
+     ".vscode/mcp.json"
+    ],
+    [
+     "SW-CFG-003",
+     "da02c192030cd19232206c604455d9e388710041fcbd531ae8f4cd74f2e4075a",
+     ".vscode/mcp.json"
+    ],
+    [
+     "SW-CFG-003",
+     "db76da3482c947076f77fcaee8a6a8299118bd30dce52fb63e244fde1a12624d",
+     ".mcp.json"
+    ]
+   ],
+   "items": [
+    [
+     "mcp-config",
+     ".mcp.json",
+     ""
+    ],
+    [
+     "mcp-config",
+     ".vscode/mcp.json",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#db",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#fetch",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#files",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#notes",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".vscode/mcp.json#calendar",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".vscode/mcp.json#clock",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".vscode/mcp.json#jobs",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".vscode/mcp.json#notes",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".vscode/mcp.json#search",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".vscode/mcp.json#tickets",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".vscode/mcp.json#vault",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".vscode/mcp.json#wiki",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "15fb5fdd8c477353a0399f243b5a248a1fee2a67a097854b7d69f1896ed422a6",
+    "gitlab-codequality": "4e3e8220258649866fe025d206e1d3e20b4cc10fb920e1e76609358c02bfd8e6",
+    "html": "c7a47464091b185c7ca0bc768ce528a57bd693428fe1fcdb63f98a84a23ba32e",
+    "json": "7dfb8b1658efb90f55970745460994848bfa1d7b0f49931cf2aa7db9910c7a8b",
+    "markdown": "f84ac1da57e7e9534777fc9af6f1f604d2a6c42aba2543d53b54253cf8449c84",
+    "sarif": "7ca773b205bcd776d1a751f51964d38c42900cba4873761fa9813c2b36f5880b",
+    "text": "856c6249b216e6403ec3f16892494832367ae4ddef2c78f7eb6a60393043d5d4"
+   }
+  },
+  "fixtures/config/SW-CFG-004/negative": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [
+    [
+     "mcp-config",
+     ".mcp.json",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#bitly-lookalike",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#dev",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#ipv6",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#metrics",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "aaef23676caea6763544e26211b7cd53fd9a51564ba348e70d81ce8950524ee1",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "0b4c74cf03327ba56235befa3dfd9911f58a7e3e7a3ff8c0d6899e2c96cff5c7",
+    "json": "057d3095ea96263759957b96a176ddfb220e1d227a6c451ac5e0e00afceef8ce",
+    "markdown": "04fa91da3403fc0256d1f4e8069212c85ca1b26025f09e66a1ff804cbd49d0ea",
+    "sarif": "b977778ac7df6f70eac7c9583554256616c007a947459ce300055fccc0602672",
+    "text": "2871fa6fc751517551dc37c02873afaaa3954f4aca6e8a409d6d7cf377e8cb47"
+   }
+  },
+  "fixtures/config/SW-CFG-004/positive": {
+   "exit_code": 0,
+   "findings": [
+    [
+     "SW-CFG-004",
+     "34cac0d488ce43fe4a2b82d5ab82cfca17b5eef77b8fee7b679959fd666f5e46",
+     ".mcp.json"
+    ],
+    [
+     "SW-CFG-004",
+     "37560042990bc8436a0436193f68459734b45f74ffa0b7366b9651d8dbab4d96",
+     ".mcp.json"
+    ],
+    [
+     "SW-CFG-004",
+     "66b6998cd1d47e5f36b6ccd9fb5d245a98c52e4b234003a4aa8058e06b4fbbf9",
+     ".mcp.json"
+    ]
+   ],
+   "items": [
+    [
+     "mcp-config",
+     ".mcp.json",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#metrics",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#octal",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#short",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "f10240ce7b01842c0dfa3db315ffab0f147dab5e47a7cca1d08eb12a34de11d3",
+    "gitlab-codequality": "c94158190be5d70933f7174dc92766683dd481ca51d29e07402947dd23532427",
+    "html": "41c192b1c86279344bceb1e2ccd784b6e7dbfc5f202155ce830fabcdad42b257",
+    "json": "4de4d55c4c984dfaea89e454910c223bbed38c7690c26fbf42b7efffe6a8586f",
+    "markdown": "c21c361a31bbb014ea4546623fa95e881a3a12c98db8c1716667d60e98e6228f",
+    "sarif": "1082534a8aa06d73fffbc359630cf8e232b0eb12ff49dee72c0a2b42f4420fbe",
+    "text": "aef969c1e35a91cc969b813deb2078e2345249c611ccdf0f5dad5d18722e01e7"
+   }
+  },
+  "fixtures/config/SW-CFG-005/negative": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [],
+   "outputs": {
+    "cyclonedx": "996cd5cb4f14c79394bfc6a65b8b5bd49a98bcd4cc7bd2d51179ab25e693a545",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "a5b410d580b08a174dd0b363540e4a176d6e49d2c2f004973b133bf729dd0b8f",
+    "json": "fa2980bacb238664b99d019e9aafde344a039dd40e5034b77898b7709bb36688",
+    "markdown": "04fa91da3403fc0256d1f4e8069212c85ca1b26025f09e66a1ff804cbd49d0ea",
+    "sarif": "b977778ac7df6f70eac7c9583554256616c007a947459ce300055fccc0602672",
+    "text": "a74969998724bea62cc6347df55b9f81eef2c92ea3186beaaf0aaee3ed1a75a5"
+   }
+  },
+  "fixtures/config/SW-CFG-005/positive": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [],
+   "outputs": {
+    "cyclonedx": "996cd5cb4f14c79394bfc6a65b8b5bd49a98bcd4cc7bd2d51179ab25e693a545",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "a5b410d580b08a174dd0b363540e4a176d6e49d2c2f004973b133bf729dd0b8f",
+    "json": "fa2980bacb238664b99d019e9aafde344a039dd40e5034b77898b7709bb36688",
+    "markdown": "04fa91da3403fc0256d1f4e8069212c85ca1b26025f09e66a1ff804cbd49d0ea",
+    "sarif": "b977778ac7df6f70eac7c9583554256616c007a947459ce300055fccc0602672",
+    "text": "a74969998724bea62cc6347df55b9f81eef2c92ea3186beaaf0aaee3ed1a75a5"
+   }
+  },
+  "fixtures/config/SW-CFG-006/negative": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [
+    [
+     "settings",
+     ".claude/settings.json",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "3d700786a98fb33ddc4a349a6f948b503e552327984bae38847fb6a72be0ea37",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "e21db45f740c2155aa5cd483c83c0dc682088515e9e2fb61a857e5ff65bb0e29",
+    "json": "f82f13545838ff9899bf797f495409f712645252f776171e746a67d14c6f2a66",
+    "markdown": "04fa91da3403fc0256d1f4e8069212c85ca1b26025f09e66a1ff804cbd49d0ea",
+    "sarif": "b977778ac7df6f70eac7c9583554256616c007a947459ce300055fccc0602672",
+    "text": "2871fa6fc751517551dc37c02873afaaa3954f4aca6e8a409d6d7cf377e8cb47"
+   }
+  },
+  "fixtures/config/SW-CFG-006/positive": {
+   "exit_code": 1,
+   "findings": [
+    [
+     "SW-CFG-006",
+     "097510a3e174fed719c5f7374db6ffcd47cd5432ed8739789cc4401f50f79f0b",
+     ".claude/settings.json"
+    ]
+   ],
+   "items": [
+    [
+     "settings",
+     ".claude/settings.json",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "63036e9e8428eff387fbbe79fbcc76a51287bd80fb26fcba8cb927cae9ac463c",
+    "gitlab-codequality": "9ac22df4093b1c415d52b75652c9027d769ec30b29314ce52d5bb5366cded221",
+    "html": "08444fee809f017e8e99e5c22c2cbd80b66eea4cf784478385c08e76e4a217ad",
+    "json": "3558652674468aad0ef8e2770dcb77a51770efc369708bc4ffc7b6f872784e4e",
+    "markdown": "53b3d6a6a037ba8fa7c0071a162385d84c302fceade687a85c41737f2842d25c",
+    "sarif": "d6d9418f8aec2f0bb1200f977f1af2d1e78588df9fbc49c3cdec06cc8222870d",
+    "text": "caf8df8aaaec7edb4b33f286188c1a89cb608b361bfd6d7e668f9d59e282079b"
+   }
+  },
+  "fixtures/config/SW-CFG-007/negative": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [],
+   "outputs": {
+    "cyclonedx": "996cd5cb4f14c79394bfc6a65b8b5bd49a98bcd4cc7bd2d51179ab25e693a545",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "a5b410d580b08a174dd0b363540e4a176d6e49d2c2f004973b133bf729dd0b8f",
+    "json": "fa2980bacb238664b99d019e9aafde344a039dd40e5034b77898b7709bb36688",
+    "markdown": "04fa91da3403fc0256d1f4e8069212c85ca1b26025f09e66a1ff804cbd49d0ea",
+    "sarif": "b977778ac7df6f70eac7c9583554256616c007a947459ce300055fccc0602672",
+    "text": "a74969998724bea62cc6347df55b9f81eef2c92ea3186beaaf0aaee3ed1a75a5"
+   }
+  },
+  "fixtures/config/SW-CFG-007/positive": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [],
+   "outputs": {
+    "cyclonedx": "996cd5cb4f14c79394bfc6a65b8b5bd49a98bcd4cc7bd2d51179ab25e693a545",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "a5b410d580b08a174dd0b363540e4a176d6e49d2c2f004973b133bf729dd0b8f",
+    "json": "fa2980bacb238664b99d019e9aafde344a039dd40e5034b77898b7709bb36688",
+    "markdown": "04fa91da3403fc0256d1f4e8069212c85ca1b26025f09e66a1ff804cbd49d0ea",
+    "sarif": "b977778ac7df6f70eac7c9583554256616c007a947459ce300055fccc0602672",
+    "text": "a74969998724bea62cc6347df55b9f81eef2c92ea3186beaaf0aaee3ed1a75a5"
+   }
+  },
+  "fixtures/config/SW-CFG-008/negative": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [
+    [
+     "settings",
+     ".claude/settings.json",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "44504f977bcecd445735197828d1c1d8cf735000708234de84c857dc9ec0f823",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "e21db45f740c2155aa5cd483c83c0dc682088515e9e2fb61a857e5ff65bb0e29",
+    "json": "f82f13545838ff9899bf797f495409f712645252f776171e746a67d14c6f2a66",
+    "markdown": "04fa91da3403fc0256d1f4e8069212c85ca1b26025f09e66a1ff804cbd49d0ea",
+    "sarif": "b977778ac7df6f70eac7c9583554256616c007a947459ce300055fccc0602672",
+    "text": "2871fa6fc751517551dc37c02873afaaa3954f4aca6e8a409d6d7cf377e8cb47"
+   }
+  },
+  "fixtures/config/SW-CFG-008/positive": {
+   "exit_code": 1,
+   "findings": [
+    [
+     "SW-CFG-008",
+     "0cae7a6123674a8bfc674b2db9efbfdaa6c1f680c68dde5b39ae1b0ca981af6a",
+     ".claude/settings.json"
+    ],
+    [
+     "SW-CFG-008",
+     "3750748e3108f1f8960a7ab5d04417e77229434c7a71f82b907cd86521e34902",
+     ".claude/settings.json"
+    ],
+    [
+     "SW-CFG-008",
+     "4852c3459e93f9094d173f3e21af74775673a5984d8f16210c294c2bde51bf28",
+     ".claude/settings.json"
+    ]
+   ],
+   "items": [
+    [
+     "settings",
+     ".claude/settings.json",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "feeb9ff47053331d7ac2f8649e8eb979b1651cd7df38283561ac86317e4f8f6a",
+    "gitlab-codequality": "e6ffa7c311bea0eb838c87af72396b2eceded8f318023cdf339ab355aae25eb0",
+    "html": "ba3743c83c5bab45f27af76bf9666b0519f1c6e5a3f943e55ee54a418d54a9e1",
+    "json": "ad16e6c655a7e860d0ddd9c2c6e4f50c0d837d6f449a32fcacbad7b868566cef",
+    "markdown": "da346dec28f839d0febaffb4bbd0310008d4d3a233c31fc6b0edeedead521fa8",
+    "sarif": "f1ca43d998917939a81229861aca6d39780d53a5b2cdf888c0b4c36f91faf0d8",
+    "text": "6f467bae3c07e76b64987209fcb4ea9ba1192701cc65f3ab0e5ed341d319840d"
+   }
+  },
+  "fixtures/config/SW-CFG-009/negative": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [
+    [
+     "marketplace",
+     ".claude-plugin/marketplace.json",
+     ""
+    ],
+    [
+     "plugin",
+     ".claude-plugin/marketplace.json#docs",
+     ""
+    ],
+    [
+     "plugin",
+     ".claude-plugin/marketplace.json#infra",
+     ""
+    ],
+    [
+     "plugin",
+     ".claude-plugin/marketplace.json#local",
+     ""
+    ],
+    [
+     "plugin",
+     ".claude-plugin/marketplace.json#npm",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "ddff40411ce9766593052b87e5ecbe0c225eaed56d740688c1007c211c3f9751",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "65a409a5c764f75443be8d4ed05c8b1d1593d47fc58a261fa50da28764df2f2a",
+    "json": "fd3546ad2b4f7a29467df435b5606c32db4bda568fc7f581d1f4f8cda0d9d6f7",
+    "markdown": "04fa91da3403fc0256d1f4e8069212c85ca1b26025f09e66a1ff804cbd49d0ea",
+    "sarif": "b977778ac7df6f70eac7c9583554256616c007a947459ce300055fccc0602672",
+    "text": "2871fa6fc751517551dc37c02873afaaa3954f4aca6e8a409d6d7cf377e8cb47"
+   }
+  },
+  "fixtures/config/SW-CFG-009/positive": {
+   "exit_code": 0,
+   "findings": [
+    [
+     "SW-CFG-009",
+     "6ce712a56719851f63165173238b178270efa64e33faaad42aa6055a3ed7e2c2",
+     ".claude-plugin/marketplace.json"
+    ],
+    [
+     "SW-CFG-009",
+     "9498f286e19b9dd99def0a1b32906a75e4871d2ee81dfd0f0e203da2867243a9",
+     ".claude-plugin/marketplace.json"
+    ],
+    [
+     "SW-CFG-009",
+     "b81b8c90657c7761a0e35590d2d616c23ad6b4e9d3cda958a27de08442b96add",
+     ".claude-plugin/marketplace.json"
+    ]
+   ],
+   "items": [
+    [
+     "marketplace",
+     ".claude-plugin/marketplace.json",
+     ""
+    ],
+    [
+     "plugin",
+     ".claude-plugin/marketplace.json#docs",
+     ""
+    ],
+    [
+     "plugin",
+     ".claude-plugin/marketplace.json#infra",
+     ""
+    ],
+    [
+     "plugin",
+     ".claude-plugin/marketplace.json#local",
+     ""
+    ],
+    [
+     "plugin",
+     ".claude-plugin/marketplace.json#mixed",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "bf81c57f58c9124dfee9ac3148bc065b82a0729282e9435bd22f3b6a7ee0c7bb",
+    "gitlab-codequality": "4f8a5e0405a9dd948c041f1bd630ea9761ecc428951903aeb5d8f56bbea4be2e",
+    "html": "a96d751a96d820334bb4b7d7ce16ffa2874c6f63958ca419de8a7171ec1124b8",
+    "json": "974c5725c1d0cfff5a7afcd144b2d12ae25cea8c0b0b14d2e570c4a3c645300c",
+    "markdown": "fa5b1d73558e980b6fb0cf61f2bb7654e6658e1dc3056892b7465cd16fc7792b",
+    "sarif": "07870ca005de8329c458d3467605f059c79065adaf697ff9d7cf4230e54d3b9e",
+    "text": "2fa43b204e90b217622cece9dc1aaef1754c0058d64a7e0f96e7b5d2f7d53bd7"
+   }
+  },
+  "fixtures/config/SW-CFG-010/negative": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [
+    [
+     "mcp-config",
+     ".cursor/mcp.json",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".cursor/mcp.json#crm",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "8249cebbd563e14924f163608fd5b170f8b07aca0ea86aa2dfe0ef1e9dc24025",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "34f63ec9143b7925153a369e1fdb579d26e14a265badc9903a92266464f2c5f1",
+    "json": "f6f1acabf435554a6ad8aa3603d62e160ef33031fa67f8d62a8b2287b99ff0c4",
+    "markdown": "04fa91da3403fc0256d1f4e8069212c85ca1b26025f09e66a1ff804cbd49d0ea",
+    "sarif": "b977778ac7df6f70eac7c9583554256616c007a947459ce300055fccc0602672",
+    "text": "2871fa6fc751517551dc37c02873afaaa3954f4aca6e8a409d6d7cf377e8cb47"
+   }
+  },
+  "fixtures/config/SW-CFG-010/positive": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [],
+   "outputs": {
+    "cyclonedx": "996cd5cb4f14c79394bfc6a65b8b5bd49a98bcd4cc7bd2d51179ab25e693a545",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "a5b410d580b08a174dd0b363540e4a176d6e49d2c2f004973b133bf729dd0b8f",
+    "json": "fa2980bacb238664b99d019e9aafde344a039dd40e5034b77898b7709bb36688",
+    "markdown": "04fa91da3403fc0256d1f4e8069212c85ca1b26025f09e66a1ff804cbd49d0ea",
+    "sarif": "b977778ac7df6f70eac7c9583554256616c007a947459ce300055fccc0602672",
+    "text": "a74969998724bea62cc6347df55b9f81eef2c92ea3186beaaf0aaee3ed1a75a5"
+   }
+  },
+  "fixtures/config/SW-CFG-012/negative": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [
+    [
+     "mcp-config",
+     ".mcp.json",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#notes",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#tickets",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "ce7006430f123a8e97297eb4d55ff21d64000ff796364f2f11b8886d75beccd8",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "64967d1a00408eb675bb1312e3229cd6b073c7d944ffaa670bb119336a191327",
+    "json": "6457c0061fd965024ef29c1670cd955281964b8439e0542c1abd491abb117f62",
+    "markdown": "04fa91da3403fc0256d1f4e8069212c85ca1b26025f09e66a1ff804cbd49d0ea",
+    "sarif": "b977778ac7df6f70eac7c9583554256616c007a947459ce300055fccc0602672",
+    "text": "2871fa6fc751517551dc37c02873afaaa3954f4aca6e8a409d6d7cf377e8cb47"
+   }
+  },
+  "fixtures/config/SW-CFG-012/positive": {
+   "exit_code": 1,
+   "findings": [
+    [
+     "SW-CFG-012",
+     "50f2cf121c10df9bf394f23767ef2d0f0e215e644d5b77939478d5e431a93e6d",
+     ".mcp.json"
+    ],
+    [
+     "SW-CFG-012",
+     "a9843951d9c8afec362566f11a3d76fa1e43d9dc399e85702364e362fefaa5b8",
+     ".mcp.json"
+    ],
+    [
+     "SW-CFG-012",
+     "d1e83c7b96594b98e05630ab85847d7af3d17fd9c78c4d9b6680eb80e237acb8",
+     ".mcp.json"
+    ],
+    [
+     "SW-CFG-012",
+     "ecdcbc5b46701e6be1150a9e719c4e4ec58d71d71d9a922443afea4d2cc7f0df",
+     ".mcp.json"
+    ]
+   ],
+   "items": [
+    [
+     "mcp-config",
+     ".mcp.json",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#calendar",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#notes",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#tickets",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#wiki",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "f3a9e4a415dcddcac2d39738e5478c05c015770bae3a81cf3163add36f9f598f",
+    "gitlab-codequality": "9b6aed0e876d40263516c63eaaebc7effebc94b539f3460af189e57bf277461d",
+    "html": "e31dab094d69bf5a40038cbd3cadd9acde35d5fe908ead0152d61cacbfd31b42",
+    "json": "36fa219d2262d520a993301ae67dfea9a4ac799b0de43736f72b32f2eaeeaad9",
+    "markdown": "8be21fd48b6ea8328e8be67a3cd33320ff6191a15f67021c2c2c91208cb92030",
+    "sarif": "a17c1557862712eef91ff647ac989b42dc05cffe7d196cd6e25e9c743b4dc469",
+    "text": "0ab8983086dd4d70623df779b5f3645819b51afddca4fd993d5e87b6d5831a3f"
+   }
+  },
+  "fixtures/config/SW-CFG-013/negative": {
+   "exit_code": 0,
+   "findings": [
+    [
+     "SW-CFG-003",
+     "08aec15cc706d7498257e46eeb08eb2ea7c8bfdddd28c5814d435c00f1cc2489",
+     ".mcp.json"
+    ],
+    [
+     "SW-CFG-003",
+     "23dbbd5c4e75f489524d5402fb5aca14e1327c1f1afdf48190f69d0bc0a3840b",
+     ".mcp.json"
+    ]
+   ],
+   "items": [
+    [
+     "mcp-config",
+     ".mcp.json",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#audit-db",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#old-cluster",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#prod-cluster",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#qa-cluster",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#reports-db",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#shop-db-hosted",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#shop-db-local",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#shop-docs",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#staging-cluster",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "80e678f432312670155773323663103e69bdd166c3cc742114944b65a3a5a4de",
+    "gitlab-codequality": "9fd4f9808790ace6583c2f5e9edc6ec5a9f19845ff7a86a010a1f317d70c397e",
+    "html": "3bc1fa08d2468140f16e9f1fd12ced216a69cea3ca7125309af4e532eaeb4772",
+    "json": "d73524d12a16d2e049ae1336d7b32595d286fc1677dbdb52b1013b3965a9a594",
+    "markdown": "bade481a802f471840e87623c4f8017a928e0040e02f67ea48bcb5f4161fb15b",
+    "sarif": "24f033e9714af22ca4ced6c5694f0c0a1160d9b1896879d610a20dcb755e65dd",
+    "text": "313754b91fbf970a31fcef5f459b35b0022c89bb1142d9511cb8cce6bda66ca3"
+   }
+  },
+  "fixtures/config/SW-CFG-013/positive": {
+   "exit_code": 1,
+   "findings": [
+    [
+     "SW-CFG-003",
+     "2e743d012d08eab1ba38b2bc0804c96e9f1ff75ccc7d69b8dd9f5d9ec9117d17",
+     ".mcp.json"
+    ],
+    [
+     "SW-CFG-003",
+     "d883f8aa5e4e335c4ee835161a8864a310d10fb4f4f9dd34806c1f56502c7b2e",
+     ".mcp.json"
+    ],
+    [
+     "SW-CFG-013",
+     "0d8454483538db83a99f55d82b727199be772371a86c3db6c2f84cd33317e7b4",
+     ".mcp.json"
+    ],
+    [
+     "SW-CFG-013",
+     "35c4f086d71937ed08ec252667ae3f2410af38b598ae50a84a073241830a5118",
+     ".mcp.json"
+    ],
+    [
+     "SW-CFG-013",
+     "819b986c82105a49591b804d08fabee8bcc2b941f3e414ae53f14331b3939cb7",
+     ".mcp.json"
+    ],
+    [
+     "SW-CFG-013",
+     "d6c81ef78ce855a4bcc352d4affe070bf4881519d3095893f5ff70d198257d32",
+     ".mcp.json"
+    ]
+   ],
+   "items": [
+    [
+     "mcp-config",
+     ".mcp.json",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#reports-db",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#shop-db-hosted",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#shop-db-local",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#staging-cluster",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "2a77d95a0d1258fa5c94f43a11411591aa78f8032d607e88b012a75f1b88b05c",
+    "gitlab-codequality": "b9a8ef4d99faa474063bebb776fcdb5fc338a5c6dafefc7ab9f7013b2501f82b",
+    "html": "3571afbd6a2a7075b74cd3725e46c3414c3fe1ab0f8e029ed23f98e45e10484a",
+    "json": "117a0de2e76ed2c33b854b686e37d8cf0a0919dbf4035f8b92135ab51d988db3",
+    "markdown": "3b2076c34348ba72268e7cbe998b281610f3b4f72603a7c8b0656b670c456401",
+    "sarif": "0481b92c18eb2a9dda11951c04c290a6b4b647574b118d950e1353b4618ed8d9",
+    "text": "9b42ea6a49bc3e9693d4c5558ac2b266331b89f411f21332849aa4e548606b75"
+   }
+  },
+  "fixtures/config/plugins-settings": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [
+    [
+     "settings",
+     ".claude/settings.json",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "e5205cdd83eb2dff5ba0f79bc874a4623ac44e8a7589729a8d05ba1aa78ebc87",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "e21db45f740c2155aa5cd483c83c0dc682088515e9e2fb61a857e5ff65bb0e29",
+    "json": "f82f13545838ff9899bf797f495409f712645252f776171e746a67d14c6f2a66",
+    "markdown": "04fa91da3403fc0256d1f4e8069212c85ca1b26025f09e66a1ff804cbd49d0ea",
+    "sarif": "b977778ac7df6f70eac7c9583554256616c007a947459ce300055fccc0602672",
+    "text": "2871fa6fc751517551dc37c02873afaaa3954f4aca6e8a409d6d7cf377e8cb47"
+   }
+  },
+  "fixtures/html-escape": {
+   "exit_code": 1,
+   "findings": [
+    [
+     "SW-SKL-001",
+     "3fec7dcb073ac0af13a262c0bdc9291c6dd07226c7e2cc3c31d8fdf2606efc5a",
+     "skills/odd"
+    ],
+    [
+     "SW-SKL-002",
+     "e56ed127536603e29fcd9637c99920170abd1729c398899d5171ce76cffdb230",
+     "skills/odd"
+    ]
+   ],
+   "items": [
+    [
+     "skill",
+     "skills/odd",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "f866166c3b96c7ccdd1066345740d065456fd20e35848fae94b4211cf399c213",
+    "gitlab-codequality": "e4370684bc1408774d336c58c545bf4981309fd42f1aeb93672ca4790a4ec367",
+    "html": "3c7d363ef322fb160a81de73d26f0ae512317027f00d535cfeef211d4ab250b4",
+    "json": "f2b251cd74596c2f9f6b1039e4d8b889a14f5a7d50084add1e4c32daf8c308fd",
+    "markdown": "49034cc22d9d67e6cdf31f9428985a7317b9e550be9d2c308d312486b3134149",
+    "sarif": "970ce3325914f53a17f599897195d89962e162080026c106410cf697f6a9dc9f",
+    "text": "820fd1f294f95cc03b4256cab0609dc0209a7d6f2d09f7974f5cd6aa25df40ce"
+   }
+  },
+  "fixtures/orgrules/skills/raw-ip": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [
+    [
+     "skill",
+     "negative",
+     ""
+    ],
+    [
+     "skill",
+     "positive",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "048196772894203fbc7021f6491cccc11430744879489f93b4e6d57714ce94ad",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "0275dd45744c75f6e5f7bebc614225cd195cf639a0e4aa3d95b2bd6e9a97a35e",
+    "json": "6c07c5ea00dfb2acf5934d423c28ad13b2066b490ac51d281bc8c1257f49defb",
+    "markdown": "2e248e821dc5849d4793bcf8afd3998e296f05dcfca63414c0c4f0508ba0b81c",
+    "sarif": "1ef94647c5101b97cc4327ce74604a15307eed891c5661ccb56053c17749f458",
+    "text": "67cebca34d7f0e384c936312a7271ff4532553b793fd1116302e9d78ab270429"
+   }
+  },
+  "fixtures/presets": {
+   "exit_code": 1,
+   "findings": [
+    [
+     "SW-CFG-003",
+     "5af71da7f286e8bc436cc654cc54d00f13bb26938f97bb28fedcbb9f9d0c771a",
+     ".mcp.json"
+    ],
+    [
+     "SW-SKL-001",
+     "c03f0e25fae42dd20fd34ce11e09baa8fd654662a9006dbbe8616aebc3ec22cb",
+     "skills/demo"
+    ],
+    [
+     "SW-SKL-006",
+     "ad67ea2349e3df643d3a5dac6b79a8aa011cfed4c9e126f16c8d0470e749c43a",
+     "skills/demo"
+    ],
+    [
+     "SW-SKL-009",
+     "5808da4be6e70317f910b6619f2eccae127aa642810b95c09d5af46949c8ffcb",
+     "skills/demo"
+    ],
+    [
+     "SW-SKL-031",
+     "c2b96714640c150e186180c7adf100a0181794ae6506d2085f36e0e38238f166",
+     "skills/demo"
+    ]
+   ],
+   "items": [
+    [
+     "mcp-config",
+     ".mcp.json",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#files",
+     ""
+    ],
+    [
+     "skill",
+     "skills/demo",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "3591269df574f64c77192042c49012deb50256e04cf3fd57cba7dc422227638a",
+    "gitlab-codequality": "869d92ca318c4c31c52025202e2a9e330b7084bb34ffacf373eefc0003f8dfe8",
+    "html": "ba926c3bf3885c2115886954c24aaf9bb1b144b422990da47e8d98955934e799",
+    "json": "9b6ff3e8ae06b32d8481f9b45e998ad979539c0c7d23a6ee0d43dbfe21c764d7",
+    "markdown": "0fee75d8bbd595854f45b26b7a6ff5039fc9c47dd645d3e901492f04a6863c4b",
+    "sarif": "5e866ba961aac380bb068bcb0411b03ae55ca3d0b89cfebaa854c7ab9b835bcf",
+    "text": "e74b41806ad93b0e7a8fd54989a89c3655a3edbc624bc280ffab0e7d71be6b74"
+   }
+  },
+  "fixtures/repos/a2a/repo": {
+   "exit_code": 0,
+   "findings": [
+    [
+     "SW-A2A-002",
+     "de9efbb36c169eda63589f2b3536545d86a02324ea21e133b127d6e1bbfe771d",
+     "a2a-card:legacy/agent-card.json"
+    ],
+    [
+     "SW-A2A-012",
+     "b748374c1fd3630b1fbc0ae47d03f515413136eb745006723614d2cdff007f3d",
+     "a2a-card:legacy/agent-card.json"
+    ]
+   ],
+   "items": [],
+   "outputs": {
+    "cyclonedx": "87d1193c0eb5f7bc1f82ab65fd82bcaf558cadf35386a1393fe9bb74605af183",
+    "gitlab-codequality": "49a7ce6ff4d2c74766e4b2d151411024e7bd071debd6064bbe07f4f1e254c072",
+    "html": "dab6d09beb33559ea46b78fec8773bcff51cc4998ae3d0ee1d72c968c3bb4304",
+    "json": "6ef9bda5c88bdcc7c6b9b0d8c22d3aea9df54a02225c8acc9c62db495060834c",
+    "markdown": "275898b8d4b7d0cc941eb5384b03cf49115839945a9f2a2c1817aa18b8972a3c",
+    "sarif": "5c1a6ae0dee969ab761eb6696002e1678bf8c3c6b28c733024427f46e46bb58f",
+    "text": "6def77c4fe6534e60c33797836818f54d098969aac8a4968727fa4045c87f71d"
+   }
+  },
+  "fixtures/repos/base-settings/repo": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [],
+   "outputs": {
+    "cyclonedx": "996cd5cb4f14c79394bfc6a65b8b5bd49a98bcd4cc7bd2d51179ab25e693a545",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "a5b410d580b08a174dd0b363540e4a176d6e49d2c2f004973b133bf729dd0b8f",
+    "json": "fa2980bacb238664b99d019e9aafde344a039dd40e5034b77898b7709bb36688",
+    "markdown": "04fa91da3403fc0256d1f4e8069212c85ca1b26025f09e66a1ff804cbd49d0ea",
+    "sarif": "b977778ac7df6f70eac7c9583554256616c007a947459ce300055fccc0602672",
+    "text": "a74969998724bea62cc6347df55b9f81eef2c92ea3186beaaf0aaee3ed1a75a5"
+   }
+  },
+  "fixtures/repos/broken-config/repo": {
+   "exit_code": 2,
+   "findings": [],
+   "items": [
+    [
+     "mcp-config",
+     ".mcp.json",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "67392898df9531919f811c65c8dd80355dcfbbf575052e3f0f264b156ae9e2c0",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "10142bdbb81a812c955ab2c40b5d4bea36554d0d44ba4bb0d78a2e809fa24e16",
+    "json": "eb83e82d5549dfdc132f875592f0a39e71a8b5af0a0f82d1b3f04f04f6d1e9ea",
+    "markdown": "e49623589a11906da975e71b8df82ad57b715d8d2bddf4818a908d6ac5ef39c1",
+    "sarif": "b977778ac7df6f70eac7c9583554256616c007a947459ce300055fccc0602672",
+    "text": "1464a4dc9405483ad2f3ac2ca725cd93f1b267761ec064e27be990da08ba6ead"
+   }
+  },
+  "fixtures/repos/clean/repo": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [
+    [
+     "skill",
+     ".claude/skills/hello",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "e7d235ca4b1c74d5d4693de6eac7ad62cc146265a306eee5d6390381f6e08b83",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "df2d9c370a5ce1940402cae5fefa413550498bcb30c1b5b45c08c20e141fb9f6",
+    "json": "eb00199fb16f7f722863625a264d36cbce376b686dca5cf04a777cde7db409d0",
+    "markdown": "f7f926538379c4622a1563dff398c6ff9007daaf35fe4f831e912e2ede17d380",
+    "sarif": "29788bce5b943f588cc48f92e0fd9be6b2b716f937082537dda00e0aa2f81f26",
+    "text": "7d46c280bdd15cf0578b76ee0226d8f0e0f24259151fa0c95ebc4d1b938aed39"
+   }
+  },
+  "fixtures/repos/connected/repo": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [
+    [
+     "marketplace",
+     ".claude-plugin/marketplace.json",
+     ""
+    ],
+    [
+     "mcp-config",
+     ".mcp.json",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#docs",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#fs",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#git",
+     ""
+    ],
+    [
+     "plugin",
+     ".claude-plugin/marketplace.json#lint",
+     ""
+    ],
+    [
+     "settings",
+     ".claude/settings.json",
+     ""
+    ],
+    [
+     "skill",
+     "skills/deploy",
+     ""
+    ],
+    [
+     "skill",
+     "skills/review",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "434b351628b89357de8703ac7d658369a0223360a8ac31f722192c1d483589f5",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "4b1e29b0052c6ac43b4e7f630142363bf33356d48aca0778df8b620d10108669",
+    "json": "0762c53ee35c4a0ae62c81e2cd42f8655fc67582f5de456129dd66c4163490c7",
+    "markdown": "c341b4c4a45dd8b1ee8637d7e8b0839d1f41f5346d8d02ce37137382afc7cc67",
+    "sarif": "09e3075df864bbd270a55b839b914f3f83ff731832d7fd491cd253d94d51f95c",
+    "text": "df7d272f5ad6f42026732d21d68df74de1da2f0f601bbae8d34d1d126dc73adc"
+   }
+  },
+  "fixtures/repos/exec-bit/repo": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [
+    [
+     "skill",
+     ".claude/skills/tool",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "d0285a9eb3823e006da7c9cad0e9cf9b59bef8905be7a0a66417c1321f419d11",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "16bdaac8ac0b71db2851fee2c2375df35ec008734e8641d76bd3aa0d3f8ac8b3",
+    "json": "5b68d94c1e8248361fd5496e3ba62054c92348fcc91d51137e1e7928c23c3d63",
+    "markdown": "a6c679d93a7225c680da28555325b6802aa1e7660ef608fa67262ee20c540d37",
+    "sarif": "15c1ecc03ee9bde95f0b047188988738f6b0de5ac2130724332034a4a450c65c",
+    "text": "e2b3022f3c547b66b95b6bf16b40cc80f0dca6d83ff56f35f900cb2fca943592"
+   }
+  },
+  "fixtures/repos/findings/repo": {
+   "exit_code": 1,
+   "findings": [
+    [
+     "SW-CFG-001",
+     "211277803f7d64e150e85a720acf89327067b34fd78fcca20e6189bf7a07a0d7",
+     ".mcp.json"
+    ]
+   ],
+   "items": [
+    [
+     "mcp-config",
+     ".mcp.json",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#tickets",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "f2efc23d02e9ecd4a1fc26e4736d6a6fc82a6f6ee334bfbc9c57098e8f8fed3c",
+    "gitlab-codequality": "1fc9649846302fa98b1cb90163cb5186d4770bd670b55adebd6d4f9dc86fee79",
+    "html": "f5cd65dd83108f36943d174461c34c651e7fde870dfa6816e7eb02cabc784838",
+    "json": "072d52c0a3cf11b8c0b7645f904055ae34fc19f5eaa0aec404bc127e685f50ac",
+    "markdown": "04439ecef2f3b485e381e5fd7179d497aede0911d3d5f90193fba7046971b0de",
+    "sarif": "051159819efbde563d20a648b0384a2581e20b6c88b7fb62c72a05dd53b76e71",
+    "text": "29002430d8f509099612378391a5653957912d77c48541ad4493053108170ebb"
+   }
+  },
+  "fixtures/repos/path-with-spaces/repo": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [
+    [
+     "skill",
+     "path with spaces/.claude/skills/hello",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "9f307eb695f3bf1328dd87e5d7fd2875b0b04f645440008d8592a189d28b5d60",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "a49d19108a280b2236783347d094589846b0ded8d645750bf1f5d6b3d4d8b558",
+    "json": "4fe74ca7a7ef4fea4e1a11ffc8bac7586bddeaea4bb2d6d76fb34e37fe05937b",
+    "markdown": "3f41af9471832f999a7d440f274dfb25134efea9f0d0852df4d29dfc96de606c",
+    "sarif": "561df254ad48558b61e38281e68261e7d9d3d17a53b2a3cf40b0b36798f0bea1",
+    "text": "80b124425503d7c69ed8d4c957595a71b72f9b8ceb7f3f7b16954cbba4e2213b"
+   }
+  },
+  "fixtures/repos/preset/repo": {
+   "exit_code": 0,
+   "findings": [
+    [
+     "SW-SKL-009",
+     "bcff301cfe9e5d73cb06dcd81bcf1996375a82208580914e0aa95bce69a1a895",
+     ".claude/skills/setup"
+    ],
+    [
+     "SW-SKL-031",
+     "07f2cee1647f1c5683a7dc9ff70d9e3477f7ed9339f041c2c5a67ad0cd56b5b8",
+     ".claude/skills/setup"
+    ]
+   ],
+   "items": [
+    [
+     "skill",
+     ".claude/skills/setup",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "47ef247aa8a3694ccdd92dbf30517fe75d67cc5fdd3d085b846671db2a5420ea",
+    "gitlab-codequality": "94b1ae28bb26ac7d4185bcaf1c83cfa237f33d3067dc9780a08e8c2949e4a595",
+    "html": "74f38a06a2eb9517d70865be2f1aca14186fe337514a23b88cbd241a244d2782",
+    "json": "ddd177e2b9a217988327c6ca313d0ae7b915d4dc6d00abfce59895f20c3ea863",
+    "markdown": "334c008de7be6e6d0e40bd614e5c65eb832fc3fe2a0b47de7aae05596ca0f914",
+    "sarif": "cefc70b7033087ee58bfc82ebd4ec2dea5b372dee4a1fa27d0db96154aeb6b10",
+    "text": "622c9606ded4f72b5e96da087377f264468f1181bea52e7db7ffc81cd1091b9d"
+   }
+  },
+  "fixtures/repos/probe/repo": {
+   "exit_code": 0,
+   "findings": [
+    [
+     "SW-CFG-004",
+     "63f13bae300b8ac9ab3e50a13e2de8da1a2a2c64556ad05d38c1f563024f116a",
+     ".mcp.json"
+    ]
+   ],
+   "items": [
+    [
+     "mcp-config",
+     ".mcp.json",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#internal",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "b9023d85e0de75ead96d21c64fbdad4d4d4b94266736842dd68818f4922d72d7",
+    "gitlab-codequality": "2bbf52f823abf05cfbe59cb484c1eadf1797334453ddafe683761f179d3e4e66",
+    "html": "7c3ecb24a92a115f808f9ff58b0fcdd20101ae8a22c957479ee5cd8ee14e9d9b",
+    "json": "a282e94b9abac0663d31c3790924de33475603d7a2ae857edd7fd54da8f5d395",
+    "markdown": "328fd19998cbe10c4c16bbd739d4b01e4e92ea20594bd1bf3584f67730a1f031",
+    "sarif": "8fc4c6a22b79b3fec54bf2b7ce4ac0d04eae64630f3fc33e2dd7e43fafe4d5e1",
+    "text": "bb5e0a1f01d62733f1e6327986f4c40865b15a559b1cfc16a602bf9d269beb58"
+   }
+  },
+  "fixtures/repos/subdir/repo": {
+   "exit_code": 1,
+   "findings": [
+    [
+     "SW-CFG-001",
+     "67c78164e36c443706f5612fb163d73156576956af1b4f21e8dff3c3d3f9cae8",
+     "services/agent/.mcp.json"
+    ]
+   ],
+   "items": [
+    [
+     "mcp-config",
+     "services/agent/.mcp.json",
+     ""
+    ],
+    [
+     "mcp-server",
+     "services/agent/.mcp.json#tickets",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "84749370b0f19fda061baa3293ac52ce89a7a2c3f2f02de65a6d078c997a7d4a",
+    "gitlab-codequality": "82bdf7368d8509d73897c90e50516b1665c53785c2a7f4931a7807837edd472b",
+    "html": "889bf3df1ee9a0b26dc65ecaeefe25d1e8f9a9a19f9ad5af16d4ff2826239d2f",
+    "json": "22ec7e88ada2e4ca800fb7eb25bc25bf066561dd8084a1424811212d4ea893ac",
+    "markdown": "6f4ebdfdfe42c8b034f411afc31a0a717f5668d05377e73da60b429bb5718255",
+    "sarif": "e04e445a51ef2ab0f645e0f49ffe726a76385765840e517de3d18946b580d2eb",
+    "text": "3c00e5120d57700a318766e8c2652c12b9cc8abeb84e5831f35425343d02d19b"
+   }
+  },
+  "fixtures/selection": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [
+    [
+     "marketplace",
+     ".claude-plugin/marketplace.json",
+     ""
+    ],
+    [
+     "plugin",
+     ".claude-plugin/marketplace.json#ops",
+     ""
+    ],
+    [
+     "plugin-manifest",
+     "plugins/ops/.claude-plugin/plugin.json",
+     "ops"
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "33631983ab36060227b1c780754bd703c417877c045b7204a9fc7043808a4f67",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "66c1e455812ace2dc59434b553a01278d5bd88d3e26eb4628f85de857f7ae0c0",
+    "json": "f6d86efaaa12136fb6aab0cda746e683adb1181ce375b4dd7a10633e1b930d57",
+    "markdown": "04fa91da3403fc0256d1f4e8069212c85ca1b26025f09e66a1ff804cbd49d0ea",
+    "sarif": "b977778ac7df6f70eac7c9583554256616c007a947459ce300055fccc0602672",
+    "text": "2871fa6fc751517551dc37c02873afaaa3954f4aca6e8a409d6d7cf377e8cb47"
+   }
+  },
+  "fixtures/skills/SW-SKL-001/negative": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [
+    [
+     "skill",
+     ".",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "23a7829fa30975e7059759b4a23a51511812f06b64d0441c095ea2c6046622e9",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "8ce3032c98556fefb07b3e907267aa98d6f9cd6a84d62b09a9df338121fd8882",
+    "json": "686d0108e6d02626357b13319ce28d0369870a9fa9c8283c387004b474567a72",
+    "markdown": "16257c7ae4d821a9f9cf30cf30c20686e35bf9df46f94bbdb43d42badacbca92",
+    "sarif": "819299fe2e00874c1ef5d13791ef6f299f611913d55463774e2b422194bef89f",
+    "text": "5231d8969cee2ad2927dc933d092a9207137eac9a3f2357dfecb57fc4d0502dd"
+   }
+  },
+  "fixtures/skills/SW-SKL-001/positive": {
+   "exit_code": 1,
+   "findings": [
+    [
+     "SW-SKL-001",
+     "252efc3121301e639778cf87d75a4c2cdb7f2693a671d31a5f27e2cd8fcc9397",
+     "."
+    ]
+   ],
+   "items": [
+    [
+     "skill",
+     ".",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "7ecda0225c5ef65d04494ef18d6220a1def57240004a10d1194a5ad518196ce3",
+    "gitlab-codequality": "5e507c6dacafd797b1553501ad71f9cbc62656b21a25089c75d9093c90652f6c",
+    "html": "c24723b89f734d2de8ec0738c147ef68cd3618e125fdf0c18181c537fe2e4080",
+    "json": "d1e8e7013dafc24b2e350e5526f757d344ec2c61e515bce719408f88f29f3888",
+    "markdown": "4f50233f8bc7e28de5fd83e53c9008785b5ccd6ac48a7a7f7a65a1c501c96c22",
+    "sarif": "3bcd437a5a7aabf788929fd80f309df5a36366d42aa662951d5a627d29552ac0",
+    "text": "1dfb12b5b94ff07192635dbba08f51ed7f67ac67648776b5c2b87ec4db8c489f"
+   }
+  },
+  "fixtures/skills/SW-SKL-002/negative": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [],
+   "outputs": {
+    "cyclonedx": "996cd5cb4f14c79394bfc6a65b8b5bd49a98bcd4cc7bd2d51179ab25e693a545",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "a5b410d580b08a174dd0b363540e4a176d6e49d2c2f004973b133bf729dd0b8f",
+    "json": "fa2980bacb238664b99d019e9aafde344a039dd40e5034b77898b7709bb36688",
+    "markdown": "04fa91da3403fc0256d1f4e8069212c85ca1b26025f09e66a1ff804cbd49d0ea",
+    "sarif": "b977778ac7df6f70eac7c9583554256616c007a947459ce300055fccc0602672",
+    "text": "a74969998724bea62cc6347df55b9f81eef2c92ea3186beaaf0aaee3ed1a75a5"
+   }
+  },
+  "fixtures/skills/SW-SKL-002/positive": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [],
+   "outputs": {
+    "cyclonedx": "996cd5cb4f14c79394bfc6a65b8b5bd49a98bcd4cc7bd2d51179ab25e693a545",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "a5b410d580b08a174dd0b363540e4a176d6e49d2c2f004973b133bf729dd0b8f",
+    "json": "fa2980bacb238664b99d019e9aafde344a039dd40e5034b77898b7709bb36688",
+    "markdown": "04fa91da3403fc0256d1f4e8069212c85ca1b26025f09e66a1ff804cbd49d0ea",
+    "sarif": "b977778ac7df6f70eac7c9583554256616c007a947459ce300055fccc0602672",
+    "text": "a74969998724bea62cc6347df55b9f81eef2c92ea3186beaaf0aaee3ed1a75a5"
+   }
+  },
+  "fixtures/skills/SW-SKL-003/negative": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [
+    [
+     "skill",
+     ".",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "129a6f90bca37ea23dc58f686b300af293fdb6b2c89b2c2b838b58a610de5ddc",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "8ce3032c98556fefb07b3e907267aa98d6f9cd6a84d62b09a9df338121fd8882",
+    "json": "686d0108e6d02626357b13319ce28d0369870a9fa9c8283c387004b474567a72",
+    "markdown": "16257c7ae4d821a9f9cf30cf30c20686e35bf9df46f94bbdb43d42badacbca92",
+    "sarif": "819299fe2e00874c1ef5d13791ef6f299f611913d55463774e2b422194bef89f",
+    "text": "5231d8969cee2ad2927dc933d092a9207137eac9a3f2357dfecb57fc4d0502dd"
+   }
+  },
+  "fixtures/skills/SW-SKL-003/positive": {
+   "exit_code": 1,
+   "findings": [
+    [
+     "SW-SKL-003",
+     "8e95fa8735f24f89f29df1075631b0d94103443ea2df32f9097496ac9cc7c13e",
+     "."
+    ]
+   ],
+   "items": [
+    [
+     "skill",
+     ".",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "0672fe680f6baa74df865f2cd7b40a753fd699370b86d46533af0dfc56cc4b5f",
+    "gitlab-codequality": "be7c8496ddc4b33f92406f8505c40f7ddc7c08350e324a4b23a826aeb6817a26",
+    "html": "ffa78dcb2b5cdb6e314e86ad535beb4c84af6dbd5c3c85fdebc7c4a129091692",
+    "json": "cbc4bd6cb576afac497d5451c6f55b8324f2452f5fa24ebaa08b8879552cefcd",
+    "markdown": "43be90627a7d0ea327a3713b01255cf7112802e68dce89798e08114096172573",
+    "sarif": "023cf5bcb864694ad5522bafe39e986d3a88f97235323dffc59d0be218191e99",
+    "text": "5de789e81ac780779e601997ed369ba0042a8ce6045d02cecad7da21d1d17545"
+   }
+  },
+  "fixtures/skills/SW-SKL-004/negative": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [
+    [
+     "skill",
+     ".",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "92d464b53d918adc08f34d0b8f85b97156f4cd4fbd6444f1509c4bb0f70548f6",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "8ce3032c98556fefb07b3e907267aa98d6f9cd6a84d62b09a9df338121fd8882",
+    "json": "686d0108e6d02626357b13319ce28d0369870a9fa9c8283c387004b474567a72",
+    "markdown": "16257c7ae4d821a9f9cf30cf30c20686e35bf9df46f94bbdb43d42badacbca92",
+    "sarif": "819299fe2e00874c1ef5d13791ef6f299f611913d55463774e2b422194bef89f",
+    "text": "5231d8969cee2ad2927dc933d092a9207137eac9a3f2357dfecb57fc4d0502dd"
+   }
+  },
+  "fixtures/skills/SW-SKL-004/positive": {
+   "exit_code": 1,
+   "findings": [
+    [
+     "SW-SKL-004",
+     "00daf94bdd9644d981325ce5ab5f074e9fd49182464e7ecd0faa5d88cb297d51",
+     "."
+    ]
+   ],
+   "items": [
+    [
+     "skill",
+     ".",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "540f944d63cb0e51e75e608d4242c65b71ba1ba35d13fdb9fbb9fd2cd78dabcd",
+    "gitlab-codequality": "9b5e9c7a538af476fa102e39b3c91a462ddca6a37f70bae9bf0e77941702710d",
+    "html": "752d8f71f14634343746e7491dc41ee4aace9c0e2b686fa3b1394fd603e0f049",
+    "json": "d8cbef9ed4174999d40e40185daeff6f73d618789e8a25c32497a65cf745e6d4",
+    "markdown": "eb9f1f67e4395645545713199ca4cc379a18bf78f3542995ab97a7131dd832c3",
+    "sarif": "55f14f63e592334b258bfb47b9ccf0b295cb3f61369dd0f2f34e4963b1ce1dab",
+    "text": "87ed2479b916397a12cbd8ac0b78402649b5da02c94cd45c5d7c5ece92964c0b"
+   }
+  },
+  "fixtures/skills/SW-SKL-005/negative": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [
+    [
+     "skill",
+     ".",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "fb373e9d7a1595effbad3aa754732bf04a18998fc319eb03ccb583b403d89bf9",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "8ce3032c98556fefb07b3e907267aa98d6f9cd6a84d62b09a9df338121fd8882",
+    "json": "686d0108e6d02626357b13319ce28d0369870a9fa9c8283c387004b474567a72",
+    "markdown": "16257c7ae4d821a9f9cf30cf30c20686e35bf9df46f94bbdb43d42badacbca92",
+    "sarif": "819299fe2e00874c1ef5d13791ef6f299f611913d55463774e2b422194bef89f",
+    "text": "5231d8969cee2ad2927dc933d092a9207137eac9a3f2357dfecb57fc4d0502dd"
+   }
+  },
+  "fixtures/skills/SW-SKL-005/positive": {
+   "exit_code": 1,
+   "findings": [
+    [
+     "SW-SKL-005",
+     "a8b86658962a48329f6fff82ffba25d7385d3975b27f57b58bd195f419b016d8",
+     "."
+    ]
+   ],
+   "items": [
+    [
+     "skill",
+     ".",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "1369002c47ca422b3e9909eb6c109f358ff9b022ec9e2eac66424780037bb252",
+    "gitlab-codequality": "d374ba9bef8ff171ac216ec62ebceee34d7cfcd276631124e310a22d9d3fda94",
+    "html": "28553f1b8338453d3220fcfb620f53a36cb845aca41fbf689c6869a3f1cb26e6",
+    "json": "094b7486fb4397682f5d982dbdfda6c51ba0bfd5820f3c727569c16ac1eb40b1",
+    "markdown": "e95dcf4a0db5eb849d8efd0f7aef357129bfb4385cccc7b2b026f03d62c2e773",
+    "sarif": "9c4a811894b4557a32c45e562bfbda1fec3867b783bea213e6a996dae98b8925",
+    "text": "d973a58d279eab29968cfc2ec76a0f025512f9eab25c19ffb176ff55126c8971"
+   }
+  },
+  "fixtures/skills/SW-SKL-006/negative": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [
+    [
+     "skill",
+     ".",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "61da70c7960a812f955bad62e4d63fd9a1cf47a09c1bd7afcdddab3573c9408e",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "8ce3032c98556fefb07b3e907267aa98d6f9cd6a84d62b09a9df338121fd8882",
+    "json": "686d0108e6d02626357b13319ce28d0369870a9fa9c8283c387004b474567a72",
+    "markdown": "16257c7ae4d821a9f9cf30cf30c20686e35bf9df46f94bbdb43d42badacbca92",
+    "sarif": "819299fe2e00874c1ef5d13791ef6f299f611913d55463774e2b422194bef89f",
+    "text": "5231d8969cee2ad2927dc933d092a9207137eac9a3f2357dfecb57fc4d0502dd"
+   }
+  },
+  "fixtures/skills/SW-SKL-006/positive": {
+   "exit_code": 0,
+   "findings": [
+    [
+     "SW-SKL-006",
+     "c2ada35a690a8c4c0b303b7bed8d21473c66bd7558d1d9d62c879ed29f70286d",
+     "."
+    ]
+   ],
+   "items": [
+    [
+     "skill",
+     ".",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "eca7623680ec7f0c874eb2ae86b3c8e4791e6a5f8f1f0d6191e99ab893a2ae3e",
+    "gitlab-codequality": "6b18376af5802e05543bffe9455f7e18de26ebdeec2995de8f8b612b49b68cbf",
+    "html": "4808097267bc2e87390b38a50fbb94b46f3915d6e862c8f779004034f112e92c",
+    "json": "f376fb4eca435ae221b7e92ddf6bacf0934d590408edd846739273bba86a5411",
+    "markdown": "ebc76f03ea85fc8643c1bad80581d8cb59c0a20b992cbfa5f88437541bc8b224",
+    "sarif": "317935b873b9cdeda59384fe24bb5b9e4c53997750e3de6e4946b19cd965ede7",
+    "text": "6dbc894daa26f3a2f499008a966219f1a29650f7cc7bd07aab18dc98ca27b9bd"
+   }
+  },
+  "fixtures/skills/SW-SKL-007/negative": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [
+    [
+     "skill",
+     ".",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "fc4d6571721380930fd208dbb7617ab663d673da44a0c9f73783f9c0bb6102e7",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "8ce3032c98556fefb07b3e907267aa98d6f9cd6a84d62b09a9df338121fd8882",
+    "json": "686d0108e6d02626357b13319ce28d0369870a9fa9c8283c387004b474567a72",
+    "markdown": "16257c7ae4d821a9f9cf30cf30c20686e35bf9df46f94bbdb43d42badacbca92",
+    "sarif": "819299fe2e00874c1ef5d13791ef6f299f611913d55463774e2b422194bef89f",
+    "text": "5231d8969cee2ad2927dc933d092a9207137eac9a3f2357dfecb57fc4d0502dd"
+   }
+  },
+  "fixtures/skills/SW-SKL-007/positive": {
+   "exit_code": 1,
+   "findings": [
+    [
+     "SW-SKL-007",
+     "82fddbe0611548e340f4dba8591528df823de67782ca314347ff4f0ba5706bc1",
+     "."
+    ]
+   ],
+   "items": [
+    [
+     "skill",
+     ".",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "d0aa7b5433212dbbe9fa5567ef221d82122692a653e10705a8b079039f80cb51",
+    "gitlab-codequality": "a498357aa61273465176eb35ed5bbce9af2fc69b592e0442989d33dc6d088ee2",
+    "html": "ed2ef16ae6b7b139232dc74bf1252231b002caf97ef54b197f9855ac2c52fcfe",
+    "json": "0f1e0ff09133398c777aa184215bbe02c97d460eb64e891f5a4eac1b4fb72455",
+    "markdown": "37025f2da9f3547e3c030100263d07b9c7e970fc9447ff64ff78f4771a37996c",
+    "sarif": "7d2d71596067f9f14d04da11cb527b5061cb8b8f64475058fbbe8ec97011ad4d",
+    "text": "f423589f77180a4cb3cf34c110918826079c8de2f47ee3d7e3536c92a5d3f808"
+   }
+  },
+  "fixtures/skills/SW-SKL-008/negative": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [
+    [
+     "skill",
+     ".",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "04e9dca0965103f681dee39e8dfe96364817d9236533feb6443d5a24bf6533d3",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "8ce3032c98556fefb07b3e907267aa98d6f9cd6a84d62b09a9df338121fd8882",
+    "json": "686d0108e6d02626357b13319ce28d0369870a9fa9c8283c387004b474567a72",
+    "markdown": "16257c7ae4d821a9f9cf30cf30c20686e35bf9df46f94bbdb43d42badacbca92",
+    "sarif": "819299fe2e00874c1ef5d13791ef6f299f611913d55463774e2b422194bef89f",
+    "text": "5231d8969cee2ad2927dc933d092a9207137eac9a3f2357dfecb57fc4d0502dd"
+   }
+  },
+  "fixtures/skills/SW-SKL-008/positive": {
+   "exit_code": 1,
+   "findings": [
+    [
+     "SW-SKL-008",
+     "9c870dbe2e57039cbcd36f163ce42cb668c50b2b3c0a729e0b24d17ced3e8502",
+     "."
+    ]
+   ],
+   "items": [
+    [
+     "skill",
+     ".",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "01fa0e460e45aed4306105612f5d35da658146c18012097820f8245b46091d41",
+    "gitlab-codequality": "b0b59545557a268e04330271c9353ff5dbfb91ed7d68e1e6335965ef8516bd7a",
+    "html": "b5b75f3010c1bb922d9cc205721a168dbfe5b93ec43ec082d77bbc7f5d3b625f",
+    "json": "64454d78509cb702a14a067f16f066768753e228cdad1ee108e3cca141c2b2cb",
+    "markdown": "e364c508b855e75101bd24e41224ad24fdfa401e7358a178d2a6d282dd2d4281",
+    "sarif": "2197f70478515896882f9b43ae2fba461dcc9b5952cff075d1c633cc18b30835",
+    "text": "4a3fc68c94e653d6d307d7eb46139d9942730eb8858a362003b221b77a41d37e"
+   }
+  },
+  "fixtures/skills/SW-SKL-009/negative": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [
+    [
+     "skill",
+     ".",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "666e60ce3d710fa2fb963bb19caccc3b2ddd688606209a61fc740ecb29d33809",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "8ce3032c98556fefb07b3e907267aa98d6f9cd6a84d62b09a9df338121fd8882",
+    "json": "686d0108e6d02626357b13319ce28d0369870a9fa9c8283c387004b474567a72",
+    "markdown": "16257c7ae4d821a9f9cf30cf30c20686e35bf9df46f94bbdb43d42badacbca92",
+    "sarif": "819299fe2e00874c1ef5d13791ef6f299f611913d55463774e2b422194bef89f",
+    "text": "5231d8969cee2ad2927dc933d092a9207137eac9a3f2357dfecb57fc4d0502dd"
+   }
+  },
+  "fixtures/skills/SW-SKL-009/positive": {
+   "exit_code": 0,
+   "findings": [
+    [
+     "SW-SKL-009",
+     "b332828daab24d893c24b0acd6bd9c2a3405c907b83bd19d0fa57aeb2e8cf5ca",
+     "."
+    ]
+   ],
+   "items": [
+    [
+     "skill",
+     ".",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "31e33a4ddb1bd0ef2646d2a63c5ab67790031d5f294658b91f1e7b18fe5e4b39",
+    "gitlab-codequality": "ad12fa177e186fbb9e8ed3054828af46a302a22345005864c0eeb33a0fef501c",
+    "html": "8e52b181be8d68da8c5baaccc27c0360c1860478cf96606974b47ae201a1c52b",
+    "json": "3e39fe532b286e19878e3fc7f70cf38c0ec11863c97dfa0c49f97554de34c949",
+    "markdown": "32074cbb69677e0cecb5a0859d8ba48e0794cdd2720e4f1f51b882bf81c3787e",
+    "sarif": "d81ee2d7f19da09c30d218f22610a498d2543ba7fb0e6fae9ef24b332bdd0a3a",
+    "text": "d67326fe3e36e479794aeed25f782d308ce4dbcb0a0b7e917ad58a7461474195"
+   }
+  },
+  "fixtures/skills/SW-SKL-010/negative": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [
+    [
+     "skill",
+     ".",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "6697b8909a453b8b6edcf78b7622bf0f4384fbdbfba245b7c5ebe57c18344e3e",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "8ce3032c98556fefb07b3e907267aa98d6f9cd6a84d62b09a9df338121fd8882",
+    "json": "686d0108e6d02626357b13319ce28d0369870a9fa9c8283c387004b474567a72",
+    "markdown": "16257c7ae4d821a9f9cf30cf30c20686e35bf9df46f94bbdb43d42badacbca92",
+    "sarif": "819299fe2e00874c1ef5d13791ef6f299f611913d55463774e2b422194bef89f",
+    "text": "5231d8969cee2ad2927dc933d092a9207137eac9a3f2357dfecb57fc4d0502dd"
+   }
+  },
+  "fixtures/skills/SW-SKL-010/positive": {
+   "exit_code": 0,
+   "findings": [
+    [
+     "SW-SKL-010",
+     "bee612bcf8462ea6bc4599795513f70e78a53440653718b91a12821ff6ab2f40",
+     "."
+    ]
+   ],
+   "items": [
+    [
+     "skill",
+     ".",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "294fb05c2c0b835579b79cbb4302dfd66c2f25ea64c4825558d63ccdb441a880",
+    "gitlab-codequality": "56e4f4745f231a115a54190b0aedead95f8091e15cff73cbd6ae21bab6b5285b",
+    "html": "0c69a09c6dde89584a36a303ab09995e6e0fe3773ed7654e01ae13c7b7b00062",
+    "json": "96a10e1f7811abb22f04c13e678cebf1d4232948110cb1de583daf510b55de27",
+    "markdown": "a0722ad6f3e347768c50641486d51c03b791271d0fe7e254adb42f724d024134",
+    "sarif": "6db866b7e16f1cecfa0805ef3d4009452a05d742ade703baeab89727a339b019",
+    "text": "df00d2808711a73e3e3847c677e52cf3ef435392f73414fda8526c9d8f26712a"
+   }
+  },
+  "fixtures/skills/SW-SKL-011/negative": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [
+    [
+     "skill",
+     ".",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "0a6a74894c2ee87646afa0d8c66b1a3da413d8489c1423d21686fe530c5ebbd9",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "8ce3032c98556fefb07b3e907267aa98d6f9cd6a84d62b09a9df338121fd8882",
+    "json": "686d0108e6d02626357b13319ce28d0369870a9fa9c8283c387004b474567a72",
+    "markdown": "16257c7ae4d821a9f9cf30cf30c20686e35bf9df46f94bbdb43d42badacbca92",
+    "sarif": "819299fe2e00874c1ef5d13791ef6f299f611913d55463774e2b422194bef89f",
+    "text": "5231d8969cee2ad2927dc933d092a9207137eac9a3f2357dfecb57fc4d0502dd"
+   }
+  },
+  "fixtures/skills/SW-SKL-011/positive": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [],
+   "outputs": {
+    "cyclonedx": "996cd5cb4f14c79394bfc6a65b8b5bd49a98bcd4cc7bd2d51179ab25e693a545",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "a5b410d580b08a174dd0b363540e4a176d6e49d2c2f004973b133bf729dd0b8f",
+    "json": "fa2980bacb238664b99d019e9aafde344a039dd40e5034b77898b7709bb36688",
+    "markdown": "04fa91da3403fc0256d1f4e8069212c85ca1b26025f09e66a1ff804cbd49d0ea",
+    "sarif": "b977778ac7df6f70eac7c9583554256616c007a947459ce300055fccc0602672",
+    "text": "a74969998724bea62cc6347df55b9f81eef2c92ea3186beaaf0aaee3ed1a75a5"
+   }
+  },
+  "fixtures/skills/SW-SKL-012/negative": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [
+    [
+     "skill",
+     ".",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "2542b9cecff37468aaa5666d49c6db17ea4b40b2d1b37e93556b714709a22761",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "8ce3032c98556fefb07b3e907267aa98d6f9cd6a84d62b09a9df338121fd8882",
+    "json": "686d0108e6d02626357b13319ce28d0369870a9fa9c8283c387004b474567a72",
+    "markdown": "16257c7ae4d821a9f9cf30cf30c20686e35bf9df46f94bbdb43d42badacbca92",
+    "sarif": "819299fe2e00874c1ef5d13791ef6f299f611913d55463774e2b422194bef89f",
+    "text": "5231d8969cee2ad2927dc933d092a9207137eac9a3f2357dfecb57fc4d0502dd"
+   }
+  },
+  "fixtures/skills/SW-SKL-012/positive": {
+   "exit_code": 0,
+   "findings": [
+    [
+     "SW-SKL-012",
+     "2648ae16abb3f1b1fe30c4c446c2a00681b0b633a0d94630223ef13bbec66cde",
+     "."
+    ]
+   ],
+   "items": [
+    [
+     "skill",
+     ".",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "f2e231ba3aa6dce99ee039bfc926b4b9e98e54b2a13cb9aada5ab1bf34071f0d",
+    "gitlab-codequality": "abeb95ed854b0342b6af733cf450e58c32aeb6aad9d501a003cc89fd8de08799",
+    "html": "e540d816d6532acc608cef55299f23141ad9ae7b6eb109f1c5e65dd328d96909",
+    "json": "9b95b0d111aab3b9f11ef096f29ceb3135be0384a14dece98e9b0478307de9f8",
+    "markdown": "e49040d363057a053e4868b607313fb9dc24170cf1b83c072ab06527549d5a96",
+    "sarif": "75a37927bd3b021e63c1698219cf55bc17d67006bae646540bc99bd448f369f5",
+    "text": "217915662cdd8c037fee006c91c3fd409a43aa2dc3a691d203186795e2d3342a"
+   }
+  },
+  "fixtures/skills/SW-SKL-013/negative": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [
+    [
+     "skill",
+     ".",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "d87b3718b38400d164ab917560a262c686806559877e17e66e07394756bd07b7",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "8ce3032c98556fefb07b3e907267aa98d6f9cd6a84d62b09a9df338121fd8882",
+    "json": "686d0108e6d02626357b13319ce28d0369870a9fa9c8283c387004b474567a72",
+    "markdown": "16257c7ae4d821a9f9cf30cf30c20686e35bf9df46f94bbdb43d42badacbca92",
+    "sarif": "819299fe2e00874c1ef5d13791ef6f299f611913d55463774e2b422194bef89f",
+    "text": "5231d8969cee2ad2927dc933d092a9207137eac9a3f2357dfecb57fc4d0502dd"
+   }
+  },
+  "fixtures/skills/SW-SKL-013/positive": {
+   "exit_code": 0,
+   "findings": [
+    [
+     "SW-SKL-013",
+     "008c52f03195510164e76bdbe84b5edde26027b18b5b5bdf82644d17f219c5d3",
+     "."
+    ]
+   ],
+   "items": [
+    [
+     "skill",
+     ".",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "d12b085c267a4e25a0905a5e9e3f5b4417c2eef949b0266935875288067b1537",
+    "gitlab-codequality": "f89324b16b7a529148cd25437193c1db71c73820145c51ca9aa403130c641020",
+    "html": "0018cc257fa0f7794a0e94a60222d7718b4e8dc170de255444a0a1f5a15876b2",
+    "json": "b20cea485fdff3e0650fe0cfc7b476520630f9f17eb88f486fac44036fffdaf2",
+    "markdown": "9e95df66e6ac6bb4f9a23887fd841c13834a877a1eba1101333074fc1caae463",
+    "sarif": "10b7e549ffb2c8d4974f39fa70adc7536c44b46636a35639c0bea541ad1d0dfd",
+    "text": "886c73dd6f3eb7db82621a86314a6903a9f296dacd982b8fbd681c393261077a"
+   }
+  },
+  "fixtures/skills/SW-SKL-014/negative": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [
+    [
+     "skill",
+     ".",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "64b45d3b15cabef3b15284af847dd9c7df840622b82f8076f615118e9626997d",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "8ce3032c98556fefb07b3e907267aa98d6f9cd6a84d62b09a9df338121fd8882",
+    "json": "686d0108e6d02626357b13319ce28d0369870a9fa9c8283c387004b474567a72",
+    "markdown": "16257c7ae4d821a9f9cf30cf30c20686e35bf9df46f94bbdb43d42badacbca92",
+    "sarif": "819299fe2e00874c1ef5d13791ef6f299f611913d55463774e2b422194bef89f",
+    "text": "5231d8969cee2ad2927dc933d092a9207137eac9a3f2357dfecb57fc4d0502dd"
+   }
+  },
+  "fixtures/skills/SW-SKL-014/positive": {
+   "exit_code": 0,
+   "findings": [
+    [
+     "SW-SKL-014",
+     "6ac1084f6d344e9763d1a0c0766bb5f6072bbc1af3dc68657cdbcdab86d30aed",
+     "."
+    ]
+   ],
+   "items": [
+    [
+     "skill",
+     ".",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "b6693e952b4975cf860d80f4ddf73ee5ee95114b8151072ceadeeda1881878fe",
+    "gitlab-codequality": "1d8b1956956d3fe922993b201eda9fde4e99935fbb6cdbcfe76322532efbfd60",
+    "html": "0f8ee32e2d168b68dff65b8ee0e07c5a8bfac84949fd8923e3df8ac62099aedb",
+    "json": "55ab93fc2df69e607bf68f93ba30959abb9d83afcc4bc96a02b4292be307c266",
+    "markdown": "232a24cd5ebce725e4b57736f3d24ee4af04483813f162041e2f05966c8c7fa0",
+    "sarif": "1c14b7008fcb188efa3df80d5ce2d2b0bc24ada43b2252e0d0232323d59e46da",
+    "text": "095282f04af3c057a10a2afb34adf776dd32a6bf2db65327e55152a4d24a72a2"
+   }
+  },
+  "fixtures/skills/SW-SKL-015/negative": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [
+    [
+     "skill",
+     ".",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "526d4265c867c25cf2fe7e6d5c93525976ee674a10faa12318f5fe5cb77ca9f3",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "8ce3032c98556fefb07b3e907267aa98d6f9cd6a84d62b09a9df338121fd8882",
+    "json": "686d0108e6d02626357b13319ce28d0369870a9fa9c8283c387004b474567a72",
+    "markdown": "16257c7ae4d821a9f9cf30cf30c20686e35bf9df46f94bbdb43d42badacbca92",
+    "sarif": "819299fe2e00874c1ef5d13791ef6f299f611913d55463774e2b422194bef89f",
+    "text": "5231d8969cee2ad2927dc933d092a9207137eac9a3f2357dfecb57fc4d0502dd"
+   }
+  },
+  "fixtures/skills/SW-SKL-015/positive": {
+   "exit_code": 0,
+   "findings": [
+    [
+     "SW-SKL-015",
+     "da933c04cc2c5ca4491da9fd4d6c9ff37542aced6d2b8b23cbcceae6bee173e6",
+     "."
+    ]
+   ],
+   "items": [
+    [
+     "skill",
+     ".",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "31dcb34ed76037638398196e228645825ca68b53f42eb3a09e270ee8db93afc3",
+    "gitlab-codequality": "cfd3caf003693fd6817faf359fafa6eb95feda0c0a4020445e3372b7600f7301",
+    "html": "48db4706a7bd37fc64c967e0daf92134e00814bd7a221d0d0bef7db6b93332cc",
+    "json": "336ec6f8102e852f0305563586a59a9a26151fe93da5eb4d751d03f0de5c482d",
+    "markdown": "5fc61e3a17c8a94dcb6039419d667bd3b3b8ce4a8e4fcf0d747e872f26c0fc28",
+    "sarif": "45ae178c0d152a1dc8c213a0eca28012619467ac34495c47a0022566248c0ff0",
+    "text": "2c16f5b1114f3396d58b450c37268249ac07c3a7b85967c6cbf97d0fda3f1c50"
+   }
+  },
+  "fixtures/skills/SW-SKL-019/negative": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [
+    [
+     "skill",
+     ".",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "c9799f8f54429cffbc25adf22fb91776e1aa3c6f0b4533b148f36a5b0240fe66",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "8ce3032c98556fefb07b3e907267aa98d6f9cd6a84d62b09a9df338121fd8882",
+    "json": "686d0108e6d02626357b13319ce28d0369870a9fa9c8283c387004b474567a72",
+    "markdown": "16257c7ae4d821a9f9cf30cf30c20686e35bf9df46f94bbdb43d42badacbca92",
+    "sarif": "819299fe2e00874c1ef5d13791ef6f299f611913d55463774e2b422194bef89f",
+    "text": "5231d8969cee2ad2927dc933d092a9207137eac9a3f2357dfecb57fc4d0502dd"
+   }
+  },
+  "fixtures/skills/SW-SKL-019/positive": {
+   "exit_code": 0,
+   "findings": [
+    [
+     "SW-SKL-019",
+     "2501ced17eb359991a52e9c3482709ef4b81d105b78d60c414aa10d78b9c55f1",
+     "."
+    ]
+   ],
+   "items": [
+    [
+     "skill",
+     ".",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "be06b29d35a8527a1fd299b74868606903775329646f8eed1512ce355730f3af",
+    "gitlab-codequality": "31f26d6a95ba210feebe27a5d7024eed1ff9143b2b8b991d20260818cc67afda",
+    "html": "14a0c126ac9d605c1f59d3d00d242d555b32c0a909e1bc7c70c7f9ced4e3b8a5",
+    "json": "ab8f3cd970aa1bc681c3e55da1184f7d35faa15d0c85d4430e0c20c5ae01bebf",
+    "markdown": "8eae389b275e7c049101b07e5c191fa9020d5d228a0898fb360018e55089d59a",
+    "sarif": "a4e0374c811da46d3e39ce4dfad3834c8dc4fe4767f959af8c30b3be0ac946f1",
+    "text": "12a9d5fa207321de383d25a62ee49b404ea025c5efbfdc2d6184f4149863207d"
+   }
+  },
+  "fixtures/skills/SW-SKL-031/negative": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [
+    [
+     "skill",
+     ".",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "526d4265c867c25cf2fe7e6d5c93525976ee674a10faa12318f5fe5cb77ca9f3",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "8ce3032c98556fefb07b3e907267aa98d6f9cd6a84d62b09a9df338121fd8882",
+    "json": "686d0108e6d02626357b13319ce28d0369870a9fa9c8283c387004b474567a72",
+    "markdown": "16257c7ae4d821a9f9cf30cf30c20686e35bf9df46f94bbdb43d42badacbca92",
+    "sarif": "819299fe2e00874c1ef5d13791ef6f299f611913d55463774e2b422194bef89f",
+    "text": "5231d8969cee2ad2927dc933d092a9207137eac9a3f2357dfecb57fc4d0502dd"
+   }
+  },
+  "fixtures/skills/SW-SKL-031/positive": {
+   "exit_code": 0,
+   "findings": [
+    [
+     "SW-SKL-031",
+     "3e7b2b472dccec2c6be7591d0f43dd9934f6904999f82c3157cbd137b82cc370",
+     "."
+    ]
+   ],
+   "items": [
+    [
+     "skill",
+     ".",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "da99133f5af7733b00b65d2ebf15a308b2a025bd64dfcd1d746f2c7888666886",
+    "gitlab-codequality": "09e9f6827ac88e0d68b03c966b688e366b148868a15b81ca6c5ead2e92cd3880",
+    "html": "ebeb8e11c2e2ab9c656e97c2c67c46dcbf98d0d5daba82625f081480242d83ee",
+    "json": "d65cdf99cc565153165df758cf2389073e85c98bce7e6dd318023621a255097c",
+    "markdown": "1b38503670f6933a4ad871bf7e77090b86abecaf4ca14558ae05c54202fd2726",
+    "sarif": "64b15916ccb2d768ad15c1f71948a8f990bb8ff4c2a3e89caa337816810a78dd",
+    "text": "fbfa66bf69282b089607e5dcd4db18ddcb8c3fb2fc4f57cb7553b4e0e70a9dca"
+   }
+  },
+  "fixtures/skills/SW-SKL-032/negative": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [
+    [
+     "skill",
+     ".",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "07b5177bfbcd4006674557899616b9ad9fd61a6fb8e99011d3e6d7fb356d6c64",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "f7e42337dc574f78d6d1f378cbd0754a082b9dd689d01729be853592c80621d3",
+    "json": "318a713e1532511374b097913d52f9ab77871f660791f4fcb11d47b03738def1",
+    "markdown": "17719943bfd56cedb7c29323ae54aea4c200816d4d35032b6f198358daae24e3",
+    "sarif": "54554acc2c6fdb4e7edcd5ca381273527c246a3edb78921da8695e1812aa9615",
+    "text": "570de06759f1ab5eae1bcc4cb21ae51be106b74b1ec0ad3631fd3e70606da45c"
+   }
+  },
+  "fixtures/skills/SW-SKL-032/positive": {
+   "exit_code": 1,
+   "findings": [
+    [
+     "SW-SKL-004",
+     "cbae8650ed58ef5188bf9fb084b0b739e5adaa433dac077ea28e8d7e9b8e9345",
+     "."
+    ],
+    [
+     "SW-SKL-032",
+     "2b890c7b2e9307b8d10991e9ee3ab0e4217fcde9465610e83cdcdf311e22f125",
+     "."
+    ],
+    [
+     "SW-SKL-032",
+     "34b8efe4680939925ea7229262b7bb45f268c4717f1db7462552d9a0a9b0a4af",
+     "."
+    ],
+    [
+     "SW-SKL-032",
+     "3fb61429f53db59914871cfde40389894766ea707ca3dfc910e0c1eea5b3a0e3",
+     "."
+    ],
+    [
+     "SW-SKL-032",
+     "4b0b2cbfcdd3e16f2640d95f5a215c4fdca2968421b932e3e090f240846d2f8e",
+     "."
+    ]
+   ],
+   "items": [
+    [
+     "skill",
+     ".",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "085ce64db3baa17388a8a8f36e4cd9f57388b950aaeae12d89a4ccd96943f2e4",
+    "gitlab-codequality": "12703c643cf72a9d733bf02d6133a9b51e454e985fc35a5c660ee0f5121cdaf6",
+    "html": "fab1aca25454c208f9ad1c1cb520bd6d6e59d73110446df545517294b35d283e",
+    "json": "b3459971b6b87607b5616fb500eb4d13057b01073bf0fea9d45af08aac11a3b9",
+    "markdown": "c49d2b1e485cd0bd0eec9985e6db1ecade5710ef03e1919d7263763d18a1c0ea",
+    "sarif": "0f199d317b63d84a4b3377eed7d1452e2e799a330eb32b23931446b22db58157",
+    "text": "fc21bf19bd986abf7bfdb6320bff1873b60e62675c69eee12aa823dbc66d6641"
+   }
+  },
+  "fixtures/skills/SW-SKL-036/negative": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [
+    [
+     "skill",
+     ".",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "22d22eca9039a0af6def3fb5d2da5def4e6bbdc814afbe229c943ff9c236ec3e",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "62e21c493561234d5790fc7f7913af9f77461b8ff7c98fec8d10b9e476c07e55",
+    "json": "fb49077332c0b099305eafb58dc568e4278df60a2b848806565e19d8dea4b1c6",
+    "markdown": "3aa8437c31b8135c46453959c52976ef3d3df6e1398f251702da772829016af3",
+    "sarif": "1f95131ce19751c1236f61f0d8baea0b9604c43296a4aa3271f23b426e65f306",
+    "text": "a9764500dcf72b27ebe966b691743f25751a81b9da0f0cd10c52d6543bd7e86f"
+   }
+  },
+  "fixtures/skills/SW-SKL-036/positive": {
+   "exit_code": 0,
+   "findings": [
+    [
+     "SW-SKL-036",
+     "7ecca4d090c88aff8f45d7701a780ffc123e5fedc85a484572ca6e61d1ca5ae2",
+     "."
+    ],
+    [
+     "SW-SKL-036",
+     "dede7d5637922e926478c7054c10483136becae2ffa80fca59101e427f29b518",
+     "."
+    ]
+   ],
+   "items": [
+    [
+     "skill",
+     ".",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "97bd43fcd53870ba0f7ca993b049a1f021262132407287cdd492f53fb7d704d5",
+    "gitlab-codequality": "7bcfca491b7c59785eec73c59d7776b4575619318709c13e770053a184cfd17c",
+    "html": "c85646fc3850ccd8b9a931d8d2b9d943ef3af911cf7fa7442e62ead39525f1a6",
+    "json": "e285a4fdf8a8efc5c529e6de2bb259bc67b57e8b278f4a0bfd9391cfb3509efc",
+    "markdown": "aa064a6cc079008bdb54da5b8292ebbb42b717c4c081d29c0c1e48c81a5e30e1",
+    "sarif": "b6532c34e90399657bb3a4f179bdd4b4d9d1f8743c3664cad513b9a383db8ced",
+    "text": "430d493e159a4d9fd016a8e4dbdb45377caa66b0270a40da093e8fb56bfba5e7"
+   }
+  },
+  "fixtures/skills/SW-SKL-037/negative": {
+   "exit_code": 0,
+   "findings": [
+    [
+     "SW-SKL-009",
+     "7f9e72b257deb057af783af08d7f783cf70c8297d9cb6eeece264b92e0ad4aad",
+     "."
+    ],
+    [
+     "SW-SKL-009",
+     "8fe01e48b22f38cbfb901d6baa422e76e76d447de7286f767ab72a8efd2e827d",
+     "."
+    ]
+   ],
+   "items": [
+    [
+     "skill",
+     ".",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "677dd938ad1ca75cf6afec61708af372796dafda0d0e8fb49c46c8750ba03e5a",
+    "gitlab-codequality": "6f125b1d4c04ccfd3104382ebd9b8aef68565c04f4b442b770cafe3d3d4d7f6a",
+    "html": "65051b899d7fba371bcf21adad87bd17a8efe8b6b64b7f014390b9790095c17d",
+    "json": "adb4063a49d3bcd9184889e421e50ea9243061cc91dbad281eb1cf2445ed7b50",
+    "markdown": "eae1e86b9631278e5031379609c89a965cd306d82eab945900dec6e9d9f01947",
+    "sarif": "d7db2367d18babc11ad16f7e5f53fb60d3190335339a30c8ded86d8d723fe88f",
+    "text": "3d8383a08f720cc83eeac60fb21586b57c9d987c69c550e2c720c31aedd39097"
+   }
+  },
+  "fixtures/skills/SW-SKL-037/positive": {
+   "exit_code": 0,
+   "findings": [
+    [
+     "SW-SKL-037",
+     "39ccf944bb126ea6ba72a007677390a7b90df9d79b3e0c706c2eb43f203e87bb",
+     "."
+    ],
+    [
+     "SW-SKL-037",
+     "d3339915ab5934e1ea653b67db45d3d2dbd9fd7d46b84feb3102648f707affe5",
+     "."
+    ],
+    [
+     "SW-SKL-037",
+     "ff54f264d9c130bccfdf85622104237b2887d9c56460cde94452b229c14e4284",
+     "."
+    ]
+   ],
+   "items": [
+    [
+     "skill",
+     ".",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "7828cfbb5eea764b29d3c01892a988a5c412e966af54f016bab21a7148ffaa89",
+    "gitlab-codequality": "5bfa4b7237994499eb53c8bb3934915b1bec6fb125e64eb2873177d4b9ff3b9c",
+    "html": "9e8b2ab052bde55a839162abbd1660852b1a6cefce7286a67fab38422b637ff1",
+    "json": "84552029f74df69668664d304004791689b1cc2faae238134424312e4b7c252e",
+    "markdown": "c5f0a63b9327eab11448d5a6a1eeaedde997722c1b2e394626037e6eda50e2ff",
+    "sarif": "f950f7efe148c3e5c469d67c6e0c942df7a9e7890ad9b999fd58795a3143518a",
+    "text": "cb3eed63f23b1419dcfb875e0619ead4bff5ca687de5946967dc50cb2ee2d850"
+   }
+  },
+  "tests/fixtures/a2a": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [],
+   "outputs": {
+    "cyclonedx": "996cd5cb4f14c79394bfc6a65b8b5bd49a98bcd4cc7bd2d51179ab25e693a545",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "a5b410d580b08a174dd0b363540e4a176d6e49d2c2f004973b133bf729dd0b8f",
+    "json": "fa2980bacb238664b99d019e9aafde344a039dd40e5034b77898b7709bb36688",
+    "markdown": "04fa91da3403fc0256d1f4e8069212c85ca1b26025f09e66a1ff804cbd49d0ea",
+    "sarif": "b977778ac7df6f70eac7c9583554256616c007a947459ce300055fccc0602672",
+    "text": "a74969998724bea62cc6347df55b9f81eef2c92ea3186beaaf0aaee3ed1a75a5"
+   }
+  },
+  "tests/fixtures/homes/common": {
+   "exit_code": 1,
+   "findings": [
+    [
+     "SW-CFG-005",
+     "ea4035f3557b943481e8ed73098c2bf539db7a4cb0e9e148a4d454c0e24faab6",
+     ".claude/settings.json"
+    ],
+    [
+     "SW-SKL-007",
+     "a69b2dc6be1abcc13eabe70d22b6781e5d2b39327564950666f795ad328fcf5d",
+     ".claude/skills/deploy"
+    ],
+    [
+     "SW-SKL-031",
+     "2310bb227369b01dc33b1c72f273482ec0244c691719658f67d2d6638c4b88ec",
+     ".codex/plugins/cache/tools/review/1.0.0/skills/review-skill"
+    ],
+    [
+     "SW-SKL-031",
+     "4242fb9c6e08f0f04e5df2e548de5d141b9cf035ff5ab5a750cbb21fe07a1c92",
+     ".codeium/windsurf/skills/legacy"
+    ],
+    [
+     "SW-SKL-031",
+     "63561c4abffa603f645259da394410e851ed6432397902608ebb2a9204eef3bb",
+     ".cursor/skills/refactor"
+    ],
+    [
+     "SW-SKL-031",
+     "77828406faa1da5c008d3aeadf0f90214fff2c0dc472b29f2eeaf39082d0b988",
+     ".gemini/extensions/jira/skills/ticket"
+    ],
+    [
+     "SW-SKL-031",
+     "e33cb28aa058206b87171b953cbe669ecb76558e4d625db442333944759ca418",
+     ".codex/skills/migrate"
+    ]
+   ],
+   "items": [
+    [
+     "instructions",
+     ".claude/CLAUDE.md",
+     ""
+    ],
+    [
+     "instructions",
+     ".codex/AGENTS.md",
+     ""
+    ],
+    [
+     "instructions",
+     ".config/devin/AGENTS.md",
+     ""
+    ],
+    [
+     "instructions",
+     ".devin/rules/style.md",
+     ""
+    ],
+    [
+     "instructions",
+     ".gemini/GEMINI.md",
+     ""
+    ],
+    [
+     "mcp-config",
+     ".claude/plugins/cache/tools/lint/1.0.0/.mcp.json",
+     ""
+    ],
+    [
+     "mcp-config",
+     ".codex/plugins/cache/tools/review/1.0.0/.mcp.json",
+     ""
+    ],
+    [
+     "mcp-config",
+     ".copilot/installed-plugins/tools/formatter/.mcp.json",
+     ""
+    ],
+    [
+     "mcp-config",
+     ".cursor/mcp.json",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".claude/plugins/cache/tools/lint/1.0.0/.mcp.json#lint-server",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".codex/plugins/cache/tools/review/1.0.0/.mcp.json#review-server",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".copilot/installed-plugins/tools/formatter/.mcp.json#fmt",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".cursor/mcp.json#search",
+     ""
+    ],
+    [
+     "settings",
+     ".claude/settings.json",
+     ""
+    ],
+    [
+     "skill",
+     ".agents/skills/shared",
+     ""
+    ],
+    [
+     "skill",
+     ".claude/plugins/cache/tools/lint/1.0.0/skills/lint-rules",
+     ""
+    ],
+    [
+     "skill",
+     ".claude/skills/deploy",
+     ""
+    ],
+    [
+     "skill",
+     ".codeium/windsurf/skills/legacy",
+     ""
+    ],
+    [
+     "skill",
+     ".codex/plugins/cache/tools/review/1.0.0/skills/review-skill",
+     ""
+    ],
+    [
+     "skill",
+     ".codex/skills/migrate",
+     ""
+    ],
+    [
+     "skill",
+     ".config/devin/skills/notes",
+     ""
+    ],
+    [
+     "skill",
+     ".copilot/skills/review",
+     ""
+    ],
+    [
+     "skill",
+     ".cursor/skills/refactor",
+     ""
+    ],
+    [
+     "skill",
+     ".gemini/extensions/jira/skills/ticket",
+     ""
+    ],
+    [
+     "skill",
+     ".gemini/skills/research",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "d45193b9d3aac447d4d5b7aade7695b97c4cc894c0379727730dc8bfdd5fbaa6",
+    "gitlab-codequality": "ade92ae41962cc60f91a5c60f7067145f3632c9b3e054002d7a3a9599685de87",
+    "html": "901b1f4acacedb7f74cf234d539f1c729b8ca1aa7b6047a2807d71a71dc89305",
+    "json": "b87cc13e69c2e750b33a72f5213e7964aeb5ab2ead9729dcd444eceb2017b47a",
+    "markdown": "2b7f4700aa1780be8835c4706b3d04175909db411ef2aa30c3d6cf0164e93641",
+    "sarif": "241813db943bd46caa3d163cd1c19b306dddafc09ce1ce674aa63b211cde96e6",
+    "text": "9a6795021d9aab04d1759312efb971660307d651aa918709009c274bbdb1da62"
+   }
+  },
+  "tests/fixtures/homes/linux": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [],
+   "outputs": {
+    "cyclonedx": "996cd5cb4f14c79394bfc6a65b8b5bd49a98bcd4cc7bd2d51179ab25e693a545",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "a5b410d580b08a174dd0b363540e4a176d6e49d2c2f004973b133bf729dd0b8f",
+    "json": "fa2980bacb238664b99d019e9aafde344a039dd40e5034b77898b7709bb36688",
+    "markdown": "04fa91da3403fc0256d1f4e8069212c85ca1b26025f09e66a1ff804cbd49d0ea",
+    "sarif": "b977778ac7df6f70eac7c9583554256616c007a947459ce300055fccc0602672",
+    "text": "a74969998724bea62cc6347df55b9f81eef2c92ea3186beaaf0aaee3ed1a75a5"
+   }
+  },
+  "tests/fixtures/homes/macos": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [],
+   "outputs": {
+    "cyclonedx": "996cd5cb4f14c79394bfc6a65b8b5bd49a98bcd4cc7bd2d51179ab25e693a545",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "a5b410d580b08a174dd0b363540e4a176d6e49d2c2f004973b133bf729dd0b8f",
+    "json": "fa2980bacb238664b99d019e9aafde344a039dd40e5034b77898b7709bb36688",
+    "markdown": "04fa91da3403fc0256d1f4e8069212c85ca1b26025f09e66a1ff804cbd49d0ea",
+    "sarif": "b977778ac7df6f70eac7c9583554256616c007a947459ce300055fccc0602672",
+    "text": "a74969998724bea62cc6347df55b9f81eef2c92ea3186beaaf0aaee3ed1a75a5"
+   }
+  },
+  "tests/fixtures/homes/windows": {
+   "exit_code": 0,
+   "findings": [],
+   "items": [
+    [
+     "instructions",
+     "AppData/Roaming/devin/AGENTS.md",
+     ""
+    ],
+    [
+     "skill",
+     "AppData/Roaming/devin/skills/notes",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "67721e2ff25fea6087e097414671810b680dc5e64f9df2d2b8df253a6eb17ee6",
+    "gitlab-codequality": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "html": "d068f44e102533fbf17a0f614caa6b93183a5135b9d260a49f77e1ae1db5962e",
+    "json": "36606725326de72f65a62ab458c7e48f7c28340f828d164810d3e21a738628fe",
+    "markdown": "66c2a6f1b50b0da60a28acabbe01b4e3f44e6e8882e97e0684c192eb022fba30",
+    "sarif": "36792e1934a6457b3f2c3aa6e72d860784b525248bb9e02d007c10579b118161",
+    "text": "046c8a3294db8943c7cdecb2f14f07f4cdfad066ef7aaa2ddf7ce9842c14c381"
+   }
+  },
+  "tests/golden/1.0.0/repo": {
+   "exit_code": 2,
+   "findings": [
+    [
+     "SW-CFG-001",
+     "937af4b175f2794c75bf571eb7461c5564ec0cc59e56ee5aef99068cc36d8400",
+     ".mcp.json"
+    ],
+    [
+     "SW-CFG-008",
+     "4852c3459e93f9094d173f3e21af74775673a5984d8f16210c294c2bde51bf28",
+     ".claude/settings.json"
+    ],
+    [
+     "SW-SKL-007",
+     "d7c509a12598ea6b675d954c11a429467d22a576fb43adb32a254299febb9cd1",
+     ".claude/skills/deploy"
+    ]
+   ],
+   "items": [
+    [
+     "mcp-config",
+     ".mcp.json",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#jira",
+     ""
+    ],
+    [
+     "settings",
+     ".claude/settings.json",
+     ""
+    ],
+    [
+     "skill",
+     ".claude/skills/deploy",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "c6d056632a39d3ef912c0720f35b1536a9b0f775fed349641de124967df28f44",
+    "gitlab-codequality": "7256809131403f328f8745123beba04ac5940a0e0a951d798c0cb1c12dd475c1",
+    "html": "8720a3df40510f945e56766b7e8235f8c9ea0084e0c9226b5db7fdb466a806b1",
+    "json": "df9b5437940363779998793fdc7e53221ba8a58c98946c1631bc6b5a235661cb",
+    "markdown": "3a45b27e903c6e2f73b524be6ca9993e64a769742b238daede6be62dd0b09528",
+    "sarif": "00709da067b9e6a10cf93ef1235cf22d7a770b58a29809a8691c3bd7a1974332",
+    "text": "d36966599326fb9dd2f9d117cf52ffc2a5c3891f124d4ad3758cf760c49f7ddd"
+   }
+  },
+  "tests/golden/1.13.0/repo": {
+   "exit_code": 1,
+   "findings": [
+    [
+     "SW-A2A-002",
+     "ea0990d757ec0ca58d90ada3f1bc80e10b442ed5a5c61f2501458462d926fd91",
+     "a2a-card:.well-known/agent-card.json"
+    ],
+    [
+     "SW-A2A-012",
+     "6464756775a40dbdbb62d2448955aad69f91eb0ce6f9b7029e0fb7c350a50627",
+     "a2a-card:.well-known/agent-card.json"
+    ],
+    [
+     "SW-CFG-003",
+     "eaa20732b321eae1abaaeeea259d0ab70a565f877d53663695c0e01b18bcf1a3",
+     ".mcp.json"
+    ],
+    [
+     "SW-CFG-005",
+     "acd003db002fd80ea6e60d3701027262896b10a940830e32030e0486ccd6eab6",
+     ".claude/settings.json"
+    ],
+    [
+     "SW-CFG-009",
+     "51bf67a926747f18400b2914d7d2a42b47c65a95f515a0029a7e93ea959b5926",
+     ".claude-plugin/marketplace.json"
+    ],
+    [
+     "SW-SKL-007",
+     "a69b2dc6be1abcc13eabe70d22b6781e5d2b39327564950666f795ad328fcf5d",
+     ".claude/skills/deploy"
+    ]
+   ],
+   "items": [
+    [
+     "instructions",
+     "AGENTS.md",
+     ""
+    ],
+    [
+     "marketplace",
+     ".claude-plugin/marketplace.json",
+     ""
+    ],
+    [
+     "mcp-config",
+     ".mcp.json",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#files",
+     ""
+    ],
+    [
+     "mcp-server",
+     ".mcp.json#remote",
+     ""
+    ],
+    [
+     "plugin",
+     ".claude-plugin/marketplace.json#lint",
+     ""
+    ],
+    [
+     "settings",
+     ".claude/settings.json",
+     ""
+    ],
+    [
+     "skill",
+     ".claude/skills/deploy",
+     ""
+    ]
+   ],
+   "outputs": {
+    "cyclonedx": "982d231fbfbef71da3154fe393158170b201e17eaa9037fc3b7e6852df021d73",
+    "gitlab-codequality": "af8ce7739e7fd48392d967d57ac2e3fd9b0bb47b92409bcbf426c475524778be",
+    "html": "8051627a1630bbb70c7e2bab74c915ef5168a5a8fda0c7d3bd0d4febf7efeffc",
+    "json": "cf6548ec3e6e4ad98c19cf8ce6a481d46f8fa1067ec8f50ae4d4c7832aaaa2c8",
+    "markdown": "fdafdc4befd83d21d952ec010f86b86c8c9f3afa76d4dc1ae70138477f8f3e59",
+    "sarif": "972a4a1c77d6b5855e97f6b1a92a0b9957432fc033c1fbd90c854d5cebda2417",
+    "text": "bbd09caefec868f508e2788b816efaffc5b866f747db506f94c4cd61cb627df1"
+   }
+  }
+ },
+ "scanner_version": "1.19.0"
+}
