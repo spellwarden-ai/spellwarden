@@ -901,8 +901,8 @@ def discover(fileset: FileSet, *, listed_cards: Sequence[str] = (), agents_confi
             builder.notices.append(Notice("symlink_skipped", path, "symbolic link; skipped"))
     unread = _oversize_files(builder, frozenset(skill.path for skill in skills), plugin_dirs, listed_cards, instructions)
     items = _items(builder, skills, plugin_items)
-    items = sorted([*items, *(Item("instructions", f.path, f.name, f.plugin, f.format, f.front_matter) for f in instruction_list)],
-                   key=lambda item: (item.kind, item.path))
+    items = sorted([*items, *(Item("instructions", f.path, f.name, f.plugin, f.format, f.front_matter)
+                              for f in instruction_list)], key=lambda item: (item.kind, item.path))
     # a look-alike file that is not a card is no agent content (r0:F3)
     if not items and not any(is_card(card) for card in cards) and not agents_configured and not unread:
         builder.notices.append(Notice("no_agent_content", "", "No agent content found"))
