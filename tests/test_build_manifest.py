@@ -338,6 +338,25 @@ def test_a_raw_file_that_differs_from_the_archive_excludes_the_harmless_skill(tm
         ("b-wild-0000000001", "the raw file my notes.txt differs from the archive's")]
 
 
+def test_a_raw_file_that_cannot_be_fetched_is_excluded_with_a_short_reason_even_when_its_path_is_long(tmp_path, monkeypatch):
+    # Review r0:F4: the reason gives the path and the HTTP status, never the URL, and is cut to a length the manifest's
+    # 400-character limit accepts, so a long path cannot make the whole build fail.
+    monkeypatch.setattr(bm, "MAX_EXCLUDED_SHARE", 1.0)
+    world = World()
+    opener = world.install(monkeypatch)
+    del opener.answers[bm.raw_url("owner", "repo", COMMIT, "skills/hello/my notes.txt")]
+    world.write_frozen(tmp_path / "run")
+    document = bm.build(tmp_path / "run", cache=rb.Cache(tmp_path / "cache"), opener=opener, token=None, date="2026-11-24",
+                        say=lambda _line: None)
+    assert [(record["id"], record["reason"]) for record in document["excluded"]] == [
+        ("b-wild-0000000001", "the raw file my notes.txt could not be fetched (HTTP 404)")]
+    long_path = "/".join(["d" * 120] * 3) + ".txt"
+    reason = bm.short_reason(f"the raw file {long_path} could not be fetched (HTTP 404)")
+    assert len(reason) <= bm.REASON_MAX <= rb.MAX_STRING and reason.endswith("...")
+    document["excluded"][0]["reason"] = reason
+    rb.check_manifest(document)
+
+
 def test_what_a_harmless_skill_leaves_out_does_not_count_towards_its_size(tmp_path, monkeypatch):
     # Three files over 2,000,000 bytes and a compiled file are left out, as when the skill was collected. With them the directory
     # holds more than 5,000,000 bytes; without them the skill is the frozen one, so it is written and not excluded.

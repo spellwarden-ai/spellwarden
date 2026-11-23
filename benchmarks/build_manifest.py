@@ -121,6 +121,14 @@ class BuildError(Exception):
     """The builder stops: nothing is written (exit 2)."""
 
 
+REASON_MAX = 300
+
+
+def short_reason(text: str) -> str:
+    """An exclusion reason that fits the manifest's string limit (`rb.MAX_STRING`) whatever path it names (review r0:F4)."""
+    return text if len(text) <= REASON_MAX else text[:REASON_MAX - 3] + "..."
+
+
 class Excluded(Exception):
     """The item cannot be rebuilt exactly; it goes to `excluded` with this reason."""
 
@@ -266,7 +274,7 @@ def _pinned(context: Context, pinned: Pinned) -> bytes:
 def _unpinned(context: Context, url: str, limit: int) -> bytes:
     data = rb.download(url, limit, opener=context.opener, token=context.token, token_hosts=GH_TOKEN_HOSTS)
     if len(data) > limit:
-        raise Excluded(f"{url} is larger than {limit} bytes")
+        raise Excluded(f"an object of this source is larger than {limit} bytes")
     return data
 
 
@@ -275,7 +283,8 @@ def _check_raw(context: Context, files: list[File]) -> None:
         try:
             data = _unpinned(context, entry.origin["url"], len(entry.data))
         except rb.FetchFailed as exc:
-            raise Excluded(f"the raw file {entry.path} could not be fetched: {exc}") from None
+            # The status, not the message: the message holds the whole URL, and a reason must stay short (review r0:F4).
+            raise Excluded(f"the raw file {entry.path} could not be fetched (HTTP {exc.status or 'error'})") from None
         if data != entry.data:
             raise Excluded(f"the raw file {entry.path} differs from the archive's")
 
@@ -306,7 +315,7 @@ def harmless_root(context: Context, source_path: str, frozen: str) -> tuple[list
     try:
         data = _unpinned(context, f"https://codeload.github.com/{owner}/{repository}/zip/{commit}", MAX_ARCHIVE_BYTES)
     except rb.FetchFailed as exc:
-        raise Excluded(f"the repository archive could not be fetched: {exc}") from None
+        raise Excluded(f"the repository archive could not be fetched (HTTP {exc.status or 'error'})") from None
     try:
         top, infos, archive = zip_files(data)
     except zipfile.BadZipFile:
@@ -475,7 +484,7 @@ def build(run_dir: Path, *, cache: rb.Cache, opener: rb.Opener, token: str | Non
             record = make()
             rb.check_item(record, checked_sources, SETS)
         except Excluded as exc:
-            excluded.append({"id": item_id, "set": set_id, "stratum": stratum, "reason": str(exc), "date": date})
+            excluded.append({"id": item_id, "set": set_id, "stratum": stratum, "reason": short_reason(str(exc)), "date": date})
             say(f"excluded {item_id} ({set_id}, {stratum}): {exc}")
             continue
         except rb.ManifestError as exc:
