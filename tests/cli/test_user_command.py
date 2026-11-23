@@ -35,8 +35,8 @@ def test_the_text_report_has_a_line_per_client_and_the_json_its_clients(run_cli,
     code, out, err = run_cli(["scan", "--user", "--as-of", "2026-11-14"], env=env)
     assert code == 1, err
     lines = out.splitlines()
-    assert "Claude Code: 4 servers, 2 skills, 1 plugin, 1 marketplace, 2 hooks, 2 instruction files" in lines
-    assert "Cursor: 1 server, 1 hook" in lines
+    assert "Claude Code: 4 servers, 2 skills, 1 plugin, 1 marketplace, 2 hooks, 9 instruction files" in lines
+    assert "Cursor: 2 servers, 4 skills, 1 plugin, 2 hooks, 6 instruction files" in lines
     code, out, _ = run_cli(["scan", "--user", "--as-of", "2026-11-14", "--format", "json"], env=env)
     document = json.loads(out)
     assert [entry["client"] for entry in document["clients"]][:2] == ["claude-code", "claude-desktop"]
@@ -46,7 +46,8 @@ def test_the_text_report_has_a_line_per_client_and_the_json_its_clients(run_cli,
 
 def test_a_client_without_files_is_not_found_and_named_only_in_verbose_output(run_cli, tmp_path, monkeypatch):
     home = make_home(tmp_path, "linux")
-    for directory in (home / ".cursor",):
+    # Engine 1.20.0 (7.9): `~/.codex/agents/` is read by Cursor's row alone, so a file there would still name Cursor
+    for directory in (home / ".cursor", home / ".codex" / "agents"):
         for path in sorted(directory.rglob("*"), reverse=True):
             path.unlink() if path.is_file() else path.rmdir()
         directory.rmdir()
@@ -65,9 +66,10 @@ def test_inventory_lists_every_item_without_judging_it(run_cli, tmp_path, monkey
     code, out, err = run_cli(["scan", "--user", "--inventory", "--as-of", "2026-11-14"], env=env)
     assert code == 0, err
     assert "  mcp-server ~/.cursor/mcp.json#search (http, https://search.example.com/sse)" in out.splitlines()
-    assert "  skill ~/.agents/skills/shared (also Windsurf (Devin Desktop), Codex, Gemini CLI)" in out.splitlines()
-    # 1.16.0 reads the six VS Code user and profile files of the fixture home, 6 documents and 6 servers (batch 2c spec 11.3)
-    assert out.splitlines()[-1] == "61 items listed, not judged (--inventory)"
+    assert "  skill ~/.agents/skills/shared (also VS Code, Windsurf (Devin Desktop), Codex, Gemini CLI)" in out.splitlines()
+    # 1.16.0 reads the six VS Code user and profile files of the fixture home (batch 2c spec 11.3); 1.20.0 the 44 items of the new
+    # rows planted in the common home (Engine 1.20.0: scan selection, 7.9)
+    assert out.splitlines()[-1] == "105 items listed, not judged (--inventory)"
     code, out, _ = run_cli(["scan", "--user", "--inventory", "--as-of", "2026-11-14", "--format", "json"], env=env)
     assert json.loads(out)["findings"] == [] and json.loads(out)["probes"] == []
 
@@ -77,7 +79,8 @@ def test_sarif_results_of_a_user_scan_name_their_clients(run_cli, tmp_path, monk
     _, out, _ = run_cli(["scan", "--user", "--as-of", "2026-11-14", "--format", "sarif"], env=env)
     results = json.loads(out)["runs"][0]["results"]
     by_rule = {result["ruleId"]: result for result in results}
-    assert by_rule["SW-SKL-007"]["properties"]["clients"] == ["claude-code", "vscode"]
+    # 1.20.0: Cursor reads `~/.claude/skills` too (the row `cursor/claude-skills`), where the finding's skill `deploy` lives
+    assert by_rule["SW-SKL-007"]["properties"]["clients"] == ["claude-code", "cursor", "vscode"]
     assert all("clients" in result["properties"] for result in results)
 
 

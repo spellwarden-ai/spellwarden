@@ -1,0 +1,1 @@
+{"permissions": {"allow": ["Read(*)"]}, "hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": "./guard.sh --token CANARY-HOOK-LINE"}]}]}}

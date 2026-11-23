@@ -1,7 +1,9 @@
 """SW-CFG-012: MCP server configured to approve every tool call automatically.
 
-Read over the servers of MCP client configurations (`.mcp.json`, `.vscode/mcp.json`, `.cursor/mcp.json`, at any
-depth; no other document kind) from `McpServerEntry.options`. A server fires, once per key and at the key's line,
+Read over the servers of MCP client configurations (`.mcp.json`, `.vscode/mcp.json`, `.cursor/mcp.json` and the other `mcp`
+documents, at any depth), of plugin manifests and, since 1.20.0, of settings documents (Codex's `config.toml` and Gemini CLI's
+`settings.json`, in a repository and in the home; Engine 1.20.0: scan selection, 7.19); hooks and marketplace documents are not
+read. From `McpServerEntry.options`; a server fires, once per key and at the key's line,
 when
 
 * `default_tools_approval_mode` is `approve` (any case),
@@ -89,7 +91,7 @@ def detect(config) -> Iterator[Finding]:
     from spellwarden_scan.rules.config import config_matched
 
     for doc, entry in config.servers():
-        if doc.kind not in ("mcp", "plugin"):  # a plugin manifest's inline `mcpServers` are the same entries
+        if doc.kind not in ("mcp", "plugin", "settings"):  # a plugin manifest's inline servers; settings since 1.20.0 (spec:Q1)
             continue
         for index, (field, shown, line) in enumerate(_triggers(entry.options)):
             if index >= _PER_SERVER:

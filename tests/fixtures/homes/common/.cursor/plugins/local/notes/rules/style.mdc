@@ -1,0 +1,6 @@
+---
+description: Note style
+globs: notes/**
+---
+
+Write short notes.

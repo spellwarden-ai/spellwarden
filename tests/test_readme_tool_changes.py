@@ -39,7 +39,7 @@ def test_the_lock_section_names_the_kind_the_commands_and_the_notices():
                    "`tools_not_compared`", "`tools_changed`", "`lock --check` included", "refused by 1.14.0 and older"):
         assert needle in text, needle
     assert {"tools_changed", "tools_not_compared"} <= set(NOTICE_CODES)
-    assert "spellwarden lock [PATH] [--check | --probe]\n" in README
+    assert "spellwarden lock [PATH] [--check | --probe] [--follow-links]\n" in README
 
 
 def test_the_limits_section_records_the_remote_rule_for_the_pins_and_the_export_limits():

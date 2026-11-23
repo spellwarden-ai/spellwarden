@@ -11,7 +11,7 @@ import time
 import pytest
 from conftest import CONFIG_FIXTURES, _read_dir, config_documents, load_config_fixture
 
-from spellwarden_scan.agentconfig import parse_document, parse_mcp_config
+from spellwarden_scan.agentconfig import parse_document, parse_mcp_config, parse_selected
 from spellwarden_scan.rules import growth_cfg_013
 from spellwarden_scan.rules.growth_cfg_013 import MALICIOUS, NIST, OWASP, RULE_ID, SEVERITY, TITLE, detect
 
@@ -195,7 +195,25 @@ def test_env_key_outside_a_server_and_other_document_kinds_are_not_read():
     assert list(detect(config(document))) == []
     settings = parse_document("settings", ".claude/settings.json",
                               json.dumps({"mcpServers": {"a": {"command": "kubernetes-mcp-server"}}}).encode())
-    assert list(detect(config(settings))) == []
+    assert settings.servers == () and list(detect(config(settings))) == []  # the settings parser reads no server
+    text = json.dumps({"mcpServers": {"a": {"command": "kubernetes-mcp-server"}}}, indent=2).encode()
+    for kind in ("hooks", "marketplace"):
+        holding = parse_selected(kind, "p/x.json", text, lambda root: ([root.get("mcpServers")], None))
+        assert list(detect(config(holding))) == [], kind
+
+
+def test_settings_documents_are_read_and_give_the_findings_of_an_mcp_document_but_for_the_path():
+    """Engine 1.20.0 (owner decision spec:Q1, C45)."""
+    servers = {"db": {"type": "http", "url": "https://mcp.supabase.com/mcp?project_ref=abc"}}
+    text = json.dumps({"mcpServers": servers}, indent=2).encode()
+    settings = parse_selected("settings", ".codex/config.toml", text, lambda root: ([root.get("mcpServers")], None))
+    mcp = run(servers)
+    found = list(detect(config(settings)))
+    assert len(found) == 1 and [(f.rule_id, f.location.line, f.evidence) for f in found] == \
+        [(f.rule_id, f.location.line, f.evidence) for f in mcp]
+    assert found[0].location.path == ".codex/config.toml"
+    quiet = parse_selected("settings", "tests/.codex/config.toml", text, lambda root: ([root.get("mcpServers")], None))
+    assert list(detect(config(quiet))) == []  # a configuration under a test directory stays quiet
 
 
 def test_evidence_is_short_for_a_long_server_name():

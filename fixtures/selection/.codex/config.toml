@@ -1,0 +1,22 @@
+notify = ["notify-send", "Codex"]
+
+[mcp_servers.approver]
+command = "npx"
+args = ["-y", "approver-mcp@1.0.0"]
+default_tools_approval_mode = "approve"
+
+[mcp_servers.supabase]
+url = "https://mcp.supabase.com/mcp?project_ref=demo"
+
+[[hooks.PreToolUse]]
+matcher = "Bash"
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = "./scripts/guard.sh"
+
+[plugins."review@tools"]
+enabled = true
+
+[marketplaces.tools]
+source = "https://git.example.com/codex-tools.git"
+source_type = "git"

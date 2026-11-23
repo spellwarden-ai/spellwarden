@@ -11,7 +11,7 @@ import time
 import pytest
 from conftest import CONFIG_FIXTURES, _read_dir, config_documents, config_kind, load_config_fixture
 
-from spellwarden_scan.agentconfig import parse_document, parse_mcp_config
+from spellwarden_scan.agentconfig import parse_document, parse_mcp_config, parse_selected
 from spellwarden_scan.rules import growth_cfg_012
 from spellwarden_scan.rules.growth_cfg_012 import MALICIOUS, NIST, OWASP, RULE_ID, SEVERITY, TITLE, detect
 
@@ -223,10 +223,31 @@ def test_keys_outside_a_server_do_not_fire():
     assert list(detect(config(document))) == []
 
 
-def test_other_document_kinds_are_not_read():
-    settings = parse_document("settings", ".claude/settings.json",
-                              json.dumps({"mcpServers": {"a": {"command": "a", "trust": True}}}).encode())
-    assert list(detect(config(settings))) == []
+def _holding(kind: str, path: str, servers: dict):
+    """A document of `kind` holding `servers` as the readers make one: a Codex or Gemini CLI settings file, or a hooks or
+    marketplace document a plugin manifest names as its `mcpServers` file."""
+    text = json.dumps({"mcpServers": servers}, indent=2).encode()
+    return parse_selected(kind, path, text, lambda root: ([root.get("mcpServers")], None))
+
+
+def test_settings_documents_are_read_and_give_the_findings_of_an_mcp_document_but_for_the_path():
+    """Engine 1.20.0 (owner decision spec:Q1, C45): one server text, the same findings in an `mcp` and a `settings` document."""
+    servers = {"a": {"command": "a", "trust": True, "autoApprove": ["delete_page"]}}
+    mcp = run(servers)
+    settings = list(detect(config(_holding("settings", ".gemini/settings.json", servers))))
+    assert len(mcp) == 2
+    assert [(f.rule_id, f.severity, f.location.line, f.evidence) for f in settings] == \
+        [(f.rule_id, f.severity, f.location.line, f.evidence) for f in mcp]
+    assert {f.location.path for f in settings} == {".gemini/settings.json"}
+    assert {f.fingerprint for f in settings}.isdisjoint({f.fingerprint for f in mcp})
+
+
+def test_hooks_and_marketplace_documents_and_a_settings_file_in_its_own_role_are_not_read():
+    servers = {"a": {"command": "a", "trust": True}}
+    for kind in ("hooks", "marketplace"):
+        assert list(detect(config(_holding(kind, "p/hooks/hooks.json", servers)))) == [], kind
+    settings = parse_document("settings", ".claude/settings.json", json.dumps({"mcpServers": servers}).encode())
+    assert settings.servers == () and list(detect(config(settings))) == []  # the settings parser reads no server
 
 
 def test_evidence_is_masked_and_short():

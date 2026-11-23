@@ -1,0 +1,1 @@
+{"enabledPlugins": {"formatter@tools": true}, "hooks": {"preToolUse": [{"type": "command", "bash": "./guard.sh", "env": {"GUARD_TOKEN": "CANARY-ENV-VALUE"}}]}}

@@ -62,7 +62,70 @@ def test_vs_code_user_mcp_json_has_a_row_per_system_and_left_not_read():
     assert not any("Code/User/mcp.json" in line for line in clients.NOT_READ)
     assert any("remote and WSL" in line and "~/.vscode-server/" in line for line in clients.NOT_READ)
     assert any(line.startswith("VS Code's user instruction files") for line in clients.NOT_READ)
-    assert sum(1 for row in clients.ROWS if row.path_from) == 3
-    # the paragraph under the table no longer says that every row's source names the path
+    # Engine 1.20.0 (7.9, 7.17): the Devin folder's rows (a pair per file but the MCP one) take their folder from another page too
+    assert sum(1 for row in clients.ROWS if row.path_from) == 3 + sum(
+        1 for row in clients.ROWS if row.client == "windsurf" and row.path_from == (
+            "https://docs.devin.ai/desktop/devin-local/customizations",))
     text = README.read_text(encoding="utf-8").replace("\r\n", "\n")
-    assert "or names the file while the pages in the row give its folder (VS Code's user and profile `mcp.json`)" in text
+    assert ("or names the file while the pages in the row give its folder (VS Code's user and profile `mcp.json`, and the Devin "
+            "Desktop folder of the Windsurf rows)") in " ".join(text.split())
+
+
+NEW_ROWS = ("claude-code/commands", "claude-code/agents", "claude-code/output-styles", "cursor/skills", "cursor/agents-skills",
+            "cursor/claude-skills", "cursor/codex-skills", "cursor/agents", "cursor/claude-agents", "cursor/codex-agents",
+            "cursor/plugins", "vscode/instructions", "vscode/instruction-files", "vscode/agents", "vscode/hooks",
+            "vscode/settings", "vscode/plugins", "vscode/claude-rules", "vscode/claude-memory", "vscode/claude-agents",
+            "windsurf/agents-md", "windsurf/agents", "windsurf/config", "windsurf/codeium-mcp", "windsurf/codeium-skills",
+            "windsurf/codex-skills", "windsurf/copilot-skills", "codex/prompts", "codex/plugins", "gemini-cli/agents")
+CHANGED_ROWS = ("claude-code/rules", "claude-code/plugins", "windsurf/mcp", "windsurf/skills", "windsurf/global-rules",
+                "windsurf/rules", "windsurf/agents-skills", "gemini-cli/extensions")
+
+
+def test_every_new_or_changed_row_was_checked_on_2026_11_23():
+    """Engine 1.20.0 (C38): a new or changed row carries the date its page was read; a Devin row has a Windows twin."""
+    rows = {row.id: row for row in clients.ROWS}
+    assert clients.CHECKED_SELECTION == "2026-11-23"
+    for row_id in (*NEW_ROWS, *CHANGED_ROWS):
+        for found in (row_id, f"{row_id}-windows"):
+            if found in rows:
+                assert rows[found].checked == "2026-11-23", found
+    for row_id in ("windsurf/mcp", "windsurf/skills", "windsurf/agents-md", "windsurf/agents", "windsurf/config"):
+        if row_id in rows:
+            linux, windows = rows[row_id], rows[f"{row_id}-windows"]
+            assert (linux.systems, linux.base, windows.systems, windows.base) == (
+                ("linux", "macos"), "$XDG_CONFIG_HOME", ("windows",), "%APPDATA%")
+            assert (linux.paths, linux.reader, linux.format) == (windows.paths, windows.reader, windows.format)
+    assert not any(path.startswith(".config/devin/") for row in clients.ROWS for path in row.paths)
+
+
+def test_the_not_read_list_says_what_1_20_0_still_does_not_read():
+    """Engine 1.20.0 (7.13, C39): the ten lines in order, plus one per row a page no longer names; no line says a location is not
+    read that a row reads."""
+    starts = ("Windsurf's `~/.codeium/windsurf/memories/global_rules.md`", "Codex's `$CODEX_HOME/skills/` as Codex's own",
+              "The `mcp.json` files of VS Code's remote and WSL servers", "VS Code's user instruction files",
+              "Claude Code's plugins when `CLAUDE_CODE_PLUGIN_CACHE_DIR`", "System-wide managed files",
+              "Cursor's `~/.cursor/rules/`", "Claude Desktop extensions", "Windsurf's global workflows",
+              "Files that need a parser or a rule the scanner does not have")
+    lines = clients.NOT_READ
+    assert len(lines) >= 10 and all(line.startswith(start) for line, start in zip(lines, starts, strict=False))
+    text = " ".join(lines)
+    for gone in ("`~/.codeium/windsurf/mcp_config.json`", "The files of installed Codex plugins",
+                 "Skills inside Gemini CLI extensions", "Claude Code subagents, commands and output styles"):
+        assert gone not in text, gone
+    assert "Cursor and Devin Desktop document loading `~/.codex/skills/`, so it is read as their directory" in lines[1]
+    assert "Copilot's `$COPILOT_HOME/instructions/` and `$COPILOT_HOME/agents/` are read" in lines[3]
+
+
+def test_rows_that_read_one_folder_give_its_files_one_format():
+    """Engine 1.20.0 (7.12, C35): a file reached by two rows has the format of the first, so the rows of one folder agree."""
+    import posixpath
+
+    homes = {"$CLAUDE_CONFIG_DIR": "~/.claude", "$CODEX_HOME": "~/.codex", "$COPILOT_HOME": "~/.copilot", "~": "~"}
+    formats: dict[str, set[str]] = {}
+    for row in clients.ROWS:
+        if row.format is None or row.base not in homes:
+            continue
+        for path in row.paths:
+            folder = posixpath.dirname(path).split("/*")[0]
+            formats.setdefault(f"{homes[row.base]}/{folder}".rstrip("/"), set()).add(row.format)
+    assert {folder: found for folder, found in formats.items() if len(found) > 1} == {}

@@ -1,0 +1,1 @@
+{"version": 1, "hooks": {"sessionStart": [{"type": "command", "bash": "./scripts/audit.sh", "powershell": "./scripts/audit.ps1"}]}}

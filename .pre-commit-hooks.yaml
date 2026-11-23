@@ -7,6 +7,6 @@
   language: python
   pass_filenames: false
   require_serial: true
-  files: '(?i)(^|/)(skill\.md|(skills|\.claude|\.cursor|\.codex|\.vscode|\.claude-plugin|\.spellwarden|\.well-known)/.+|\.mcp\.json|mcp\.json|claude_desktop_config\.json|hooks/hooks\.json|agents\.md|claude\.md|gemini\.md|\.github/copilot-instructions\.md|\.cursorrules|\.windsurfrules|\.windsurf/rules/[^/]+\.md|\.devin/rules/[^/]+\.md|agent-card\.json)$'
+  files: '(?i)(^|/)(skill\.md|(skills|\.claude|\.cursor|\.codex|\.gemini|\.devin|\.windsurf|\.agents|\.vscode|\.claude-plugin|\.spellwarden|\.well-known)/.+|\.github/(hooks|instructions|agents|copilot)/.+|\.mcp\.json|mcp\.json|claude_desktop_config\.json|hooks/hooks\.json|agents\.md|claude\.md|gemini\.md|claude\.local\.md|agents\.(override|local)\.md|agent\.md|\.github/copilot-instructions\.md|\.cursorrules|\.windsurfrules|agent-card\.json)$'
   stages: [pre-commit, pre-push, manual]
   minimum_pre_commit_version: "3.2.0"

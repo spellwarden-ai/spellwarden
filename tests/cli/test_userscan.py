@@ -13,52 +13,96 @@ from spellwarden_cli import clients, userscan
 
 STATE, PLUGINS = "claude-code/state", "claude-code/plugins"
 PLUGIN_DIR = "~/.claude/plugins/cache/tools/lint/1.0.0"
+CURSOR_PLUGIN = "~/.cursor/plugins/local/notes"
+COPILOT_PLUGIN = "~/.copilot/installed-plugins/tools/formatter"
+CODEX_PLUGIN = "~/.codex/plugins/cache/tools/review/1.0.0"
 OUTSIDE = "outside-home:9a1042f5/app"  # sha256 of "/srv/outside/app", the directory as `.claude.json` writes it
 COMMON = [
     ("mcp-config", "~/.claude.json", [STATE]), ("mcp-server", "~/.claude.json#github", [STATE]),
     ("mcp-config", "~/.claude.json#~/work/app", [STATE]), ("mcp-server", "~/.claude.json#~/work/app#db", [STATE]),
     ("mcp-config", f"~/.claude.json#{OUTSIDE}", [STATE]), ("mcp-server", f"~/.claude.json#{OUTSIDE}#db", [STATE]),
     ("settings", "~/.claude/settings.json", ["claude-code/settings"]),
-    ("skill", "~/.claude/skills/deploy", ["claude-code/skills", "vscode/claude-skills"]),
-    ("instructions", "~/.claude/CLAUDE.md", ["claude-code/memory"]),
-    ("instructions", "~/.claude/rules/typescript.md", ["claude-code/rules"]),
+    ("skill", "~/.claude/skills/deploy", ["claude-code/skills", "vscode/claude-skills", "cursor/claude-skills"]),
+    ("instructions", "~/.claude/CLAUDE.md", ["claude-code/memory", "vscode/claude-memory"]),
+    ("instructions", "~/.claude/rules/typescript.md", ["claude-code/rules", "vscode/claude-rules"]),
+    ("instructions", "~/.claude/rules/frontend/react.md", ["claude-code/rules", "vscode/claude-rules"]),
+    ("instructions", "~/.claude/commands/deploy.md", ["claude-code/commands"]),
+    ("instructions", "~/.claude/commands/ops/restart.md", ["claude-code/commands"]),
+    ("instructions", "~/.claude/agents/reviewer.md", ["claude-code/agents", "cursor/claude-agents", "vscode/claude-agents"]),
+    ("instructions", "~/.claude/output-styles/terse.md", ["claude-code/output-styles"]),
     ("plugin", "~/.claude/plugins/installed_plugins.json#lint@tools", [PLUGINS]),
     ("plugin-manifest", f"{PLUGIN_DIR}/.claude-plugin/plugin.json", [PLUGINS]),
     ("mcp-config", f"{PLUGIN_DIR}/.mcp.json", [PLUGINS]), ("mcp-server", f"{PLUGIN_DIR}/.mcp.json#lint-server", [PLUGINS]),
     ("hooks", f"{PLUGIN_DIR}/hooks/hooks.json", [PLUGINS]), ("skill", f"{PLUGIN_DIR}/skills/lint-rules", [PLUGINS]),
+    ("instructions", f"{PLUGIN_DIR}/commands/fix.md", [PLUGINS]), ("instructions", f"{PLUGIN_DIR}/agents/linter.md", [PLUGINS]),
     ("marketplace", "~/.claude/plugins/known_marketplaces.json#tools", ["claude-code/marketplaces"]),
     ("mcp-config", "~/.cursor/mcp.json", ["cursor/mcp"]), ("mcp-server", "~/.cursor/mcp.json#search", ["cursor/mcp"]),
     ("hooks", "~/.cursor/hooks.json", ["cursor/hooks"]),
+    ("skill", "~/.cursor/skills/refactor", ["cursor/skills"]),
+    ("instructions", "~/.cursor/agents/planner.md", ["cursor/agents"]),
+    ("instructions", "~/.codex/agents/helper.md", ["cursor/codex-agents"]),
+    ("skill", "~/.codex/skills/migrate", ["cursor/codex-skills", "windsurf/codex-skills"]),
+    ("plugin", CURSOR_PLUGIN, ["cursor/plugins"]),
+    ("plugin-manifest", f"{CURSOR_PLUGIN}/.cursor-plugin/plugin.json", ["cursor/plugins"]),
+    ("mcp-config", f"{CURSOR_PLUGIN}/mcp.json", ["cursor/plugins"]),
+    ("mcp-server", f"{CURSOR_PLUGIN}/mcp.json#notes-server", ["cursor/plugins"]),
+    ("hooks", f"{CURSOR_PLUGIN}/hooks/hooks.json", ["cursor/plugins"]),
+    ("instructions", f"{CURSOR_PLUGIN}/rules/style.mdc", ["cursor/plugins"]),
+    ("instructions", f"{CURSOR_PLUGIN}/agents/scribe.md", ["cursor/plugins"]),
+    ("instructions", f"{CURSOR_PLUGIN}/commands/summarise.md", ["cursor/plugins"]),
     ("mcp-config", "~/.copilot/mcp-config.json", ["vscode/copilot"]),
     ("mcp-server", "~/.copilot/mcp-config.json#copilot-tools", ["vscode/copilot"]),
-    ("skill", "~/.copilot/skills/review", ["vscode/skills"]),
-    ("skill", "~/.agents/skills/shared", ["vscode/agents-skills", "windsurf/agents-skills", "codex/skills",
+    ("skill", "~/.copilot/skills/review", ["vscode/skills", "windsurf/copilot-skills"]),
+    ("instructions", "~/.copilot/copilot-instructions.md", ["vscode/instructions"]),
+    ("instructions", "~/.copilot/instructions/python.instructions.md", ["vscode/instruction-files"]),
+    ("instructions", "~/.copilot/agents/reviewer.agent.md", ["vscode/agents"]),
+    ("hooks", "~/.copilot/hooks/audit.json", ["vscode/hooks"]),
+    ("settings", "~/.copilot/settings.json", ["vscode/settings"]),
+    ("plugin", COPILOT_PLUGIN, ["vscode/plugins"]),
+    ("plugin-manifest", f"{COPILOT_PLUGIN}/plugin.json", ["vscode/plugins"]),
+    ("mcp-config", f"{COPILOT_PLUGIN}/.mcp.json", ["vscode/plugins"]),
+    ("mcp-server", f"{COPILOT_PLUGIN}/.mcp.json#fmt", ["vscode/plugins"]),
+    ("instructions", f"{COPILOT_PLUGIN}/agents/fmt.md", ["vscode/plugins"]),
+    ("skill", "~/.agents/skills/shared", ["cursor/agents-skills", "vscode/agents-skills", "windsurf/agents-skills", "codex/skills",
                                           "gemini-cli/agents-skills"]),
-    ("mcp-config", "~/.config/devin/mcp_config.json", ["windsurf/mcp"]),
-    ("mcp-server", "~/.config/devin/mcp_config.json#tickets", ["windsurf/mcp"]),
     ("instructions", "~/.devin/global_rules.md", ["windsurf/global-rules"]),
     ("instructions", "~/.devin/rules/style.md", ["windsurf/rules"]),
-    ("skill", "~/.config/devin/skills/notes", ["windsurf/skills"]),
+    ("mcp-config", "~/.codeium/windsurf/mcp_config.json", ["windsurf/codeium-mcp"]),
+    ("mcp-server", "~/.codeium/windsurf/mcp_config.json#legacy", ["windsurf/codeium-mcp"]),
+    ("skill", "~/.codeium/windsurf/skills/legacy", ["windsurf/codeium-skills"]),
     ("settings", "~/.codex/config.toml", ["codex/config"]), ("mcp-server", "~/.codex/config.toml#docs", ["codex/config"]),
     ("mcp-server", "~/.codex/config.toml#remote", ["codex/config"]),
     ("plugin", "~/.codex/config.toml#plugins.review@tools", ["codex/config"]),
     ("marketplace", "~/.codex/config.toml#marketplaces.tools", ["codex/config"]),
     ("hooks", "~/.codex/hooks.json", ["codex/hooks"]), ("instructions", "~/.codex/AGENTS.md", ["codex/agents"]),
+    ("instructions", "~/.codex/prompts/release.md", ["codex/prompts"]),
+    ("plugin", CODEX_PLUGIN, ["codex/plugins"]),
+    ("plugin-manifest", f"{CODEX_PLUGIN}/.codex-plugin/plugin.json", ["codex/plugins"]),
+    ("mcp-config", f"{CODEX_PLUGIN}/.mcp.json", ["codex/plugins"]),
+    ("mcp-server", f"{CODEX_PLUGIN}/.mcp.json#review-server", ["codex/plugins"]),
+    ("skill", f"{CODEX_PLUGIN}/skills/review-skill", ["codex/plugins"]),
     ("settings", "~/.gemini/settings.json", ["gemini-cli/settings"]),
     *(("mcp-server", f"~/.gemini/settings.json#{name}", ["gemini-cli/settings"]) for name in ("maps", "events", "local")),
     ("instructions", "~/.gemini/GEMINI.md", ["gemini-cli/memory"]),
     ("skill", "~/.gemini/skills/research", ["gemini-cli/skills"]),
+    ("instructions", "~/.gemini/agents/researcher.md", ["gemini-cli/agents"]),
     ("plugin", "~/.gemini/extensions/jira", ["gemini-cli/extensions"]),
     ("plugin-manifest", "~/.gemini/extensions/jira/gemini-extension.json", ["gemini-cli/extensions"]),
     ("mcp-server", "~/.gemini/extensions/jira/gemini-extension.json#jira-ext", ["gemini-cli/extensions"]),
     ("hooks", "~/.gemini/extensions/jira/hooks/hooks.json", ["gemini-cli/extensions"]),
     ("instructions", "~/.gemini/extensions/jira/JIRA.md", ["gemini-cli/extensions"]),
+    ("skill", "~/.gemini/extensions/jira/skills/ticket", ["gemini-cli/extensions"]),
+    ("instructions", "~/.gemini/extensions/jira/agents/triager.md", ["gemini-cli/extensions"]),
 ]
 _PLACES = {"linux": "~/.config", "macos": "~/Library/Application Support", "windows": "~/AppData/Roaming"}
 
 
 def by_system(system: str) -> list:
     place = _PLACES[system]
+    # Engine 1.20.0 (7.9, D19): the Devin folder is `$XDG_CONFIG_HOME/devin/` on Linux and macOS (`~/.config/devin/` here) and
+    # `%APPDATA%/devin/` on Windows, where `~/.config/devin/` of the common home is no longer read
+    devin, twin = ("~/AppData/Roaming/devin", "-windows") if system == "windows" else ("~/.config/devin", "")
+    agent = f"{devin}/agents/triage/AGENT.md" if system == "windows" else f"{devin}/agents/triage.md"
     return [
         ("mcp-config", f"{place}/Claude/claude_desktop_config.json", [f"claude-desktop/{system}"]),
         ("mcp-server", f"{place}/Claude/claude_desktop_config.json#weather", [f"claude-desktop/{system}"]),
@@ -75,6 +119,12 @@ def by_system(system: str) -> list:
         ("mcp-server", f"{place}/Code - Insiders/User/profiles/work/mcp.json#fetch", [f"vscode/{system}"]),
         ("mcp-config", f"{place}/Code - Insiders/User/profiles/personal/mcp.json", [f"vscode/{system}"]),
         ("mcp-server", f"{place}/Code - Insiders/User/profiles/personal/mcp.json#time", [f"vscode/{system}"]),
+        ("mcp-config", f"{devin}/mcp_config.json", [f"windsurf/mcp{twin}"]),
+        ("mcp-server", f"{devin}/mcp_config.json#tickets", [f"windsurf/mcp{twin}"]),
+        ("skill", f"{devin}/skills/notes", [f"windsurf/skills{twin}"]),
+        ("instructions", f"{devin}/AGENTS.md", [f"windsurf/agents-md{twin}"]),
+        ("instructions", agent, [f"windsurf/agents{twin}"]),
+        ("settings", f"{devin}/config.json", [f"windsurf/config{twin}"]),
     ]
 
 
@@ -275,15 +325,16 @@ def test_a_base_linked_out_of_the_home_to_a_place_with_a_client_file_is_one_erro
     assert moved.errors == () and any(item.kind == "mcp-config" for item in moved.items)
 
 
-def test_a_variable_is_no_way_out_for_a_link_a_home_based_row_reaches(tmp_path):
-    # `~/.config/devin/` is read from the home (the Windsurf rows), not from $XDG_CONFIG_HOME: the variable is not named
+def test_a_link_at_the_config_folder_names_xdg_config_home_now_that_every_row_there_starts_at_it(tmp_path):
+    # Engine 1.20.0 (7.9, D19): the Devin folder is `$XDG_CONFIG_HOME/devin/`, so every row that reaches `~/.config` starts at a
+    # base the variable moves, and the error names it as a way out (on 1.19.0 the Windsurf rows started at `~`)
     home = _bare_home(tmp_path)
     target = tmp_path / "elsewhere" / "config"
     (target / "devin").mkdir(parents=True)
     (target / "devin" / "mcp_config.json").write_text('{"mcpServers": {}}', encoding="utf-8")
     _link(target, home / ".config", directory=True)
     (error,) = userscan.discover_home(str(home), "linux", {}).found.errors
-    assert (error.code, error.path) == ("unreadable", "~/.config") and "XDG_CONFIG_HOME" not in error.message
+    assert (error.code, error.path) == ("unreadable", "~/.config") and "XDG_CONFIG_HOME" in error.message
 
 
 def test_a_linked_entry_of_a_skills_directory_is_an_error_only_when_it_leads_to_a_skill(tmp_path):
@@ -327,7 +378,9 @@ def test_more_than_300_instruction_files_of_one_client_is_an_error(tmp_path):
         (home / ".claude" / "rules" / f"r{number:03d}.md").write_text("# Rule\n", encoding="utf-8")
     found = userscan.discover_home(str(home), "linux", {}).found
     (error,) = [e for e in found.errors if e.code == "user_instructions_limit"]
-    assert "3 more instruction files of Claude Code were not read" in error.message and "at most 300" in error.message
+    # 1.20.0: Claude Code's `CLAUDE.md`, 303 rules (301 added, `typescript.md`, `frontend/react.md`), 2 commands, 1 subagent, 1
+    # output style and its plugin's command and subagent are 310 instruction files
+    assert "10 more instruction files of Claude Code were not read" in error.message and "at most 300" in error.message
     assert sum(1 for item in found.items if item.kind == "instructions" and "claude-code" in item.clients) == 300
 
 
@@ -373,8 +426,10 @@ def test_a_shared_directory_alone_is_listed_for_every_client_that_reads_it(tmp_p
     home = tmp_path / "home"
     _skill(home / ".agents" / "skills" / "shared")
     discovered = userscan.discover_home(str(home), "linux", {})
-    assert [item.clients for item in discovered.found.items] == [("vscode", "windsurf", "codex", "gemini-cli")]
-    assert [entry["client"] for entry in discovered.clients if entry["found"]] == ["vscode", "windsurf", "codex", "gemini-cli"]
+    # 1.20.0: Cursor reads `~/.agents/skills` too (the row `cursor/agents-skills`)
+    assert [item.clients for item in discovered.found.items] == [("cursor", "vscode", "windsurf", "codex", "gemini-cli")]
+    assert [entry["client"] for entry in discovered.clients if entry["found"]] == ["cursor", "vscode", "windsurf", "codex",
+                                                                                   "gemini-cli"]
 
 
 def test_a_project_that_is_the_home_itself_has_a_scope_the_upload_accepts(tmp_path):
@@ -464,3 +519,68 @@ def test_a_workstation_marketplace_source_is_masked_as_on_1_16_1_and_escaped():
     assert userdocs._source_url("https://git.example.com/acme/to<ols.git") == "https://git.example.com/acme/to%3Cols.git"
     assert userdocs._source_url({"source": "url", "url": "https://git.example.com/key=v/x"}) == "https://git.example.com/key=v/x"
     assert userdocs._source_url({"source": "github", "repo": "acme/tools"}) == "https://github.com/acme/tools"
+
+
+def test_the_devin_folder_follows_xdg_config_home_on_linux_and_macos(tmp_path):
+    """Engine 1.20.0 (C31)."""
+    home = _bare_home(tmp_path)
+    xdg = tmp_path / "xdg"
+    (xdg / "devin").mkdir(parents=True)
+    (xdg / "devin" / "mcp_config.json").write_text('{"mcpServers": {"t": {"serverUrl": "https://t.example.com/mcp"}}}',
+                                                   encoding="utf-8")
+    for system in ("linux", "macos"):
+        paths = {item.path for item in userscan.discover_home(str(home), system, {"XDG_CONFIG_HOME": str(xdg)}).found.items}
+        assert "$XDG_CONFIG_HOME/devin/mcp_config.json#t" in paths, system
+
+
+def test_the_default_devin_folder_is_read_too_when_xdg_config_home_points_elsewhere(tmp_path):
+    """Devin's pages name `~/.config/devin/`, not the variable: a file there must not go unread because the variable is set."""
+    home = _bare_home(tmp_path)
+    xdg = tmp_path / "xdg"
+    for folder, name in ((xdg / "devin", "moved"), (home / ".config" / "devin", "default")):
+        folder.mkdir(parents=True)
+        (folder / "mcp_config.json").write_text(json.dumps({"mcpServers": {name: {"serverUrl": "https://t.example.com/mcp"}}}),
+                                                encoding="utf-8")
+    (home / ".config" / "devin" / "AGENTS.md").write_text("Be brief.\n", encoding="utf-8")
+    for system in ("linux", "macos"):
+        found = userscan.discover_home(str(home), system, {"XDG_CONFIG_HOME": str(xdg)}).found
+        paths = {item.path for item in found.items}
+        assert {"$XDG_CONFIG_HOME/devin/mcp_config.json#moved", "~/.config/devin/mcp_config.json#default",
+                "~/.config/devin/AGENTS.md"} <= paths, system
+        assert not found.errors, system
+    # the variable naming the default folder itself, or not set, reads that folder once
+    for env in ({}, {"XDG_CONFIG_HOME": str(home / ".config")}):
+        paths = [item.path for item in userscan.discover_home(str(home), "linux", env).found.items]
+        assert paths.count("~/.config/devin/mcp_config.json#default") == 1 and paths.count("~/.config/devin/AGENTS.md") == 1
+    windows = {item.path for item in userscan.discover_home(str(home), "windows", {"XDG_CONFIG_HOME": str(xdg)}).found.items}
+    assert not any("devin" in path for path in windows)
+
+
+def test_windows_reads_the_devin_folder_under_appdata_and_no_longer_under_config(tmp_path):
+    paths = {item.path for item in userscan.discover_home(str(make_home(tmp_path, "windows")), "windows", {}).found.items}
+    assert "~/AppData/Roaming/devin/mcp_config.json#tickets" in paths
+    assert not any(path.startswith("~/.config/devin/") for path in paths)
+
+
+def test_on_macos_a_claude_folder_below_an_outside_xdg_folder_keeps_its_own_variable(tmp_path):
+    """Engine 1.20.0 (7.9, review F13): `$XDG_CONFIG_HOME` is tried after the client variables on macOS."""
+    home = _bare_home(tmp_path)
+    claude = tmp_path / "xdg" / "claude"
+    claude.mkdir(parents=True)
+    (claude / "settings.json").write_text('{"permissions": {"defaultMode": "default"}}', encoding="utf-8")
+    env = {"XDG_CONFIG_HOME": str(tmp_path / "xdg"), "CLAUDE_CONFIG_DIR": str(claude)}
+    paths = {item.path for item in userscan.discover_home(str(home), "macos", env).found.items}
+    assert "$CLAUDE_CONFIG_DIR/settings.json" in paths
+    assert not any(path.startswith("$XDG_CONFIG_HOME/claude") for path in paths)
+
+
+def test_more_than_300_instruction_files_of_one_client_across_its_folders_is_an_error(tmp_path):
+    """Engine 1.20.0 (C37): rules, commands and subagents count together for the client whose row reaches them first."""
+    home = tmp_path / "home"
+    for folder, count in (("rules", 51), ("commands", 150), ("agents", 100)):
+        (home / ".claude" / folder).mkdir(parents=True)
+        for number in range(count):
+            (home / ".claude" / folder / f"f{number:03d}.md").write_text("# F\n", encoding="utf-8")
+    found = userscan.discover_home(str(home), "linux", {}).found
+    assert [(error.code, error.message.split(":")[0]) for error in found.errors] == [
+        ("user_instructions_limit", "1 more instruction files of Claude Code were not read")]

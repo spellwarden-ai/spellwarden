@@ -24,8 +24,8 @@ server of Claude Code is `<document>#<scope>#<name>` with its project directory 
 
 Limits (README "Limits"; the home is content the user controls, so each one reached is an error and an incomplete scan): 300
 instruction files per client (`user_instructions_limit`), 1,000 skills per skills directory (`user_skills_limit`), 200 plugins
-or marketplaces per listing and 200 extensions (`truncated`), a skill's archive limits (`package_too_large`), 10 MiB a file
-(`unreadable`)."""
+or marketplaces per listing, 200 extensions and, since 1.20.0, 200 plugin directories of one Codex, Copilot or Cursor row
+(`truncated`), a skill's archive limits (`package_too_large`), 10 MiB a file (`unreadable`)."""
 from __future__ import annotations
 
 import fnmatch
@@ -56,6 +56,33 @@ _ITEM_KIND = {"mcp": "mcp-config", "settings": "settings", "marketplace": "marke
               "plugin": "plugin-manifest"}
 _OPEN = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NONBLOCK", 0)  # read-only; a FIFO must not block
 _WAY_OUT = "remove what is not used, or scan without --user"
+
+
+@dataclass(frozen=True)
+class _Layout:
+    """What an installed plugin directory of one client holds (Engine 1.20.0: scan selection, 7.11, D18), as paths below the
+    directory: every manifest that exists is a `plugin` document (two that both exist are two documents), every MCP file an `mcp`
+    document, every hooks file a document of `read_hooks`; `skills/` is a skills directory; each `(pattern, format)` of
+    `instructions` names instruction files (`**` matches zero or more directory names)."""
+    manifests: tuple[str, ...]
+    mcp: tuple[str, ...]
+    hooks: tuple[str, ...]
+    read_hooks: Callable[[str, bytes], ConfigDocument]
+    instructions: tuple[tuple[str, str], ...]
+
+
+_LAYOUTS = {
+    "claude-code": _Layout((".claude-plugin/plugin.json",), (".mcp.json",), ("hooks/hooks.json",), userdocs.read_hooks,
+                           (("commands/**/*.md", "claude-command"), ("agents/**/*.md", "claude-agent"))),
+    "codex": _Layout(("plugin.json", ".codex-plugin/plugin.json"), ("mcp.json", ".mcp.json"), ("hooks/hooks.json",),
+                     userdocs.read_hooks, ()),
+    "copilot": _Layout(("plugin.json", ".plugin/plugin.json", ".github/plugin/plugin.json", ".claude-plugin/plugin.json"),
+                       (".mcp.json",), ("hooks.json", "hooks/hooks.json"), userdocs.read_copilot_hooks,
+                       (("agents/**/*.md", "github-agent"),)),
+    "cursor": _Layout((".cursor-plugin/plugin.json", "plugin.json"), ("mcp.json",), ("hooks/hooks.json",),
+                      userdocs.read_cursor_hooks, (("rules/**/*.mdc", "cursor-mdc"), ("agents/**/*.md", "cursor-agent"),
+                                                   ("commands/**/*.md", "cursor-command"))),
+}
 
 
 def _silent(_line: str) -> None:
@@ -112,6 +139,8 @@ class _Home:
         self.own: set[str] = set()  # the clients for which a path that only they read exists
         self.instruction_counts: dict[str, int] = {}
         self.instruction_left: dict[str, int] = {}
+        self.plugin_counts: dict[str, int] = {}  # plugin directories read per row of the table (`_plugin_row`)
+        self.plugins_left: dict[str, int] = {}  # plugin directories past MAX_PLUGINS per row, not read
         # each link out of the home that leads to content the scan looks for -> the variable that moves the base it is on, for
         # each row that reached it (None: none does)
         self.linked_out: dict[str, set[str | None]] = {}
@@ -132,7 +161,7 @@ class _Home:
         candidate = os.path.join(real, name)
         try:
             info = os.lstat(candidate)
-        except FileNotFoundError:
+        except (FileNotFoundError, NotADirectoryError):  # a name below a regular file does not exist (`agents/*/AGENT.md`)
             return None
         except OSError as exc:
             self.errors.append(Notice("unreadable", shown, f"cannot be read ({exc.strerror or type(exc).__name__})"))
@@ -264,12 +293,17 @@ class _Home:
             base = clients.resolve_base(row, self.home, self.system, self.env)
             if base is None:
                 continue
-            for pattern in row.paths:
-                for real, shown in self.expand(base, pattern, clients.base_variable(row, self.env)):
-                    self.roots[row.client].add(shown)
-                    if not row.shared:
-                        self.own.add(row.client)
-                    self.read_row(row, real, shown)
+            bases = [(base, clients.base_variable(row, self.env))]
+            default = clients.default_base(row, self.home, self.system, self.env)
+            if default is not None:  # the default folder too, which no variable moves: a file there is not left unread
+                bases.append((default, None))
+            for start, variable in bases:
+                for pattern in row.paths:
+                    for real, shown in self.expand(start, pattern, variable):
+                        self.roots[row.client].add(shown)
+                        if not row.shared:
+                            self.own.add(row.client)
+                        self.read_row(row, real, shown)
         for shown, variables in self.linked_out.items():  # one error per link, however many rows reached it
             self.errors.append(Notice("unreadable", shown, _linked_out_message(variables)))
         for client, left in self.instruction_left.items():
@@ -277,10 +311,26 @@ class _Home:
                 self.errors.append(Notice("user_instructions_limit", "", f"{left} more instruction files of "
                                           f"{clients.CLIENT_NAMES[client]} were not read: the scanner reads at most "
                                           f"{MAX_INSTRUCTIONS} per client, so the scan is incomplete; {_WAY_OUT}"))
+        rows = {row.id: row for row in clients.ROWS}
+        for row_id, left in self.plugins_left.items():
+            row = rows[row_id]
+            self.errors.append(Notice("truncated", "", f"{left} more plugin directories of {clients.CLIENT_NAMES[row.client]} "
+                                      f"({row.base}/{row.paths[0]}) were not read: the scanner reads at most {MAX_PLUGINS} "
+                                      f"there, so the scan is incomplete; {_WAY_OUT}"))
 
     def expand(self, base: str, pattern: str, variable: str | None = None) -> list[tuple[str, str]]:
-        """`(real path, shown path)` of each existing path the pattern names below `base` (`*` matches one name); `variable`
-        is the absolute variable that moves `base`, if any."""
+        """`(real path, shown path)` of each existing path the pattern names below `base` (`glob`); `variable` is the absolute
+        variable that moves `base`, if any."""
+        start = self.start(base, pattern.split("/"), variable)
+        if start is None:
+            return []
+        return self.glob(start, self.show(base), pattern)
+
+    def glob(self, real: str, shown: str, pattern: str) -> list[tuple[str, str]]:
+        """`(real path, shown path)` of each existing path `pattern` names below the real directory `real`, shown as `shown`:
+        `*` matches one name, case-sensitively (`fnmatch.fnmatchcase`); a segment `**` matches zero or more directory names
+        (Engine 1.20.0: scan selection, 7.10), its matches shallowest first, then by name. Every name is entered through
+        `step`, so the link rules of the workstation scan hold."""
         found: list[tuple[str, str]] = []
 
         def walk(real: str, shown: str, rest: list[str]) -> None:
@@ -288,6 +338,10 @@ class _Home:
                 found.append((real, shown))
                 return
             segment, more = rest[0], rest[1:]
+            if segment == "**":
+                for directory, directory_shown in self.directories_below(real, shown, more):
+                    walk(directory, directory_shown, more)
+                return
             if "*" in segment:
                 if not os.path.isdir(real):
                     return
@@ -299,10 +353,37 @@ class _Home:
                 if target is not None:
                     walk(target, f"{shown}/{name}", more)
 
-        start = self.start(base, pattern.split("/"), variable)
-        if start is not None:
-            walk(start, self.show(base), pattern.split("/"))
+        walk(real, shown, pattern.split("/"))
         return found
+
+    def directories_below(self, real: str, shown: str, more: Sequence[str]) -> list[tuple[str, str]]:
+        """`real` and every directory below it, breadth first and each level by shown path (D17). A name is tried as a directory
+        only when it is one (`os.path.isdir`, which follows a link): a name that is no directory is left to the pattern's next
+        segment, as on 1.19.0, so a link that leads nowhere or to a file gives no notice here. Each directory is entered through
+        `step` (a link inside the home is followed; one out of the home to a directory is the error `unreadable`, since `_holds`
+        sees the `**` of the rest of the pattern), once per real path (a loop is entered once), never into `SKIP_DIRS`; a
+        directory that cannot be listed is the error `unreadable` (`names`)."""
+        if not os.path.isdir(real):
+            return []
+        seen = {os.path.normcase(os.path.realpath(real))}
+        level, result = [(real, shown)], []
+        while level:
+            result.extend(level)
+            below: list[tuple[str, str]] = []
+            for directory, directory_shown in level:
+                for name in self.names(directory, directory_shown):
+                    if name in SKIP_DIRS or not os.path.isdir(os.path.join(directory, name)):
+                        continue
+                    target = self.step(directory, name, f"{directory_shown}/{name}", ("**", *more))
+                    if target is None:
+                        continue
+                    key = os.path.normcase(os.path.realpath(target))
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    below.append((target, f"{directory_shown}/{name}"))
+            level = sorted(below, key=lambda pair: pair[1])
+        return result
 
     def start(self, base: str, tail: Sequence[str] = (), variable: str | None = None) -> str | None:
         """The real directory a row's walk starts at. A base inside the home (the default of a client, or a variable that
@@ -347,6 +428,69 @@ class _Home:
 
     def _cursor_hooks(self, row, real, shown):
         self._document_reader(userdocs.read_cursor_hooks, row, real, shown)
+
+    def _copilot_hooks(self, row, real, shown):
+        self._document_reader(userdocs.read_copilot_hooks, row, real, shown)
+
+    def _copilot_settings(self, row, real, shown):
+        self._document_reader(userdocs.read_copilot_settings, row, real, shown)
+
+    def _devin_config(self, row, real, shown):
+        self._document_reader(userdocs.read_devin_config, row, real, shown)
+
+    def _codex_plugins(self, row, real, shown):
+        # `plugins/cache/<marketplace>/<plugin>/<version>`: the plugin is named by its plugin segment
+        self._plugin_row(_LAYOUTS["codex"], row, real, shown, posixpath.basename(posixpath.dirname(shown)))
+
+    def _copilot_plugins(self, row, real, shown):
+        # `installed-plugins/<marketplace>/<plugin>` and `installed-plugins/_direct/<source id>`
+        self._plugin_row(_LAYOUTS["copilot"], row, real, shown, posixpath.basename(shown))
+
+    def _cursor_plugins(self, row, real, shown):
+        self._plugin_row(_LAYOUTS["cursor"], row, real, shown, posixpath.basename(shown))
+
+    def _plugin_row(self, layout: _Layout, row: clients.Row, real: str, shown: str, name: str) -> None:
+        """One plugin directory a row's pattern names (Engine 1.20.0: scan selection, 7.11): an item of kind `plugin` at its shown
+        path, named by its plugin segment, as a Gemini CLI extension is, and its files by `layout`, carrying the name. At most
+        `MAX_PLUGINS` per row; the rest are counted for the error `truncated` (`run`)."""
+        if not os.path.isdir(real):
+            return
+        count = self.plugin_counts.get(row.id, 0)
+        if count >= MAX_PLUGINS:
+            self.plugins_left[row.id] = self.plugins_left.get(row.id, 0) + 1
+            return
+        self.plugin_counts[row.id] = count + 1
+        self.item("plugin", shown, name, row.client)
+        self.layout(layout, real, shown, row.client, name)
+
+    def layout(self, layout: _Layout, real: str, shown: str, client: str, plugin: str, *, root_skill: bool = False) -> None:
+        """The files of one installed plugin directory by its client's layout (7.11): its manifests, MCP and hooks files, its
+        `skills/` and its instruction folders, each carrying the plugin's name. With `root_skill` (Claude Code), a plugin with a
+        root `SKILL.md` and no `skills/` is one skill, which keeps its `commands/` and `agents/` as its own files (one owner per
+        file). The caller has claimed `real` with `once` (`plugin_directory`), so that skill is read with `claimed=True`."""
+        for relative in layout.manifests:
+            self._plugin_file(real, shown, relative, client, plugin, _plugin_manifest)
+        for relative in layout.mcp:
+            self._plugin_file(real, shown, relative, client, plugin, userdocs.read_mcp)
+        for relative in layout.hooks:
+            self._plugin_file(real, shown, relative, client, plugin, layout.read_hooks)
+        skills = self.resolve(real, "skills", shown)
+        if skills is not None and os.path.isdir(skills):
+            self.skill_directory(skills, f"{shown}/skills", client, plugin)
+        elif root_skill and self.resolve(real, SKILL_FILE, shown) is not None:
+            self.skill(real, shown, client, plugin, claimed=True)
+            return
+        for pattern, format in layout.instructions:
+            for file, file_shown in self.glob(real, shown, pattern):
+                self.instruction(file, file_shown, client, format, plugin=plugin)
+
+    def _plugin_file(self, real: str, shown: str, relative: str, client: str, plugin: str,
+                     read: Callable[[str, bytes], ConfigDocument]) -> None:
+        target = self.resolve(real, relative, shown)
+        if target is not None:
+            content = self.read(target, f"{shown}/{relative}")
+            if content is not None:
+                self.document(read(f"{shown}/{relative}", content), client, plugin=plugin)
 
     def _claude_json(self, row, real, shown):
         content = self.read(real, shown, userdocs.STATE_MAX_BYTES)
@@ -410,25 +554,15 @@ class _Home:
                 self.facts[entry.path] = {"marketplace_item": f"{marketplaces}{entry.facts['marketplace']}"}
 
     def plugin_directory(self, real: str, shown: str, client: str, plugin: str) -> None:
-        """An installed Claude Code plugin's standard layout: its manifest, `.mcp.json`, `hooks/hooks.json` and `skills/` (a
-        plugin with a root `SKILL.md` and no `skills/` is one skill)."""
+        """An installed Claude Code plugin's standard layout (`_LAYOUTS["claude-code"]`): its manifest, `.mcp.json`,
+        `hooks/hooks.json`, `skills/` (a plugin with a root `SKILL.md` and no `skills/` is one skill) and, since 1.20.0, its
+        `commands/` and `agents/` (Engine 1.20.0: scan selection, 7.11)."""
         if not self.once(real, client):
             return
         before = self.current
         self.current = []
         try:
-            for relative, read in ((".claude-plugin/plugin.json", lambda path, content: _plugin_manifest(path, content)),
-                                   (".mcp.json", userdocs.read_mcp), ("hooks/hooks.json", userdocs.read_hooks)):
-                target = self.resolve(real, relative, shown)
-                if target is not None:
-                    content = self.read(target, f"{shown}/{relative}")
-                    if content is not None:
-                        self.document(read(f"{shown}/{relative}", content), client, plugin=plugin)
-            skills = self.resolve(real, "skills", shown)
-            if skills is not None and os.path.isdir(skills):
-                self.skill_directory(skills, f"{shown}/skills", client, plugin)
-            elif self.resolve(real, SKILL_FILE, shown) is not None:
-                self.skill(real, shown, client, plugin)
+            self.layout(_LAYOUTS["claude-code"], real, shown, client, plugin, root_skill=True)
         finally:
             self.gave(real, self.current)
             self.current = before + self.current if before is not None else None
@@ -461,6 +595,12 @@ class _Home:
                 content = self.read(hooks, f"{here}/hooks/hooks.json")
                 if content is not None:
                     self.document(userdocs.read_hooks(f"{here}/hooks/hooks.json", content), row.client, plugin=name)
+            # Engine 1.20.0 (scan selection, 7.11): the extension's skills and subagents, with its name
+            skills = self.resolve(target, "skills", here)
+            if skills is not None and os.path.isdir(skills):
+                self.skill_directory(skills, f"{here}/skills", row.client, name)
+            for file, file_shown in self.glob(target, here, "agents/*.md"):
+                self.instruction(file, file_shown, row.client, "gemini-agent", plugin=name)
             for context in extension.context_files:
                 try:
                     relative = contain("", context)
@@ -512,12 +652,14 @@ class _Home:
         for name, target in found[:MAX_SKILLS]:
             self.skill(target, f"{shown}/{name}", client, plugin)
 
-    def skill(self, real: str, shown: str, client: str, plugin: str | None) -> None:
+    def skill(self, real: str, shown: str, client: str, plugin: str | None, *, claimed: bool = False) -> None:
         """One skill package: every file below its directory (`SKIP_DIRS` left out, as a repository walk does), each link to a
         regular file inside the home read under the link's path. A link out of the home or to a directory, a member over 10 MiB
         and a directory that cannot be listed are the error `unreadable`: the scan is then incomplete. A link whose target is
-        missing or a loop is the notice `symlink_skipped`."""
-        if not self.once(real, client):
+        missing or a loop is the notice `symlink_skipped`. `claimed` (Engine 1.20.0: scan selection, 7.11): the caller has
+        already claimed `real` with `once` (an installed plugin that is one skill, `layout`), so it is not asked again; until
+        1.20.0 that second question was answered no and such a plugin's skill was never read."""
+        if not claimed and not self.once(real, client):
             return
         members: list[tuple[str, str, bool]] = []  # (shown path, real path, executable)
         size = 0

@@ -1,0 +1,1 @@
+{"version": 1, "hooks": {"beforeShellExecution": [{"command": "./scripts/audit.sh"}, {"type": "prompt", "prompt": "Is this command safe?"}]}}

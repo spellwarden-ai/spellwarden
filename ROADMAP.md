@@ -8,9 +8,10 @@ This page carries no dates. An item moves up when it is built, and [CHANGELOG.md
 
 The scanner checks agent skills, MCP client configurations, Claude Code settings and hooks, plugin marketplaces, instruction files and A2A agent cards, and probes remote MCP servers against the 2026-07-28 specification when asked. The README's first section, [What it checks and what it does not](README.md#what-it-checks-and-what-it-does-not), is the short version; the guides at [spellwarden.ai/docs](https://spellwarden.ai/docs?utm_source=github&utm_medium=readme&utm_campaign=roadmap) cover each feature, and [CHANGELOG.md](CHANGELOG.md) lists every release.
 
+Since 1.20.0 the repository scan and the workstation scan read the files that Codex, Gemini CLI, Cursor, Windsurf (Devin Desktop) and Copilot load, wherever the vendor's documentation names the file and an existing rule can judge it: their configuration, hooks, commands, subagents and rule files, and the plugins installed in the home. The README's [What a scan reads](README.md#what-a-scan-reads) lists every path.
+
 ## Being built now
 
-- **Reading more of what agents load.** The repository scan and the workstation scan read more of the files that Codex, Gemini CLI, Cursor, Windsurf and Copilot load, wherever the vendor's documentation names the file and an existing rule can judge it.
 - **Fix guidance in every finding.** Each rule gets one sentence that says how to fix what it found and a link to its page, shown in every report, in code scanning alerts, in the pull request comment and in the hosted dashboard.
 - **A compatibility pledge.** Rule ids are never reused or renamed, the report formats change only as [Schemas and compatibility](README.md#schemas-and-compatibility) says, and a deprecation is announced at least one minor version before it takes effect. A test in the release workflow holds the scanner to it.
 

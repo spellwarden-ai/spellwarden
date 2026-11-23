@@ -606,8 +606,9 @@ def _base_view(options: ScanOptions, ctx: CiContext, doc_path: str, kind: str) -
     view = _Base()
     if content is None:  # a new document: every entry of it is new
         return view
-    for parse_as in dict.fromkeys((kind, "mcp")):  # the settings parser and the MCP parser both read a file, 5.2
-        parsed = discover._parse(parse_as, doc_path, content)
+    # the settings parser and the MCP parser both read a file (5.2); since 1.20.0 a new path's own reader replaces the first, and
+    # Codex's TOML is read by the TOML reader alone (Engine 1.20.0: scan selection, 7.2.1)
+    for parsed in discover.base_parses(kind, doc_path, content):
         if parsed.error not in (None, "truncated"):
             continue
         for server in parsed.servers:

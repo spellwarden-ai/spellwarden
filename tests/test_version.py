@@ -1,4 +1,5 @@
-"""The current release is 1.19.0, which adds `spellwarden scan --staged` (the pre-commit hook runs it), limits on SKILL.md
+"""The current release is 1.20.0, which reads more of the agent files the vendors document and makes SW-CFG-012 and SW-CFG-013 judge
+the servers of settings documents (rules version 2026.11.8); 1.19.0 added `spellwarden scan --staged` (the pre-commit hook runs it), limits on SKILL.md
 front matter and the analyzer's span rule without changing a rule (1.18.0 added a pre-commit hook definition, the HTML report
 and presets without changing a rule). 1.17.0 added the model-assisted analyzer (`spellwarden scan --analyze`, advisory and off by
 default) and the description lint without changing a rule (1.16.2: `spellwarden lock` and `lock --check` exit 2 and write or confirm no lock when content was
@@ -12,8 +13,8 @@ added SW-MCP-012 (a probed server's tools changed since they were approved, rais
 approved list), `spellwarden_scan.toolhash`, the lock file's probed tool pins and the ToolHive and Docker MCP Gateway exports (1.14.0
 added `spellwarden scan --user` (the agent clients' configuration in a home directory,
 with an opt-in workstation upload) and `--format cyclonedx` without changing a rule (1.13.0 widened the MCP probe to prompts, resources, resource templates and server instructions, tags every rule with MITRE ATLAS and OWASP Agentic Skills Top 10 ids and finds instruction files (1.12.0 added steering and concealment forms to SW-MCP-011 beside 1.11.1's unchanged patterns; 1.11.1 set TLS 1.2 as the minimum of the CLI's own connections and closed the code scanning alerts without changing a result; 1.11.0 made SW-MCP-011 read collapsed whitespace and need the words that aim each pattern at the model or the user; 1.10.0 scoped the archive limits of `unpack_zip(root=...)` to the entries under the root and added `scan_skill_package(kind="instructions")`; 1.9.1 tagged each rule with the OWASP MCP Top Ten entry it detects; 1.9.0 graded severities for SW-MCP-001 and SW-MCP-011 and read whole streamed answers in the probe; 1.8.1 was linear skill discovery, 1.8.0 was the rule batch of five new rules, SW-SKL-032, SW-SKL-036, SW-SKL-037, SW-CFG-012, SW-CFG-013; 1.7.1 was a faster OTLP protobuf reader, 1.7.0 added the OTLP decoder and normaliser `spellwarden_scan.otel` and the command `spellwarden otel normalise`; 1.6.0 added the Zuplo export target; 1.5.0 read the snake-case spellings of 0.x agent card members; 1.4.0 added SW-A2A-019, 1.3.0
-was the O4 agent card release))))). The package metadata says the same version as the code. The rules version is 2026.11.7 because
-SW-MCP-012 is new (66 rules) (2026.11.6: SW-MCP-011 reads more places and every rule carries two more kinds of tag; 2026.11.5 added forms to SW-MCP-011; 2026.11.4 narrowed SW-MCP-011; 2026.11.3 changed sixteen rules' and three enforcement rules' OWASP MCP tags; 65 rules in all, as since 1.8.0, when the baseline gained five).
+was the O4 agent card release))))). The package metadata says the same version as the code. The rules version is 2026.11.8 because SW-CFG-012 and SW-CFG-013 read settings documents (66
+rules) (2026.11.7: SW-MCP-012 is new; 2026.11.6: SW-MCP-011 reads more places and every rule carries two more kinds of tag; 2026.11.5 added forms to SW-MCP-011; 2026.11.4 narrowed SW-MCP-011; 2026.11.3 changed sixteen rules' and three enforcement rules' OWASP MCP tags; 65 rules in all, as since 1.8.0, when the baseline gained five).
 """
 from __future__ import annotations
 
@@ -26,9 +27,9 @@ PYPROJECT = Path(__file__).resolve().parents[1] / "pyproject.toml"
 
 
 def test_the_versions():
-    assert __version__ == "1.19.0"
+    assert __version__ == "1.20.0"
     assert tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))["project"]["version"] == __version__
-    assert RULES_VERSION == "2026.11.7"
+    assert RULES_VERSION == "2026.11.8"
     assert len(RuleSet.baseline()) == 66
 
 
@@ -147,3 +148,24 @@ def test_the_hook_file_ships_in_the_sdist_and_pre_commit_is_a_development_depend
     project = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
     assert ".pre-commit-hooks.yaml" in project["tool"]["hatch"]["build"]["targets"]["sdist"]["include"]
     assert any(entry.startswith("pre-commit>=") for entry in project["dependency-groups"]["dev"])
+
+
+def test_the_changelog_has_the_1_20_0_entry_above_1_19_0():
+    """Engine 1.20.0 (spec 7.18): the two rules first, then selection, `--follow-links`, `scan --user` and two versions on one
+    repository."""
+    text = (PYPROJECT.parent / "CHANGELOG.md").read_text(encoding="utf-8").replace("\r\n", "\n")
+    assert text.index("## 1.20.0 (2026-11-") < text.index("## 1.19.0 (")
+    raw = text[text.index("## 1.20.0 ("):text.index("## 1.19.0 (")]
+    entry = " ".join(raw.split())
+    assert entry.startswith("## 1.20.0 (2026-11-23) Rules version 2026.11.8: SW-CFG-012 and SW-CFG-013 also judge the MCP servers "
+                            "of settings documents; no other rule changed (66 rules).")
+    for needle in ("`trust: true`", '`default_tools_approval_mode = "approve"`', "`scan --user` takes no baseline",
+                   "No fingerprint of an existing finding changes", "has not been measured", "`.codex/config.toml`",
+                   "`.github/hooks/`", "`github-agent`", "registry gate", "exit 3", "`instructions_limit`", "`--follow-links`",
+                   "off by default", "`symlink_skipped`", "`lock --check`", "`scan --locked`", "`SW_FOLLOW_LINKS`",
+                   "`%APPDATA%/devin/`", "1.19.0 read no skill for it", "`workstation_upload_too_large`", "`removed`"):
+        assert needle in entry, needle
+    assert entry.index("The two rules.") < entry.index("Selection.") < entry.index("`--follow-links`:") \
+        < entry.index("`scan --user`:")
+    for character in ("—", "–", "!"):
+        assert character not in raw

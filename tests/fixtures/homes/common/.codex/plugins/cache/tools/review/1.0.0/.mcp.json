@@ -1,0 +1,1 @@
+{"mcpServers": {"review-server": {"command": "npx", "args": ["review-mcp@1.0.0"]}}}

@@ -1,0 +1,1 @@
+{"mcpServers": {"tickets": {"serverUrl": "https://tickets.example.com/mcp#CANARY-FRAGMENT", "headers": {"X-Key": "CANARY-HEADER-VALUE"}}}}

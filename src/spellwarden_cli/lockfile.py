@@ -404,6 +404,8 @@ def add_parser(commands_: argparse._SubParsersAction) -> None:
     mode.add_argument("--check", action="store_true", help="Compare without writing; exit 3 when absent or stale.")
     mode.add_argument("--probe", action="store_true", help="Also probe the configured remote servers (public https only) "
                       "and pin the hashes of the tool lists they send.")
+    parser.add_argument("--follow-links", action="store_true", dest="follow_links",
+                        help="Follow a linked directory in an instruction folder, as `scan --follow-links` does.")
     parser.set_defaults(handler=cmd_lock)
 
 
@@ -434,7 +436,7 @@ def cmd_lock(args: argparse.Namespace) -> int:
         fileset = files.list_files(root, settings)
     except commands.CommandError as exc:
         return commands.fail(str(exc))
-    found = discover.discover(fileset, instructions=settings.instructions)
+    found = discover.discover(fileset, instructions=settings.instructions, follow_links=args.follow_links)
     errors = (*fileset.errors, *found.errors)
     if errors:
         return _incomplete(errors, check=args.check)

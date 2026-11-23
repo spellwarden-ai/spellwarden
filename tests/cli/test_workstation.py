@@ -60,8 +60,10 @@ def test_the_body_has_the_documented_shape_and_the_key_goes_in_the_header(run_cl
     assert all(root.startswith("~/") for entry in body["clients"] for root in entry["roots"])
     assert all(set(entry) == CLIENT for entry in body["clients"])
     counts = {entry["client"]: (len(entry["roots"]), entry["roots_total"]) for entry in body["clients"]}
-    assert counts["vscode"] == (8, 10)  # VS Code's ten roots in the fixture home, over the cap of 8 (1.16.2: the total is sent)
-    assert all(total == sent for client, (sent, total) in counts.items() if client != "vscode")
+    # 1.16.2: the total is sent beside the list cut at 8. 1.20.0: each path a row's pattern matches is a root, so four clients
+    # of the fixture home are over the cap (Engine 1.20.0: scan selection, 7.9)
+    assert counts == {"claude-code": (8, 12), "claude-desktop": (1, 1), "cursor": (8, 10), "vscode": (8, 20),
+                      "windsurf": (8, 12), "codex": (6, 6), "gemini-cli": (6, 6)}
 
 
 def test_the_state_file_keeps_the_install_id_and_the_label(run_cli, tmp_path, monkeypatch, api_double):

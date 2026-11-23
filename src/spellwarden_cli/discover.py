@@ -10,13 +10,13 @@ import os
 import posixpath
 import stat
 import sys
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from typing import NamedTuple
 
 from spellwarden_scan import parse_agent_card
 from spellwarden_scan.a2a import AgentCardDocument
-from spellwarden_scan.agentconfig import ConfigDocument, parse_document, reference_kind
+from spellwarden_scan.agentconfig import MAX_PLUGINS, ConfigDocument, parse_document, reference_kind
 from spellwarden_scan.archive import DEFAULT_LIMITS
 # The skill-file rule and the folding of names live in the engine (O3 plan P52): the gate's package identity and this
 # module must call a file a skill file for the same reasons. `_fold`: NFC, then case folding, as macOS and Windows open
@@ -28,7 +28,7 @@ from spellwarden_scan.identity import is_skill_file as _is_skill_file
 from spellwarden_scan.identity import is_skill_name_variant as _is_skill_name_variant
 from spellwarden_scan.relpath import UnsafePath, contain
 
-from spellwarden_cli import instruction_files, paths
+from spellwarden_cli import instruction_files, paths, userdocs
 from spellwarden_cli.files import FILE_MAX, FileEntry, FileSet
 from spellwarden_cli.report import Notice
 
@@ -37,15 +37,20 @@ MAX_CARDS = 300  # discovered and listed agent cards together (O4 spec 6.3; 300 
 # 1.18.0: the paths the pre-commit hook runs on (`.pre-commit-hooks.yaml`, written from this by scripts/write_hooks_yaml.py):
 # every kind of path a scan discovers as agent content or settings, and more, since a regular expression cannot know which
 # folders hold a SKILL.md: SKILL.md anywhere, everything under the agent folders, the MCP configuration names, a plugin's hooks
-# file, the instruction file names and agent cards. The scan itself always covers the whole root, so a change this misses is
-# judged the next time the hook runs, or in CI. Matched with `re.search` against a POSIX path, whatever its case.
+# file, the instruction file names and agent cards. Since 1.20.0 also everything under `.gemini`, `.devin`, `.windsurf`, `.agents`
+# and four `.github` folders, and the memory-file variants (Engine 1.20.0: scan selection, 7.17). A local plugin's `commands/`
+# and `agents/`, and the target of a followed link, cannot be told from ordinary folders by a pattern. The scan itself always
+# covers the whole root, so a change this misses is judged the next time the hook runs, or in CI. Matched with `re.search`
+# against a POSIX path, whatever its case.
 AGENT_CONTENT_REGEX = (
     r"(?i)(^|/)("
     r"skill\.md"
-    r"|(skills|\.claude|\.cursor|\.codex|\.vscode|\.claude-plugin|\.spellwarden|\.well-known)/.+"
+    r"|(skills|\.claude|\.cursor|\.codex|\.gemini|\.devin|\.windsurf|\.agents|\.vscode|\.claude-plugin|\.spellwarden"
+    r"|\.well-known)/.+"
+    r"|\.github/(hooks|instructions|agents|copilot)/.+"
     r"|\.mcp\.json|mcp\.json|claude_desktop_config\.json|hooks/hooks\.json"
-    r"|agents\.md|claude\.md|gemini\.md|\.github/copilot-instructions\.md|\.cursorrules|\.windsurfrules"
-    r"|\.windsurf/rules/[^/]+\.md|\.devin/rules/[^/]+\.md"
+    r"|agents\.md|claude\.md|gemini\.md|claude\.local\.md|agents\.(override|local)\.md|agent\.md"
+    r"|\.github/copilot-instructions\.md|\.cursorrules|\.windsurfrules"
     r"|agent-card\.json"
     r")$"
 )
@@ -134,12 +139,14 @@ class PluginDir:
 class InstructionFile:
     """An instruction file (Phase 3 batch 1 spec 10.2): `path` is the scan-root path, `name` the file name without its directory,
     `format` one of `instruction_files.FORMATS`, `front_matter` as `instruction_files.front_matter_of` read it, `content` the
-    bytes (a followed link holds its target's, under the link's path)."""
+    bytes (a followed link holds its target's, under the link's path). `plugin` (Engine 1.20.0: scan selection, 7.7) names the
+    local plugin directory whose `commands/` or `agents/` holds the file, None for every other file."""
     path: str
     name: str
     format: str
     front_matter: dict | None
     content: bytes = field(hash=False)
+    plugin: str | None = None
 
 
 @dataclass(frozen=True)
@@ -180,6 +187,9 @@ class Discovery:
     agent_cards: tuple[CardFile, ...] = ()
     # Phase 3 batch 1 spec 10.2: the instruction files, sorted by path, each also an item of kind `instructions` and a lock item.
     instruction_files: tuple[InstructionFile, ...] = ()
+    # Engine 1.20.0 (scan selection, 7.8): the facts of the items that are no document, server or skill (the `[plugins]` and
+    # `[marketplaces]` entries of a repository's `.codex/config.toml`), merged into `details` by `run.scan_details`.
+    facts: dict[str, dict] = field(default_factory=dict, compare=False)
 
 
 def _lock_path() -> str:
@@ -192,16 +202,59 @@ def _named(path: str, suffix: str) -> bool:
     return path == suffix or path.endswith("/" + suffix)
 
 
+@dataclass(frozen=True)
+class _Reader:
+    """How the repository scan reads a configuration document at a path (Engine 1.20.0: scan selection, 7.1, 7.2, D1): `kind` is
+    the document's kind; `read` the workstation scan's reader of the same shape, None for the three kinds of 1.19.0, which
+    `_parse` reads as before; `toml` marks Codex's `config.toml`, read by `userdocs.read_codex_config` without `notify` (D3)."""
+    kind: str
+    read: Callable[[str, bytes], ConfigDocument] | None = None
+    toml: bool = False
+
+
+def _named_any(path: str, *suffixes: str) -> bool:
+    return any(_named(path, suffix) for suffix in suffixes)
+
+
+def _copilot_hooks_file(path: str) -> bool:
+    """A `.json` file directly in a `.github/hooks/` folder, at any depth (a folded path)."""
+    parts = path.split("/")
+    return len(parts) >= 3 and parts[-3:-1] == [".github", "hooks"] and parts[-1].endswith(".json")
+
+
+# One table from a path to its reader (Engine 1.20.0: scan selection, 7.2.1, D1, D10), matched on the folded path at any depth,
+# first match wins. Its first three rows are the `_global_kind` of 1.19.0, unchanged. The link loop, the document loop,
+# `_oversize_files` and the gate's base revision (`base_parses`) all read it.
+_READERS: tuple[tuple[Callable[[str], bool], _Reader], ...] = (
+    (lambda p: posixpath.basename(p) == ".mcp.json" or _named_any(p, ".vscode/mcp.json", ".cursor/mcp.json"), _Reader("mcp")),
+    (lambda p: _named_any(p, ".claude/settings.json", ".claude/settings.local.json"), _Reader("settings")),
+    (lambda p: _named(p, ".claude-plugin/marketplace.json"), _Reader("marketplace")),
+    (lambda p: _named(p, ".codex/config.toml"), _Reader("settings", toml=True)),
+    (lambda p: _named(p, ".codex/hooks.json"), _Reader("hooks", userdocs.read_hooks)),
+    (lambda p: _named(p, ".gemini/settings.json"), _Reader("settings", userdocs.read_gemini_settings)),
+    (lambda p: _named_any(p, ".cursor/hooks.json", ".windsurf/hooks.json"), _Reader("hooks", userdocs.read_cursor_hooks)),
+    (lambda p: _named_any(p, ".devin/mcp_config.json", ".devin/mcp_config.local.json"),
+     _Reader("mcp", userdocs.read_windsurf_mcp)),
+    (lambda p: _named(p, ".devin/hooks.v1.json"), _Reader("hooks", userdocs.read_devin_hooks)),
+    (lambda p: _named_any(p, ".devin/config.json", ".devin/config.local.json"), _Reader("settings", userdocs.read_devin_config)),
+    (_copilot_hooks_file, _Reader("hooks", userdocs.read_copilot_hooks)),
+    (lambda p: _named_any(p, ".github/copilot/settings.json", ".github/copilot/settings.local.json"),
+     _Reader("settings", userdocs.read_copilot_settings)),
+    (lambda p: _named(p, ".github/mcp.json"), _Reader("mcp", userdocs.read_copilot_mcp)),
+)
+
+
+def _reader(path: str) -> _Reader | None:
+    """The row of `_READERS` whose path `path` is, after NFC and case folding; None for any other path."""
+    folded = _fold(path)
+    return next((reader for matches, reader in _READERS if matches(folded)), None)
+
+
 def _global_kind(path: str) -> str | None:
-    """The document kind a file has by its name alone, wherever it sits (spec 6.5), whatever its case."""
-    path = _fold(path)
-    if posixpath.basename(path) == ".mcp.json" or _named(path, ".vscode/mcp.json") or _named(path, ".cursor/mcp.json"):
-        return "mcp"
-    if _named(path, ".claude/settings.json") or _named(path, ".claude/settings.local.json"):
-        return "settings"
-    if _named(path, ".claude-plugin/marketplace.json"):
-        return "marketplace"
-    return None
+    """The document kind a file has by its name alone, wherever it sits (spec 6.5), whatever its case: the kind of its row of
+    `_READERS`."""
+    reader = _reader(path)
+    return None if reader is None else reader.kind
 
 
 def _card_form(path: str) -> str | None:
@@ -321,6 +374,10 @@ class _Builder:
         self.card_failures: dict[str, tuple[str, str]] = {}  # card links that could not be followed or read -> (code, message)
         self.too_large = frozenset(fileset.too_large)  # files over `FILE_MAX`: not read, never entries (1.16.1)
         self.too_large_links: set[str] = set()  # links refused because their target is one of them
+        # Engine 1.20.0 (scan selection, 7.2.1, 7.8): the `.codex/config.toml` paths read by the TOML reader, whether it read them
+        # or refused them (no JSON role is parsed over one), and the `[plugins]` and `[marketplaces]` entries of each it read
+        self.toml: set[str] = set()
+        self.listings: dict[str, userdocs.Listing] = {}
 
     def read(self, path: str) -> bytes | None:
         if path in self.contents:
@@ -459,6 +516,45 @@ class _Builder:
                                                  "file set"), False)
         return _Resolution(target, raw, None, False)
 
+    def directory_link(self, path: str) -> _Resolution:
+        """With `--follow-links` (Engine 1.20.0: scan selection, 7.20.3, D40, D41): the directory of the file set that the listed
+        link `path` in an instruction folder names, read from the link's text by `_link_target`, as every link is (no file-system
+        call receives the text). `target` is that directory when the link can be followed: inside the scan root, reached through
+        real directories only, not the scan root and not a directory that holds the link. No `target` and no `refusal`: the link
+        names a regular file of the set, left to the rules of 1.19.0. Otherwise `refusal` says why: the notice `symlink_skipped`
+        for a relative target outside the scan root (the scanner never reads there), `unreadable` for a text the system cannot
+        read, `unsafe_path` for every other target, with the way out."""
+        try:
+            raw = self.fileset.link_target(path)
+        except (UnsafePath, paths.TooLarge) as exc:
+            return _Resolution(None, None, _link_refused(path, f"symbolic link: {exc}"), False)
+        except OSError as exc:
+            return _Resolution(None, None, Notice("unreadable", path, "symbolic link cannot be read "
+                                                  f"({exc.strerror or type(exc).__name__})"), False)
+        try:
+            target = self._link_target(path, raw.decode("utf-8"))
+        except UnicodeDecodeError:
+            return _Resolution(None, raw, _link_refused(path, "symbolic link: target is not UTF-8"), False)
+        except _Escape:
+            return _Resolution(None, raw, Notice("symlink_skipped", path, _LINK_OUTSIDE), True)
+        except UnsafePath as exc:
+            return _Resolution(None, raw, _link_refused(path, f"symbolic link: {exc}"), False)
+        if target in self.links:
+            return _Resolution(None, raw, _link_refused(path, f"symbolic link to {target!r}, itself a symbolic link"), False)
+        if target in self.entries or target in self.too_large:
+            return _Resolution(None, raw, None, False)
+        if target == "":
+            return _Resolution(None, raw, _link_refused(path, "symbolic link to the scan root"), False)
+        if path.startswith(target + "/"):
+            return _Resolution(None, raw, _link_refused(path, f"symbolic link to {target!r}, a directory that holds the link"),
+                               False)
+        if target not in self.directories:
+            twin = self.twin(target)
+            why = (f"symbolic link to {target!r}, which names {twin!r} only in another case or Unicode form; use the exact name"
+                   if twin is not None else f"symbolic link to {target!r}, not a directory of the file set")
+            return _Resolution(None, raw, _link_refused(path, why), False)
+        return _Resolution(target, raw, None, False)
+
     def adopt(self, path: str, target: str) -> bool:
         """The followed link `path` becomes a file of the set holding `target`'s bytes, named by the link."""
         self.followed.add(path)
@@ -583,20 +679,28 @@ class _Builder:
         return "/".join(stack[len(root):])
 
     def document(self, kind: str, path: str, plugin: str | None = None, *,
-                 drop_references: bool = False) -> ConfigDocument | None:
+                 drop_references: bool = False, reader: _Reader | None = None) -> ConfigDocument | None:
         """The one document of `path`. A file reached in a second role (a global name, a plugin's conventional
         path, a manifest reference read by its JSON shape) stays one document of its first kind, but is also
         parsed in the new role and keeps what that role finds (r1:F1): what an agent loads in either role is
-        judged, listed and locked. A path the file set holds only in another spelling is `unsafe_path` (`twin`)."""
+        judged, listed and locked. A path the file set holds only in another spelling is `unsafe_path` (`twin`).
+        `reader` (Engine 1.20.0: scan selection, 7.2.1): the row of `_READERS` that reaches a path by its name first. A row of
+        1.19.0's three kinds reads it as before; a new row reads it with its own reader, which counts as no role, so a later
+        role of any kind, the row's own included, parses the bytes again and adds what it finds; the TOML row takes no JSON
+        role at all."""
         if path in self.documents:
             if plugin is not None:
                 self.owners.setdefault(path, plugin)
+            if path in self.toml:  # 7.2.1: no JSON role is parsed over Codex's TOML
+                return self.documents[path]
             if kind not in self.roles[path]:
                 self.roles[path].add(kind)
                 content = self.contents.get(path)
                 if content is not None:
                     self.documents[path] = self._merge(self.documents[path], _parse(kind, path, content))
             return self.documents[path]
+        if path in self.toml:  # a `config.toml` the TOML reader refused: its error is reported once
+            return None
         if (twin := self.twin(path)) is not None:
             if path not in self.twins:  # reported once, whichever role asks again
                 self.twins.add(path)
@@ -608,15 +712,47 @@ class _Builder:
         content = self.read(path)
         if content is None:
             return None
-        parsed = _parse(kind, path, content)
+        if reader is not None and reader.toml:
+            return self._codex(path, content, plugin)
+        roles = {kind}
+        if reader is not None and reader.read is not None:
+            parsed = reader.read(path, content)
+            roles = set()  # the row's own read is no role (7.2.1)
+        else:
+            parsed = _parse(kind, path, content)
         if drop_references:
             parsed = replace(parsed, references=())
         self.documents[path] = parsed
-        self.roles[path] = {kind}
+        self.roles[path] = roles
         if plugin is not None:
             self.owners[path] = plugin
         self._report(parsed.error, path)
         return parsed
+
+    def _codex(self, path: str, content: bytes, plugin: str | None) -> ConfigDocument | None:
+        """A repository's `.codex/config.toml` (Engine 1.20.0: scan selection, 7.2.3, 7.8): one settings document without
+        `notify` (D3) and its `[plugins]` and `[marketplaces]` entries (`listings`). A file that is not UTF-8 TOML is the error
+        `unreadable` with its way out and no document; entries whose item path a server takes, and more than `MAX_PLUGINS`
+        plugins or marketplaces, are errors as in `scan --user`: the scan is incomplete, never a pass."""
+        self.toml.add(path)
+        config = userdocs.read_codex_config(path, content, notify=False)
+        if config.document is None:
+            self.errors.append(Notice("unreadable", path, f"{config.error}; not judged, so the scan is incomplete: fix the file, "
+                                      "or leave it out with `exclude` in .spellwarden/config.yml"))
+            return None
+        self.documents[path] = config.document
+        self.roles[path] = set()
+        if plugin is not None:
+            self.owners[path] = plugin
+        self._report(config.document.error, path)
+        self.listings[path] = config.listing
+        if config.error is not None:
+            self.errors.append(Notice("unreadable", path, f"{config.error}; not judged"))
+        if config.listing.cut:
+            self.errors.append(Notice("truncated", path, f"{config.listing.cut} more entries were not read: the scanner reads at "
+                                      f"most {MAX_PLUGINS} plugins and {MAX_PLUGINS} marketplaces per file, so the scan is "
+                                      "incomplete; leave the file out with `exclude` in .spellwarden/config.yml"))
+        return config.document
 
     def _report(self, error: str | None, path: str) -> None:
         if error is not None:
@@ -654,6 +790,19 @@ def _parse(kind: str, path: str, content: bytes) -> ConfigDocument:
     return replace(parsed, path=path)
 
 
+def base_parses(kind: str, path: str, content: bytes) -> tuple[ConfigDocument, ...]:
+    """The parses of a gated document's base revision (`connected._base_view`; Engine 1.20.0: scan selection, 7.2.1): at a path
+    of 1.19.0's three kinds, or a path no row of `_READERS` names, by `kind` and then by the MCP parser, as before; at a new JSON
+    path by its row's reader and then by the MCP parser; at `.codex/config.toml` by the TOML reader only, none when it refuses."""
+    reader = _reader(path)
+    if reader is None or (reader.read is None and not reader.toml):
+        return tuple(_parse(parse_as, path, content) for parse_as in dict.fromkeys((kind, "mcp")))
+    if reader.toml:
+        config = userdocs.read_codex_config(path, content, notify=False)
+        return () if config.document is None else (config.document,)
+    return reader.read(path, content), _parse("mcp", path, content)
+
+
 _SKILL_NAME_CASE = ("an agent on a case-insensitive file system may load this as SKILL.md; rename it to SKILL.md to "
                     "have it scanned as a skill, or rename it away")
 # a variant under `skills/<name>/` is scanned as the skill's SKILL.md (`_is_loaded_variant`), so it says so (r3:N5)
@@ -673,6 +822,16 @@ _DOCUMENT_MESSAGES = {
 
 _TOO_LARGE = (f"larger than {FILE_MAX // 2**20} MiB; not read, so the scan is incomplete: make the file smaller, or leave it "
               "out with `exclude` in .spellwarden/config.yml")
+
+# Engine 1.20.0 (scan selection, 7.20.3, D41): a linked instruction directory that `--follow-links` cannot follow
+_LINK_WAY_OUT = ("not followed, so the scan is incomplete: replace the link with the files it should hold, or leave it out with "
+                 "`exclude` in .spellwarden/config.yml")
+_LINK_OUTSIDE = ("symbolic link to a place outside the scan root; not followed, so the instruction files reached only through it "
+                 "are not judged")
+
+
+def _link_refused(path: str, why: str) -> Notice:
+    return Notice("unsafe_path", path, f"{why}; {_LINK_WAY_OUT}")
 
 
 def _follow_references(builder: _Builder, manifest: ConfigDocument, directory: str, plugin: str) -> None:
@@ -710,10 +869,13 @@ def _follow_references(builder: _Builder, manifest: ConfigDocument, directory: s
 
 
 def discover(fileset: FileSet, *, listed_cards: Sequence[str] = (), agents_configured: bool = False,
-             instructions: bool = True) -> Discovery:
+             instructions: bool = True, follow_links: bool = False) -> Discovery:
     """`listed_cards` are the paths of `a2a.cards`; `agents_configured` says `a2a.agents` is not empty (so that a repository
     whose only agent content is a configured agent is not told there is none). `instructions` is the setting of that name: with
-    it off, no instruction file is looked for (Phase 3 batch 1 spec 10.5)."""
+    it off, no instruction file is looked for (Phase 3 batch 1 spec 10.5). `follow_links` is `--follow-links` (Engine 1.20.0:
+    scan selection, 7.20): with it, and with instruction files on, a linked directory in an instruction folder is followed and
+    its files are instruction files under the link's path; without it, such a link is the notice `symlink_skipped`, as on
+    1.19.0."""
     builder = _Builder(fileset)
     builder.notices.extend(Notice("skill_name_case", path,
                                   _SKILL_NAME_CASE_LOADED if _is_loaded_variant(path) else _SKILL_NAME_CASE)
@@ -742,11 +904,12 @@ def discover(fileset: FileSet, *, listed_cards: Sequence[str] = (), agents_confi
             directory = source.local_path
             plugin_dirs.setdefault(directory, plugin.name)
     # A file's kind is the first role that reaches it: its global name, then a plugin's conventional path, then a
-    # manifest reference; every later role adds what it finds to that one document (r1:F1).
+    # manifest reference; every later role adds what it finds to that one document (r1:F1). Since 1.20.0 the global name's row
+    # of `_READERS` picks the reader (Engine 1.20.0: scan selection, 7.2.1).
     for path in sorted(builder.paths):
-        kind = _global_kind(path)
-        if kind is not None and kind != "marketplace":
-            builder.document(kind, path)
+        reader = _reader(path)
+        if reader is not None and reader.kind != "marketplace":
+            builder.document(reader.kind, path, reader=reader)
     for directory, name in plugin_dirs.items():
         builder.document("mcp", _join(directory, ".mcp.json"), name)
         builder.document("hooks", _join(directory, "hooks/hooks.json"), name)
@@ -766,7 +929,10 @@ def discover(fileset: FileSet, *, listed_cards: Sequence[str] = (), agents_confi
                                   frozenset(p for p in package[0] if p in builder.own)))
     cards = _agent_cards(builder, listed_cards)
     # Before the loop below: a link followed here is no `symlink_skipped`.
-    instruction_list = _instruction_files(builder, frozenset(skill.path for skill in skills)) if instructions else []
+    skill_directories = frozenset(skill.path for skill in skills)
+    linked = (_linked_files(builder, _linked_directories(builder, skill_directories, plugin_dirs))
+              if instructions and follow_links else {})
+    instruction_list = _instruction_files(builder, skill_directories, plugin_dirs, linked) if instructions else []
     if instructions:
         # an instruction file inside a skill is scanned by that skill, once (one owner per file), and read as Markdown there
         # as it would be on its own: otherwise a root SKILL.md would turn the Markdown rules off for every rule file
@@ -790,14 +956,14 @@ def discover(fileset: FileSet, *, listed_cards: Sequence[str] = (), agents_confi
             builder.notices.append(Notice("symlink_skipped", path, "symbolic link; skipped"))
     unread = _oversize_files(builder, frozenset(skill.path for skill in skills), plugin_dirs, listed_cards, instructions)
     items = _items(builder, skills, plugin_items)
-    items = sorted([*items, *(Item("instructions", f.path, f.name, None, f.format, f.front_matter) for f in instruction_list)],
-                   key=lambda item: (item.kind, item.path))
+    items = sorted([*items, *(Item("instructions", f.path, f.name, f.plugin, f.format, f.front_matter)
+                              for f in instruction_list)], key=lambda item: (item.kind, item.path))
     # a look-alike file that is not a card is no agent content (r0:F3)
     if not items and not any(is_card(card) for card in cards) and not agents_configured and not unread:
         builder.notices.append(Notice("no_agent_content", "", "No agent content found"))
     return Discovery(tuple(items), tuple(skills), tuple(builder.documents[p] for p in sorted(builder.documents)),
                      tuple(dirs), tuple(builder.notices), tuple(builder.errors), fileset, tuple(cards),
-                     instruction_files=tuple(instruction_list))
+                     instruction_files=tuple(instruction_list), facts=_facts(builder))
 
 
 def _oversize_files(builder: _Builder, skill_directories: frozenset[str], plugin_dirs: dict[str, str],
@@ -836,9 +1002,30 @@ def _owned_by_a_skill(path: str, skill_directories: frozenset[str]) -> bool:
     return False
 
 
-def _instruction_files(builder: _Builder, skill_directories: frozenset[str]) -> list[InstructionFile]:
+def _plugin_instruction(path: str, plugin_dirs: Mapping[str, str]) -> tuple[str, str] | None:
+    """`(format, plugin name)` of a Markdown file below the `commands/` or `agents/` folder of a local plugin directory, at every
+    depth (Engine 1.20.0: scan selection, 7.7, D16): `claude-command` or `claude-agent`. Matched after NFC and case folding, as
+    the instruction formats are; a plugin at the marketplace root (`.`) reads the root folders; the deepest plugin directory that
+    holds the path names it. None for any other path."""
+    folded = _fold(path)
+    if not folded.endswith(".md"):
+        return None
+    for directory in sorted(plugin_dirs, key=lambda d: 0 if d == "." else len(d), reverse=True):
+        base = "" if directory == "." else _fold(directory) + "/"
+        for folder, format in (("commands/", "claude-command"), ("agents/", "claude-agent")):
+            if folded.startswith(base + folder):
+                return format, plugin_dirs[directory]
+    return None
+
+
+def _instruction_files(builder: _Builder, skill_directories: frozenset[str], plugin_dirs: Mapping[str, str],
+                       linked: Mapping[str, str] | None = None) -> list[InstructionFile]:
     """The instruction files of the file set (Phase 3 batch 1 spec 10.2, 10.3), in path order, at most
     `instruction_files.MAX_FILES`, root places first (the error `instructions_limit` counts the rest, which are not read).
+    Since 1.20.0 also the commands and agents of a local plugin directory that no format names (`_plugin_instruction`), which
+    carry the plugin's name, count toward the limit and are never loaded first (Engine 1.20.0: scan selection, 7.7), and, with
+    `--follow-links`, the files of `linked` (`{linked path: file of the set}`, `_linked_files`), which are read from their file
+    and named by their linked path, ordered by it like every other (7.20.4).
     A symbolic link at one of these names is followed when it can be, as at the names of a configuration file; one that cannot
     be followed is the notice
     `symlink_skipped` it was on 1.12.0, never an error. A rule file whose front matter cannot be read still scans and has the
@@ -846,9 +1033,20 @@ def _instruction_files(builder: _Builder, skill_directories: frozenset[str]) -> 
     # Past the limit, the files an agent reads at the root of the repository come first (`instruction_files.loaded_first`),
     # then the rest shallowest first: decoys anywhere in the tree cannot push the root `AGENTS.md`, `CLAUDE.md` or a root
     # Cursor or Windsurf rule out of the scan. What is read is then handled in path order.
-    chosen = sorted((path for path in {*builder.paths, *builder.links}
-                     if instruction_files.format_of(path) is not None and not _owned_by_a_skill(path, skill_directories)),
-                    key=lambda path: (not instruction_files.loaded_first(path), path.count("/"), path))
+    candidates: dict[str, tuple[str, str | None, str]] = {}  # path -> (format, plugin, the file of the set it reads)
+    for path in {*builder.paths, *builder.links}:
+        if _owned_by_a_skill(path, skill_directories):
+            continue
+        format = instruction_files.format_of(path)
+        if format is not None:
+            candidates[path] = (format, None, path)
+        elif (local := _plugin_instruction(path, plugin_dirs)) is not None:
+            candidates[path] = (local[0], local[1], path)
+    for path, source in (linked or {}).items():
+        format = instruction_files.format_of(path)
+        if format is not None:  # `_linked_files` offers only such paths
+            candidates[path] = (format, None, source)
+    chosen = sorted(candidates, key=lambda path: (not instruction_files.loaded_first(path), path.count("/"), path))
     limit = instruction_files.MAX_FILES
     if len(chosen) > limit:
         builder.errors.append(Notice("instructions_limit", "", f"{len(chosen) - limit} more instruction files were not read: the "
@@ -856,19 +1054,73 @@ def _instruction_files(builder: _Builder, skill_directories: frozenset[str]) -> 
                                      "out with `exclude` in .spellwarden/config.yml"))
     found: list[InstructionFile] = []
     for path in sorted(chosen[:limit]):
-        if not _follow_quietly(builder, path):
+        format, plugin, source = candidates[path]
+        if source == path and not _follow_quietly(builder, path):
             continue
-        content = builder.read(path)
+        content = builder.read(source)
         if content is None:
             continue
-        format = instruction_files.format_of(path)
-        assert format is not None
         front_matter, readable = instruction_files.front_matter_of(format, content)
         if not readable:
             builder.notices.append(Notice("instructions_front_matter", path, "the front matter of this rule file could not be "
                                           "read, so its scope is not shown; the file is still scanned"))
-        found.append(InstructionFile(path, posixpath.basename(path), format, front_matter, content))
+        found.append(InstructionFile(path, posixpath.basename(path), format, front_matter, content, plugin))
     return found
+
+
+def _linked_directories(builder: _Builder, skill_directories: frozenset[str],
+                        plugin_dirs: Mapping[str, str]) -> list[tuple[str, str]]:
+    """With `--follow-links` (Engine 1.20.0: scan selection, 7.20.2, 7.20.3, D39 to D42): `(link, target directory)` of each
+    linked instruction directory that is followed, in the order of `instruction_files.linked_first` and then path, at most
+    `instruction_files.MAX_LINKED_DIRECTORIES`. A candidate is a link of the file set not yet followed or refused, at a path where
+    a directory could hold an instruction file (`holds_instructions`), and not inside a skill or a local plugin directory, whose
+    own link rules of 1.19.0 hold. A refusal of `directory_link` is recorded, and a link to a regular file is left to the rules of
+    1.19.0. Every link counted here, followed or past the limit, is marked followed: it gives no `symlink_skipped`."""
+    followed: list[tuple[str, str]] = []
+    for path in sorted(builder.links):
+        if (path in builder.followed or not instruction_files.holds_instructions(path)
+                or _owned_by_a_skill(path, skill_directories) or any(_under(path, directory) for directory in plugin_dirs)):
+            continue
+        resolution = builder.directory_link(path)
+        if resolution.refusal is not None:
+            builder.followed.add(path)
+            (builder.notices if resolution.refusal.code == "symlink_skipped" else builder.errors).append(resolution.refusal)
+        elif resolution.target is not None:
+            followed.append((path, resolution.target))
+    followed.sort(key=lambda pair: (not instruction_files.linked_first(pair[0]), pair[0]))
+    limit = instruction_files.MAX_LINKED_DIRECTORIES
+    if len(followed) > limit:
+        builder.errors.append(Notice("instructions_limit", "", f"{len(followed) - limit} more linked directories in instruction "
+                                     f"folders were not followed: the scanner follows at most {limit} per scan root, so the scan "
+                                     "is incomplete; leave them out with `exclude` in .spellwarden/config.yml"))
+    builder.followed.update(link for link, _ in followed)
+    return followed[:limit]
+
+
+def _linked_files(builder: _Builder, linked: Sequence[tuple[str, str]]) -> dict[str, str]:
+    """`{linked path: file of the set}` for the files below each followed directory (7.20.4, D40): each regular file `T/r` of the
+    set, at every depth, is offered at `L/r`, and is an instruction file there when `format_of(L/r)` names one (the folder's own
+    rule). Only instruction files are made: no document, skill, plugin or agent card. A link below `T` is not followed through
+    `L`: where its linked path would be an instruction file or a linked instruction directory it is the error `unsafe_path`, else
+    nothing. A file of `T` over 10 MiB whose linked path has a format is the error `unreadable` at that path."""
+    offered: dict[str, str] = {}
+    for link, target in linked:
+        prefix = target + "/"
+        for path in _under_range(builder, target):
+            linked_path = link + "/" + path[len(prefix):]
+            if path in builder.links:
+                if (instruction_files.format_of(linked_path) is not None
+                        or instruction_files.holds_instructions(linked_path)):
+                    builder.errors.append(Notice("unsafe_path", linked_path, f"reached through the link `{link}`; a link is "
+                                                 "followed one level only: replace it with the file or directory it names"))
+            elif path in builder.paths and instruction_files.format_of(linked_path) is not None:
+                offered[linked_path] = path
+        for path in sorted(builder.too_large):
+            if path.startswith(prefix):
+                linked_path = link + "/" + path[len(prefix):]
+                if instruction_files.format_of(linked_path) is not None:
+                    builder.errors.append(Notice("unreadable", linked_path, _TOO_LARGE))
+    return offered
 
 
 def _agent_cards(builder: _Builder, listed: Sequence[str]) -> list[CardFile]:
@@ -1068,7 +1320,27 @@ def _items(builder: _Builder, skills: list[SkillPackage], plugin_items: list[Ite
         items.append(Item(_ITEM_KIND[document.kind], path, posixpath.basename(path), owner))
         for server in document.servers:
             items.append(Item("mcp-server", f"{path}#{server.name}", server.name, owner))
+    for path, listing in builder.listings.items():  # 1.20.0 (7.8): Codex's entries, covered by the document's lock hash
+        owner = builder.owners.get(path)
+        items.extend(Item(entry.kind, entry.path, entry.name, owner) for entry in listing.entries)
     return sorted(items, key=lambda item: (item.kind, item.path))
+
+
+def _facts(builder: _Builder) -> dict[str, dict]:
+    """The facts of the `[plugins]` and `[marketplaces]` entries of each `.codex/config.toml` read (Engine 1.20.0: scan selection,
+    7.8), as `scan --user` gives them: a marketplace's reduced source URL, or its local source as the file wrote it; a plugin's
+    `marketplace_item` when the same file lists that marketplace."""
+    facts: dict[str, dict] = {}
+    for path, listing in builder.listings.items():
+        listed = {entry.path for entry in listing.entries}
+        for entry in listing.entries:
+            if entry.kind == "marketplace":
+                source = entry.facts.get("source_url") or entry.facts.get("source_path")
+                facts[entry.path] = {"source": source} if source else {}
+            elif entry.facts.get("marketplace"):
+                item = f"{path}#marketplaces.{entry.facts['marketplace']}"
+                facts[entry.path] = {"marketplace_item": item} if item in listed else {}
+    return facts
 
 
 __all__ = ["Discovery", "InstructionFile", "Item", "PluginDir", "SkillPackage", "discover"]

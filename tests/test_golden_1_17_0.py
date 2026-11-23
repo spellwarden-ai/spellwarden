@@ -24,7 +24,10 @@ def _recorded() -> dict:
 
 
 def _roots() -> list[str]:
-    return sorted(_recorded()["roots"]) if RECORDED_PATH.exists() else ["(not recorded)"]
+    # Engine 1.20.0 (C40a): the fixture homes whose files 1.20.0 changes are skipped; the record keeps them
+    if not RECORDED_PATH.exists():
+        return ["(not recorded)"]
+    return sorted(set(_recorded()["roots"]) - set(record.reports.FIXTURES_CHANGED_IN_1_20_0))
 
 
 def test_the_record_is_the_release_and_covers_every_fixture_root():

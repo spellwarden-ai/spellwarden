@@ -22,8 +22,8 @@ HERE = Path(__file__).resolve().parent
 GOLDEN = HERE / "1.18.0"
 RELEASE_TAG = "v1.18.0"
 RECORDED_VERSION = "1.18.0"
-# Fixture roots 1.19.0 adds: not in the record (none so far).
-ADDED_AFTER_1_18_0: tuple[str, ...] = ()
+# Fixture roots added after 1.18.0: not in the record. 1.20.0 adds `fixtures/selection` (Engine 1.20.0: scan selection, D33).
+ADDED_AFTER_1_18_0: tuple[str, ...] = ("fixtures/selection",)
 
 
 def _module(name: str, path: Path):

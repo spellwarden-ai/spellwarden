@@ -2,7 +2,7 @@
   "$schema": "http://cyclonedx.org/schema/bom-1.7.schema.json",
   "bomFormat": "CycloneDX",
   "specVersion": "1.7",
-  "serialNumber": "urn:uuid:2d76adbd-e836-5de9-86e8-f427adfecf52",
+  "serialNumber": "urn:uuid:2c91dab7-87ad-5961-989b-d84013220f48",
   "version": 1,
   "metadata": {
     "timestamp": "2026-11-14T00:00:00Z",
@@ -11,7 +11,7 @@
         {
           "type": "application",
           "name": "Spellwarden",
-          "version": "1.14.0",
+          "version": "1.20.0",
           "externalReferences": [
             {
               "type": "website",
@@ -32,7 +32,7 @@
       },
       {
         "name": "spellwarden:rules_version",
-        "value": "2026.11.6"
+        "value": "2026.11.8"
       },
       {
         "name": "spellwarden:as_of",
@@ -128,6 +128,27 @@
       ]
     },
     {
+      "bom-ref": "document:~/.copilot/hooks/audit.json",
+      "type": "file",
+      "name": "~/.copilot/hooks/audit.json",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "574f03ccafc57e56c83b752ea2917a8e7f2b82421eae3d9610f13bc035c3f8ea"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "hooks"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "vscode"
+        }
+      ]
+    },
+    {
       "bom-ref": "document:~/.cursor/hooks.json",
       "type": "file",
       "name": "~/.cursor/hooks.json",
@@ -141,6 +162,31 @@
         {
           "name": "spellwarden:kind",
           "value": "hooks"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "cursor"
+        }
+      ]
+    },
+    {
+      "bom-ref": "document:~/.cursor/plugins/local/notes/hooks/hooks.json",
+      "type": "file",
+      "name": "~/.cursor/plugins/local/notes/hooks/hooks.json",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "1caf94099908a384f98183b5786488864e6b0a088d43fb2984dd4caa88bba3dc"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "hooks"
+        },
+        {
+          "name": "spellwarden:plugin",
+          "value": "notes"
         },
         {
           "name": "spellwarden:client",
@@ -193,8 +239,207 @@
           "value": "claude-code"
         },
         {
+          "name": "spellwarden:client",
+          "value": "vscode"
+        },
+        {
           "name": "spellwarden:format",
           "value": "claude-md"
+        }
+      ]
+    },
+    {
+      "bom-ref": "instructions:~/.claude/agents/reviewer.md",
+      "type": "file",
+      "name": "~/.claude/agents/reviewer.md",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "fda8b3b47d68cd51ef4ab7ada70bfba8e275657e3a42be209e3b6cf4f5c7ce4f"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "instructions"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "claude-code"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "cursor"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "vscode"
+        },
+        {
+          "name": "spellwarden:format",
+          "value": "claude-agent"
+        }
+      ]
+    },
+    {
+      "bom-ref": "instructions:~/.claude/commands/deploy.md",
+      "type": "file",
+      "name": "~/.claude/commands/deploy.md",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "99bca93af3ca7c35aadbe6c393383e9077d1949516520513498fb73199461585"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "instructions"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "claude-code"
+        },
+        {
+          "name": "spellwarden:format",
+          "value": "claude-command"
+        }
+      ]
+    },
+    {
+      "bom-ref": "instructions:~/.claude/commands/ops/restart.md",
+      "type": "file",
+      "name": "~/.claude/commands/ops/restart.md",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "62bb380bc658aa5a2106d43414fa5ec6a7a4aac793469f37fe1301e5966eb9bd"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "instructions"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "claude-code"
+        },
+        {
+          "name": "spellwarden:format",
+          "value": "claude-command"
+        }
+      ]
+    },
+    {
+      "bom-ref": "instructions:~/.claude/output-styles/terse.md",
+      "type": "file",
+      "name": "~/.claude/output-styles/terse.md",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "245f8a788937e071d11f2f9802d9985b64b20a9511aa843b975dabfe0e97bb09"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "instructions"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "claude-code"
+        },
+        {
+          "name": "spellwarden:format",
+          "value": "claude-output-style"
+        }
+      ]
+    },
+    {
+      "bom-ref": "instructions:~/.claude/plugins/cache/tools/lint/1.0.0/agents/linter.md",
+      "type": "file",
+      "name": "~/.claude/plugins/cache/tools/lint/1.0.0/agents/linter.md",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "ce6d8412a16c1e7e11867b743331bc27de9815497ca3450037d5d17366ee1fcc"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "instructions"
+        },
+        {
+          "name": "spellwarden:plugin",
+          "value": "lint"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "claude-code"
+        },
+        {
+          "name": "spellwarden:format",
+          "value": "claude-agent"
+        }
+      ]
+    },
+    {
+      "bom-ref": "instructions:~/.claude/plugins/cache/tools/lint/1.0.0/commands/fix.md",
+      "type": "file",
+      "name": "~/.claude/plugins/cache/tools/lint/1.0.0/commands/fix.md",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "3a168e7ade5e4dbb2948c011afeb30092f173699826b5681635644f1037b823f"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "instructions"
+        },
+        {
+          "name": "spellwarden:plugin",
+          "value": "lint"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "claude-code"
+        },
+        {
+          "name": "spellwarden:format",
+          "value": "claude-command"
+        }
+      ]
+    },
+    {
+      "bom-ref": "instructions:~/.claude/rules/frontend/react.md",
+      "type": "file",
+      "name": "~/.claude/rules/frontend/react.md",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "e2e28d30cf9931f5d97f4b87e4712834e98813d8a33265cf9c5f409d7bbb0f3d"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "instructions"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "claude-code"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "vscode"
+        },
+        {
+          "name": "spellwarden:format",
+          "value": "claude-rule"
         }
       ]
     },
@@ -216,6 +461,10 @@
         {
           "name": "spellwarden:client",
           "value": "claude-code"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "vscode"
         },
         {
           "name": "spellwarden:format",
@@ -245,6 +494,322 @@
         {
           "name": "spellwarden:format",
           "value": "codex-agents-md"
+        }
+      ]
+    },
+    {
+      "bom-ref": "instructions:~/.codex/agents/helper.md",
+      "type": "file",
+      "name": "~/.codex/agents/helper.md",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "df2207dfc4000f8975a06dc7d7cd48e0fdc879a1c566bdfaa7c15fdf393c2d3b"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "instructions"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "cursor"
+        },
+        {
+          "name": "spellwarden:format",
+          "value": "codex-agent"
+        }
+      ]
+    },
+    {
+      "bom-ref": "instructions:~/.codex/prompts/release.md",
+      "type": "file",
+      "name": "~/.codex/prompts/release.md",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "43bf6aaf424524d045d0ec76c4c1016784c27a3d1def0a2d18536006cfb1e05c"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "instructions"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "codex"
+        },
+        {
+          "name": "spellwarden:format",
+          "value": "codex-prompt"
+        }
+      ]
+    },
+    {
+      "bom-ref": "instructions:~/.config/devin/AGENTS.md",
+      "type": "file",
+      "name": "~/.config/devin/AGENTS.md",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "713c463430c579f9a885c03f38418b7b15141438f1aa498ac9f4f7477b149efd"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "instructions"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "windsurf"
+        },
+        {
+          "name": "spellwarden:format",
+          "value": "agents-md"
+        }
+      ]
+    },
+    {
+      "bom-ref": "instructions:~/.config/devin/agents/triage.md",
+      "type": "file",
+      "name": "~/.config/devin/agents/triage.md",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "afe88b0746a2e0c01955bd9ced9d4c7d8724a97867310998edcb98c2b8c38bc7"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "instructions"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "windsurf"
+        },
+        {
+          "name": "spellwarden:format",
+          "value": "devin-agent"
+        }
+      ]
+    },
+    {
+      "bom-ref": "instructions:~/.copilot/agents/reviewer.agent.md",
+      "type": "file",
+      "name": "~/.copilot/agents/reviewer.agent.md",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "cb4c4fcd35566c1fcd25ab9fe7bddc00cb6d25661b8e897a190e7f407ebbc38d"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "instructions"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "vscode"
+        },
+        {
+          "name": "spellwarden:format",
+          "value": "github-agent"
+        }
+      ]
+    },
+    {
+      "bom-ref": "instructions:~/.copilot/copilot-instructions.md",
+      "type": "file",
+      "name": "~/.copilot/copilot-instructions.md",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "f5f9f60a996a06c00215f35c72561b35600d47e39a9ae4087fd33709529d17cf"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "instructions"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "vscode"
+        },
+        {
+          "name": "spellwarden:format",
+          "value": "copilot-instructions"
+        }
+      ]
+    },
+    {
+      "bom-ref": "instructions:~/.copilot/installed-plugins/tools/formatter/agents/fmt.md",
+      "type": "file",
+      "name": "~/.copilot/installed-plugins/tools/formatter/agents/fmt.md",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "e66de7b52cf1697c984051da0bb3bf1a342eaffd78d0ab1c1f5377057b182fc5"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "instructions"
+        },
+        {
+          "name": "spellwarden:plugin",
+          "value": "formatter"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "vscode"
+        },
+        {
+          "name": "spellwarden:format",
+          "value": "github-agent"
+        }
+      ]
+    },
+    {
+      "bom-ref": "instructions:~/.copilot/instructions/python.instructions.md",
+      "type": "file",
+      "name": "~/.copilot/instructions/python.instructions.md",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "89e4e74528ea4a0d5a53c74d9fa1b654def3d0aa535b14d30d36b4b51f74d476"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "instructions"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "vscode"
+        },
+        {
+          "name": "spellwarden:format",
+          "value": "github-instructions"
+        }
+      ]
+    },
+    {
+      "bom-ref": "instructions:~/.cursor/agents/planner.md",
+      "type": "file",
+      "name": "~/.cursor/agents/planner.md",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "891bb40fbf9d5debdb32d8a3ab2a02d2dccc481cef2755edb86adb7123a3e85f"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "instructions"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "cursor"
+        },
+        {
+          "name": "spellwarden:format",
+          "value": "cursor-agent"
+        }
+      ]
+    },
+    {
+      "bom-ref": "instructions:~/.cursor/plugins/local/notes/agents/scribe.md",
+      "type": "file",
+      "name": "~/.cursor/plugins/local/notes/agents/scribe.md",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "c820b84c0694c0bcb8e1051a8246ac7b59940d8fbbb434f349056b6c470e4070"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "instructions"
+        },
+        {
+          "name": "spellwarden:plugin",
+          "value": "notes"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "cursor"
+        },
+        {
+          "name": "spellwarden:format",
+          "value": "cursor-agent"
+        }
+      ]
+    },
+    {
+      "bom-ref": "instructions:~/.cursor/plugins/local/notes/commands/summarise.md",
+      "type": "file",
+      "name": "~/.cursor/plugins/local/notes/commands/summarise.md",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "67f2c167e8fe7fab49991587128ded12660ac881a9bff2aa82949e0e744ace7d"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "instructions"
+        },
+        {
+          "name": "spellwarden:plugin",
+          "value": "notes"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "cursor"
+        },
+        {
+          "name": "spellwarden:format",
+          "value": "cursor-command"
+        }
+      ]
+    },
+    {
+      "bom-ref": "instructions:~/.cursor/plugins/local/notes/rules/style.mdc",
+      "type": "file",
+      "name": "~/.cursor/plugins/local/notes/rules/style.mdc",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "f1cd17a678bc6bde34c516341591e6a6b80d0eb6b1ce72a45f4f77a0f580fe48"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "instructions"
+        },
+        {
+          "name": "spellwarden:plugin",
+          "value": "notes"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "cursor"
+        },
+        {
+          "name": "spellwarden:format",
+          "value": "cursor-mdc"
         }
       ]
     },
@@ -324,6 +889,31 @@
       ]
     },
     {
+      "bom-ref": "instructions:~/.gemini/agents/researcher.md",
+      "type": "file",
+      "name": "~/.gemini/agents/researcher.md",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "4699534ccae8c5d1904b8a590cba6c7b7189192b7bc2642314be592e3b601617"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "instructions"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "gemini-cli"
+        },
+        {
+          "name": "spellwarden:format",
+          "value": "gemini-agent"
+        }
+      ]
+    },
+    {
       "bom-ref": "instructions:~/.gemini/extensions/jira/JIRA.md",
       "type": "file",
       "name": "~/.gemini/extensions/jira/JIRA.md",
@@ -349,6 +939,35 @@
         {
           "name": "spellwarden:format",
           "value": "gemini-md"
+        }
+      ]
+    },
+    {
+      "bom-ref": "instructions:~/.gemini/extensions/jira/agents/triager.md",
+      "type": "file",
+      "name": "~/.gemini/extensions/jira/agents/triager.md",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "e885a30c9497a0ad96da803dc8e4ef8172844fdacccf1be6a06c526beda9b3b2"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "instructions"
+        },
+        {
+          "name": "spellwarden:plugin",
+          "value": "jira"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "gemini-cli"
+        },
+        {
+          "name": "spellwarden:format",
+          "value": "gemini-agent"
         }
       ]
     },
@@ -401,7 +1020,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "68300a27eb24d36727172bac1a86f0467237c2c9d5a50cc74bb9bf2ea274b78d"
+          "content": "c123a2a41270aea1191588d7a8608cf922f814cc67a379a30c62a5572261e0c5"
         }
       ],
       "properties": [
@@ -422,7 +1041,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "68300a27eb24d36727172bac1a86f0467237c2c9d5a50cc74bb9bf2ea274b78d"
+          "content": "c123a2a41270aea1191588d7a8608cf922f814cc67a379a30c62a5572261e0c5"
         }
       ],
       "properties": [
@@ -447,7 +1066,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "68300a27eb24d36727172bac1a86f0467237c2c9d5a50cc74bb9bf2ea274b78d"
+          "content": "c123a2a41270aea1191588d7a8608cf922f814cc67a379a30c62a5572261e0c5"
         }
       ],
       "properties": [
@@ -487,6 +1106,52 @@
         {
           "name": "spellwarden:client",
           "value": "claude-code"
+        }
+      ]
+    },
+    {
+      "bom-ref": "document:~/.codeium/windsurf/mcp_config.json",
+      "type": "file",
+      "name": "~/.codeium/windsurf/mcp_config.json",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "e76818661aa6202d7c124d6f26939ec64ecc7b865162a7fdbb3cab46623007e1"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "mcp-config"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "windsurf"
+        }
+      ]
+    },
+    {
+      "bom-ref": "document:~/.codex/plugins/cache/tools/review/1.0.0/.mcp.json",
+      "type": "file",
+      "name": "~/.codex/plugins/cache/tools/review/1.0.0/.mcp.json",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "ecd15dd11bb184c2af706d400cec90315e6e60956e900a3948b51a95704cee60"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "mcp-config"
+        },
+        {
+          "name": "spellwarden:plugin",
+          "value": "review"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "codex"
         }
       ]
     },
@@ -533,6 +1198,31 @@
       ]
     },
     {
+      "bom-ref": "document:~/.copilot/installed-plugins/tools/formatter/.mcp.json",
+      "type": "file",
+      "name": "~/.copilot/installed-plugins/tools/formatter/.mcp.json",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "cbe4151b72225e7cdd33685485dd0800e75b70ab8a07ee5b093dd3104b5d8c07"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "mcp-config"
+        },
+        {
+          "name": "spellwarden:plugin",
+          "value": "formatter"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "vscode"
+        }
+      ]
+    },
+    {
       "bom-ref": "document:~/.copilot/mcp-config.json",
       "type": "file",
       "name": "~/.copilot/mcp-config.json",
@@ -575,6 +1265,31 @@
       ]
     },
     {
+      "bom-ref": "document:~/.cursor/plugins/local/notes/mcp.json",
+      "type": "file",
+      "name": "~/.cursor/plugins/local/notes/mcp.json",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "660f811c8946455eb883963423761e88597d5c1246e23e85dd7eba09f53c9648"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "mcp-config"
+        },
+        {
+          "name": "spellwarden:plugin",
+          "value": "notes"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "cursor"
+        }
+      ]
+    },
+    {
       "bom-ref": "plugin:~/.claude/plugins/installed_plugins.json#lint@tools",
       "type": "library",
       "name": "lint",
@@ -601,6 +1316,51 @@
         {
           "name": "spellwarden:client",
           "value": "codex"
+        }
+      ]
+    },
+    {
+      "bom-ref": "plugin:~/.codex/plugins/cache/tools/review/1.0.0",
+      "type": "library",
+      "name": "review",
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "plugin"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "codex"
+        }
+      ]
+    },
+    {
+      "bom-ref": "plugin:~/.copilot/installed-plugins/tools/formatter",
+      "type": "library",
+      "name": "formatter",
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "plugin"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "vscode"
+        }
+      ]
+    },
+    {
+      "bom-ref": "plugin:~/.cursor/plugins/local/notes",
+      "type": "library",
+      "name": "notes",
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "plugin"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "cursor"
         }
       ]
     },
@@ -641,6 +1401,81 @@
         {
           "name": "spellwarden:client",
           "value": "claude-code"
+        }
+      ]
+    },
+    {
+      "bom-ref": "document:~/.codex/plugins/cache/tools/review/1.0.0/.codex-plugin/plugin.json",
+      "type": "file",
+      "name": "~/.codex/plugins/cache/tools/review/1.0.0/.codex-plugin/plugin.json",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "f5599845dd6cac92be6b69b7731e24db8fe09f550e883d2add2515db529277ad"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "plugin-manifest"
+        },
+        {
+          "name": "spellwarden:plugin",
+          "value": "review"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "codex"
+        }
+      ]
+    },
+    {
+      "bom-ref": "document:~/.copilot/installed-plugins/tools/formatter/plugin.json",
+      "type": "file",
+      "name": "~/.copilot/installed-plugins/tools/formatter/plugin.json",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "e62c50db37971c1bb3ca1edb821353c1fa24eb9643d3e58dda4f321704fba192"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "plugin-manifest"
+        },
+        {
+          "name": "spellwarden:plugin",
+          "value": "formatter"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "vscode"
+        }
+      ]
+    },
+    {
+      "bom-ref": "document:~/.cursor/plugins/local/notes/.cursor-plugin/plugin.json",
+      "type": "file",
+      "name": "~/.cursor/plugins/local/notes/.cursor-plugin/plugin.json",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "ca93a36fc09b6fbcb4893af16daa1647ecaf27ca999d316564a5968245f16fbc"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "plugin-manifest"
+        },
+        {
+          "name": "spellwarden:plugin",
+          "value": "notes"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "cursor"
         }
       ]
     },
@@ -712,6 +1547,48 @@
       ]
     },
     {
+      "bom-ref": "document:~/.config/devin/config.json",
+      "type": "file",
+      "name": "~/.config/devin/config.json",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "fa6d89dc04f2ef2d8e436ee88522b44d5d3ff88e846fc18f87d77e61af074b9e"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "settings"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "windsurf"
+        }
+      ]
+    },
+    {
+      "bom-ref": "document:~/.copilot/settings.json",
+      "type": "file",
+      "name": "~/.copilot/settings.json",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "05341068d31453d7b8531f19716f72b7ccdc9c65848ce524fd88aaacbcc628fc"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "settings"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "vscode"
+        }
+      ]
+    },
+    {
       "bom-ref": "document:~/.gemini/settings.json",
       "type": "file",
       "name": "~/.gemini/settings.json",
@@ -746,6 +1623,10 @@
         {
           "name": "spellwarden:kind",
           "value": "skill"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "cursor"
         },
         {
           "name": "spellwarden:client",
@@ -819,11 +1700,98 @@
         },
         {
           "name": "spellwarden:client",
+          "value": "cursor"
+        },
+        {
+          "name": "spellwarden:client",
           "value": "vscode"
         },
         {
           "name": "spellwarden:path",
           "value": "~/.claude/skills/deploy"
+        }
+      ]
+    },
+    {
+      "bom-ref": "skill:~/.codeium/windsurf/skills/legacy",
+      "type": "library",
+      "name": "legacy",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "5a2842f1012994bfe8801f5f26ba213ab86c78df865b03207ca1b55e567fad0e"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "skill"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "windsurf"
+        },
+        {
+          "name": "spellwarden:path",
+          "value": "~/.codeium/windsurf/skills/legacy"
+        }
+      ]
+    },
+    {
+      "bom-ref": "skill:~/.codex/plugins/cache/tools/review/1.0.0/skills/review-skill",
+      "type": "library",
+      "name": "review-skill",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "f7b01489de34e93436af5f3e7b0e1e88b004f1bc69d11ddd538a9c372851777d"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "skill"
+        },
+        {
+          "name": "spellwarden:plugin",
+          "value": "review"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "codex"
+        },
+        {
+          "name": "spellwarden:path",
+          "value": "~/.codex/plugins/cache/tools/review/1.0.0/skills/review-skill"
+        }
+      ]
+    },
+    {
+      "bom-ref": "skill:~/.codex/skills/migrate",
+      "type": "library",
+      "name": "migrate",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "9af3eb86ffd9c866a3d07399b9c3ec8524331d3e34d694d336461d765bded08d"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "skill"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "cursor"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "windsurf"
+        },
+        {
+          "name": "spellwarden:path",
+          "value": "~/.codex/skills/migrate"
         }
       ]
     },
@@ -872,8 +1840,66 @@
           "value": "vscode"
         },
         {
+          "name": "spellwarden:client",
+          "value": "windsurf"
+        },
+        {
           "name": "spellwarden:path",
           "value": "~/.copilot/skills/review"
+        }
+      ]
+    },
+    {
+      "bom-ref": "skill:~/.cursor/skills/refactor",
+      "type": "library",
+      "name": "refactor",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "ffb159615258b5e2574d412e3225d3f1e96fb4a3c0587de6f92f0d4fcc467e49"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "skill"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "cursor"
+        },
+        {
+          "name": "spellwarden:path",
+          "value": "~/.cursor/skills/refactor"
+        }
+      ]
+    },
+    {
+      "bom-ref": "skill:~/.gemini/extensions/jira/skills/ticket",
+      "type": "library",
+      "name": "ticket",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "595e1dc156cfadac6ba308537f9bb52c0f7907fdd67a7bba1fee65b7800180bf"
+        }
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "skill"
+        },
+        {
+          "name": "spellwarden:plugin",
+          "value": "jira"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "gemini-cli"
+        },
+        {
+          "name": "spellwarden:path",
+          "value": "~/.gemini/extensions/jira/skills/ticket"
         }
       ]
     },
@@ -1004,6 +2030,27 @@
       ]
     },
     {
+      "bom-ref": "mcp-server:~/.codeium/windsurf/mcp_config.json#legacy",
+      "name": "legacy",
+      "endpoints": [
+        "https://legacy.example.com/mcp"
+      ],
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "mcp-server"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "windsurf"
+        },
+        {
+          "name": "spellwarden:transport",
+          "value": "http"
+        }
+      ]
+    },
+    {
       "bom-ref": "mcp-server:~/.codex/config.toml#docs",
       "name": "docs",
       "properties": [
@@ -1043,6 +2090,32 @@
         {
           "name": "spellwarden:transport",
           "value": "http"
+        }
+      ]
+    },
+    {
+      "bom-ref": "mcp-server:~/.codex/plugins/cache/tools/review/1.0.0/.mcp.json#review-server",
+      "name": "review-server",
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "mcp-server"
+        },
+        {
+          "name": "spellwarden:plugin",
+          "value": "review"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "codex"
+        },
+        {
+          "name": "spellwarden:transport",
+          "value": "stdio"
+        },
+        {
+          "name": "spellwarden:command",
+          "value": "cmd:npx review-mcp@1.0.0"
         }
       ]
     },
@@ -1090,6 +2163,32 @@
       ]
     },
     {
+      "bom-ref": "mcp-server:~/.copilot/installed-plugins/tools/formatter/.mcp.json#fmt",
+      "name": "fmt",
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "mcp-server"
+        },
+        {
+          "name": "spellwarden:plugin",
+          "value": "formatter"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "vscode"
+        },
+        {
+          "name": "spellwarden:transport",
+          "value": "stdio"
+        },
+        {
+          "name": "spellwarden:command",
+          "value": "cmd:npx fmt-mcp@1.0.0"
+        }
+      ]
+    },
+    {
       "bom-ref": "mcp-server:~/.copilot/mcp-config.json#copilot-tools",
       "name": "copilot-tools",
       "properties": [
@@ -1129,6 +2228,32 @@
         {
           "name": "spellwarden:transport",
           "value": "http"
+        }
+      ]
+    },
+    {
+      "bom-ref": "mcp-server:~/.cursor/plugins/local/notes/mcp.json#notes-server",
+      "name": "notes-server",
+      "properties": [
+        {
+          "name": "spellwarden:kind",
+          "value": "mcp-server"
+        },
+        {
+          "name": "spellwarden:plugin",
+          "value": "notes"
+        },
+        {
+          "name": "spellwarden:client",
+          "value": "cursor"
+        },
+        {
+          "name": "spellwarden:transport",
+          "value": "stdio"
+        },
+        {
+          "name": "spellwarden:command",
+          "value": "cmd:npx notes-mcp@1.0.0 args=cba1d0c5bac1c7569593b3cfe7597943"
         }
       ]
     },
@@ -1249,10 +2374,22 @@
       ]
     },
     {
+      "ref": "document:~/.codeium/windsurf/mcp_config.json",
+      "dependsOn": [
+        "mcp-server:~/.codeium/windsurf/mcp_config.json#legacy"
+      ]
+    },
+    {
       "ref": "document:~/.codex/config.toml",
       "dependsOn": [
         "mcp-server:~/.codex/config.toml#docs",
         "mcp-server:~/.codex/config.toml#remote"
+      ]
+    },
+    {
+      "ref": "document:~/.codex/plugins/cache/tools/review/1.0.0/.mcp.json",
+      "dependsOn": [
+        "mcp-server:~/.codex/plugins/cache/tools/review/1.0.0/.mcp.json#review-server"
       ]
     },
     {
@@ -1268,6 +2405,12 @@
       ]
     },
     {
+      "ref": "document:~/.copilot/installed-plugins/tools/formatter/.mcp.json",
+      "dependsOn": [
+        "mcp-server:~/.copilot/installed-plugins/tools/formatter/.mcp.json#fmt"
+      ]
+    },
+    {
       "ref": "document:~/.copilot/mcp-config.json",
       "dependsOn": [
         "mcp-server:~/.copilot/mcp-config.json#copilot-tools"
@@ -1277,6 +2420,12 @@
       "ref": "document:~/.cursor/mcp.json",
       "dependsOn": [
         "mcp-server:~/.cursor/mcp.json#search"
+      ]
+    },
+    {
+      "ref": "document:~/.cursor/plugins/local/notes/mcp.json",
+      "dependsOn": [
+        "mcp-server:~/.cursor/plugins/local/notes/mcp.json#notes-server"
       ]
     },
     {
@@ -1309,6 +2458,24 @@
       "ref": "plugin:~/.claude/plugins/installed_plugins.json#lint@tools",
       "dependsOn": [
         "skill:~/.claude/plugins/cache/tools/lint/1.0.0/skills/lint-rules"
+      ]
+    },
+    {
+      "ref": "plugin:~/.codex/config.toml#plugins.review@tools",
+      "dependsOn": [
+        "skill:~/.codex/plugins/cache/tools/review/1.0.0/skills/review-skill"
+      ]
+    },
+    {
+      "ref": "plugin:~/.codex/plugins/cache/tools/review/1.0.0",
+      "dependsOn": [
+        "skill:~/.codex/plugins/cache/tools/review/1.0.0/skills/review-skill"
+      ]
+    },
+    {
+      "ref": "plugin:~/.gemini/extensions/jira",
+      "dependsOn": [
+        "skill:~/.gemini/extensions/jira/skills/ticket"
       ]
     }
   ]

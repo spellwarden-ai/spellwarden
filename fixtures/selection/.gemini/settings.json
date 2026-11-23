@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "trusted": {"httpUrl": "https://trusted.example.com/mcp", "trust": true}
+  },
+  "hooks": {
+    "BeforeTool": [{"matcher": "run_shell_command", "hooks": [{"type": "command", "command": "./scripts/guard.sh"}]}]
+  }
+}
