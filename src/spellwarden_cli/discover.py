@@ -10,7 +10,7 @@ import os
 import posixpath
 import stat
 import sys
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from typing import NamedTuple
 
@@ -37,15 +37,20 @@ MAX_CARDS = 300  # discovered and listed agent cards together (O4 spec 6.3; 300 
 # 1.18.0: the paths the pre-commit hook runs on (`.pre-commit-hooks.yaml`, written from this by scripts/write_hooks_yaml.py):
 # every kind of path a scan discovers as agent content or settings, and more, since a regular expression cannot know which
 # folders hold a SKILL.md: SKILL.md anywhere, everything under the agent folders, the MCP configuration names, a plugin's hooks
-# file, the instruction file names and agent cards. The scan itself always covers the whole root, so a change this misses is
-# judged the next time the hook runs, or in CI. Matched with `re.search` against a POSIX path, whatever its case.
+# file, the instruction file names and agent cards. Since 1.20.0 also everything under `.gemini`, `.devin`, `.windsurf`, `.agents`
+# and four `.github` folders, and the memory-file variants (Engine 1.20.0: scan selection, 7.17). A local plugin's `commands/`
+# and `agents/`, and the target of a followed link, cannot be told from ordinary folders by a pattern. The scan itself always
+# covers the whole root, so a change this misses is judged the next time the hook runs, or in CI. Matched with `re.search`
+# against a POSIX path, whatever its case.
 AGENT_CONTENT_REGEX = (
     r"(?i)(^|/)("
     r"skill\.md"
-    r"|(skills|\.claude|\.cursor|\.codex|\.vscode|\.claude-plugin|\.spellwarden|\.well-known)/.+"
+    r"|(skills|\.claude|\.cursor|\.codex|\.gemini|\.devin|\.windsurf|\.agents|\.vscode|\.claude-plugin|\.spellwarden"
+    r"|\.well-known)/.+"
+    r"|\.github/(hooks|instructions|agents|copilot)/.+"
     r"|\.mcp\.json|mcp\.json|claude_desktop_config\.json|hooks/hooks\.json"
-    r"|agents\.md|claude\.md|gemini\.md|\.github/copilot-instructions\.md|\.cursorrules|\.windsurfrules"
-    r"|\.windsurf/rules/[^/]+\.md|\.devin/rules/[^/]+\.md"
+    r"|agents\.md|claude\.md|gemini\.md|claude\.local\.md|agents\.(override|local)\.md|agent\.md"
+    r"|\.github/copilot-instructions\.md|\.cursorrules|\.windsurfrules"
     r"|agent-card\.json"
     r")$"
 )
@@ -134,12 +139,14 @@ class PluginDir:
 class InstructionFile:
     """An instruction file (Phase 3 batch 1 spec 10.2): `path` is the scan-root path, `name` the file name without its directory,
     `format` one of `instruction_files.FORMATS`, `front_matter` as `instruction_files.front_matter_of` read it, `content` the
-    bytes (a followed link holds its target's, under the link's path)."""
+    bytes (a followed link holds its target's, under the link's path). `plugin` (Engine 1.20.0: scan selection, 7.7) names the
+    local plugin directory whose `commands/` or `agents/` holds the file, None for every other file."""
     path: str
     name: str
     format: str
     front_matter: dict | None
     content: bytes = field(hash=False)
+    plugin: str | None = None
 
 
 @dataclass(frozen=True)
@@ -870,7 +877,7 @@ def discover(fileset: FileSet, *, listed_cards: Sequence[str] = (), agents_confi
                                   frozenset(p for p in package[0] if p in builder.own)))
     cards = _agent_cards(builder, listed_cards)
     # Before the loop below: a link followed here is no `symlink_skipped`.
-    instruction_list = _instruction_files(builder, frozenset(skill.path for skill in skills)) if instructions else []
+    instruction_list = _instruction_files(builder, frozenset(skill.path for skill in skills), plugin_dirs) if instructions else []
     if instructions:
         # an instruction file inside a skill is scanned by that skill, once (one owner per file), and read as Markdown there
         # as it would be on its own: otherwise a root SKILL.md would turn the Markdown rules off for every rule file
@@ -894,7 +901,7 @@ def discover(fileset: FileSet, *, listed_cards: Sequence[str] = (), agents_confi
             builder.notices.append(Notice("symlink_skipped", path, "symbolic link; skipped"))
     unread = _oversize_files(builder, frozenset(skill.path for skill in skills), plugin_dirs, listed_cards, instructions)
     items = _items(builder, skills, plugin_items)
-    items = sorted([*items, *(Item("instructions", f.path, f.name, None, f.format, f.front_matter) for f in instruction_list)],
+    items = sorted([*items, *(Item("instructions", f.path, f.name, f.plugin, f.format, f.front_matter) for f in instruction_list)],
                    key=lambda item: (item.kind, item.path))
     # a look-alike file that is not a card is no agent content (r0:F3)
     if not items and not any(is_card(card) for card in cards) and not agents_configured and not unread:
@@ -940,9 +947,28 @@ def _owned_by_a_skill(path: str, skill_directories: frozenset[str]) -> bool:
     return False
 
 
-def _instruction_files(builder: _Builder, skill_directories: frozenset[str]) -> list[InstructionFile]:
+def _plugin_instruction(path: str, plugin_dirs: Mapping[str, str]) -> tuple[str, str] | None:
+    """`(format, plugin name)` of a Markdown file below the `commands/` or `agents/` folder of a local plugin directory, at every
+    depth (Engine 1.20.0: scan selection, 7.7, D16): `claude-command` or `claude-agent`. Matched after NFC and case folding, as
+    the instruction formats are; a plugin at the marketplace root (`.`) reads the root folders; the deepest plugin directory that
+    holds the path names it. None for any other path."""
+    folded = _fold(path)
+    if not folded.endswith(".md"):
+        return None
+    for directory in sorted(plugin_dirs, key=lambda d: 0 if d == "." else len(d), reverse=True):
+        base = "" if directory == "." else _fold(directory) + "/"
+        for folder, format in (("commands/", "claude-command"), ("agents/", "claude-agent")):
+            if folded.startswith(base + folder):
+                return format, plugin_dirs[directory]
+    return None
+
+
+def _instruction_files(builder: _Builder, skill_directories: frozenset[str],
+                       plugin_dirs: Mapping[str, str]) -> list[InstructionFile]:
     """The instruction files of the file set (Phase 3 batch 1 spec 10.2, 10.3), in path order, at most
     `instruction_files.MAX_FILES`, root places first (the error `instructions_limit` counts the rest, which are not read).
+    Since 1.20.0 also the commands and agents of a local plugin directory that no format names (`_plugin_instruction`), which
+    carry the plugin's name, count toward the limit and are never loaded first (Engine 1.20.0: scan selection, 7.7).
     A symbolic link at one of these names is followed when it can be, as at the names of a configuration file; one that cannot
     be followed is the notice
     `symlink_skipped` it was on 1.12.0, never an error. A rule file whose front matter cannot be read still scans and has the
@@ -950,9 +976,16 @@ def _instruction_files(builder: _Builder, skill_directories: frozenset[str]) -> 
     # Past the limit, the files an agent reads at the root of the repository come first (`instruction_files.loaded_first`),
     # then the rest shallowest first: decoys anywhere in the tree cannot push the root `AGENTS.md`, `CLAUDE.md` or a root
     # Cursor or Windsurf rule out of the scan. What is read is then handled in path order.
-    chosen = sorted((path for path in {*builder.paths, *builder.links}
-                     if instruction_files.format_of(path) is not None and not _owned_by_a_skill(path, skill_directories)),
-                    key=lambda path: (not instruction_files.loaded_first(path), path.count("/"), path))
+    candidates: dict[str, tuple[str, str | None]] = {}  # path -> (format, plugin)
+    for path in {*builder.paths, *builder.links}:
+        if _owned_by_a_skill(path, skill_directories):
+            continue
+        format = instruction_files.format_of(path)
+        if format is not None:
+            candidates[path] = (format, None)
+        elif (local := _plugin_instruction(path, plugin_dirs)) is not None:
+            candidates[path] = local
+    chosen = sorted(candidates, key=lambda path: (not instruction_files.loaded_first(path), path.count("/"), path))
     limit = instruction_files.MAX_FILES
     if len(chosen) > limit:
         builder.errors.append(Notice("instructions_limit", "", f"{len(chosen) - limit} more instruction files were not read: the "
@@ -965,13 +998,12 @@ def _instruction_files(builder: _Builder, skill_directories: frozenset[str]) -> 
         content = builder.read(path)
         if content is None:
             continue
-        format = instruction_files.format_of(path)
-        assert format is not None
+        format, plugin = candidates[path]
         front_matter, readable = instruction_files.front_matter_of(format, content)
         if not readable:
             builder.notices.append(Notice("instructions_front_matter", path, "the front matter of this rule file could not be "
                                           "read, so its scope is not shown; the file is still scanned"))
-        found.append(InstructionFile(path, posixpath.basename(path), format, front_matter, content))
+        found.append(InstructionFile(path, posixpath.basename(path), format, front_matter, content, plugin))
     return found
 
 

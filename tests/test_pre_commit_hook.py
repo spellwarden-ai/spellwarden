@@ -34,7 +34,17 @@ AGENT_PATHS = ("SKILL.md", "a/b/SKILL.md", "skills/x/skill.md", "skills/deploy/s
                "AGENTS.md", "docs/CLAUDE.md", "GEMINI.md", "sub/agents.md", ".github/copilot-instructions.md", ".cursorrules",
                ".windsurfrules", ".cursor/rules/x.mdc", ".windsurf/rules/a.md", "sub/.devin/rules/b.md",
                ".well-known/agent-card.json", ".well-known/agent.json", "deploy/agent/agent-card.json",
-               ".spellwarden/config.yml", ".spellwarden/lock.json", ".spellwarden/baseline.yml")
+               ".spellwarden/config.yml", ".spellwarden/lock.json", ".spellwarden/baseline.yml",
+               # Engine 1.20.0 (scan selection, 7.1, 7.3, C26)
+               ".codex/hooks.json", "pkg/.gemini/settings.json", ".cursor/hooks.json", ".windsurf/hooks.json",
+               ".devin/mcp_config.json", ".devin/mcp_config.local.json", ".devin/hooks.v1.json", ".devin/config.json",
+               ".devin/config.local.json", ".github/hooks/audit.json", ".github/copilot/settings.json",
+               ".github/copilot/settings.local.json", ".github/mcp.json", ".claude/rules/a/b.md", "CLAUDE.local.md",
+               "AGENTS.override.md", "AGENTS.local.md", "docs/AGENT.md", ".windsurf/rules/a/b.md", ".windsurf/global_rules.md",
+               ".devin/global_rules.md", ".github/instructions/python.instructions.md", ".claude/commands/deploy.md",
+               ".claude/agents/reviewer.md", ".claude/output-styles/terse.md", ".cursor/agents/planner.md",
+               ".codex/agents/helper.md", ".gemini/agents/researcher.md", ".devin/agents/triage.md",
+               ".agents/agents/support/AGENT.md", ".github/agents/review.agent.md")
 OTHER_PATHS = ("src/main.py", "README.md", "docs/notes.md", "skillset/x.py", "my-skills.md", "package.json", "hooks.json",
                ".github/workflows/check.yml", "agent.json")
 # Variables that would make the scanner think it runs in CI (and ping), as tests/cli/conftest.py
