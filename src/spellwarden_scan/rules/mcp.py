@@ -1124,20 +1124,35 @@ TITLES = {
     "SW-MCP-011": "MCP server text contains instruction-like text",
     "SW-MCP-012": "MCP server's tools changed since they were approved",
 }
+# 1.21.0 (P6-15 spec 5, 6.2): each rule's fix sentence, beside its title, the table the owner approved on 2026-11-23
+FIXES = {
+    "SW-MCP-001": "Require authentication before the server answers tools/list, using OAuth with protected resource metadata.",
+    "SW-MCP-002": "Move the server from a static key to OAuth with protected resource metadata, and until then scope the key to one client and rotate it.",
+    "SW-MCP-003": "Turn on Client ID Metadata Documents at the authorization server and publish client_id_metadata_document_supported as true in its metadata.",
+    "SW-MCP-004": "Move the server from HTTP+SSE to the streamable HTTP transport, which answers POST requests on one address.",
+    "SW-MCP-005": "Update the MCP server library to a release that supports protocol version 2026-07-28, and list that version in supportedVersions.",
+    "SW-MCP-006": "Make the server stateless: stop issuing Mcp-Session-Id and keep what the session held in each request or in your own storage.",
+    "SW-MCP-007": "Add a server/discover handler that returns the supported versions, the capabilities and the server information.",
+    "SW-MCP-008": "Replace Roots, Sampling and Logging as the migration checklist describes, then remove them from the capabilities the server declares.",
+    "SW-MCP-009": "Serve the endpoint over https, with a proxy you operate in front of the server if it cannot terminate TLS itself.",
+    "SW-MCP-010": "Publish protected resource metadata at the address the 401 answer names, list your authorization server in it, and make that server's issuer match its address.",
+    "SW-MCP-011": "Rewrite the description so it says only what the tool does and what its arguments mean, or stop using the server if you do not run it.",
+    "SW-MCP-012": "Read each changed tool, then approve the new tool list if you expected the change, or remove the server from your agents if you did not.",
+}
 
 RULES: tuple[Rule, ...] = (
-    make_rule("SW-MCP-001", TITLES["SW-MCP-001"], "high", "mcp", owasp=("MCP07",), nist=("AC-3",), atlas=("AML.T0084.001", "AML.T0132"), detect=_mcp_001, targets=("kong", "registry")),
-    make_rule("SW-MCP-002", TITLES["SW-MCP-002"], "medium", "mcp", owasp=("MCP01", "MCP07"), nist=("IA-5",), atlas=(), detect=_mcp_002, targets=("registry",)),
-    make_rule("SW-MCP-003", TITLES["SW-MCP-003"], "medium", "mcp", owasp=("MCP07",), nist=("IA-5",), atlas=(), detect=_mcp_003, targets=("registry",)),
-    make_rule("SW-MCP-004", TITLES["SW-MCP-004"], "medium", "mcp", owasp=("ASI04",), nist=("SR-3",), atlas=(), detect=_mcp_004, targets=("registry",)),
-    make_rule("SW-MCP-005", TITLES["SW-MCP-005"], "low", "mcp", owasp=("ASI04",), nist=("SR-3",), atlas=(), detect=_mcp_005, targets=("registry",)),
-    make_rule("SW-MCP-006", TITLES["SW-MCP-006"], "medium", "mcp", owasp=("ASI04",), nist=("SR-3",), atlas=(), detect=_mcp_006),
-    make_rule("SW-MCP-007", TITLES["SW-MCP-007"], "medium", "mcp", owasp=("ASI04",), nist=("SR-3",), atlas=(), detect=_mcp_007),
-    make_rule("SW-MCP-008", TITLES["SW-MCP-008"], "medium", "mcp", owasp=("ASI04",), nist=("SR-3",), atlas=(), detect=_mcp_008),
-    make_rule("SW-MCP-009", TITLES["SW-MCP-009"], "high", "mcp", owasp=(), nist=("SC-7",), atlas=(), detect=_mcp_009, targets=("kong", "registry")),
-    make_rule("SW-MCP-010", TITLES["SW-MCP-010"], "medium", "mcp", owasp=("MCP07",), nist=("IA-5",), atlas=(), detect=_mcp_010, targets=("registry",)),
-    make_rule("SW-MCP-011", TITLES["SW-MCP-011"], "high", "mcp", owasp=("ASI01", "MCP03"), nist=("SI-10",), atlas=("AML.T0110.000", "AML.T0051.001"), detect=_mcp_011, targets=("kong",)),
-    make_rule("SW-MCP-012", TITLES["SW-MCP-012"], "high", "mcp", owasp=("ASI04", "MCP03"), nist=("SI-7",), atlas=("AML.T0109", "AML.T0110.000"), detect=_mcp_012),
+    make_rule("SW-MCP-001", TITLES["SW-MCP-001"], "high", "mcp", owasp=("MCP07",), nist=("AC-3",), atlas=("AML.T0084.001", "AML.T0132"), detect=_mcp_001, targets=("kong", "registry"), fix=FIXES["SW-MCP-001"]),
+    make_rule("SW-MCP-002", TITLES["SW-MCP-002"], "medium", "mcp", owasp=("MCP01", "MCP07"), nist=("IA-5",), atlas=(), detect=_mcp_002, targets=("registry",), fix=FIXES["SW-MCP-002"]),
+    make_rule("SW-MCP-003", TITLES["SW-MCP-003"], "medium", "mcp", owasp=("MCP07",), nist=("IA-5",), atlas=(), detect=_mcp_003, targets=("registry",), fix=FIXES["SW-MCP-003"]),
+    make_rule("SW-MCP-004", TITLES["SW-MCP-004"], "medium", "mcp", owasp=("ASI04",), nist=("SR-3",), atlas=(), detect=_mcp_004, targets=("registry",), fix=FIXES["SW-MCP-004"]),
+    make_rule("SW-MCP-005", TITLES["SW-MCP-005"], "low", "mcp", owasp=("ASI04",), nist=("SR-3",), atlas=(), detect=_mcp_005, targets=("registry",), fix=FIXES["SW-MCP-005"]),
+    make_rule("SW-MCP-006", TITLES["SW-MCP-006"], "medium", "mcp", owasp=("ASI04",), nist=("SR-3",), atlas=(), detect=_mcp_006, fix=FIXES["SW-MCP-006"]),
+    make_rule("SW-MCP-007", TITLES["SW-MCP-007"], "medium", "mcp", owasp=("ASI04",), nist=("SR-3",), atlas=(), detect=_mcp_007, fix=FIXES["SW-MCP-007"]),
+    make_rule("SW-MCP-008", TITLES["SW-MCP-008"], "medium", "mcp", owasp=("ASI04",), nist=("SR-3",), atlas=(), detect=_mcp_008, fix=FIXES["SW-MCP-008"]),
+    make_rule("SW-MCP-009", TITLES["SW-MCP-009"], "high", "mcp", owasp=(), nist=("SC-7",), atlas=(), detect=_mcp_009, targets=("kong", "registry"), fix=FIXES["SW-MCP-009"]),
+    make_rule("SW-MCP-010", TITLES["SW-MCP-010"], "medium", "mcp", owasp=("MCP07",), nist=("IA-5",), atlas=(), detect=_mcp_010, targets=("registry",), fix=FIXES["SW-MCP-010"]),
+    make_rule("SW-MCP-011", TITLES["SW-MCP-011"], "high", "mcp", owasp=("ASI01", "MCP03"), nist=("SI-10",), atlas=("AML.T0110.000", "AML.T0051.001"), detect=_mcp_011, targets=("kong",), fix=FIXES["SW-MCP-011"]),
+    make_rule("SW-MCP-012", TITLES["SW-MCP-012"], "high", "mcp", owasp=("ASI04", "MCP03"), nist=("SI-7",), atlas=("AML.T0109", "AML.T0110.000"), detect=_mcp_012, fix=FIXES["SW-MCP-012"]),
 )
 
 __all__ = ["RULES", "TITLES", "TOOL_CHANGE_RULE", "classify", "tool_change_findings"]
