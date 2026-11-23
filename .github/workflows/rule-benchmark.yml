@@ -1,0 +1,102 @@
+name: rule-benchmark
+
+# Rule benchmark, section 11: the release job `rule-benchmark` of release.yml, started by hand on a branch, so that the job never
+# meets GitHub's runners for the first time inside a release. It builds the wheel, installs it on Linux and Windows, fetches the
+# benchmark's sets from their sources and measures; with `verify` the numbers must equal the entry committed for the version.
+# It uses no secret, writes no release asset and publishes nothing.
+on:
+  workflow_dispatch:
+    inputs:
+      verify:
+        description: The numbers must equal the entry committed for this version in benchmarks/results.json
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.hashes.outputs.version }}
+      wheel_sha256: ${{ steps.hashes.outputs.wheel_sha256 }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5.4.2
+        with:
+          python-version: "3.13"
+      - name: Read the version of pyproject.toml
+        run: |
+          version="$(uv run --locked python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
+          echo "VERSION=${version}" >> "$GITHUB_ENV"
+      - run: uv build
+      - id: hashes
+        name: Record the version and the hash of the wheel
+        run: |
+          set -euo pipefail
+          wheel="dist/spellwarden-${VERSION}-py3-none-any.whl"
+          {
+            echo "version=${VERSION}"
+            echo "wheel_sha256=$(sha256sum "$wheel" | cut -d' ' -f1)"
+          } >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: dist
+          path: |
+            dist/spellwarden-*.whl
+            dist/spellwarden-*.tar.gz
+
+  rule-benchmark:
+    name: rule benchmark on ${{ matrix.os }}
+    needs: build
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+      WHEEL_SHA256: ${{ needs.build.outputs.wheel_sha256 }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.13"
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        with:
+          name: dist
+          path: dist/
+      - name: Install this run's wheel, its hash-pinned dependencies and the benchmark's
+        run: |
+          set -euo pipefail
+          echo "${WHEEL_SHA256}  dist/spellwarden-${VERSION}-py3-none-any.whl" | sha256sum -c -
+          python -m venv "$RUNNER_TEMP/venv"
+          py="$RUNNER_TEMP/venv/bin/python"; [ -x "$py" ] || py="$RUNNER_TEMP/venv/Scripts/python.exe"
+          echo "BENCH_PY=$py" >> "$GITHUB_ENV"
+          "$py" -m pip install --require-hashes -r docker/requirements.deps.txt
+          "$py" -m pip install --no-deps "dist/spellwarden-${VERSION}-py3-none-any.whl"
+          "$py" -m pip install --require-hashes -r benchmarks/requirements.txt
+      - name: Fetch the sets and measure
+        if: ${{ !inputs.verify }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          "$BENCH_PY" benchmarks/rule_benchmark.py run --cache "$RUNNER_TEMP/rule-benchmark-cache" \
+            --expect-version "$VERSION" --entry-out "$RUNNER_TEMP/entry.json"
+      - name: Fetch the sets and measure; the numbers must equal the entry committed for this version
+        if: ${{ inputs.verify }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          "$BENCH_PY" benchmarks/rule_benchmark.py run --cache "$RUNNER_TEMP/rule-benchmark-cache" \
+            --expect-version "$VERSION" --verify benchmarks/results.json --entry-out "$RUNNER_TEMP/entry.json"

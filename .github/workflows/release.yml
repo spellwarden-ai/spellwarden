@@ -376,6 +376,77 @@ jobs:
           test "$code" = 1 || { echo "exit code $code, expected 1 (the findings of the fixture and the gate)"; exit 1; }
           python fixtures/ci/check_connected.py "$RUNNER_TEMP/key-record.json" "$RUNNER_TEMP/key-report.json" --credential key
 
+  rule-benchmark:
+    # Rule benchmark, section 11: the released wheel over the benchmark's fixed sets, fetched from their sources at pinned commits
+    # and checked byte for byte. A failed fetch, a changed sample or numbers that differ from the entry committed for this
+    # version stop the release (owner decision idea:Q3). Linux and Windows, as `benchmarks/README.md` promises.
+    name: rule benchmark on ${{ matrix.os }}
+    needs: build
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+      WHEEL_SHA256: ${{ needs.build.outputs.wheel_sha256 }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.13"
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        with:
+          name: dist
+          path: dist/
+      - name: Install this run's wheel, its hash-pinned dependencies and the benchmark's
+        run: |
+          set -euo pipefail
+          echo "${WHEEL_SHA256}  dist/spellwarden-${VERSION}-py3-none-any.whl" | sha256sum -c -
+          python -m venv "$RUNNER_TEMP/venv"
+          py="$RUNNER_TEMP/venv/bin/python"; [ -x "$py" ] || py="$RUNNER_TEMP/venv/Scripts/python.exe"
+          echo "BENCH_PY=$py" >> "$GITHUB_ENV"
+          "$py" -m pip install --require-hashes -r docker/requirements.deps.txt
+          "$py" -m pip install --no-deps "dist/spellwarden-${VERSION}-py3-none-any.whl"
+          "$py" -m pip install --require-hashes -r benchmarks/requirements.txt
+      - name: Fetch the sets and measure; the numbers must equal the entry committed for this version
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          "$BENCH_PY" benchmarks/rule_benchmark.py run --cache "$RUNNER_TEMP/rule-benchmark-cache" \
+            --expect-version "$VERSION" --verify benchmarks/results.json --entry-out "$RUNNER_TEMP/entry.json"
+      - name: Earlier entries are those the last release published
+        if: runner.os == 'Linux'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          previous="$(gh release list --exclude-drafts --limit 1 --json tagName --jq '.[0].tagName // ""')"
+          if [ -n "$previous" ] && gh release view "$previous" --json assets --jq '.assets[].name' | grep -qx rule-benchmark.json; then
+            gh release download "$previous" --pattern rule-benchmark.json --dir "$RUNNER_TEMP/previous"
+            "$BENCH_PY" benchmarks/rule_benchmark.py check-history --previous "$RUNNER_TEMP/previous/rule-benchmark.json"
+          else
+            echo "no earlier release carries rule-benchmark.json"
+          fi
+      - name: Write the release assets
+        if: runner.os == 'Linux'
+        run: |
+          mkdir "$RUNNER_TEMP/rule-benchmark"
+          "$BENCH_PY" benchmarks/rule_benchmark.py render --json-out "$RUNNER_TEMP/rule-benchmark/rule-benchmark.json" \
+            --markdown-out "$RUNNER_TEMP/rule-benchmark/rule-benchmark.md"
+      - if: runner.os == 'Linux'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: rule-benchmark
+          path: ${{ runner.temp }}/rule-benchmark
+          if-no-files-found: error
+
   gateway-exports:
     # Phase 3 batch 2b spec 10.9 (claims T-13, T-15): the gateway exports of the baseline pack, run by the gateways themselves
     # in front of tests/fixtures/gateways/server.py. ToolHive v0.65.0 must hide and refuse delete_order and answer read_order;
@@ -409,7 +480,7 @@ jobs:
           if-no-files-found: ignore
 
   publish:
-    needs: [build, e2e, e2e-no-python, e2e-permissions, e2e-telemetry, e2e-connected, gateway-exports]
+    needs: [build, e2e, e2e-no-python, e2e-permissions, e2e-telemetry, e2e-connected, rule-benchmark, gateway-exports]
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
@@ -437,7 +508,7 @@ jobs:
           attestations: true
 
   image:
-    needs: [build, e2e, e2e-no-python, e2e-permissions, e2e-telemetry, e2e-connected, gateway-exports]
+    needs: [build, e2e, e2e-no-python, e2e-permissions, e2e-telemetry, e2e-connected, rule-benchmark, gateway-exports]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -524,7 +595,7 @@ jobs:
           printf '### Image\n\n`%s@%s`\n' "$IMAGE" "$DIGEST" >> "$GITHUB_STEP_SUMMARY"
 
   github-release:
-    needs: [build, publish, image]
+    needs: [build, publish, image, rule-benchmark]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -549,6 +620,15 @@ jobs:
             "spellwarden-${VERSION}-py3-none-any.whl spellwarden-${VERSION}.tar.gz "
           printf '%s  %s\n' "$WHEEL_SHA256" "dist/spellwarden-${VERSION}-py3-none-any.whl" \
             "$SDIST_SHA256" "dist/spellwarden-${VERSION}.tar.gz" | sha256sum -c -
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        with:
+          name: rule-benchmark
+          path: ${{ runner.temp }}/rule-benchmark
+      - name: The rule benchmark artifact holds exactly the two release assets
+        run: |
+          set -euo pipefail
+          test "$(find "$RUNNER_TEMP/rule-benchmark" -mindepth 1 -printf '%P\n' | LC_ALL=C sort | tr '\n' ' ')" = \
+            "rule-benchmark.json rule-benchmark.md "
       - name: The GitHub release with the draft manifest (commits filled later by manifest.yml)
         run: |
           set -euo pipefail
@@ -557,4 +637,5 @@ jobs:
             --sdist-sha256 "$SDIST_SHA256" --image-digest "$DIGEST" > release-manifest.json
           gh release create "v${VERSION}" --verify-tag --title "spellwarden ${VERSION}" \
             --notes-file "$RUNNER_TEMP/notes.md" \
-            "dist/spellwarden-${VERSION}-py3-none-any.whl" "dist/spellwarden-${VERSION}.tar.gz" release-manifest.json
+            "dist/spellwarden-${VERSION}-py3-none-any.whl" "dist/spellwarden-${VERSION}.tar.gz" release-manifest.json \
+            "$RUNNER_TEMP/rule-benchmark/rule-benchmark.json" "$RUNNER_TEMP/rule-benchmark/rule-benchmark.md"
