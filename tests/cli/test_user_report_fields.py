@@ -61,4 +61,4 @@ def test_the_user_only_instruction_formats_say_when_they_apply():
     assert instruction_files.instruction_scope("devin-rules", "~/.devin/rules/x.md", manual) == instruction_files.ASKED
     # a repository file keeps its 1.13.0 scope: `global_rules.md` under `.windsurf/rules/` is a rule like any other
     assert instruction_files.instruction_scope("windsurf-rules", ".windsurf/rules/global_rules.md", None) == instruction_files.ASKED
-    assert instruction_files.format_of(".claude/rules/x.md") is None  # the user formats are never given by a path
+    assert instruction_files.format_of(".claude/rules/x.md") == "claude-rule"  # 1.20.0: a repository reads Claude Code rules

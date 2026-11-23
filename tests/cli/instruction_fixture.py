@@ -29,9 +29,12 @@ INSTRUCTION_FILES = {
 }
 FILES = {path: text for path, (_format, text) in INSTRUCTION_FILES.items()}
 # Files the table does not name: the same sentence in each, and none of them is scanned. (A file `agents.md` is no decoy: it differs
-# from `AGENTS.md` only in case, which the file set refuses as a `case_collision` before discovery.)
+# from `AGENTS.md` only in case, which the file set refuses as a `case_collision` before discovery.) 1.20.0 reads `AGENT.md`,
+# `AGENTS.local.md`, `CLAUDE.local.md` and `.github/instructions/*.instructions.md` (Engine 1.20.0: scan selection, 7.3), so they
+# are decoys no more; the five paths after `.gemini/notes.md` are not read by 1.20.0 either.
 DECOYS = {
-    ".github/instructions/python.instructions.md": INJECTION, "AGENT.md": INJECTION, "AGENTS.local.md": INJECTION,
-    "CLAUDE.local.md": INJECTION, ".cursor/rules/old.md": INJECTION, "docs/.github/copilot-instructions.md": INJECTION,
-    "sub/.cursorrules": INJECTION, "sub/.windsurfrules": INJECTION, ".gemini/notes.md": INJECTION,
+    ".cursor/rules/old.md": INJECTION, "docs/.github/copilot-instructions.md": INJECTION, "sub/.cursorrules": INJECTION,
+    "sub/.windsurfrules": INJECTION, ".gemini/notes.md": INJECTION, ".github/prompts/release.prompt.md": INJECTION,
+    ".cursor/commands/deploy.md": INJECTION, ".codex/agents/helper.toml": INJECTION, ".windsurf/workflows/ship.md": INJECTION,
+    ".claude/output-styles/old/terse.md": INJECTION,
 }

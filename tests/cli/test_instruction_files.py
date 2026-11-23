@@ -19,18 +19,37 @@ from spellwarden_cli.instruction_files import front_matter_of, instruction_scope
     (".windsurf/rules/team.md", "windsurf-rules"), (".devin/rules/team.md", "windsurf-rules"),
     ("svc/.windsurf/rules/team.md", "windsurf-rules"), ("svc/.devin/rules/deploy.md", "windsurf-rules"),
     (".windsurfrules", "windsurf-rules"),
+    # Engine 1.20.0 (scan selection, 7.3)
+    (".claude/rules/a.md", "claude-rule"), (".claude/rules/team/deep/a.md", "claude-rule"), ("pkg/.claude/rules/a.md", "claude-rule"),
+    ("CLAUDE.local.md", "claude-md"), ("docs/CLAUDE.local.md", "claude-md"),
+    ("AGENTS.override.md", "agents-md"), ("AGENTS.local.md", "agents-md"), ("AGENT.md", "agents-md"), ("docs/AGENT.md", "agents-md"),
+    (".windsurf/rules/sub/team.md", "windsurf-rules"), (".devin/rules/a/b/c.md", "windsurf-rules"),
+    (".windsurf/global_rules.md", "windsurf-rules"), ("svc/.devin/global_rules.md", "windsurf-rules"),
+    (".github/instructions/python.instructions.md", "github-instructions"),
+    (".github/instructions/sub/x.instructions.md", "github-instructions"),
+    (".claude/commands/deploy.md", "claude-command"), (".claude/commands/ops/restart.md", "claude-command"),
+    (".claude/agents/reviewer.md", "claude-agent"), ("pkg/.claude/agents/team/x.md", "claude-agent"),
+    (".claude/output-styles/terse.md", "claude-output-style"),
+    (".cursor/agents/planner.md", "cursor-agent"), (".codex/agents/helper.md", "codex-agent"),
+    (".gemini/agents/researcher.md", "gemini-agent"),
+    (".devin/agents/triage.md", "devin-agent"), (".agents/agents/x.md", "devin-agent"),
+    (".devin/agents/a/AGENT.md", "devin-agent"), (".agents/agents/support/AGENT.md", "devin-agent"),
+    (".github/agents/review.agent.md", "github-agent"), (".github/agents/team/x.md", "github-agent"),
 ])
 def test_the_paths_of_the_table_are_instruction_files(path, expected):
     assert instructions.format_of(path) == expected
-    assert expected in instructions.FORMATS
+    assert expected in instructions.REPOSITORY_FORMATS
 
 
 @pytest.mark.parametrize("path", [
-    "README.md", "AGENT.md", "AGENTS.local.md", "CLAUDE.local.md", "AGENTS.mdx",
-    ".github/instructions/python.instructions.md", ".github/copilot-instructions.md.bak", "docs/.github/copilot-instructions.md",
+    "README.md", "AGENTS.mdx", ".github/copilot-instructions.md.bak", "docs/.github/copilot-instructions.md",
     "sub/.cursorrules", "sub/.windsurfrules", ".cursor/rules/old.md", ".cursor/rules/style.mdc.bak", ".cursor/style.mdc",
-    "rules/style.mdc", ".windsurf/rules/sub/team.md", ".windsurf/rules/team.txt", ".windsurf/global_rules.md", ".devin/team.md",
-    ".gemini/GEMINI.txt", "AGENTS.md/x", "a/CLAUDE.md/b.md", ".windsurf/rules.md",
+    "rules/style.mdc", ".windsurf/rules/team.txt", ".devin/team.md", ".gemini/GEMINI.txt", "AGENTS.md/x", "a/CLAUDE.md/b.md",
+    ".windsurf/rules.md",
+    # Engine 1.20.0 (scan selection, 7.3, 7.13): still not read
+    ".github/prompts/release.prompt.md", ".codex/agents/helper.toml", ".gemini/commands/x.toml", ".cursor/commands/x.md",
+    ".windsurf/workflows/w.md", ".claude/output-styles/sub/x.md", ".cursor/agents/sub/x.md", ".devin/agents/a/notes.md",
+    ".github/instructions/notes.md", ".claude/rules.md", "rules/x.md", ".gemini/notes.md", ".claude/workflows/x.js",
 ])
 def test_everything_else_is_not_an_instruction_file(path):
     assert instructions.format_of(path) is None
@@ -162,3 +181,92 @@ def test_a_path_in_another_case_is_the_same_instruction_file(path, expected):
 ])
 def test_the_places_an_agent_reads_at_the_root_come_first(path, first):
     assert instructions.loaded_first(path) is first
+
+
+def test_the_precedence_of_a_path_with_two_rules():
+    """Engine 1.20.0 (7.4, D12): Devin's `<name>/AGENT.md` first, then names, then the scan-root files, then folders in order."""
+    assert instructions.format_of(".devin/agents/a/AGENT.md") == "devin-agent"
+    assert instructions.format_of(".claude/agents/AGENTS.md") == "agents-md"
+    assert instructions.format_of(".cursor/rules/AGENTS.md") == "agents-md"
+    assert instructions.format_of("docs/AGENT.md") == "agents-md"
+    assert instructions.format_of(".claude/rules/x/.claude/commands/y.md") == "claude-rule"
+    assert instructions.format_of(".windsurf/rules/global_rules.md") == "windsurf-rules"
+
+
+@pytest.mark.parametrize("path, first", [
+    ("AGENTS.md", True), ("CLAUDE.local.md", True), ("AGENTS.override.md", True), ("docs/AGENT.md", False),
+    (".claude/commands/x.md", True), (".claude/commands/a/b.md", True), ("pkg/.claude/commands/x.md", False),
+    (".claude/rules/x.md", True), (".claude/agents/x.md", True), (".claude/output-styles/x.md", True),
+    (".cursor/agents/x.md", True), (".codex/agents/x.md", True), (".gemini/agents/x.md", True), (".devin/agents/x.md", True),
+    (".agents/agents/s/AGENT.md", True), (".github/instructions/x.instructions.md", True), (".github/agents/x.md", True),
+    (".windsurf/global_rules.md", True), ("svc/.windsurf/global_rules.md", False), (".windsurf/rules/a/b.md", True),
+    ("svc/.devin/rules/x.md", False), ("README.md", False),
+])
+def test_the_root_agent_folders_are_loaded_first(path, first):
+    assert instructions.loaded_first(path) is first
+
+
+def test_apply_to_is_read_as_globs_and_a_block_description_of_a_new_format_is_none():
+    assert fm('---\napplyTo: "**/*.ts,**/*.tsx"\ndescription: TypeScript\n---\n', "github-instructions")[0] == {
+        "description": "TypeScript", "globs": ["**/*.ts", "**/*.tsx"], "always_apply": None, "trigger": None}
+    assert fm("---\napplyTo:\n  - src/**\n  - '*.py'\n---\n", "github-instructions")[0]["globs"] == ["src/**", "*.py"]
+    assert fm("---\napplyTo: [a/**, b/**]\n---\n", "github-instructions")[0]["globs"] == ["a/**", "b/**"]
+    for block in ("|", ">", "|-", ">+", "|2"):
+        assert fm(f"---\ndescription: {block}\n  Reviews code.\n---\n", "claude-agent")[0]["description"] is None, block
+    assert fm("---\ndescription: Reviews code.\nmodel: opus\ntools: Read\n---\n", "claude-agent")[0] == {
+        "description": "Reviews code.", "globs": None, "always_apply": None, "trigger": None}
+    assert fm("---\ndescription: |\n---\n", "cursor-mdc")[0]["description"] == "|"  # an existing format parses as on 1.19.0
+    assert fm('---\nglobs: "*.ts"\n---\n')[0]["globs"] == ["*.ts"]  # Cursor's globs are not changed
+
+
+@pytest.mark.parametrize("format, path, text, expected", [
+    ("claude-output-style", ".claude/output-styles/t.md", "---\ndescription: Short\n---\n", "Applied when asked for"),
+    ("codex-prompt", "~/.codex/prompts/r.md", "---\ndescription: Release\n---\n", "Applied when asked for"),
+    ("claude-command", ".claude/commands/d.md", "---\ndescription: Deploys\n---\n",
+     "Applied when the agent judges it relevant: Deploys"),
+    ("claude-command", ".claude/commands/d.md", "No front matter\n", "Applied when asked for"),
+    ("claude-agent", ".claude/agents/r.md", "---\ndescription: Reviews\n---\n", "Applied when the agent judges it relevant: Reviews"),
+    ("cursor-agent", ".cursor/agents/p.md", "x\n", "Applied when asked for"),
+    ("devin-agent", ".devin/agents/a/AGENT.md", "---\ndescription: Triages\n---\n",
+     "Applied when the agent judges it relevant: Triages"),
+    ("github-instructions", ".github/instructions/p.instructions.md", '---\napplyTo: "**/*.py"\n---\n',
+     "Applied to files matching: **/*.py"),
+    ("github-instructions", ".github/instructions/p.instructions.md", "---\ndescription: Python\n---\n",
+     "Applied when the agent judges it relevant: Python"),
+    ("github-instructions", ".github/instructions/p.instructions.md", "x\n", "Applied when asked for"),
+    ("github-agent", ".github/agents/a.agent.md", "x\n", "Applied when asked for"),
+    ("windsurf-rules", ".windsurf/global_rules.md", "x\n", "Applied: always"),
+    ("windsurf-rules", "svc/.devin/global_rules.md", "x\n", "Applied: always"),
+    ("windsurf-rules", ".windsurf/rules/global_rules.md", "x\n", "Applied when asked for"),
+    ("copilot-instructions", "~/.copilot/copilot-instructions.md", "x\n", "Applied: always"),
+    ("agents-md", "AGENTS.override.md", "x\n", "Applied: always"),
+    ("claude-rule", ".claude/rules/a.md", "x\n", "Applied: always"),
+])
+def test_the_scope_words_of_each_format(format, path, text, expected):
+    front_matter, _ = front_matter_of(format, text.encode("utf-8"))
+    assert instruction_scope(format, path, front_matter) == expected
+
+
+def test_the_schemas_list_the_formats_and_every_format_is_short():
+    import json
+    from pathlib import Path
+
+    schemas = Path(__file__).resolve().parents[2] / "schemas"
+    report = json.loads((schemas / "report.schema.json").read_text(encoding="utf-8"))
+    lock = json.loads((schemas / "lock.schema.json").read_text(encoding="utf-8"))
+    assert report["$defs"]["item"]["properties"]["format"]["enum"] == list(instructions.FORMATS)
+    (locked,) = [entry for entry in lock["$defs"]["item"]["oneOf"]
+                 if entry["properties"]["kind"].get("const") == "instructions"]
+    assert locked["properties"]["format"]["enum"] == list(instructions.REPOSITORY_FORMATS)
+    assert set(instructions.REPOSITORY_FORMATS) == set(instructions.FORMATS) - set(instructions.USER_ONLY_FORMATS)
+    assert len(instructions.FORMATS) == 21 and len(set(instructions.FORMATS)) == 21
+    assert all(len(format) <= 24 for format in instructions.FORMATS)
+
+
+@pytest.mark.parametrize("format", [f for f in instructions.FORMATS if f not in ("agents-md", "claude-md", "gemini-md",
+                                                                                  "copilot-instructions", "cursorrules",
+                                                                                  "codex-agents-md")])
+def test_every_front_matter_has_the_four_uploaded_fields_only(format):
+    text = b"---\ndescription: d\nglobs: a\npaths: b\napplyTo: c\nalwaysApply: true\ntrigger: manual\nhooks: x\n---\n"
+    front_matter, readable = front_matter_of(format, text)
+    assert readable and set(front_matter) == {"description", "globs", "always_apply", "trigger"}
