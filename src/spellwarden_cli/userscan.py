@@ -161,7 +161,7 @@ class _Home:
         candidate = os.path.join(real, name)
         try:
             info = os.lstat(candidate)
-        except FileNotFoundError:
+        except (FileNotFoundError, NotADirectoryError):  # a name below a regular file does not exist (`agents/*/AGENT.md`)
             return None
         except OSError as exc:
             self.errors.append(Notice("unreadable", shown, f"cannot be read ({exc.strerror or type(exc).__name__})"))

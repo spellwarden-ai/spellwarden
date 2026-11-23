@@ -1,0 +1,1 @@
+{"mcpServers": {"legacy": {"serverUrl": "https://legacy.example.com/mcp", "headers": {"X-Key": "CANARY-HEADER-VALUE"}}}}

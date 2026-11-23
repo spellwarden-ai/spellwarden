@@ -1,0 +1,1 @@
+{"mcpServers": {"notes-server": {"command": "npx", "args": ["notes-mcp@1.0.0", "CANARY-ARGUMENT"], "env": {"NOTES_TOKEN": "CANARY-ENV-VALUE"}}}}

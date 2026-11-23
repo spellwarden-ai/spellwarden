@@ -773,51 +773,86 @@ A symbolic link at a path of the table, at a directory the table lists entries o
 | Claude Code | all | `$CLAUDE_CONFIG_DIR/settings.json` | hooks, permissions, `enabledPlugins`, `extraKnownMarketplaces` | <https://code.claude.com/docs/en/settings> | 2026-11-14 |
 | Claude Code | all | `$CLAUDE_CONFIG_DIR/skills` | skills (`<name>/SKILL.md`) | <https://code.claude.com/docs/en/claude-directory> | 2026-11-14 |
 | Claude Code | all | `$CLAUDE_CONFIG_DIR/CLAUDE.md` | instruction file (`claude-md`) | <https://code.claude.com/docs/en/claude-directory> | 2026-11-14 |
-| Claude Code | all | `$CLAUDE_CONFIG_DIR/rules/*.md` | instruction files (`claude-rule`) | <https://code.claude.com/docs/en/claude-directory> | 2026-11-14 |
-| Claude Code | all | `$CLAUDE_CONFIG_DIR/plugins/installed_plugins.json` | installed plugins, and in each plugin's directory its skills, `.mcp.json`, `hooks/hooks.json` and `.claude-plugin/plugin.json` | <https://code.claude.com/docs/en/plugins/loading> | 2026-11-14 |
+| Claude Code | all | `$CLAUDE_CONFIG_DIR/rules/**/*.md` | instruction files (`claude-rule`), subfolders included | <https://code.claude.com/docs/en/memory#user-level-rules> | 2026-11-23 |
+| Claude Code | all | `$CLAUDE_CONFIG_DIR/commands/**/*.md` | commands (`claude-command`), subfolders included | <https://code.claude.com/docs/en/settings-reference> | 2026-11-23 |
+| Claude Code | all | `$CLAUDE_CONFIG_DIR/agents/**/*.md` | subagents (`claude-agent`), subfolders included | <https://code.claude.com/docs/en/sub-agents> | 2026-11-23 |
+| Claude Code | all | `$CLAUDE_CONFIG_DIR/output-styles/*.md` | output styles (`claude-output-style`) | <https://code.claude.com/docs/en/output-styles> | 2026-11-23 |
+| Claude Code | all | `$CLAUDE_CONFIG_DIR/plugins/installed_plugins.json` | installed plugins, and in each plugin's directory its skills, commands (`claude-command`), subagents (`claude-agent`), `.mcp.json`, `hooks/hooks.json` and `.claude-plugin/plugin.json` (the layout of <https://code.claude.com/docs/en/plugins/manifest-reference>) | <https://code.claude.com/docs/en/plugins/loading> | 2026-11-23 |
 | Claude Code | all | `$CLAUDE_CONFIG_DIR/plugins/known_marketplaces.json` | marketplaces and their sources | <https://code.claude.com/docs/en/plugins/loading> | 2026-11-14 |
 | Claude Desktop | Linux | `$XDG_CONFIG_HOME/Claude/claude_desktop_config.json` | MCP servers (`mcpServers`) | <https://modelcontextprotocol.io/docs/develop/connect-local-servers> | 2026-11-14 |
 | Claude Desktop | macOS | `~/Library/Application Support/Claude/claude_desktop_config.json` | MCP servers (`mcpServers`) | <https://modelcontextprotocol.io/docs/develop/connect-local-servers> | 2026-11-14 |
 | Claude Desktop | Windows | `%APPDATA%/Claude/claude_desktop_config.json` | MCP servers (`mcpServers`) | <https://modelcontextprotocol.io/docs/develop/connect-local-servers> | 2026-11-14 |
 | Cursor | all | `~/.cursor/mcp.json` | MCP servers (`mcpServers`) | <https://cursor.com/docs/context/mcp> | 2026-11-14 |
 | Cursor | all | `~/.cursor/hooks.json` | hooks | <https://cursor.com/docs/agent/hooks> | 2026-11-14 |
+| Cursor | all | `~/.cursor/skills` | skills (`<name>/SKILL.md`) | <https://cursor.com/docs/skills> | 2026-11-23 |
+| Cursor | all | `~/.agents/skills` | skills (`<name>/SKILL.md`) | <https://cursor.com/docs/skills> | 2026-11-23 |
+| Cursor | all | `~/.claude/skills` | skills (`<name>/SKILL.md`) | <https://cursor.com/docs/skills> | 2026-11-23 |
+| Cursor | all | `~/.codex/skills` | skills (`<name>/SKILL.md`) | <https://cursor.com/docs/skills> | 2026-11-23 |
+| Cursor | all | `~/.cursor/agents/*.md` | subagents (`cursor-agent`) | <https://cursor.com/docs/subagents> | 2026-11-23 |
+| Cursor | all | `~/.claude/agents/*.md` | subagents (`claude-agent`) | <https://cursor.com/docs/subagents> | 2026-11-23 |
+| Cursor | all | `~/.codex/agents/*.md` | subagents (`codex-agent`) | <https://cursor.com/docs/subagents> | 2026-11-23 |
+| Cursor | all | `~/.cursor/plugins/local/*` | local plugins: each plugin's `.cursor-plugin/plugin.json` or `plugin.json`, `mcp.json`, `hooks/hooks.json`, skills, rules (`cursor-mdc`), subagents (`cursor-agent`) and commands (`cursor-command`) | <https://cursor.com/docs/plugins> | 2026-11-23 |
 | VS Code | all | `$COPILOT_HOME/mcp-config.json` | MCP servers (`mcpServers`) | <https://code.visualstudio.com/docs/copilot/reference/mcp-configuration> | 2026-11-14 |
 | VS Code | all | `$COPILOT_HOME/skills` | skills (`<name>/SKILL.md`) | <https://code.visualstudio.com/docs/copilot/customization/agent-skills> | 2026-11-14 |
 | VS Code | all | `~/.claude/skills` | skills (`<name>/SKILL.md`) | <https://code.visualstudio.com/docs/copilot/customization/agent-skills> | 2026-11-14 |
 | VS Code | all | `~/.agents/skills` | skills (`<name>/SKILL.md`) | <https://code.visualstudio.com/docs/copilot/customization/agent-skills> | 2026-11-14 |
+| VS Code | all | `$COPILOT_HOME/copilot-instructions.md` | instruction file (`copilot-instructions`) | <https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-config-dir-reference> | 2026-11-23 |
+| VS Code | all | `$COPILOT_HOME/instructions/**/*.instructions.md` | instruction files (`github-instructions`), subfolders included | <https://code.visualstudio.com/docs/agents/reference/custom-instructions-reference> | 2026-11-23 |
+| VS Code | all | `$COPILOT_HOME/agents/**/*.md` | custom agents (`github-agent`), subfolders included | <https://code.visualstudio.com/docs/agents/reference/custom-agent-file-reference> | 2026-11-23 |
+| VS Code | all | `$COPILOT_HOME/hooks/*.json` | hooks (each `bash`, `powershell` and `command`) | <https://docs.github.com/en/copilot/reference/hooks-reference> | 2026-11-23 |
+| VS Code | all | `$COPILOT_HOME/settings.json` | inline hooks, `enabledPlugins`, `extraKnownMarketplaces` | <https://docs.github.com/en/copilot/reference/hooks-reference> | 2026-11-23 |
+| VS Code | all | `$COPILOT_HOME/installed-plugins/*/*` | installed plugins (`_direct/<source id>` included): each plugin's manifest, `.mcp.json`, hooks, skills and custom agents (`github-agent`) | <https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-plugin-reference> | 2026-11-23 |
+| VS Code | all | `~/.claude/rules/**/*.md` | instruction files (`claude-rule`), subfolders included | <https://code.visualstudio.com/docs/agents/reference/ai-settings> | 2026-11-23 |
+| VS Code | all | `~/.claude/CLAUDE.md` | instruction file (`claude-md`) | <https://code.visualstudio.com/docs/agents/reference/custom-instructions-reference> | 2026-11-23 |
+| VS Code | all | `~/.claude/agents/**/*.md` | custom agents (`claude-agent`), subfolders included | <https://code.visualstudio.com/docs/agents/reference/custom-agent-file-reference> | 2026-11-23 |
 | VS Code | Linux | `$XDG_CONFIG_HOME/Code/User/mcp.json`<br>`$XDG_CONFIG_HOME/Code/User/profiles/*/mcp.json`<br>`$XDG_CONFIG_HOME/Code - Insiders/User/mcp.json`<br>`$XDG_CONFIG_HOME/Code - Insiders/User/profiles/*/mcp.json` | MCP servers (`servers`) | <https://code.visualstudio.com/docs/copilot/reference/mcp-configuration> (the folder from <https://code.visualstudio.com/docs/configure/settings> and <https://code.visualstudio.com/docs/configure/profiles>) | 2026-11-15 |
 | VS Code | macOS | `~/Library/Application Support/Code/User/mcp.json`<br>`~/Library/Application Support/Code/User/profiles/*/mcp.json`<br>`~/Library/Application Support/Code - Insiders/User/mcp.json`<br>`~/Library/Application Support/Code - Insiders/User/profiles/*/mcp.json` | MCP servers (`servers`) | <https://code.visualstudio.com/docs/copilot/reference/mcp-configuration> (the folder from <https://code.visualstudio.com/docs/configure/settings> and <https://code.visualstudio.com/docs/configure/profiles>) | 2026-11-15 |
 | VS Code | Windows | `%APPDATA%/Code/User/mcp.json`<br>`%APPDATA%/Code/User/profiles/*/mcp.json`<br>`%APPDATA%/Code - Insiders/User/mcp.json`<br>`%APPDATA%/Code - Insiders/User/profiles/*/mcp.json` | MCP servers (`servers`) | <https://code.visualstudio.com/docs/copilot/reference/mcp-configuration> (the folder from <https://code.visualstudio.com/docs/configure/settings> and <https://code.visualstudio.com/docs/configure/profiles>) | 2026-11-15 |
-| Windsurf (Devin Desktop) | all | `~/.config/devin/mcp_config.json` | MCP servers (`mcpServers`, remote ones by `serverUrl` or `url`) | <https://docs.devin.ai/desktop/cascade/mcp> | 2026-11-14 |
-| Windsurf (Devin Desktop) | all | `~/.devin/global_rules.md` | instruction file (`devin-rules`) | <https://docs.devin.ai/desktop/cascade/memories> | 2026-11-14 |
-| Windsurf (Devin Desktop) | all | `~/.devin/rules/*.md` | instruction files (`devin-rules`) | <https://docs.devin.ai/desktop/cascade/memories> | 2026-11-14 |
-| Windsurf (Devin Desktop) | all | `~/.config/devin/skills` | skills (`<name>/SKILL.md`) | <https://docs.devin.ai/desktop/cascade/mcp> | 2026-11-14 |
-| Windsurf (Devin Desktop) | all | `~/.agents/skills` | skills (`<name>/SKILL.md`) | <https://docs.devin.ai/desktop/cascade/mcp> | 2026-11-14 |
+| Windsurf (Devin Desktop) | Linux, macOS | `$XDG_CONFIG_HOME/devin/mcp_config.json` | MCP servers (`mcpServers`, remote ones by `serverUrl` or `url`) | <https://docs.devin.ai/desktop/devin-local/customizations> | 2026-11-23 |
+| Windsurf (Devin Desktop) | Windows | `%APPDATA%/devin/mcp_config.json` | MCP servers (`mcpServers`, remote ones by `serverUrl` or `url`) | <https://docs.devin.ai/desktop/devin-local/customizations> | 2026-11-23 |
+| Windsurf (Devin Desktop) | all | `~/.devin/global_rules.md` | instruction file (`devin-rules`) | <https://docs.devin.ai/desktop/devin-local/customizations> | 2026-11-23 |
+| Windsurf (Devin Desktop) | all | `~/.devin/rules/*.md` | instruction files (`devin-rules`) | <https://docs.devin.ai/desktop/devin-local/customizations> | 2026-11-23 |
+| Windsurf (Devin Desktop) | Linux, macOS | `$XDG_CONFIG_HOME/devin/skills` | skills (`<name>/SKILL.md`) | <https://docs.devin.ai/cli/extensibility/skills/overview> (the folder from <https://docs.devin.ai/desktop/devin-local/customizations>) | 2026-11-23 |
+| Windsurf (Devin Desktop) | Windows | `%APPDATA%/devin/skills` | skills (`<name>/SKILL.md`) | <https://docs.devin.ai/cli/extensibility/skills/overview> (the folder from <https://docs.devin.ai/desktop/devin-local/customizations>) | 2026-11-23 |
+| Windsurf (Devin Desktop) | Linux, macOS | `$XDG_CONFIG_HOME/devin/AGENTS.md`<br>`$XDG_CONFIG_HOME/devin/AGENT.md` | instruction files (`agents-md`) | <https://docs.devin.ai/cli/extensibility/rules> (the folder from <https://docs.devin.ai/desktop/devin-local/customizations>) | 2026-11-23 |
+| Windsurf (Devin Desktop) | Windows | `%APPDATA%/devin/AGENTS.md`<br>`%APPDATA%/devin/AGENT.md` | instruction files (`agents-md`) | <https://docs.devin.ai/cli/extensibility/rules> (the folder from <https://docs.devin.ai/desktop/devin-local/customizations>) | 2026-11-23 |
+| Windsurf (Devin Desktop) | Linux, macOS | `$XDG_CONFIG_HOME/devin/agents/*.md`<br>`$XDG_CONFIG_HOME/devin/agents/*/AGENT.md` | subagents (`devin-agent`) | <https://docs.devin.ai/cli/subagents> (the folder from <https://docs.devin.ai/desktop/devin-local/customizations>) | 2026-11-23 |
+| Windsurf (Devin Desktop) | Windows | `%APPDATA%/devin/agents/*.md`<br>`%APPDATA%/devin/agents/*/AGENT.md` | subagents (`devin-agent`) | <https://docs.devin.ai/cli/subagents> (the folder from <https://docs.devin.ai/desktop/devin-local/customizations>) | 2026-11-23 |
+| Windsurf (Devin Desktop) | Linux, macOS | `$XDG_CONFIG_HOME/devin/config.json` | hooks (`hooks`) | <https://docs.devin.ai/cli/extensibility/hooks/overview> (the folder from <https://docs.devin.ai/desktop/devin-local/customizations>) | 2026-11-23 |
+| Windsurf (Devin Desktop) | Windows | `%APPDATA%/devin/config.json` | hooks (`hooks`) | <https://docs.devin.ai/cli/extensibility/hooks/overview> (the folder from <https://docs.devin.ai/desktop/devin-local/customizations>) | 2026-11-23 |
+| Windsurf (Devin Desktop) | all | `~/.agents/skills` | skills (`<name>/SKILL.md`) | <https://docs.devin.ai/cli/extensibility/skills/overview> | 2026-11-23 |
+| Windsurf (Devin Desktop) | all | `~/.codeium/windsurf/mcp_config.json`<br>`~/.codeium/windsurf-next/mcp_config.json`<br>`~/.codeium/windsurf-insiders/mcp_config.json` | MCP servers (`mcpServers`, remote ones by `serverUrl` or `url`) | <https://docs.devin.ai/cli/reference/configuration/read-config-from> | 2026-11-23 |
+| Windsurf (Devin Desktop) | all | `~/.codeium/windsurf/skills`<br>`~/.codeium/windsurf-next/skills`<br>`~/.codeium/windsurf-insiders/skills` | skills (`<name>/SKILL.md`) | <https://docs.devin.ai/cli/extensibility/skills/overview> | 2026-11-23 |
+| Windsurf (Devin Desktop) | all | `~/.codex/skills` | skills (`<name>/SKILL.md`) | <https://docs.devin.ai/cli/reference/configuration/read-config-from> | 2026-11-23 |
+| Windsurf (Devin Desktop) | all | `~/.copilot/skills` | skills (`<name>/SKILL.md`) | <https://docs.devin.ai/cli/reference/configuration/read-config-from> | 2026-11-23 |
 | Codex | all | `$CODEX_HOME/config.toml` | MCP servers (`[mcp_servers.<id>]`), hooks (`[hooks]`, `notify`), plugins (`[plugins]`), marketplaces (`[marketplaces]`) | <https://learn.chatgpt.com/docs/config-file/config-reference> | 2026-11-14 |
 | Codex | all | `$CODEX_HOME/hooks.json` | hooks | <https://learn.chatgpt.com/docs/hooks> | 2026-11-14 |
 | Codex | all | `~/.agents/skills` | skills (`<name>/SKILL.md`) | <https://learn.chatgpt.com/docs/build-skills> | 2026-11-14 |
 | Codex | all | `$CODEX_HOME/AGENTS.md`<br>`$CODEX_HOME/AGENTS.override.md` | instruction files (`codex-agents-md`) | <https://learn.chatgpt.com/docs/agent-configuration/agents-md> | 2026-11-14 |
+| Codex | all | `$CODEX_HOME/prompts/*.md` | custom prompts (`codex-prompt`) | <https://learn.chatgpt.com/docs/custom-prompts> | 2026-11-23 |
+| Codex | all | `$CODEX_HOME/plugins/cache/*/*/*` | installed plugins (`<marketplace>/<plugin>/<version>`): each plugin's `plugin.json` or `.codex-plugin/plugin.json`, `mcp.json` or `.mcp.json`, `hooks/hooks.json` and skills | <https://developers.openai.com/plugins/build/plugins> | 2026-11-23 |
 | Gemini CLI | all | `~/.gemini/settings.json` | MCP servers (`mcpServers`; `url` is SSE, `httpUrl` streamable HTTP), hooks | <https://geminicli.com/docs/reference/configuration> | 2026-11-14 |
-| Gemini CLI | all | `~/.gemini/extensions` | extensions (plugins): each `<name>/gemini-extension.json` with its MCP servers, `hooks/hooks.json` and the context files it names | <https://geminicli.com/docs/extensions/reference/> | 2026-11-14 |
+| Gemini CLI | all | `~/.gemini/extensions` | extensions (plugins): each `<name>/gemini-extension.json` with its MCP servers, `hooks/hooks.json`, the context files it names, its skills (`skills/<name>/SKILL.md`) and subagents (`agents/*.md`, `gemini-agent`) | <https://geminicli.com/docs/extensions/reference/> | 2026-11-23 |
 | Gemini CLI | all | `~/.gemini/GEMINI.md` | instruction file (`gemini-md`) | <https://geminicli.com/docs/cli/gemini-md/> | 2026-11-14 |
 | Gemini CLI | all | `~/.gemini/skills` | skills (`<name>/SKILL.md`) | <https://geminicli.com/docs/cli/skills/> | 2026-11-14 |
 | Gemini CLI | all | `~/.agents/skills` | skills (`<name>/SKILL.md`) | <https://geminicli.com/docs/cli/skills/> | 2026-11-14 |
+| Gemini CLI | all | `~/.gemini/agents/*.md` | subagents (`gemini-agent`) | <https://geminicli.com/docs/core/subagents/> | 2026-11-23 |
 
 Not read:
 
-- Windsurf's `~/.codeium/windsurf/mcp_config.json` and `~/.codeium/windsurf/memories/global_rules.md`: the Windsurf documentation now leads to Devin Desktop's, which names `~/.config/devin/` and `~/.devin/` instead.
-- Codex's `$CODEX_HOME/skills/`: the Codex skills guide names `~/.agents/skills/` only.
+- Windsurf's `~/.codeium/windsurf/memories/global_rules.md`: only an archived page from before the rename to Devin Desktop names it.
+- Codex's `$CODEX_HOME/skills/` as Codex's own: no OpenAI page names it any more; Cursor and Devin Desktop document loading `~/.codex/skills/`, so it is read as their directory.
 - The `mcp.json` files of VS Code's remote and WSL servers (under `~/.vscode-server/` and `~/.vscode-server-insiders/`): the documentation names no path for them.
-- VS Code's user instruction files (`*.instructions.md` of the user profile): the documentation names no path.
-- The files of installed Codex plugins: only the `[plugins]` and `[marketplaces]` entries of `config.toml` are listed.
-- Claude Code's plugins when `CLAUDE_CODE_PLUGIN_CACHE_DIR` moves them out of `$CLAUDE_CONFIG_DIR/plugins/`, the components a plugin declares outside its standard layout, and MCP bundles (`.mcpb`, `.dxt`).
-- Skills inside Gemini CLI extensions: the documentation names no directory for them.
+- VS Code's user instruction files, prompt files and custom agents of the user profile (the deprecated Local harness keeps them in the profile's user data): the documentation names no path. Copilot's `$COPILOT_HOME/instructions/` and `$COPILOT_HOME/agents/` are read.
+- Claude Code's plugins when `CLAUDE_CODE_PLUGIN_CACHE_DIR` moves them out of `$CLAUDE_CONFIG_DIR/plugins/`, the components a plugin declares outside its standard layout, a plugin's `output-styles/`, `workflows/`, `monitors/` and `.lsp.json`, and MCP bundles (`.mcpb`, `.dxt`).
 - System-wide managed files outside the home directory (`/etc/claude-code/`, `/etc/gemini-cli/`, `C:\ProgramData\`), which belong to an administrator, not to the user.
-- Cursor's user rules, which Cursor keeps in its own settings database, not in a file.
-- Claude Code subagents, commands and output styles, and Claude Desktop extensions.
+- Cursor's `~/.cursor/rules/`: one help page names it without a format, and the rules page says user rules are kept in Cursor's settings, not in files.
+- Claude Desktop extensions: no Anthropic page names where they are installed.
+- Windsurf's global workflows (`~/.codeium/windsurf/global_workflows/`): they run only when the user asks, and Devin Local does not support them.
+- Files that need a parser or a rule the scanner does not have: Codex's `rules/*.rules`, `agents/*.toml` and profile files `<name>.config.toml`; Gemini CLI's `commands/**/*.toml` and `policies/*.toml`, in the home and in extensions, and `GEMINI_CLI_HOME`; Copilot's `lsp-config.json` and the folders `skillDirectories` names; Claude Code's `workflows/*.js`; and the settings keys that run commands besides `hooks` (`statusLine`, `apiKeyHelper` and others).
 <!-- clients:end -->
 
-The table follows each client's own documentation: a row stays only while its source names the path, or names the file while the pages in the row give its folder (VS Code's user and profile `mcp.json`), and carries the date it was checked; when a client moves its files (Windsurf became Devin Desktop), the old place moves to "Not read" until a release reads the new one. The tests read a fixture home for each system; CI runs on Linux and Windows, so macOS is covered by its fixture home.
+The table follows each client's own documentation: a row stays only while its source names the path, or names the file while the pages in the row give its folder (VS Code's user and profile `mcp.json`, and the Devin Desktop folder of the Windsurf rows), and carries the date it was checked; when a client moves its files (Windsurf became Devin Desktop), the old place moves to "Not read" until a release reads the new one. The tests read a fixture home for each system; CI runs on Linux and Windows, so macOS is covered by its fixture home.
 
 #### Uploading a workstation inventory
 

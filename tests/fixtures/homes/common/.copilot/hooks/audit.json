@@ -1,0 +1,1 @@
+{"version": 1, "hooks": {"sessionStart": [{"type": "command", "bash": "./audit.sh", "powershell": "./audit.ps1", "env": {"AUDIT_TOKEN": "CANARY-ENV-VALUE"}}]}}
