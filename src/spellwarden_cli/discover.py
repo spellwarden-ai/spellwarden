@@ -516,6 +516,45 @@ class _Builder:
                                                  "file set"), False)
         return _Resolution(target, raw, None, False)
 
+    def directory_link(self, path: str) -> _Resolution:
+        """With `--follow-links` (Engine 1.20.0: scan selection, 7.20.3, D40, D41): the directory of the file set that the listed
+        link `path` in an instruction folder names, read from the link's text by `_link_target`, as every link is (no file-system
+        call receives the text). `target` is that directory when the link can be followed: inside the scan root, reached through
+        real directories only, not the scan root and not a directory that holds the link. No `target` and no `refusal`: the link
+        names a regular file of the set, left to the rules of 1.19.0. Otherwise `refusal` says why: the notice `symlink_skipped`
+        for a relative target outside the scan root (the scanner never reads there), `unreadable` for a text the system cannot
+        read, `unsafe_path` for every other target, with the way out."""
+        try:
+            raw = self.fileset.link_target(path)
+        except (UnsafePath, paths.TooLarge) as exc:
+            return _Resolution(None, None, _link_refused(path, f"symbolic link: {exc}"), False)
+        except OSError as exc:
+            return _Resolution(None, None, Notice("unreadable", path, "symbolic link cannot be read "
+                                                  f"({exc.strerror or type(exc).__name__})"), False)
+        try:
+            target = self._link_target(path, raw.decode("utf-8"))
+        except UnicodeDecodeError:
+            return _Resolution(None, raw, _link_refused(path, "symbolic link: target is not UTF-8"), False)
+        except _Escape:
+            return _Resolution(None, raw, Notice("symlink_skipped", path, _LINK_OUTSIDE), True)
+        except UnsafePath as exc:
+            return _Resolution(None, raw, _link_refused(path, f"symbolic link: {exc}"), False)
+        if target in self.links:
+            return _Resolution(None, raw, _link_refused(path, f"symbolic link to {target!r}, itself a symbolic link"), False)
+        if target in self.entries or target in self.too_large:
+            return _Resolution(None, raw, None, False)
+        if target == "":
+            return _Resolution(None, raw, _link_refused(path, "symbolic link to the scan root"), False)
+        if path.startswith(target + "/"):
+            return _Resolution(None, raw, _link_refused(path, f"symbolic link to {target!r}, a directory that holds the link"),
+                               False)
+        if target not in self.directories:
+            twin = self.twin(target)
+            why = (f"symbolic link to {target!r}, which names {twin!r} only in another case or Unicode form; use the exact name"
+                   if twin is not None else f"symbolic link to {target!r}, not a directory of the file set")
+            return _Resolution(None, raw, _link_refused(path, why), False)
+        return _Resolution(target, raw, None, False)
+
     def adopt(self, path: str, target: str) -> bool:
         """The followed link `path` becomes a file of the set holding `target`'s bytes, named by the link."""
         self.followed.add(path)
@@ -784,6 +823,16 @@ _DOCUMENT_MESSAGES = {
 _TOO_LARGE = (f"larger than {FILE_MAX // 2**20} MiB; not read, so the scan is incomplete: make the file smaller, or leave it "
               "out with `exclude` in .spellwarden/config.yml")
 
+# Engine 1.20.0 (scan selection, 7.20.3, D41): a linked instruction directory that `--follow-links` cannot follow
+_LINK_WAY_OUT = ("not followed, so the scan is incomplete: replace the link with the files it should hold, or leave it out with "
+                 "`exclude` in .spellwarden/config.yml")
+_LINK_OUTSIDE = ("symbolic link to a place outside the scan root; not followed, so the instruction files reached only through it "
+                 "are not judged")
+
+
+def _link_refused(path: str, why: str) -> Notice:
+    return Notice("unsafe_path", path, f"{why}; {_LINK_WAY_OUT}")
+
 
 def _follow_references(builder: _Builder, manifest: ConfigDocument, directory: str, plugin: str) -> None:
     """Every reference of a plugin manifest that the containment rule accepts and that names a file of the set is
@@ -820,10 +869,13 @@ def _follow_references(builder: _Builder, manifest: ConfigDocument, directory: s
 
 
 def discover(fileset: FileSet, *, listed_cards: Sequence[str] = (), agents_configured: bool = False,
-             instructions: bool = True) -> Discovery:
+             instructions: bool = True, follow_links: bool = False) -> Discovery:
     """`listed_cards` are the paths of `a2a.cards`; `agents_configured` says `a2a.agents` is not empty (so that a repository
     whose only agent content is a configured agent is not told there is none). `instructions` is the setting of that name: with
-    it off, no instruction file is looked for (Phase 3 batch 1 spec 10.5)."""
+    it off, no instruction file is looked for (Phase 3 batch 1 spec 10.5). `follow_links` is `--follow-links` (Engine 1.20.0:
+    scan selection, 7.20): with it, and with instruction files on, a linked directory in an instruction folder is followed and
+    its files are instruction files under the link's path; without it, such a link is the notice `symlink_skipped`, as on
+    1.19.0."""
     builder = _Builder(fileset)
     builder.notices.extend(Notice("skill_name_case", path,
                                   _SKILL_NAME_CASE_LOADED if _is_loaded_variant(path) else _SKILL_NAME_CASE)
@@ -877,7 +929,10 @@ def discover(fileset: FileSet, *, listed_cards: Sequence[str] = (), agents_confi
                                   frozenset(p for p in package[0] if p in builder.own)))
     cards = _agent_cards(builder, listed_cards)
     # Before the loop below: a link followed here is no `symlink_skipped`.
-    instruction_list = _instruction_files(builder, frozenset(skill.path for skill in skills), plugin_dirs) if instructions else []
+    skill_directories = frozenset(skill.path for skill in skills)
+    linked = (_linked_files(builder, _linked_directories(builder, skill_directories, plugin_dirs))
+              if instructions and follow_links else {})
+    instruction_list = _instruction_files(builder, skill_directories, plugin_dirs, linked) if instructions else []
     if instructions:
         # an instruction file inside a skill is scanned by that skill, once (one owner per file), and read as Markdown there
         # as it would be on its own: otherwise a root SKILL.md would turn the Markdown rules off for every rule file
@@ -963,12 +1018,14 @@ def _plugin_instruction(path: str, plugin_dirs: Mapping[str, str]) -> tuple[str,
     return None
 
 
-def _instruction_files(builder: _Builder, skill_directories: frozenset[str],
-                       plugin_dirs: Mapping[str, str]) -> list[InstructionFile]:
+def _instruction_files(builder: _Builder, skill_directories: frozenset[str], plugin_dirs: Mapping[str, str],
+                       linked: Mapping[str, str] | None = None) -> list[InstructionFile]:
     """The instruction files of the file set (Phase 3 batch 1 spec 10.2, 10.3), in path order, at most
     `instruction_files.MAX_FILES`, root places first (the error `instructions_limit` counts the rest, which are not read).
     Since 1.20.0 also the commands and agents of a local plugin directory that no format names (`_plugin_instruction`), which
-    carry the plugin's name, count toward the limit and are never loaded first (Engine 1.20.0: scan selection, 7.7).
+    carry the plugin's name, count toward the limit and are never loaded first (Engine 1.20.0: scan selection, 7.7), and, with
+    `--follow-links`, the files of `linked` (`{linked path: file of the set}`, `_linked_files`), which are read from their file
+    and named by their linked path, ordered by it like every other (7.20.4).
     A symbolic link at one of these names is followed when it can be, as at the names of a configuration file; one that cannot
     be followed is the notice
     `symlink_skipped` it was on 1.12.0, never an error. A rule file whose front matter cannot be read still scans and has the
@@ -976,15 +1033,19 @@ def _instruction_files(builder: _Builder, skill_directories: frozenset[str],
     # Past the limit, the files an agent reads at the root of the repository come first (`instruction_files.loaded_first`),
     # then the rest shallowest first: decoys anywhere in the tree cannot push the root `AGENTS.md`, `CLAUDE.md` or a root
     # Cursor or Windsurf rule out of the scan. What is read is then handled in path order.
-    candidates: dict[str, tuple[str, str | None]] = {}  # path -> (format, plugin)
+    candidates: dict[str, tuple[str, str | None, str]] = {}  # path -> (format, plugin, the file of the set it reads)
     for path in {*builder.paths, *builder.links}:
         if _owned_by_a_skill(path, skill_directories):
             continue
         format = instruction_files.format_of(path)
         if format is not None:
-            candidates[path] = (format, None)
+            candidates[path] = (format, None, path)
         elif (local := _plugin_instruction(path, plugin_dirs)) is not None:
-            candidates[path] = local
+            candidates[path] = (local[0], local[1], path)
+    for path, source in (linked or {}).items():
+        format = instruction_files.format_of(path)
+        if format is not None:  # `_linked_files` offers only such paths
+            candidates[path] = (format, None, source)
     chosen = sorted(candidates, key=lambda path: (not instruction_files.loaded_first(path), path.count("/"), path))
     limit = instruction_files.MAX_FILES
     if len(chosen) > limit:
@@ -993,18 +1054,73 @@ def _instruction_files(builder: _Builder, skill_directories: frozenset[str],
                                      "out with `exclude` in .spellwarden/config.yml"))
     found: list[InstructionFile] = []
     for path in sorted(chosen[:limit]):
-        if not _follow_quietly(builder, path):
+        format, plugin, source = candidates[path]
+        if source == path and not _follow_quietly(builder, path):
             continue
-        content = builder.read(path)
+        content = builder.read(source)
         if content is None:
             continue
-        format, plugin = candidates[path]
         front_matter, readable = instruction_files.front_matter_of(format, content)
         if not readable:
             builder.notices.append(Notice("instructions_front_matter", path, "the front matter of this rule file could not be "
                                           "read, so its scope is not shown; the file is still scanned"))
         found.append(InstructionFile(path, posixpath.basename(path), format, front_matter, content, plugin))
     return found
+
+
+def _linked_directories(builder: _Builder, skill_directories: frozenset[str],
+                        plugin_dirs: Mapping[str, str]) -> list[tuple[str, str]]:
+    """With `--follow-links` (Engine 1.20.0: scan selection, 7.20.2, 7.20.3, D39 to D42): `(link, target directory)` of each
+    linked instruction directory that is followed, in the order of `instruction_files.linked_first` and then path, at most
+    `instruction_files.MAX_LINKED_DIRECTORIES`. A candidate is a link of the file set not yet followed or refused, at a path where
+    a directory could hold an instruction file (`holds_instructions`), and not inside a skill or a local plugin directory, whose
+    own link rules of 1.19.0 hold. A refusal of `directory_link` is recorded, and a link to a regular file is left to the rules of
+    1.19.0. Every link counted here, followed or past the limit, is marked followed: it gives no `symlink_skipped`."""
+    followed: list[tuple[str, str]] = []
+    for path in sorted(builder.links):
+        if (path in builder.followed or not instruction_files.holds_instructions(path)
+                or _owned_by_a_skill(path, skill_directories) or any(_under(path, directory) for directory in plugin_dirs)):
+            continue
+        resolution = builder.directory_link(path)
+        if resolution.refusal is not None:
+            builder.followed.add(path)
+            (builder.notices if resolution.refusal.code == "symlink_skipped" else builder.errors).append(resolution.refusal)
+        elif resolution.target is not None:
+            followed.append((path, resolution.target))
+    followed.sort(key=lambda pair: (not instruction_files.linked_first(pair[0]), pair[0]))
+    limit = instruction_files.MAX_LINKED_DIRECTORIES
+    if len(followed) > limit:
+        builder.errors.append(Notice("instructions_limit", "", f"{len(followed) - limit} more linked directories in instruction "
+                                     f"folders were not followed: the scanner follows at most {limit} per scan root, so the scan "
+                                     "is incomplete; leave them out with `exclude` in .spellwarden/config.yml"))
+    builder.followed.update(link for link, _ in followed)
+    return followed[:limit]
+
+
+def _linked_files(builder: _Builder, linked: Sequence[tuple[str, str]]) -> dict[str, str]:
+    """`{linked path: file of the set}` for the files below each followed directory (7.20.4, D40): each regular file `T/r` of the
+    set, at every depth, is offered at `L/r`, and is an instruction file there when `format_of(L/r)` names one (the folder's own
+    rule). Only instruction files are made: no document, skill, plugin or agent card. A link below `T` is not followed through
+    `L`: where its linked path would be an instruction file or a linked instruction directory it is the error `unsafe_path`, else
+    nothing. A file of `T` over 10 MiB whose linked path has a format is the error `unreadable` at that path."""
+    offered: dict[str, str] = {}
+    for link, target in linked:
+        prefix = target + "/"
+        for path in _under_range(builder, target):
+            linked_path = link + "/" + path[len(prefix):]
+            if path in builder.links:
+                if (instruction_files.format_of(linked_path) is not None
+                        or instruction_files.holds_instructions(linked_path)):
+                    builder.errors.append(Notice("unsafe_path", linked_path, f"reached through the link `{link}`; a link is "
+                                                 "followed one level only: replace it with the file or directory it names"))
+            elif path in builder.paths and instruction_files.format_of(linked_path) is not None:
+                offered[linked_path] = path
+        for path in sorted(builder.too_large):
+            if path.startswith(prefix):
+                linked_path = link + "/" + path[len(prefix):]
+                if instruction_files.format_of(linked_path) is not None:
+                    builder.errors.append(Notice("unreadable", linked_path, _TOO_LARGE))
+    return offered
 
 
 def _agent_cards(builder: _Builder, listed: Sequence[str]) -> list[CardFile]:
