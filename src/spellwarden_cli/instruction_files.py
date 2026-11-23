@@ -39,6 +39,13 @@ FORMATS = ("agents-md", "claude-md", "gemini-md", "copilot-instructions", "curso
 USER_ONLY_FORMATS = ("codex-agents-md", "devin-rules", "codex-prompt", "cursor-command")
 REPOSITORY_FORMATS = tuple(format for format in FORMATS if format not in USER_ONLY_FORMATS)
 MAX_FILES = 300            # instruction files read per scan root; more is the error `instructions_limit` (exit 2)
+# Engine 1.20.0 (scan selection, 7.20.4, D42): with `--follow-links`, at most this many linked directories in instruction folders
+# are followed per scan root; more is the error `instructions_limit` (exit 2)
+MAX_LINKED_DIRECTORIES = 50
+# The names a directory is probed with (`holds_instructions`), one per file shape a folder rule names, and the formats a name
+# gives anywhere, which say nothing of the folder that holds it
+_PROBES = ("x.md", "x.mdc", "x.instructions.md", "AGENT.md")
+_BY_NAME = ("agents-md", "claude-md", "gemini-md")
 FRONT_MATTER_WINDOW = 4096  # the closing `---` must be within this many bytes of the file's start
 MAX_GLOBS = 20
 MAX_GLOB = 200
@@ -135,6 +142,26 @@ def loaded_first(path: str) -> bool:
     if folded in (".windsurf/global_rules.md", ".devin/global_rules.md"):
         return True
     return folded.startswith(_ROOT_FOLDERS)
+
+
+def _folder_probes(path: str) -> list[str]:
+    """The probe paths below the directory `path` that a folder rule of `format_of` (steps 1 and 4) makes instruction files."""
+    probes = [f"{path}/{name}" for name in _PROBES]
+    return [probe for probe in probes if format_of(probe) not in (None, *_BY_NAME)]
+
+
+def holds_instructions(path: str) -> bool:
+    """Whether a directory at the scan-root path `path` could hold an instruction file by a folder rule (Engine 1.20.0: scan
+    selection, 7.20.2, D39): below an instruction folder that is read at that depth (`.claude/rules/shared`,
+    `.devin/agents/reviewer`), or the folder itself (`.claude/rules`). A folder above one (`.claude`), a folder read one level
+    deep below its first level (`.claude/output-styles/more`) and any other directory are not."""
+    return bool(_folder_probes(path))
+
+
+def linked_first(path: str) -> bool:
+    """Whether a linked instruction directory at `path` is in an agent folder at the root of the repository (`loaded_first` of a
+    file its folder rule would name there): past `MAX_LINKED_DIRECTORIES` these are followed first."""
+    return any(loaded_first(probe) for probe in _folder_probes(path))
 
 
 def _unquote(text: str) -> str:

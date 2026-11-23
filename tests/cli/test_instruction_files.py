@@ -270,3 +270,22 @@ def test_every_front_matter_has_the_four_uploaded_fields_only(format):
     text = b"---\ndescription: d\nglobs: a\npaths: b\napplyTo: c\nalwaysApply: true\ntrigger: manual\nhooks: x\n---\n"
     front_matter, readable = front_matter_of(format, text)
     assert readable and set(front_matter) == {"description", "globs", "always_apply", "trigger"}
+
+
+@pytest.mark.parametrize("path, holds", [
+    (".claude/rules/shared", True), (".claude/rules/team/shared", True), ("pkg/.claude/commands/ops", True),
+    (".cursor/rules/shared", True), (".github/instructions/shared", True), (".devin/agents/reviewer", True),
+    (".claude/rules", True), (".cursor/rules", True), (".github/agents", True), (".windsurf/rules/claude", True),
+    (".claude/output-styles/more", False), (".cursor/agents/more", False), (".claude", False), (".github", False),
+    ("docs/shared", False), (".devin/agents/reviewer/notes.txt", False),
+])
+def test_a_directory_holds_instructions_when_a_folder_rule_could_name_a_file_in_it(path, holds):
+    """Engine 1.20.0 (spec 7.20.2, D39): the names that match anywhere (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`) say nothing."""
+    assert instructions.holds_instructions(path) is holds
+
+
+def test_linked_directories_in_the_root_agent_folders_come_first_and_at_most_50_are_followed():
+    assert instructions.MAX_LINKED_DIRECTORIES == 50
+    assert instructions.linked_first(".claude/rules/shared") and instructions.linked_first(".cursor/rules")
+    assert not instructions.linked_first("pkg/.claude/commands/ops")
+    assert not instructions.linked_first("docs/shared")
