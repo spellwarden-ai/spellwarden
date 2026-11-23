@@ -1,13 +1,13 @@
 # spellwarden-oss: the Spellwarden scan engine. `make check` is the gate (spec 5.11).
 UV ?= uv
 
-.PHONY: check sync test lint build check-node
+.PHONY: check sync test lint build check-node benchmark
 
 sync:
 	$(UV) sync --locked
 
 check: sync
-	$(UV) run --locked ruff check src tests
+	$(UV) run --locked ruff check src tests benchmarks
 	$(UV) run --locked pytest -q
 	$(UV) build
 
@@ -15,7 +15,7 @@ test: sync
 	$(UV) run --locked pytest -q
 
 lint: sync
-	$(UV) run --locked ruff check src tests
+	$(UV) run --locked ruff check src tests benchmarks
 
 build: sync
 	$(UV) build
@@ -28,3 +28,8 @@ check-node: sync
 	@dir="$$(mktemp -d)" && trap 'rm -rf "$$dir"' EXIT && \
 	$(UV) run --locked python tests/zuplo_ci.py write "$$dir" && \
 	SPELLWARDEN_ZUPLO_DIR="$$dir" node --test "tests/node/*.test.mjs"
+
+# The rule benchmark (benchmarks/README.md) with this checkout's scanner: it fetches the sets from their sources on the first run,
+# then measures offline from the cache. `make check` never runs it.
+benchmark: sync
+	$(UV) run --locked python benchmarks/rule_benchmark.py run

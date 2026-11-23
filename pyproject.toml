@@ -42,7 +42,12 @@ dev = [
     "rfc3339-validator>=0.1.4",
     "rfc3987-syntax>=1.1.0",
     "ruff>=0.6",
+    # the rule benchmark's parquet reader (benchmarks/), so `make check` can build small parquet fixtures
+    {include-group = "benchmark"},
 ]
+# Rule benchmark: reads MaliciousSkillBench's primary.parquet in benchmarks/; never imported by the package (tests/test_pure.py).
+# benchmarks/requirements.txt is `uv export --locked --only-group benchmark --no-emit-project --format requirements-txt`.
+benchmark = ["pyarrow==26.0.1"]
 
 [build-system]
 requires = ["hatchling"]
@@ -61,7 +66,7 @@ markers = ["slow: a timing test (runtime traces spec 4.9); `make check` and CI r
 [tool.ruff]
 line-length = 130
 target-version = "py311"
-src = ["src", "tests"]
+src = ["src", "tests", "benchmarks"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "B", "UP", "ARG"]

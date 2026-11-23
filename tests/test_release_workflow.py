@@ -148,3 +148,125 @@ def test_the_gateway_exports_job_pins_every_action_by_commit_and_names_no_macos_
     for line in uses:
         assert re.search(r"uses: [\w./-]+@[0-9a-f]{40}  # v\d+\.\d+\.\d+$", line), line
     assert "macos" not in text
+
+
+# --- the rule benchmark (Rule benchmark, section 11; claims T-20 and T-22) -----------------------------------------------------
+
+PINNED = r"uses: [\w./-]+@[0-9a-f]{40}  # v\d+\.\d+\.\d+$"
+
+
+def _uses_lines(text: str) -> list[str]:
+    return [line for line in text.splitlines() if line.strip().startswith(("- uses:", "uses:"))]
+
+
+def _run(steps: list[dict]) -> str:
+    return "\n".join(step.get("run", "") for step in steps)
+
+
+def test_the_rule_benchmark_job_runs_after_build_on_linux_and_windows():
+    job = _release()["jobs"]["rule-benchmark"]
+    assert job["needs"] == "build" and job["runs-on"] == "${{ matrix.os }}"
+    assert job["strategy"]["matrix"]["os"] == ["ubuntu-latest", "windows-latest"] and job["strategy"]["fail-fast"] is False
+    assert job["defaults"]["run"]["shell"] == "bash" and job["timeout-minutes"] == 30
+    assert job["env"] == {"VERSION": "${{ needs.build.outputs.version }}", "WHEEL_SHA256": "${{ needs.build.outputs.wheel_sha256 }}"}
+
+
+def test_the_rule_benchmark_job_installs_the_hashed_wheel_and_measures_against_the_committed_entry():
+    steps = _steps("release.yml", "rule-benchmark")
+    install = next(step for step in steps if "pip install" in step.get("run", ""))
+    run = install["run"]
+    assert run.index("sha256sum -c -") < run.index("pip install"), "the wheel's hash is checked before anything is installed"
+    assert "--require-hashes -r docker/requirements.deps.txt" in run and "--no-deps" in run
+    assert "--require-hashes -r benchmarks/requirements.txt" in run
+    assert any(str(step.get("uses", "")).startswith("actions/download-artifact@") for step in steps)
+    measure = next(step for step in steps if "rule_benchmark.py run" in step.get("run", ""))
+    assert '--expect-version "$VERSION"' in measure["run"] and "--verify benchmarks/results.json" in measure["run"]
+    assert measure["env"] == {"GITHUB_TOKEN": "${{ github.token }}"} and "if" not in measure
+
+
+def test_the_rule_benchmark_job_checks_the_history_and_writes_the_assets_on_linux_only():
+    steps = _steps("release.yml", "rule-benchmark")
+    history = next(step for step in steps if "check-history" in step.get("run", ""))
+    render = next(step for step in steps if "rule_benchmark.py render" in step.get("run", ""))
+    upload = next(step for step in steps if str(step.get("uses", "")).startswith("actions/upload-artifact@"))
+    for step in (history, render, upload):
+        assert step["if"] == "runner.os == 'Linux'"
+    assert "--json-out" in render["run"] and "--markdown-out" in render["run"]
+    assert upload["with"]["name"] == "rule-benchmark" and upload["with"]["if-no-files-found"] == "error"
+
+
+def test_the_rule_benchmark_job_pins_its_four_actions_and_publishing_waits_for_it():
+    text = (WORKFLOWS / "release.yml").read_text(encoding="utf-8")
+    block = text[text.index("\n  rule-benchmark:\n"):text.index("\n  gateway-exports:\n")]
+    uses = _uses_lines(block)
+    assert len(uses) == 4
+    for line in uses:
+        assert re.search(PINNED, line), line
+    jobs = _release()["jobs"]
+    for name in ("publish", "image", "github-release"):
+        assert "rule-benchmark" in jobs[name]["needs"], name
+    assert jobs["publish"]["needs"].index("rule-benchmark") == jobs["publish"]["needs"].index("e2e-connected") + 1
+    assert "macos" not in text
+
+
+def test_the_github_release_attaches_the_two_assets_and_keeps_its_dist_check():
+    steps = _steps("release.yml", "github-release")
+    download = [step for step in steps if str(step.get("uses", "")).startswith("actions/download-artifact@")]
+    assert [step["with"]["name"] for step in download] == ["dist", "rule-benchmark"]
+    check = next(step for step in steps if "rule-benchmark.json rule-benchmark.md " in step.get("run", ""))
+    create = next(step for step in steps if "gh release create" in step.get("run", ""))
+    assert steps.index(check) < steps.index(create)
+    assert '"$RUNNER_TEMP/rule-benchmark/rule-benchmark.json" "$RUNNER_TEMP/rule-benchmark/rule-benchmark.md"' in create["run"]
+    dist = next(step for step in steps if "find dist -mindepth 1" in step.get("run", ""))
+    assert '"spellwarden-${VERSION}-py3-none-any.whl spellwarden-${VERSION}.tar.gz "' in dist["run"]
+
+
+def _rehearsal() -> dict:
+    return yaml.safe_load((WORKFLOWS / "rule-benchmark.yml").read_text(encoding="utf-8"))
+
+
+def test_the_rehearsal_starts_by_hand_only_with_a_verify_input_and_reads_only():
+    document = _rehearsal()
+    triggers = document.get("on", document.get(True))
+    assert list(triggers) == ["workflow_dispatch"]
+    assert triggers["workflow_dispatch"]["inputs"] == {"verify": {
+        "description": "The numbers must equal the entry committed for this version in benchmarks/results.json",
+        "required": False, "default": False, "type": "boolean"}}
+    assert document["permissions"] == {"contents": "read"}
+    assert all("permissions" not in job for job in document["jobs"].values())
+
+
+def test_the_rehearsal_job_is_the_release_job_without_the_history_and_the_assets():
+    released = _release()["jobs"]["rule-benchmark"]
+    rehearsal = _rehearsal()["jobs"]["rule-benchmark"]
+    for key in ("needs", "strategy", "runs-on", "defaults", "timeout-minutes", "env"):
+        assert rehearsal[key] == released[key], key
+    install = [step["run"] for step in released["steps"] if "pip install" in step.get("run", "")]
+    assert [step["run"] for step in rehearsal["steps"] if "pip install" in step.get("run", "")] == install
+    measuring = [step for step in rehearsal["steps"] if "rule_benchmark.py run" in step.get("run", "")]
+    assert len(measuring) == 2
+    plain, verified = sorted(measuring, key=lambda step: "--verify" in step["run"])
+    assert plain["if"] == "${{ !inputs.verify }}" and verified["if"] == "${{ inputs.verify }}"
+    assert verified["run"].replace(" --verify benchmarks/results.json", "") == plain["run"]
+    release_measure = next(step for step in released["steps"] if "rule_benchmark.py run" in step.get("run", ""))
+    assert verified["run"] == release_measure["run"]
+    assert all(step["env"] == {"GITHUB_TOKEN": "${{ github.token }}"} for step in measuring)
+    text = (WORKFLOWS / "rule-benchmark.yml").read_text(encoding="utf-8")
+    assert "check-history" not in text and "gh release" not in text and "secrets." not in text
+    uploads = [step for job in _rehearsal()["jobs"].values() for step in job["steps"]
+               if str(step.get("uses", "")).startswith("actions/upload-artifact@")]
+    assert [step["with"]["name"] for step in uploads] == ["dist"]
+
+
+def test_the_rehearsal_pins_every_action_to_a_commit_release_yml_uses_and_names_no_macos_runner():
+    text = (WORKFLOWS / "rule-benchmark.yml").read_text(encoding="utf-8")
+    release = (WORKFLOWS / "release.yml").read_text(encoding="utf-8")
+    released = {line.split("uses:", 1)[1].strip() for line in _uses_lines(release)}
+    uses = _uses_lines(text)
+    assert uses
+    for line in uses:
+        assert re.search(PINNED, line), line
+        assert line.split("uses:", 1)[1].strip() in released, line
+    assert "macos" not in text
+    build = _rehearsal()["jobs"]["build"]
+    assert build["runs-on"] == "ubuntu-latest" and "uv build" in _run(build["steps"])
