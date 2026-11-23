@@ -717,3 +717,224 @@ def test_the_rate_text_and_macro_f1():
     assert rb.wilson(0, 0) == (0.0, 1.0)
     assert rb.three_decimals(rb.macro_f1(tp=302, fn=537, fp=145, tn=400)) == "0.505"
     assert rb.macro_f1(0, 0, 0, 0) == 0.0
+
+
+# --- synthetic entries for the renderers and the CHANGELOG rule ----------------------------------------------------------------
+
+RULES_SHOWN = {"SW-SKL-007": "high", "SW-SKL-009": "medium", "SW-SKL-015": "low"}
+NOT_MEASURED = ["SW-A2A-001", "SW-CFG-001", "SW-MCP-001", "SW-REG-001"]
+
+
+def stratum(label: str, items: int, medium: int, high: int, *, rules: dict | None = None, unread: dict | None = None,
+            missed: dict | None = None, outcomes: dict | None = None, title: str | None = None) -> dict:
+    rules = rules or {}
+    value = {"title": title or f"Stratum {label}", "label": label, "items": items, "unread": dict(unread or {}),
+             "found": {"medium": medium, "high": high},
+             "rules": {rule_id: {"medium": rules.get(rule_id, (0, 0))[0], "high": rules.get(rule_id, (0, 0))[1]}
+                       for rule_id in RULES_SHOWN}}
+    if label == "malicious":
+        value["missed"] = dict(missed or {})
+    if outcomes is not None:
+        value["outcomes"] = dict(outcomes)
+    return value
+
+
+def entry(version: str, *, test_m: tuple[int, int] = (302, 31), test_b: tuple[int, int] = (145, 53),
+          rule_009: tuple[int, int] = (100, 0), tob: dict | None = None, unread: dict | None = None,
+          manifest: str = "a" * 64, note: str = "", released: str = "2026-12-01") -> dict:
+    tob = {"m-tob-alpha": "high", "m-tob-beta": "none", "m-tob-gamma": "medium"} if tob is None else tob
+    tob_found = (sum(1 for value in tob.values() if rb.at_or_above(value, "medium")),
+                 sum(1 for value in tob.values() if rb.at_or_above(value, "high")))
+    return {
+        "version": version, "rules_version": "2026.11.8", "released": released, "note": note, "manifest_sha256": manifest,
+        "lines": ["medium", "high"], "rules_measured": dict(RULES_SHOWN), "rules_not_measured": list(NOT_MEASURED),
+        "sets": {
+            "msb-test": {"title": "MaliciousSkillBench test split (source-disjoint)", "role": "test", "strata": {
+                "skillharm": stratum("malicious", 839, *test_m, rules={"SW-SKL-009": rule_009, "SW-SKL-007": (31, 31)},
+                                     missed={"m-asb04-000018": "none", "m-asb04-000025": "medium"}, unread=unread,
+                                     title="Constructed attacks (SkillHarm)"),
+                "atr-benign": stratum("benign", 545, *test_b, rules={"SW-SKL-009": (40, 0)}, title="Harmless skills (ATR)")}},
+            "trailofbits": {"title": "Trail of Bits scanner-bypass skills", "role": "test", "report": "per-item", "strata": {
+                "tob": stratum("malicious", len(tob) + 1, *tob_found, rules={"SW-SKL-007": (tob_found[1], tob_found[1])},
+                               unread={"m-tob-delta": "frontmatter_limit"},
+                               missed={key: value for key, value in tob.items() if not rb.at_or_above(value, "high")},
+                               outcomes=tob, title="Scanner-bypass skills (Trail of Bits)")}},
+            "tuning": {"title": "Tuning half of Spellwarden's labelled set", "role": "tuning", "strata": {
+                "wild-liu": stratum("malicious", 61, 29, 14, title="Wild"),
+                "benign-wild": stratum("benign", 109, 38, 7, title="Harmless wild")}},
+        },
+    }
+
+
+def history(*entries: dict) -> dict:
+    return {"results": 1, "about": rb.ABOUT, "entries": list(entries)}
+
+
+def _section(markdown: str, heading: str) -> str:
+    start = markdown.index(heading)
+    following = [markdown.find(mark, start + len(heading)) for mark in ("\n### ", "\n## ")]
+    ends = [index for index in following if index != -1]
+    return markdown[start:min(ends) if ends else len(markdown)]
+
+
+# --- T-13: rendering ------------------------------------------------------------------------------------------------------------
+
+def test_the_terminal_table_shows_rates_counts_the_tuning_sentence_and_below_this_line():
+    text = rb.render_text(entry("1.21.0"), ids_at="the --entry-out file")
+    assert text.startswith("Spellwarden rule benchmark: scanner 1.21.0, rules 2026.11.8, manifest " + "a" * 64)
+    assert "rules only, no model" in text
+    assert "medium or above: found 302 of 839, 36.0% (32.8% to 39.3%)" in text
+    assert "high or above: found 53 of 545, 9.7% (7.5% to 12.5%)" in text
+    assert rb.TUNING_SENTENCE in text
+    assert "SW-SKL-015 (low): medium or above: below this line; high or above: below this line" in text
+    assert "SW-SKL-009 (medium): medium or above: detection 11.9% (100 of 839), false positives 7.3% (40 of 545); high or above: below this line" in text
+    assert "macro-F1: medium or above" in text
+    assert "4 rules judge other kinds of content and are not measured here: SW-A2A, SW-CFG, SW-MCP, SW-REG" in text
+    assert "missed malicious skills: 1 at medium or above, 2 at high or above; their ids are in the --entry-out file" in text
+
+
+def test_the_terminal_shows_a_per_item_set_skill_by_skill_with_counts_and_no_percent():
+    text = rb.render_text(entry("1.21.0"), ids_at="x")
+    block = text[text.index("Trail of Bits scanner-bypass skills"):text.index("Tuning half")]
+    assert "m-tob-alpha: medium or above: found; high or above: found" in block
+    assert "m-tob-beta: medium or above: not found; high or above: not found" in block
+    assert "m-tob-gamma: medium or above: found; high or above: not found" in block
+    assert "m-tob-delta: not read whole (frontmatter_limit)" in block
+    assert "medium or above: found 2 of 3; high or above: found 1 of 3" in block
+    assert "SW-SKL-007 (high): medium or above: detection 1 of 3; high or above: detection 1 of 3" in block
+    assert "%" not in block and "macro-F1" not in block
+
+
+def test_results_md_without_an_entry_says_no_release_has_published_a_table():
+    markdown = rb.render_markdown(history())
+    assert markdown.startswith(rb.GENERATED + "\n") and rb.NO_TABLE in markdown and "| `SW-" not in markdown
+
+
+def test_results_md_holds_the_newest_entry_in_full_and_the_history():
+    markdown = rb.render_markdown(history(entry("1.21.0"), entry("1.22.0", manifest="b" * 64, note="P5-24 precision pass")))
+    assert "## Scanner 1.22.0" in markdown and "## Scanner 1.21.0" not in markdown
+    assert "| Constructed attacks (SkillHarm) | malicious | 839 | 0 | 36.0% (302 of 839; 32.8% to 39.3%) |" in markdown
+    rule_rows = [line for line in markdown.splitlines() if line.startswith("| `SW-")]
+    assert len(rule_rows) == 3 * 3 and not [line for line in markdown.splitlines() if line.startswith("| SW-")]
+    assert "| 1.21.0 | 1.22.0 (sets changed) |" in markdown and "| Note |  | P5-24 precision pass |" in markdown
+    assert "Malicious skills missed at medium or above: `m-asb04-000018`." in markdown
+    assert "Malicious skills missed at high or above: `m-asb04-000018`, `m-asb04-000025`." in markdown
+    assert rb.TUNING_SENTENCE in _section(markdown, "### Tuning half")
+    assert "4 rules judge other kinds of content and are not measured here: SW-A2A, SW-CFG, SW-MCP, SW-REG." in markdown
+
+
+def test_results_md_shows_a_per_item_set_skill_by_skill_with_no_percent():
+    markdown = rb.render_markdown(history(entry("1.21.0"), entry("1.22.0")))
+    section = _section(markdown, "### Trail of Bits scanner-bypass skills")
+    assert "| Skill | Medium or above | High or above |" in section
+    assert "| `m-tob-alpha` | found | found |" in section and "| `m-tob-beta` | not found | not found |" in section
+    assert "| `m-tob-delta` | not read whole | not read whole |" in section
+    assert "| `SW-SKL-007` | high | 1 of 3 | 1 of 3 |" in section and "| `SW-SKL-015` | low | below this line | below this line |" in section
+    assert "%" not in section
+    rows = [line for line in markdown.splitlines() if line.startswith("| Trail of Bits scanner-bypass skills,")]
+    assert rows == ["| Trail of Bits scanner-bypass skills, found, medium or above | found 2 of 3 | found 2 of 3 |",
+                    "| Trail of Bits scanner-bypass skills, found, high or above | found 1 of 3 | found 1 of 3 |"]
+
+
+def test_the_readme_block_has_a_row_per_set_and_line_and_a_sentence_per_line_for_a_per_item_set():
+    assert rb.readme_block(history()) == rb.NO_TABLE + "\n"
+    block = rb.readme_block(history(entry("1.21.0")))
+    lines = block.splitlines()
+    assert lines[0] == "| Set | Skills | Line | Detection | False positives | Not read whole |"
+    assert "| MaliciousSkillBench test split (source-disjoint) | 1384 | medium or above | 36.0% (302 of 839; 32.8% to 39.3%) | 26.6% (145 of 545; 23.1% to 30.5%) | 0 |" in lines
+    assert "|  |  | high or above | 3.7% (31 of 839; 2.6% to 5.2%) | 9.7% (53 of 545; 7.5% to 12.5%) | 0 |" in lines
+    rows = [line for line in lines if line.startswith("| ") and "Tuning half" in line]
+    assert rows and rows[0].startswith("| Tuning half of Spellwarden's labelled set (tuning) | 170 |")
+    assert lines.index(rows[0]) > max(index for index, line in enumerate(lines) if "MaliciousSkillBench" in line)
+    assert not [line for line in lines if line.startswith("| Trail of Bits") or line.startswith("| SW-")]
+    assert "Trail of Bits scanner-bypass skills, medium or above: found `m-tob-alpha`, `m-tob-gamma`; not found `m-tob-beta`; not read whole `m-tob-delta`." in lines
+    assert "Trail of Bits scanner-bypass skills, high or above: found `m-tob-alpha`; not found `m-tob-beta`, `m-tob-gamma`; not read whole `m-tob-delta`." in lines
+    everything_found = rb.readme_block(history(entry("1.21.0", tob={"m-tob-alpha": "high"})))
+    assert "Trail of Bits scanner-bypass skills, high or above: found `m-tob-alpha`; not read whole `m-tob-delta`." in everything_found
+
+
+def test_the_readme_block_replaces_only_the_text_between_the_markers():
+    readme = "# Title\n\n<!-- benchmark:start -->\nold\n<!-- benchmark:end -->\n\nAfter.\n"
+    assert rb.with_readme_block(readme, "new\n") == "# Title\n\n<!-- benchmark:start -->\nnew\n<!-- benchmark:end -->\n\nAfter.\n"
+    with pytest.raises(rb.BenchmarkError) as raised:
+        rb.with_readme_block("# Title\n", "new\n")
+    assert raised.value.code == "readme_markers"
+
+
+# --- T-15: the CHANGELOG rule ---------------------------------------------------------------------------------------------------
+
+def test_worse_rates_reports_a_detection_drop_a_false_positive_rise_and_more_unread_items_only():
+    before = entry("1.21.0")
+    after = entry("1.22.0", test_m=(301, 31), test_b=(146, 50), rule_009=(90, 0), unread={"m-asb04-000099": "frontmatter_limit"})
+    lines = rb.worse_rates(before, after)
+    assert "- MaliciousSkillBench test split (source-disjoint), all rules, medium or above: detection 36.0% to 35.9% (302 of 839 to 301 of 838)" in lines
+    assert "- MaliciousSkillBench test split (source-disjoint), all rules, medium or above: false positives 26.6% to 26.8% (145 of 545 to 146 of 545)" in lines
+    assert "- MaliciousSkillBench test split (source-disjoint), SW-SKL-009, medium or above: detection 11.9% to 10.7% (100 of 839 to 90 of 838)" in lines
+    assert "- MaliciousSkillBench test split (source-disjoint), items not read whole: 0 to 1" in lines
+    assert not [line for line in lines if "high or above: false positives" in line]
+    better = entry("1.22.0", test_m=(400, 60), test_b=(100, 20), rule_009=(120, 0))
+    assert rb.worse_rates(before, better) == []
+
+
+def test_worse_rates_compares_a_per_item_set_skill_by_skill_and_with_counts():
+    before = entry("1.21.0")
+    after = entry("1.22.0", tob={"m-tob-alpha": "medium", "m-tob-beta": "none", "m-tob-gamma": "medium", "m-tob-new": "none"})
+    lines = rb.worse_rates(before, after)
+    tob = [line for line in lines if line.startswith("- Trail of Bits")]
+    assert "- Trail of Bits scanner-bypass skills, m-tob-alpha, high or above: found to not found" in tob
+    assert "- Trail of Bits scanner-bypass skills, SW-SKL-007, high or above: detection 1 of 3 to 0 of 4" in tob
+    assert not [line for line in tob if "%" in line or "m-tob-new" in line]
+
+
+def test_the_changelog_must_hold_the_lines_the_history_requires():
+    first = history(entry("1.21.0"))
+    assert rb.changelog_lines(first) == [rb.FIRST_TABLE]
+    assert rb.check_changelog(first, "# Changelog\n\n## 1.21.0 (2026-12-01)\n\nText.\n") == [
+        f"the CHANGELOG section of 1.21.0 lacks the line: {rb.FIRST_TABLE}"]
+    assert rb.check_changelog(first, f"# Changelog\n\n## 1.21.0 (2026-12-01)\n\n{rb.FIRST_TABLE}\n") == []
+    assert rb.check_changelog(first, "# Changelog\n\n## 1.20.0 (2026-11-25)\n") == ["CHANGELOG.md has no section for 1.21.0"]
+    same = history(entry("1.21.0"), entry("1.22.0"))
+    assert rb.changelog_lines(same) == ["Rule benchmark: no rate got worse than in 1.21.0."]
+    worse = history(entry("1.21.0"), entry("1.22.0", test_m=(301, 31), manifest="b" * 64))
+    lines = rb.changelog_lines(worse)
+    assert lines[0] == "Rule benchmark: these rates got worse than in 1.21.0:" and lines[1].startswith("- ")
+    assert lines[-1] == "Rule benchmark: the sets changed since 1.21.0; benchmarks/README.md lists what was left out."
+    good = "## 1.22.0 (2026-12-08)\n\n" + "\n".join(lines) + "\n\n## 1.21.0 (2026-12-01)\n"
+    assert rb.check_changelog(worse, good) == []
+    shuffled = "## 1.22.0 (2026-12-08)\n\n" + "\n".join([lines[0], "Something else.", *lines[1:]]) + "\n"
+    assert rb.check_changelog(worse, shuffled) and "in order" in rb.check_changelog(worse, shuffled)[0]
+    assert rb.check_changelog(history(), "") == []
+
+
+def test_released_date_reads_the_heading_of_the_version():
+    text = "# Changelog\n\n## 1.21.0 (2026-12-01)\n\nText.\n\n## 1.20.0 (2026-11-25)\n"
+    assert rb.released_date(text, "1.21.0") == "2026-12-01" and rb.released_date(text, "1.22.0") is None
+    assert rb.released_date(text.replace("\n", "\r\n"), "1.20.0") == "2026-11-25"
+
+
+# --- T-16: the history ----------------------------------------------------------------------------------------------------------
+
+def test_check_history_passes_when_new_extends_old_and_fails_on_any_change():
+    old = history(entry("1.21.0"))
+    assert rb.check_history(old, history(entry("1.21.0"), entry("1.22.0"))) == []
+    assert "missing" in rb.check_history(old, history(entry("1.22.0")))[0]
+    assert "measured part" in rb.check_history(old, history(entry("1.21.0", test_m=(300, 31))))[0]
+    assert "note" in rb.check_history(old, history(entry("1.21.0", note="changed")))[0]
+    assert "release date" in rb.check_history(old, history(entry("1.21.0", released="2026-12-02")))[0]
+    assert "not above" in rb.check_history(history(entry("1.22.0")), history(entry("1.21.0"), entry("1.22.0")))[0]
+
+
+def test_the_history_document_is_checked():
+    assert rb.check_results(history(entry("1.21.0"), entry("1.22.0")))
+    with pytest.raises(rb.BenchmarkError, match="ascend"):
+        rb.check_results(history(entry("1.22.0"), entry("1.21.0")))
+    with pytest.raises(rb.BenchmarkError, match="release date"):
+        rb.check_results(history(entry("1.21.0", released=None)))
+    with pytest.raises(rb.BenchmarkError, match="results"):
+        rb.check_results({"results": 1, "entries": []})
+
+
+def test_differences_name_the_set_the_stratum_and_the_field():
+    found = rb.differences(rb.measured_part(entry("1.21.0")), rb.measured_part(entry("1.21.0", test_m=(301, 31))))
+    assert found == ["sets / msb-test / strata / skillharm / found / medium: recorded 302, computed 301"]
+    assert rb.measured_part(entry("1.21.0", note="x")) == rb.measured_part(entry("1.21.0"))

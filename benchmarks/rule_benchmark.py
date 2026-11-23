@@ -845,3 +845,478 @@ def set_macro_f1(set_block: dict, line: str) -> float | None:
         return None
     tp, fp = malicious.found[line], benign.found[line]
     return macro_f1(tp, malicious.read - tp, fp, benign.read - fp)
+
+
+# --- the history file (10.7) -----------------------------------------------------------------------------------------------
+
+ABOUT = ("The rule benchmark's history: one entry per release, written by `python benchmarks/rule_benchmark.py run --record`; "
+         "benchmarks/README.md says what it measures.")
+NOTE_MAX = 200
+_VERSION = re.compile(r"\d+\.\d+\.\d+")
+ENTRY_MEMBERS = {"version", "rules_version", "released", "note", "manifest_sha256", "lines", "rules_measured",
+                 "rules_not_measured", "sets"}
+
+
+def version_key(version: str) -> tuple[int, ...]:
+    return tuple(int(part) for part in version.split("."))
+
+
+def check_results(document: object) -> dict:
+    """The history document, checked: `{"results": 1, "about": text, "entries": [...]}`, entries ascending by version, at most one
+    per version, each with the members of 10.7. Raises `BenchmarkError` `results_invalid` naming the first problem."""
+    if not isinstance(document, dict) or document.get("results") != 1 or not isinstance(document.get("entries"), list) \
+            or not isinstance(document.get("about"), str) or set(document) != {"results", "about", "entries"}:
+        raise BenchmarkError("results_invalid", 'the history must be {"results": 1, "about": "...", "entries": [...]}')
+    previous: str | None = None
+    for entry in document["entries"]:
+        if not isinstance(entry, dict) or set(entry) != ENTRY_MEMBERS:
+            raise BenchmarkError("results_invalid", f"an entry must have exactly the members {', '.join(sorted(ENTRY_MEMBERS))}")
+        version = entry["version"]
+        if not isinstance(version, str) or not _VERSION.fullmatch(version):
+            raise BenchmarkError("results_invalid", "an entry's version must be X.Y.Z")
+        if previous is not None and version_key(version) <= version_key(previous):
+            raise BenchmarkError("results_invalid", f"the entry for {version} comes after {previous}: entries ascend by version")
+        if not isinstance(entry["released"], str) or not _DATE.fullmatch(entry["released"]):
+            raise BenchmarkError("results_invalid", f"the entry for {version} has no release date")
+        if not isinstance(entry["note"], str) or len(entry["note"]) > NOTE_MAX:
+            raise BenchmarkError("results_invalid", f"the note of {version} must be text of at most {NOTE_MAX} characters")
+        previous = version
+    return document
+
+
+def dump_results(document: dict) -> str:
+    return json.dumps(document, indent=1, sort_keys=True, ensure_ascii=False) + "\n"
+
+
+def load_results(path: Path) -> dict:
+    try:
+        text = path.read_bytes().decode("utf-8")
+    except (OSError, UnicodeDecodeError):
+        raise BenchmarkError("results_invalid", f"{path} cannot be read as UTF-8") from None
+    try:
+        document = json.loads(text)
+    except ValueError:
+        raise BenchmarkError("results_invalid", f"{path} is not JSON") from None
+    return check_results(document)
+
+
+def entry_for(results: dict, version: str) -> dict | None:
+    return next((entry for entry in results["entries"] if entry["version"] == version), None)
+
+
+def measured_part(entry: dict) -> dict:
+    """The entry without `released` and `note`: what `--verify` and `check-history` compare."""
+    return {key: value for key, value in entry.items() if key not in ("released", "note")}
+
+
+def differences(recorded: object, computed: object, limit: int = 10) -> list[str]:
+    """The first differences between two JSON values, each `<key> / <key> / ...: recorded <a>, computed <b>`, so a difference in
+    a stratum reads `sets / <set> / strata / <stratum> / <field> / <line>`."""
+    found: list[str] = []
+
+    def walk(left: object, right: object, path: list[str]) -> None:
+        if len(found) >= limit:
+            return
+        if isinstance(left, dict) and isinstance(right, dict):
+            for key in sorted(set(left) | set(right)):
+                if key not in left or key not in right:
+                    found.append(f"{' / '.join([*path, key])}: recorded {json.dumps(left.get(key))}, computed "
+                                 f"{json.dumps(right.get(key))}")
+                else:
+                    walk(left[key], right[key], [*path, key])
+        elif left != right:
+            found.append(f"{' / '.join(path) or 'the entry'}: recorded {json.dumps(left)}, computed {json.dumps(right)}")
+
+    walk(recorded, computed, [])
+    return found[:limit]
+
+
+# --- the CHANGELOG rule (10.10) ---------------------------------------------------------------------------------------------
+
+LINE_TEXT = {"medium": "medium or above", "high": "high or above"}
+FIRST_TABLE = "Rule benchmark: first published table, see benchmarks/RESULTS.md."
+
+
+def _rule_rows(previous: Total, current: Total, rule_ids: list[str], line: str) -> list[tuple[str, int, int]]:
+    rows = [("all rules", previous.found[line], current.found[line])]
+    rows += [(rule_id, previous.rules.get(rule_id, {}).get(line, 0), current.rules.get(rule_id, {}).get(line, 0))
+             for rule_id in rule_ids]
+    return rows
+
+
+def worse_rates(previous: dict, current: dict) -> list[str]:
+    """One line per rate that got worse from `previous` to `current` (10.10): per set (strata summed), for the whole rule set
+    and for each rule both entries measured, at each line, a detection rate that went down or a false-positive rate that went
+    up (exact fractions), and more items not read whole. A per-item set is compared skill by skill and with counts only."""
+    rule_ids = sorted(set(previous["rules_measured"]) & set(current["rules_measured"]))
+    lines: list[str] = []
+    for set_id, block in current["sets"].items():
+        before = previous["sets"].get(set_id)
+        if before is None:
+            continue
+        title = block["title"]
+        per_item = block.get("report") == PER_ITEM
+        for line in LINES:
+            for label, word in (("malicious", "detection"), ("benign", "false positives")):
+                old, new = totals(before, label), totals(block, label)
+                if old is None or new is None or old.read == 0 or new.read == 0:
+                    continue
+                for name, old_found, new_found in _rule_rows(old, new, rule_ids, line):
+                    old_scaled, new_scaled = old_found * new.read, new_found * old.read
+                    if not (new_scaled < old_scaled if label == "malicious" else new_scaled > old_scaled):
+                        continue
+                    counts = f"{old_found} of {old.read} to {new_found} of {new.read}"
+                    if per_item:
+                        lines.append(f"- {title}, {name}, {LINE_TEXT[line]}: {word} {counts}")
+                    else:
+                        lines.append(f"- {title}, {name}, {LINE_TEXT[line]}: {word} {percent(old_found / old.read)}% to "
+                                     f"{percent(new_found / new.read)}% ({counts})")
+            if per_item:
+                for stratum_id, stratum in block["strata"].items():
+                    old_outcomes = before["strata"].get(stratum_id, {}).get("outcomes", {})
+                    for item_id in sorted(set(old_outcomes) & set(stratum.get("outcomes", {}))):
+                        if at_or_above(old_outcomes[item_id], line) and not at_or_above(stratum["outcomes"][item_id], line):
+                            lines.append(f"- {title}, {item_id}, {LINE_TEXT[line]}: found to not found")
+        old_unread = sum(len(stratum["unread"]) for stratum in before["strata"].values())
+        new_unread = sum(len(stratum["unread"]) for stratum in block["strata"].values())
+        if new_unread > old_unread:
+            lines.append(f"- {title}, items not read whole: {old_unread} to {new_unread}")
+    return lines
+
+
+def changelog_lines(results: dict) -> list[str]:
+    """The lines the newest entry's CHANGELOG section must hold (10.10); none without an entry."""
+    entries = results["entries"]
+    if not entries:
+        return []
+    if len(entries) == 1:
+        return [FIRST_TABLE]
+    previous, current = entries[-2], entries[-1]
+    worse_lines = worse_rates(previous, current)
+    if worse_lines:
+        required = [f"Rule benchmark: these rates got worse than in {previous['version']}:", *worse_lines]
+    else:
+        required = [f"Rule benchmark: no rate got worse than in {previous['version']}."]
+    if current["manifest_sha256"] != previous["manifest_sha256"]:
+        required.append(f"Rule benchmark: the sets changed since {previous['version']}; benchmarks/README.md lists what was "
+                        "left out.")
+    return required
+
+
+def changelog_section(text: str, version: str) -> str | None:
+    """The body under `## <version>` (any date suffix) up to the next `## ` heading, as `scripts/release_manifest.py` reads it;
+    None without such a heading."""
+    match = re.search(rf"^## {re.escape(version)}\b.*?\n(.*?)(?=^## |\Z)", text.replace("\r\n", "\n"), re.M | re.S)
+    return None if match is None else match.group(1)
+
+
+def released_date(text: str, version: str) -> str | None:
+    """The date of the heading `## <version> (<YYYY-MM-DD>)`, or None."""
+    match = re.search(rf"^## {re.escape(version)} \((\d{{4}}-\d{{2}}-\d{{2}})\)[ \t]*$", text.replace("\r\n", "\n"), re.M)
+    return None if match is None else match.group(1)
+
+
+def check_changelog(results: dict, text: str) -> list[str]:
+    """What the newest entry's CHANGELOG section lacks (10.10): every required line, and the worse lines right under their
+    heading, in order. Empty when the history has no entry."""
+    required = changelog_lines(results)
+    if not required:
+        return []
+    version = results["entries"][-1]["version"]
+    section = changelog_section(text, version)
+    if section is None:
+        return [f"CHANGELOG.md has no section for {version}"]
+    have = [line.rstrip() for line in section.splitlines()]
+    problems = []
+    worse_lines = [line for line in required if line.startswith("- ")]
+    for line in required:
+        if line.startswith("- "):
+            continue
+        if line not in have:
+            problems.append(f"the CHANGELOG section of {version} lacks the line: {line}")
+        elif line.endswith(":"):
+            start = have.index(line) + 1
+            if have[start:start + len(worse_lines)] != worse_lines:
+                listed = " | ".join(worse_lines)
+                problems.append(f"the CHANGELOG section of {version} must list under that line, in order: {listed}")
+    return problems
+
+
+def check_history(previous: dict, current: dict) -> list[str]:
+    """Earlier entries are unchanged (10.9): every entry of `previous` is in `current` with the same measured part, `released`
+    and `note`, and `current` adds entries only above the newest of `previous`."""
+    old = {entry["version"]: entry for entry in previous["entries"]}
+    new = {entry["version"]: entry for entry in current["entries"]}
+    problems = []
+    for version, entry in old.items():
+        if version not in new:
+            problems.append(f"the entry for {version} that the last release published is missing")
+        elif measured_part(new[version]) != measured_part(entry):
+            problems.append(f"the measured part of the entry for {version} changed: {differences(entry, new[version])[0]}")
+        elif (new[version]["released"], new[version]["note"]) != (entry["released"], entry["note"]):
+            problems.append(f"the release date or the note of the entry for {version} changed")
+    if old:
+        newest = max(old, key=version_key)
+        for version in new:
+            if version not in old and version_key(version) <= version_key(newest):
+                problems.append(f"the entry for {version} is new but not above {newest}, the newest the last release published")
+    return problems
+
+
+# --- output (10.8) -----------------------------------------------------------------------------------------------------------
+
+TUNING_SENTENCE = "Tuning set: rules may be tuned on it, so its rates can look better than those of a test set."
+NO_TABLE = "No release has published a table yet. The first one ships with the next release."
+GENERATED = ("<!-- Generated by `python benchmarks/rule_benchmark.py render` from benchmarks/results.json. Do not edit it by "
+             "hand: change results.json and run render again. -->")
+README_START, README_END = "<!-- benchmark:start -->", "<!-- benchmark:end -->"
+BELOW = "below this line"
+LABEL_TEXT = {"malicious": "malicious", "benign": "harmless"}
+RATE_WORD = {"malicious": "detection", "benign": "false positives"}
+
+
+def ordered_sets(entry: dict) -> list[tuple[str, dict]]:
+    """Test sets first, then tuning sets, each by id."""
+    return sorted(entry["sets"].items(), key=lambda pair: (pair[1]["role"] != "test", pair[0]))
+
+
+def below(entry: dict, rule_id: str, line: str) -> bool:
+    return SEVERITY_RANK[entry["rules_measured"][rule_id]] > LINE_RANK[line]
+
+
+def not_measured_text(entry: dict) -> str:
+    names = entry["rules_not_measured"]
+    prefixes = ", ".join(sorted({name.rsplit("-", 1)[0] for name in names}))
+    return f"{len(names)} rules judge other kinds of content and are not measured here: {prefixes}"
+
+
+def _short(found: int, read: int, per_item: bool) -> str:
+    if per_item:
+        return f"{found} of {read}"
+    if read == 0:
+        return "no skill read whole"
+    return f"{percent(found / read)}% ({found} of {read})"
+
+
+def _found_text(found: int, read: int, per_item: bool) -> str:
+    if per_item or read == 0:
+        return f"found {found} of {read}"
+    low, high = wilson(found, read)
+    return f"found {found} of {read}, {percent(found / read)}% ({percent(low)}% to {percent(high)}%)"
+
+
+def _outcome(stratum: dict, item_id: str, line: str) -> str:
+    if item_id in stratum["unread"]:
+        return "not read whole"
+    return "found" if at_or_above(stratum["outcomes"][item_id], line) else "not found"
+
+
+def _per_item_ids(block: dict) -> list[tuple[str, dict]]:
+    return sorted(((item_id, stratum) for stratum in block["strata"].values()
+                   for item_id in [*stratum["unread"], *stratum.get("outcomes", {})]), key=lambda pair: pair[0])
+
+
+def _missed(block: dict) -> tuple[int, int]:
+    missed = [severity for stratum in block["strata"].values() for severity in stratum.get("missed", {}).values()]
+    return sum(1 for severity in missed if not at_or_above(severity, "medium")), len(missed)
+
+
+def render_text(entry: dict, *, ids_at: str) -> str:
+    """The terminal table of one entry (10.8.1). `ids_at` says where the ids of missed items are."""
+    out = [f"Spellwarden rule benchmark: scanner {entry['version']}, rules {entry['rules_version']}, manifest "
+           f"{entry['manifest_sha256']}; rules only, no model.", ""]
+    for _set_id, block in ordered_sets(entry):
+        per_item = block.get("report") == PER_ITEM
+        out.append(f"{block['title']} ({block['role']}{', shown skill by skill' if per_item else ''})")
+        if block["role"] == "tuning":
+            out.append(TUNING_SENTENCE)
+        if per_item:
+            for item_id, stratum in _per_item_ids(block):
+                if item_id in stratum["unread"]:
+                    out.append(f"  {item_id}: not read whole ({stratum['unread'][item_id]})")
+                else:
+                    out.append(f"  {item_id}: " + "; ".join(f"{LINE_TEXT[line]}: {_outcome(stratum, item_id, line)}"
+                                                           for line in LINES))
+        else:
+            for stratum_id, stratum in sorted(block["strata"].items()):
+                read = stratum_read(stratum)
+                rates = "; ".join(f"{LINE_TEXT[line]}: {_found_text(stratum['found'][line], read, False)}" for line in LINES)
+                out.append(f"  {stratum['title']} [{stratum_id}], {LABEL_TEXT[stratum['label']]}: {stratum['items']} skills, "
+                           f"{len(stratum['unread'])} not read whole; {rates}")
+        for label in LABELS:
+            total = totals(block, label)
+            if total is not None:
+                out.append(f"  all {LABEL_TEXT[label]}: {total.items} skills, {total.unread} not read whole; "
+                           + "; ".join(f"{LINE_TEXT[line]}: {_found_text(total.found[line], total.read, per_item)}"
+                                       for line in LINES))
+        if not per_item and set_macro_f1(block, "medium") is not None:
+            scores = "; ".join(f"{LINE_TEXT[line]} {three_decimals(set_macro_f1(block, line))}" for line in LINES)
+            out.append(f"  macro-F1: {scores}")
+        out.append("  rules:")
+        for rule_id, severity in sorted(entry["rules_measured"].items()):
+            cells = []
+            for line in LINES:
+                if below(entry, rule_id, line):
+                    cells.append(f"{LINE_TEXT[line]}: {BELOW}")
+                    continue
+                parts = []
+                for label in LABELS:
+                    total = totals(block, label)
+                    if total is not None:
+                        parts.append(f"{RATE_WORD[label]} {_short(total.rules[rule_id][line], total.read, per_item)}")
+                cells.append(f"{LINE_TEXT[line]}: " + ", ".join(parts))
+            out.append(f"    {rule_id} ({severity}): " + "; ".join(cells))
+        if not per_item and totals(block, "malicious") is not None:
+            at_medium, at_high = _missed(block)
+            out.append(f"  missed malicious skills: {at_medium} at medium or above, {at_high} at high or above; their ids are in "
+                       f"{ids_at}")
+        out.append("")
+    out.append(not_measured_text(entry))
+    return "\n".join(out) + "\n"
+
+
+def _ids(values: list[str]) -> str:
+    return ", ".join(f"`{value}`" for value in values) if values else "none"
+
+
+def _entry_markdown(entry: dict) -> list[str]:
+    out = [f"## Scanner {entry['version']}", "",
+           f"Rules version {entry['rules_version']}, released {entry['released']}. Manifest `{entry['manifest_sha256']}`."]
+    if entry["note"]:
+        out += ["", f"Note: {entry['note']}"]
+    for _set_id, block in ordered_sets(entry):
+        per_item = block.get("report") == PER_ITEM
+        out += ["", f"### {block['title']} ({block['role']}{', shown skill by skill' if per_item else ''})", ""]
+        if block["role"] == "tuning":
+            out += [TUNING_SENTENCE, ""]
+        if per_item:
+            out += ["| Skill | Medium or above | High or above |", "|---|---|---|"]
+            out += [f"| `{item_id}` | " + " | ".join(_outcome(stratum, item_id, line) for line in LINES) + " |"
+                    for item_id, stratum in _per_item_ids(block)]
+        else:
+            out += ["| Stratum | Label | Skills | Not read whole | Medium or above | High or above |",
+                    "|---|---|---|---|---|---|"]
+            for _stratum_id, stratum in sorted(block["strata"].items()):
+                read = stratum_read(stratum)
+                rates = " | ".join(rate_text(stratum["found"][line], read) for line in LINES)
+                out.append(f"| {stratum['title']} | {LABEL_TEXT[stratum['label']]} | {stratum['items']} | "
+                           f"{len(stratum['unread'])} | {rates} |")
+            for label in LABELS:
+                total = totals(block, label)
+                if total is not None:
+                    out.append(f"| All {LABEL_TEXT[label]} | {LABEL_TEXT[label]} | {total.items} | {total.unread} | "
+                               + " | ".join(rate_text(total.found[line], total.read) for line in LINES) + " |")
+            if set_macro_f1(block, "medium") is not None:
+                out += ["", "Macro-F1: " + ", ".join(f"{LINE_TEXT[line]} {three_decimals(set_macro_f1(block, line))}"
+                                                    for line in LINES) + "."]
+        labels = [label for label in LABELS if totals(block, label) is not None]
+        header = ["Rule", "Severity"] + [f"{RATE_WORD[label].capitalize()}, {LINE_TEXT[line]}"
+                                         for line in LINES for label in labels]
+        out += ["", "| " + " | ".join(header) + " |", "|" + "---|" * len(header)]
+        for rule_id, severity in sorted(entry["rules_measured"].items()):
+            cells = []
+            for line in LINES:
+                for label in labels:
+                    total = totals(block, label)
+                    shown = _short(total.rules[rule_id][line], total.read, per_item)
+                    cells.append(BELOW if below(entry, rule_id, line) else shown)
+            out.append(f"| `{rule_id}` | {severity} | " + " | ".join(cells) + " |")
+        if not per_item and "malicious" in labels:
+            missed = {item_id: severity for stratum in block["strata"].values()
+                      for item_id, severity in stratum.get("missed", {}).items()}
+            at_medium = sorted(item_id for item_id, severity in missed.items() if not at_or_above(severity, "medium"))
+            out += ["", f"Malicious skills missed at medium or above: {_ids(at_medium)}.", "",
+                    f"Malicious skills missed at high or above: {_ids(sorted(missed))}."]
+        unread = sorted((item_id, reason) for stratum in block["strata"].values()
+                        for item_id, reason in stratum["unread"].items())
+        out += ["", "Skills not read whole: " + (", ".join(f"`{item_id}` ({reason})" for item_id, reason in unread)
+                                                 if unread else "none") + "."]
+    out += ["", f"{not_measured_text(entry)}."]
+    return out
+
+
+def _history_markdown(entries: list[dict]) -> list[str]:
+    header = ["Set and line"]
+    for index, entry in enumerate(entries):
+        changed = index > 0 and entry["manifest_sha256"] != entries[index - 1]["manifest_sha256"]
+        header.append(entry["version"] + (" (sets changed)" if changed else ""))
+    out = ["## Release by release", "", "| " + " | ".join(header) + " |", "|" + "---|" * len(header)]
+    newest = entries[-1]
+    for set_id, block in ordered_sets(newest):
+        per_item = block.get("report") == PER_ITEM
+        for line in LINES:
+            for label in LABELS:
+                if totals(block, label) is None:
+                    continue
+                cells = []
+                for entry in entries:
+                    other = entry["sets"].get(set_id)
+                    total = totals(other, label) if other is not None else None
+                    if total is None:
+                        cells.append("not in this release")
+                    elif per_item:
+                        cells.append(f"found {total.found[line]} of {total.read}")
+                    else:
+                        cells.append(_short(total.found[line], total.read, False))
+                name = "found" if per_item else RATE_WORD[label]
+                out.append(f"| {block['title']}, {name}, {LINE_TEXT[line]} | " + " | ".join(cells) + " |")
+    if any(entry["note"] for entry in entries):
+        out.append("| Note | " + " | ".join(entry["note"] for entry in entries) + " |")
+    return out
+
+
+def render_markdown(results: dict) -> str:
+    """`benchmarks/RESULTS.md` (10.8.2): the newest entry in full and the history table."""
+    out = [GENERATED, "", "# Rule benchmark results", "",
+           "What the scanner's skill rules find on fixed public sets of malicious and harmless skills, measured again for every "
+           "release. Rules only: no model is called. What is measured, the sources and how to run it yourself are in "
+           "[README.md](README.md).", ""]
+    entries = results["entries"]
+    if not entries:
+        out.append(NO_TABLE)
+        return "\n".join(out) + "\n"
+    out += _entry_markdown(entries[-1]) + [""] + _history_markdown(entries)
+    return "\n".join(out) + "\n"
+
+
+def readme_block(results: dict) -> str:
+    """The README block between the markers (10.8.3), ending with a newline."""
+    entries = results["entries"]
+    if not entries:
+        return NO_TABLE + "\n"
+    entry = entries[-1]
+    out = ["| Set | Skills | Line | Detection | False positives | Not read whole |", "|---|---|---|---|---|---|"]
+    sentences = []
+    for _set_id, block in ordered_sets(entry):
+        if block.get("report") == PER_ITEM:
+            for line in LINES:
+                groups: dict[str, list[str]] = {"found": [], "not found": [], "not read whole": []}
+                for item_id, stratum in _per_item_ids(block):
+                    groups[_outcome(stratum, item_id, line)].append(item_id)
+                parts = [f"{name} " + ", ".join(f"`{item_id}`" for item_id in ids) for name, ids in groups.items() if ids]
+                sentences.append(f"{block['title']}, {LINE_TEXT[line]}: " + "; ".join(parts) + ".")
+            continue
+        name = block["title"] + (" (tuning)" if block["role"] == "tuning" else "")
+        items = sum(stratum["items"] for stratum in block["strata"].values())
+        unread = sum(len(stratum["unread"]) for stratum in block["strata"].values())
+        for index, line in enumerate(LINES):
+            cells = []
+            for label in LABELS:
+                total = totals(block, label)
+                cells.append("none in this set" if total is None else rate_text(total.found[line], total.read))
+            first = f"{name} | {items}" if index == 0 else " | "
+            out.append(f"| {first} | {LINE_TEXT[line]} | {cells[0]} | {cells[1]} | {unread} |")
+    if sentences:
+        out += [""] + sentences
+    out += ["", f"Scanner {entry['version']}, rules version {entry['rules_version']}, released {entry['released']}."]
+    return "\n".join(out) + "\n"
+
+
+def with_readme_block(readme: str, block: str) -> str:
+    """The README text with `block` between the markers; raises `BenchmarkError` `readme_markers` unless each marker is there
+    once, the start first."""
+    text = readme.replace("\r\n", "\n")
+    start, end = README_START + "\n", README_END
+    if text.count(start) != 1 or text.count(end) != 1 or text.index(start) > text.index(end):
+        raise BenchmarkError("readme_markers", f"README.md must hold {README_START} and {README_END} once each, in that order")
+    return text[:text.index(start) + len(start)] + block + text[text.index(end):]
