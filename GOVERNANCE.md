@@ -23,8 +23,8 @@ Spellwarden sells a hosted product that runs this same engine: scans kept over t
 ## If the company stops
 
 - The licence is Apache-2.0 and cannot be taken back for a version that was released. Anyone may keep using, changing and publishing the code.
-- The scanner runs on your machine or runner and needs no Spellwarden service. In free mode the only call to Spellwarden is the usage ping in CI, which fails silently and can be switched off.
-- Released packages stay on PyPI and released images in the container registry. Each is signed, and the README shows how to verify one, so a copy you keep can be checked later.
+- The scanner runs on your machine or runner and needs no Spellwarden service. In free mode the only call to Spellwarden is the usage ping in CI. A ping that fails never changes a report or an exit code, and it can be switched off.
+- Released packages are on PyPI and released images in the container registry. Each is signed, and the README shows how to verify one, so a copy you keep can be checked later.
 - The rules, their fixtures and their tests are all in this repository. Nothing a scan needs is held elsewhere.
 
 ## Changing this file
