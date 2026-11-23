@@ -181,6 +181,13 @@
                                 "nist": {"type": "array", "items": {"type": "string"}},
                                 "atlas": {"type": "array", "items": {"type": "string"}},
                                 "owasp_ast": {"type": "array", "items": {"type": "string"}}}},
+        "fix": {"type": ["string", "null"], "maxLength": 200,
+                "description": "Scanner 1.21.0: the fix sentence of the finding's rule; null for an organisation rule. The upload leaves this out."},
+        "rule_url": {"type": ["string", "null"], "format": "uri",
+                     "description": "Scanner 1.21.0: the page of the finding's rule, with campaign tags; null for an organisation rule. The upload leaves this out."},
+        "fix_lines": {"type": "object", "required": ["where", "text"],
+                      "description": "Scanner 1.21.0: the lines to write where the fix is a setting (SW-CFG-013, SW-A2A-006 and SW-MCP-003 only), text to copy. The upload leaves this out.",
+                      "properties": {"where": {"type": "string", "maxLength": 80}, "text": {"type": "string", "maxLength": 200}}},
         "baseline": {"oneOf": [
           {"type": "null"},
           {"type": "object", "required": ["reason", "added", "expires"],
