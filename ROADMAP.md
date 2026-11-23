@@ -12,9 +12,11 @@ Since 1.20.0 the repository scan and the workstation scan read the files that Co
 
 Since 1.21.0 every finding carries its rule's fix sentence and a link to the rule's page, in every report, in code scanning alerts and in the pull request comment ([How to fix](README.md#how-to-fix)).
 
+Since 1.21.0 a rule id is never reused or renamed and a deprecation is announced at least one minor version ahead, held by a test that every build runs ([Schemas and compatibility](README.md#schemas-and-compatibility)).
+
 ## Being built now
 
-- **A compatibility pledge.** Rule ids are never reused or renamed, the report formats change only as [Schemas and compatibility](README.md#schemas-and-compatibility) says, and a deprecation is announced at least one minor version before it takes effect. A test in the release workflow holds the scanner to it.
+Nothing at the moment: the next item comes from the list below.
 
 ## Next
 

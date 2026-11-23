@@ -34,6 +34,11 @@ alerts and in the pull request comment and merge request note; three rules also 
 - Correction. The rule link of the HTML report and the `source.url` of the CycloneDX file now write the rule id in lower case,
   the address of the rule's page. Up to 1.20.0 they wrote it in upper case, an address that answered with Page not found.
 - The release workflow checks that every rule's page answers before it publishes.
+- Compatibility pledge. A rule id is never reused or renamed, and a deprecation is announced in this changelog at least one minor
+  version before it takes effect; a retired rule's id stays reserved and is listed in the README's "The rules".
+  `tests/data/released_rule_ids.json` holds every rule id released so far with its first title, and a test that every build runs
+  fails when a released id goes missing without being retired, a retired id comes back, or an id's title changes without a
+  recorded rename.
 
 ## 1.20.0 (2026-11-23)
 
