@@ -38,7 +38,6 @@ Not decided. Each of these changes what the scanner sends or where it runs, so i
 - A guard that compares a server's tools with the pinned ones at the moment the server starts.
 - An editor extension that shows findings when agent content is saved, and a GitHub App that checks pull requests without a workflow file.
 - A2A beyond agent cards: rules for which agent may call which, and A2A agents in the private registry of the hosted product.
-- A self-hosted option for the hosted product.
 
 ## Not planned
 
