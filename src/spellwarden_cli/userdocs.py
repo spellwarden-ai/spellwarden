@@ -105,10 +105,12 @@ def _cursor_events(hooks: Any) -> Any:
 
 def _copilot_events(hooks: Any) -> Any:
     """GitHub Copilot's hooks (`.github/hooks/*.json`, `$COPILOT_HOME/hooks/*.json` and the `hooks` of its settings files, the
-    hooks reference): `{event: [entry]}`. An entry that holds a `hooks` array is a Claude-shaped group, kept as it is. Any other
-    entry whose `type` is absent or `command` gives one hook for each of its string keys `bash`, `powershell` and `command`, in
-    that order, each at its own key's line, grouped with the entry's `matcher` when it is a string. An entry of another `type`
-    (`http`, `prompt`) runs no shell and gives none; the document's hash still covers it (Engine 1.20.0: scan selection, D6)."""
+    hooks reference): `{event: [entry]}`. An entry that holds a `hooks` array is a Claude-shaped group, kept as it is. Every
+    entry, that one included and whatever its `type` says, also gives one hook for each of its string keys `bash`, `powershell`
+    and `command`, in that order, each at its own key's line, grouped with the entry's `matcher` when it is a string: a shell
+    command written next to a `hooks` array or under `type: http` is never left unlisted, since the scanner cannot know which
+    of the two the client runs. An entry with none of the three keys (`http`, `prompt`) runs no shell and gives none; the
+    document's hash still covers it (Engine 1.20.0: scan selection, D6)."""
     if not isinstance(hooks, Obj):
         return None
     events: dict = {}
@@ -123,9 +125,6 @@ def _copilot_events(hooks: Any) -> Any:
             if isinstance(entry.get("hooks"), Arr):
                 groups.append(entry)
                 lines.append(entries.lines[index])
-                continue
-            if entry.get("type", "command") != "command":
-                continue
             shells = [key for key in ("bash", "powershell", "command") if isinstance(entry.get(key), str)]
             if not shells:
                 continue
