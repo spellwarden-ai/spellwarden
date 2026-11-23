@@ -2,6 +2,25 @@
 
 The Spellwarden scan engine: the baseline rules for agent skills, MCP servers and A2A agent cards, the probe classification against the 2026-07-28 MCP specification, the migration checklist and the curation score. It is the engine of the hosted product at [spellwarden.ai](https://spellwarden.ai) and is published so that the same rules run in your own tooling.
 
+## What it checks and what it does not
+
+It checks agent content before that content is installed, merged or served:
+
+- skills (`SKILL.md` packages), Claude Code plugin marketplaces, settings and hooks, MCP client configurations, instruction files such as `AGENTS.md` and `CLAUDE.md`, and A2A agent cards, with [the rules](#the-rules) in the table below, each mapped to the OWASP lists for agents and MCP, NIST SP 800-53 and MITRE ATLAS;
+- remote MCP servers against the 2026-07-28 specification, when you ask for it with [`--probe`](#probing---probe);
+- the agent configuration of a workstation, with [`scan --user`](#scanning-a-workstation): Claude Code, Claude Desktop, Cursor, VS Code, Windsurf, Codex and Gemini CLI;
+- each skill with a model you choose, when you ask for it with [`--analyze`](#model-assisted-analyzer---analyze): your own endpoint and key, or a local server. Its verdicts are advisory and never change the exit code.
+
+It does not:
+
+- sit in the path while an agent runs. It reads no tool call and no tool result. A policy pack [exports](#exports) to Claude Code hooks, Kong, Zuplo, ToolHive and Docker MCP Gateway, and each export lists what that target enforces;
+- look for MCP servers declared in program code, or look up known vulnerabilities of dependencies. It flags installs without a pinned version;
+- make a passed scan a promise of safety. A passed scan means that no rule found a problem. Content the scanner leaves unread ends the scan as incomplete, never as a pass ([Limits](#limits)).
+
+The scanner, its rules, the GitHub Action and the GitLab CI component ([Use it in CI](#use-it-in-ci)) and the [pre-commit hook](#pre-commit-hook) are free under Apache-2.0 and run on your machine or runner. The hosted product at spellwarden.ai is a paid subscription with a 14-day trial; it runs the same engine.
+
+More: [what Spellwarden checks and what it does not](https://spellwarden.ai/docs/scope?utm_source=github&utm_medium=readme&utm_campaign=scope) and [questions and answers](https://spellwarden.ai/docs/faq?utm_source=github&utm_medium=readme&utm_campaign=faq).
+
 One distribution holds two import packages. `spellwarden_scan` is the engine and is pure code: it never opens a connection, reads a file or an environment variable; you hand it the bytes of a package, a configuration file or the recorded result of a probe, and it hands back findings. `spellwarden_cli` is the `spellwarden` command: it finds the agent content in a repository, runs the engine on it on your machine or CI runner, and writes the reports. The GitHub Action and the GitLab CI component that run the command in pipelines arrive with 1.0.0.
 
 ```
