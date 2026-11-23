@@ -173,6 +173,14 @@ The severity in the table is each rule's worst case. Since 1.9.0 two MCP rules g
 
 The numbers SW-SKL-016 to 018, SW-SKL-020 to 030, SW-SKL-033 to 035, SW-CFG-011 and SW-CFG-014 are reserved and unused. `RuleSet.baseline()` returns these rules; `ruleset.with_rules(extra)` adds your own `Rule` objects built with `spellwarden_scan.rules.make_rule`.
 
+## Measured rates
+
+What the rules find on fixed public sets of malicious and harmless skills, measured again for every release by the release workflow. Rules only: no model is called. A skill is found when the rules report at least one finding at or above the line (medium or above, or high or above, the lines `--fail-on` and the presets use), at each rule's own severity (no preset). A rate counts skills, with its 95% Wilson interval. Skills the scanner could not read whole are counted apart, never as found and never as clean. A set of four skills is too small for a rate: each of its skills is shown as found or not found. Only the 20 skill rules can be measured on skills; the MCP, configuration, registry and A2A rules are not measured here. The full table per rule and per stratum, every release so far and the ids of the malicious skills the rules missed are in [benchmarks/RESULTS.md](benchmarks/RESULTS.md); how to run it yourself, the sources and their licences are in [benchmarks/README.md](benchmarks/README.md).
+
+<!-- benchmark:start -->
+No release has published a table yet. The first one ships with the next release.
+<!-- benchmark:end -->
+
 ## Org rules, packs and exports
 
 Since 1.1.0 the engine also holds what the hosted product calls Ward: rules an organisation writes as data (org rules), policy packs, and the exports that turn a pack into enforcement for Claude Code hooks, Kong and Zuplo. All of it is pure, like the rest of the engine. In connected mode the command applies the organisation's CI policy (see Connected mode).
@@ -1173,7 +1181,7 @@ The receiver refuses bodies over 4 MiB as sent or 16 MiB decompressed: batch at 
 
 ## Releases
 
-Releases are built and published by GitHub Actions through PyPI trusted publishing (OpenID Connect): a push of a tag `vX.Y.Z` whose version equals the one in `pyproject.toml` builds the sdist and the wheel and publishes them from the `pypi` environment. No API token exists anywhere. The sources are checked on Python 3.11, 3.12 and 3.13 on Linux, and on Python 3.13 on Windows, on every push; every workflow is checked with `actionlint`. Before anything is published, the release workflow's `gateway-exports` job runs ToolHive v0.65.0 and Docker MCP Gateway v0.44.3 on the baseline pack's exports in front of a fixture MCP server (Linux, with Docker).
+Releases are built and published by GitHub Actions through PyPI trusted publishing (OpenID Connect): a push of a tag `vX.Y.Z` whose version equals the one in `pyproject.toml` builds the sdist and the wheel and publishes them from the `pypi` environment. No API token exists anywhere. The sources are checked on Python 3.11, 3.12 and 3.13 on Linux, and on Python 3.13 on Windows, on every push; every workflow is checked with `actionlint`. Before anything is published, the release workflow's `gateway-exports` job runs ToolHive v0.65.0 and Docker MCP Gateway v0.44.3 on the baseline pack's exports in front of a fixture MCP server (Linux, with Docker). Before anything is published, the `rule-benchmark` job installs the built wheel on Linux and Windows, fetches the benchmark's sets from their sources, checks every file against its recorded hash and measures the rules; a failed fetch, a changed file or numbers that differ from the entry committed for the version stop the release, and the table is attached to the GitHub release as `rule-benchmark.json` and `rule-benchmark.md`.
 
 ## Development
 
@@ -1182,6 +1190,8 @@ make check     # ruff, pytest, uv build
 ```
 
 `tests/test_pure.py` fails the build if any module of `spellwarden_scan` reaches for the network, the file system or the environment; `tests/test_network_boundary.py` fails it if any module of `spellwarden_cli` other than the prober's fetcher (`net.py`), the usage ping (`ping.py`), the comment poster (`forge.py`), the API client of connected mode (`api.py`) and, since 1.17.0, the model client of `--analyze` (`model_client.py`) can reach the network; `tests/test_fixture_coverage.py` fails it if a rule lacks a positive or a negative fixture. Every test runs offline: HTTP exchanges are recorded under `tests/recorded/` and git repositories are made by the tests.
+
+`make benchmark` runs the rule benchmark with this checkout's scanner (it needs the network for the first fetch); `benchmarks/README.md` says how to run it against a released version.
 
 ## Use it in CI
 

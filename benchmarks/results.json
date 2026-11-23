@@ -1,0 +1,5 @@
+{
+ "about": "The rule benchmark's history: one entry per release, written by `python benchmarks/rule_benchmark.py run --record`; benchmarks/README.md says what it measures.",
+ "entries": [],
+ "results": 1
+}

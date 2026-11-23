@@ -938,3 +938,260 @@ def test_differences_name_the_set_the_stratum_and_the_field():
     found = rb.differences(rb.measured_part(entry("1.21.0")), rb.measured_part(entry("1.21.0", test_m=(301, 31))))
     assert found == ["sets / msb-test / strata / skillharm / found / medium: recorded 302, computed 301"]
     assert rb.measured_part(entry("1.21.0", note="x")) == rb.measured_part(entry("1.21.0"))
+
+
+# --- T-9, T-10: the command, end to end and offline ------------------------------------------------------------------------------
+
+def four_set_builder() -> Builder:
+    """Two test sets, a tuning set and a per-item set of three skills: one found at high, one clean, one past the front-matter
+    limit. Tar, parquet and url objects."""
+    builder = Builder()
+    builder.add_set("alpha")
+    builder.add_set("beta")
+    builder.add_set("gamma", role="tuning")
+    builder.add_set("tob", strata={"tob": "malicious"}, report="per-item")
+    builder.tar_item("m-alpha-1", "alpha", "m", [{"SKILL.md": HIGH}, {"SKILL.md": CLEAN, "notes.txt": b"x"}])
+    builder.tar_item("m-alpha-2", "alpha", "m", [{"SKILL.md": MEDIUM}])
+    builder.row_item("b-alpha-1", "alpha", "b", CLEAN)
+    builder.row_item("b-alpha-2", "alpha", "b", LOW)
+    builder.tar_item("m-beta-1", "beta", "m", [{"SKILL.md": CLEAN + b"\nbeta\n"}])
+    builder.url_item("b-beta-1", "beta", "b", {"SKILL.md": MEDIUM + b"\nbeta\n", "README.md": b"# beta\n"})
+    builder.tar_item("m-gamma-1", "gamma", "m", [{"SKILL.md": HIGH + b"\ngamma\n"}])
+    builder.url_item("b-gamma-1", "gamma", "b", {"SKILL.md": CLEAN + b"\ngamma\n"})
+    builder.tar_item("m-tob-found", "tob", "tob", [{"SKILL.md": HIGH + b"\ntob\n"}])
+    builder.tar_item("m-tob-clean", "tob", "tob", [{"SKILL.md": CLEAN + b"\ntob\n"}])
+    builder.tar_item("m-tob-limit", "tob", "tob", [{"SKILL.md": LIMIT}])
+    return builder
+
+
+def _run_args(tmp_path: Path, *more: str) -> list[str]:
+    return ["run", "--manifest", str(tmp_path / "manifest.json"), "--cache", str(tmp_path / "cache"),
+            "--changelog", str(tmp_path / "CHANGELOG.md"), "--results", str(tmp_path / "none.json"), *more]
+
+
+@pytest.fixture
+def prepared(tmp_path):
+    builder = four_set_builder()
+    write_manifest(tmp_path, builder.document())
+    builder.fill(rb.Cache(tmp_path / "cache"))
+    (tmp_path / "CHANGELOG.md").write_text(f"# Changelog\n\n## {rb.SCANNER_VERSION} (2026-12-01)\n\nText.\n", encoding="utf-8")
+    return tmp_path
+
+
+def test_run_prints_the_table_writes_the_entry_and_record_then_verify_passes(prepared, capsys):
+    entry_out, results = prepared / "entry.json", prepared / "results.json"
+    assert rb.main(_run_args(prepared, "--offline", "--entry-out", str(entry_out), "--record", str(results)), environ={}) == 0
+    out = capsys.readouterr().out
+    assert rb.TUNING_SENTENCE in out and "SW-SKL-015 (low): medium or above: below this line" in out
+    assert MARKER not in out and "pip install" not in out
+    entry = json.loads(entry_out.read_text(encoding="utf-8"))
+    alpha = entry["sets"]["alpha"]["strata"]
+    assert (alpha["m"]["found"], alpha["m"]["missed"]) == ({"medium": 2, "high": 1}, {"m-alpha-2": "medium"})
+    assert alpha["b"]["found"] == {"medium": 0, "high": 0} and alpha["b"]["rules"]["SW-SKL-015"] == {"medium": 0, "high": 0}
+    assert entry["sets"]["beta"]["strata"]["b"]["found"] == {"medium": 1, "high": 0}
+    assert entry["sets"]["gamma"]["role"] == "tuning" and entry["sets"]["gamma"]["strata"]["m"]["found"]["high"] == 1
+    tob = entry["sets"]["tob"]["strata"]["tob"]
+    assert tob["outcomes"] == {"m-tob-clean": "none", "m-tob-found": "high"} and tob["unread"] == {"m-tob-limit": "frontmatter_limit"}
+    assert entry["released"] == "2026-12-01" and entry["note"] == ""
+    recorded = rb.load_results(results)
+    assert [value["version"] for value in recorded["entries"]] == [rb.SCANNER_VERSION]
+    assert rb.main(_run_args(prepared, "--offline", "--verify", str(results)), environ={}) == 0
+    assert f"matches the entry recorded for {rb.SCANNER_VERSION}" in capsys.readouterr().out
+
+
+def test_the_per_item_set_names_each_skill_and_shows_no_percent(prepared, capsys):
+    assert rb.main(_run_args(prepared, "--offline"), environ={}) == 0
+    out = capsys.readouterr().out
+    block = out[out.index("Set tob (test, shown skill by skill)"):]
+    block = block[:block.index("\n\n")]
+    assert "m-tob-found: medium or above: found; high or above: found" in block
+    assert "m-tob-clean: medium or above: not found; high or above: not found" in block
+    assert "m-tob-limit: not read whole (frontmatter_limit)" in block
+    assert "found 1 of 2" in block and "%" not in block
+
+
+def test_verify_names_the_stratum_and_field_of_a_changed_count_or_outcome(prepared, capsys):
+    results = prepared / "results.json"
+    assert rb.main(_run_args(prepared, "--offline", "--record", str(results)), environ={}) == 0
+    document = json.loads(results.read_text(encoding="utf-8"))
+    document["entries"][0]["sets"]["alpha"]["strata"]["m"]["found"]["medium"] = 1
+    results.write_text(rb.dump_results(document), encoding="utf-8")
+    capsys.readouterr()
+    assert rb.main(_run_args(prepared, "--offline", "--verify", str(results)), environ={}) == 1
+    assert "sets / alpha / strata / m / found / medium: recorded 1, computed 2" in capsys.readouterr().out
+    document["entries"][0]["sets"]["alpha"]["strata"]["m"]["found"]["medium"] = 2
+    document["entries"][0]["sets"]["tob"]["strata"]["tob"]["outcomes"]["m-tob-found"] = "medium"
+    results.write_text(rb.dump_results(document), encoding="utf-8")
+    assert rb.main(_run_args(prepared, "--offline", "--verify", str(results)), environ={}) == 1
+    assert 'sets / tob / strata / tob / outcomes / m-tob-found: recorded "medium", computed "high"' in capsys.readouterr().out
+
+
+def test_verify_without_an_entry_for_the_version_exits_1(prepared, capsys):
+    results = prepared / "results.json"
+    results.write_text(rb.dump_results({"results": 1, "about": rb.ABOUT, "entries": []}), encoding="utf-8")
+    assert rb.main(_run_args(prepared, "--offline", "--verify", str(results)), environ={}) == 1
+    assert f"no entry for {rb.SCANNER_VERSION} in {results}: run the benchmark and record it before tagging" in capsys.readouterr().out
+
+
+def test_another_installed_version_exits_2_and_record_refuses_a_missing_date_or_a_lower_version(prepared, capsys, monkeypatch):
+    assert rb.main(_run_args(prepared, "--offline", "--expect-version", "0.0.1"), environ={}) == 2
+    assert capsys.readouterr().err.startswith(f"wrong_version: the installed scanner is {rb.SCANNER_VERSION}, not 0.0.1")
+    (prepared / "CHANGELOG.md").write_text("# Changelog\n", encoding="utf-8")
+    assert rb.main(_run_args(prepared, "--offline", "--record", str(prepared / "results.json")), environ={}) == 2
+    assert capsys.readouterr().err.startswith("usage: --record needs the heading")
+    newer = {"results": 1, "about": rb.ABOUT, "entries": [entry("99.0.0")]}
+    (prepared / "results.json").write_text(rb.dump_results(newer), encoding="utf-8")
+    monkeypatch.setattr(rb, "SCANNER_VERSION", "1.0.0")
+    (prepared / "CHANGELOG.md").write_text("# Changelog\n\n## 1.0.0 (2026-12-01)\n", encoding="utf-8")
+    assert rb.main(_run_args(prepared, "--offline", "--record", str(prepared / "results.json")), environ={}) == 2
+    assert "lower than the newest entry 99.0.0" in capsys.readouterr().err
+
+
+def test_run_and_fetch_without_a_manifest_exit_2_with_manifest_missing(tmp_path, capsys):
+    for command in ("run", "fetch"):
+        assert rb.main([command, "--manifest", str(tmp_path / "manifest.json"), "--cache", str(tmp_path / "c")], environ={}) == 2
+        assert capsys.readouterr().err.startswith("manifest_missing: ")
+
+
+def test_offline_with_an_empty_cache_exits_2_naming_the_object(prepared, capsys):
+    assert rb.main(["run", "--manifest", str(prepared / "manifest.json"), "--cache", str(prepared / "empty"), "--offline"],
+                   environ={}) == 2
+    assert capsys.readouterr().err.startswith("object_missing: source ")
+
+
+def test_render_writes_and_checks_the_markdown_the_readme_block_and_the_assets(tmp_path, capsys):
+    results = tmp_path / "results.json"
+    results.write_bytes(rb.dump_results(history(entry("1.21.0"))).encode("utf-8"))  # bytes: the JSON asset is compared byte for byte below, and write_text gives CRLF on Windows
+    readme = tmp_path / "README.md"
+    readme.write_text("# x\n\n<!-- benchmark:start -->\nold\n<!-- benchmark:end -->\n", encoding="utf-8")
+    markdown = tmp_path / "RESULTS.md"
+    common = ["--results", str(results), "--readme", str(readme), "--markdown", str(markdown)]
+    assert rb.main(["render", *common, "--check"], environ={}) == 1
+    assert "is not what" in capsys.readouterr().out
+    assert rb.main(["render", *common], environ={}) == 0
+    assert rb.main(["render", *common, "--check"], environ={}) == 0
+    readme.write_bytes(readme.read_bytes().replace(b"\n", b"\r\n"))
+    assert rb.main(["render", *common, "--check"], environ={}) == 0
+    assets = tmp_path / "assets"
+    assets.mkdir()
+    assert rb.main(["render", *common, "--json-out", str(assets / "rule-benchmark.json"),
+                    "--markdown-out", str(assets / "rule-benchmark.md")], environ={}) == 0
+    assert (assets / "rule-benchmark.json").read_bytes() == results.read_bytes()
+    assert (assets / "rule-benchmark.md").read_bytes() == markdown.read_bytes()
+
+
+def test_changelog_lines_and_check_history_on_the_command_line(tmp_path, capsys):
+    old, new = tmp_path / "old.json", tmp_path / "new.json"
+    old.write_text(rb.dump_results(history(entry("1.21.0"))), encoding="utf-8")
+    new.write_text(rb.dump_results(history(entry("1.21.0"), entry("1.22.0"))), encoding="utf-8")
+    assert rb.main(["changelog-lines", "--results", str(new)], environ={}) == 0
+    assert capsys.readouterr().out == "Rule benchmark: no rate got worse than in 1.21.0.\n"
+    assert rb.main(["check-history", "--previous", str(old), "--results", str(new)], environ={}) == 0
+    assert rb.main(["check-history", "--previous", str(new), "--results", str(old)], environ={}) == 1
+    changelog = tmp_path / "CHANGELOG.md"
+    changelog.write_text("## 1.22.0 (2026-12-08)\n\nNothing.\n", encoding="utf-8")
+    assert rb.main(["check-changelog", "--results", str(new), "--changelog", str(changelog)], environ={}) == 1
+
+
+def test_a_usage_error_exits_2_with_one_line(capsys):
+    assert rb.main(["nothing"], environ={}) == 2
+    assert capsys.readouterr().err.startswith("usage: ")
+
+
+# --- T-2, T-14, T-15, T-19: the committed files and the script itself -----------------------------------------------------------
+
+BENCHMARKS = ROOT / "benchmarks"
+EXPECTED_STRATA = {
+    ("msb-test", "skillharm"): ("malicious", 728), ("msb-test", "skillfortifybench-malicious"): ("malicious", 90),
+    ("msb-test", "atr-malicious"): ("malicious", 21), ("msb-test", "atr-benign"): ("benign", 455),
+    ("msb-test", "skillfortifybench-benign"): ("benign", 90),
+    ("held-out", "wild-liu"): ("malicious", 38), ("held-out", "wild-skillleak"): ("malicious", 15),
+    ("held-out", "benign-wild"): ("benign", 110),
+    ("tuning", "wild-liu"): ("malicious", 38), ("tuning", "wild-skillleak"): ("malicious", 16),
+    ("tuning", "wild-amos"): ("malicious", 7), ("tuning", "benign-wild"): ("benign", 109),
+    ("trailofbits", "tob"): ("malicious", 4),
+}
+
+
+def test_the_committed_manifest_loads_and_holds_the_sets_of_the_spec():
+    path = BENCHMARKS / "manifest.json"
+    if not path.exists():
+        if not rb.load_results(BENCHMARKS / "results.json")["entries"]:
+            pytest.skip("benchmarks/manifest.json is written by the orchestrator (step B)")
+        pytest.fail("benchmarks/manifest.json is missing, but benchmarks/results.json has an entry")
+    manifest = rb.load_manifest(path)
+    assert all(len(text) <= 400 for text in rb._strings(manifest.document))
+    roles = {set_id: value["role"] for set_id, value in manifest.sets.items()}
+    assert roles == {"msb-test": "test", "held-out": "test", "tuning": "tuning", "trailofbits": "test"}
+    assert manifest.sets["trailofbits"].get("report") == "per-item"
+    assert all("report" not in value for set_id, value in manifest.sets.items() if set_id != "trailofbits")
+    labels = {(set_id, stratum_id): stratum["label"] for set_id, value in manifest.sets.items()
+              for stratum_id, stratum in value["strata"].items()}
+    assert labels == {key: label for key, (label, _) in EXPECTED_STRATA.items()}
+    counts: dict[tuple[str, str], int] = {}
+    for item in manifest.items:
+        counts[(item["set"], item["stratum"])] = counts.get((item["set"], item["stratum"]), 0) + 1
+    for record in manifest.excluded:
+        counts[(record["set"], record["stratum"])] = counts.get((record["set"], record["stratum"]), 0) + 1
+    assert counts == {key: count for key, (_, count) in EXPECTED_STRATA.items()}
+
+
+def test_the_committed_history_is_canonical_and_results_md_and_the_readme_block_are_rendered_from_it(capsys):
+    path = BENCHMARKS / "results.json"
+    assert path.read_bytes().decode("utf-8").replace("\r\n", "\n") == rb.dump_results(rb.load_results(path))
+    assert rb.main(["render", "--check"], environ={}) == 0, capsys.readouterr().out
+
+
+def test_the_committed_changelog_holds_what_the_history_requires():
+    results = rb.load_results(BENCHMARKS / "results.json")
+    assert rb.check_changelog(results, (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")) == []
+
+
+ALLOWED_ENVIRONMENT = {"GITHUB_TOKEN", "SPELLWARDEN_BENCHMARK_CACHE", "LOCALAPPDATA", "XDG_CACHE_HOME"}
+
+
+def test_the_script_imports_nothing_from_scripts_or_the_command_and_reads_only_its_environment_variables():
+    import ast
+
+    tree = ast.parse(SCRIPT.read_text(encoding="utf-8"))
+    imported = {alias.name for node in ast.walk(tree) if isinstance(node, ast.Import) for alias in node.names}
+    imported |= {node.module or "" for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)}
+    assert not [name for name in imported if name.startswith(("scripts", "spellwarden_cli", "measure_analyzer"))]
+    assert {name.split(".")[0] for name in imported} <= {
+        "__future__", "argparse", "collections", "concurrent", "dataclasses", "hashlib", "http", "io", "json", "math", "os",
+        "pathlib", "re", "spellwarden_scan", "sys", "tarfile", "tempfile", "time", "typing", "urllib", "pyarrow"}
+    read: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+            target = node.func.value
+            if node.func.attr == "getenv" or (isinstance(target, ast.Attribute) and target.attr == "environ"):
+                pytest.fail("the script reads os.environ directly; it reads the mapping main() is given")
+            if node.func.attr == "get" and isinstance(target, ast.Name) and target.id == "environ":
+                assert isinstance(node.args[0], ast.Constant), "an environment name is a literal"
+                read.add(node.args[0].value)
+        if isinstance(node, ast.Subscript) and isinstance(node.value, (ast.Name, ast.Attribute)) \
+                and getattr(node.value, "id", getattr(node.value, "attr", "")) == "environ":
+            pytest.fail("the script reads the environment by subscript")
+    assert read == ALLOWED_ENVIRONMENT
+
+
+# --- the README section (Rule benchmark, 12.1) ------------------------------------------------------------------------------------
+
+def test_the_readme_has_the_measured_rates_section_after_the_rules_and_names_the_release_job():
+    text = (ROOT / "README.md").read_text(encoding="utf-8").replace("\r\n", "\n")
+    assert text.index("## The rules\n") < text.index("## Measured rates\n") < text.index("## Org rules, packs and exports\n")
+    section = text[text.index("## Measured rates\n"):text.index("## Org rules, packs and exports\n")]
+    paragraph = " ".join(section[:section.index(rb.README_START)].split())
+    for needle in ("Rules only: no model is called.", "never as found and never as clean",
+                   "each of its skills is shown as found or not found", "Only the 20 skill rules can be measured on skills",
+                   "[benchmarks/RESULTS.md](benchmarks/RESULTS.md)", "[benchmarks/README.md](benchmarks/README.md)"):
+        assert needle in paragraph, needle
+    for character in ("\u2014", "\u2013", "!"):
+        assert character not in paragraph
+    assert section.count(rb.README_START) == 1 and section.count(rb.README_END) == 1
+    assert "spellwarden.ai/research/rule-benchmark" not in text
+    releases = " ".join(text[text.index("## Releases\n"):text.index("## Development\n")].split())
+    assert "the `rule-benchmark` job installs the built wheel on Linux and Windows" in releases
+    assert "`rule-benchmark.json` and `rule-benchmark.md`" in releases
+    development = " ".join(text[text.index("## Development\n"):text.index("## Use it in CI\n")].split())
+    assert "`make benchmark` runs the rule benchmark with this checkout's scanner" in development

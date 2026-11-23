@@ -11,6 +11,7 @@ the cache holds the source objects as fetched (compressed archives, hash-named f
 message names ids, paths, URLs and hashes only. `benchmarks/README.md` says what is measured and how."""
 from __future__ import annotations
 
+import argparse
 import hashlib
 import http.client
 import io
@@ -18,6 +19,7 @@ import json
 import math
 import os
 import re
+import sys
 import tarfile
 import tempfile
 import time
@@ -1320,3 +1322,185 @@ def with_readme_block(readme: str, block: str) -> str:
     if text.count(start) != 1 or text.count(end) != 1 or text.index(start) > text.index(end):
         raise BenchmarkError("readme_markers", f"README.md must hold {README_START} and {README_END} once each, in that order")
     return text[:text.index(start) + len(start)] + block + text[text.index(end):]
+
+
+# --- the command line (10.9, 10.11, 10.12) ---------------------------------------------------------------------------------
+
+def _write_text(path: Path, text: str) -> None:
+    path.write_bytes(text.encode("utf-8"))
+
+
+def _read_text(path: Path) -> str:
+    try:
+        return path.read_bytes().decode("utf-8").replace("\r\n", "\n")
+    except (OSError, UnicodeDecodeError):
+        raise BenchmarkError("usage", f"{path} cannot be read as UTF-8") from None
+
+
+def _measure_from_sources(args: argparse.Namespace, environ: Mapping[str, str]) -> tuple[Manifest, Cache]:
+    manifest = load_manifest(args.manifest)
+    cache = Cache(cache_directory(args.cache, environ, windows=os.name == "nt"))
+    report = fetch(manifest, cache, opener=urllib_opener, offline=args.offline, token=environ.get("GITHUB_TOKEN") or None)
+    print(f"{report.needed} source objects, {report.fetched} fetched now, the rest from the cache {cache.directory}",
+          file=sys.stderr)
+    return manifest, cache
+
+
+def command_fetch(args: argparse.Namespace, environ: Mapping[str, str]) -> int:
+    args.offline = False
+    _measure_from_sources(args, environ)
+    return 0
+
+
+def command_run(args: argparse.Namespace, environ: Mapping[str, str]) -> int:
+    if args.expect_version is not None and args.expect_version != SCANNER_VERSION:
+        raise BenchmarkError("wrong_version", f"the installed scanner is {SCANNER_VERSION}, not {args.expect_version}")
+    if len(args.note) > NOTE_MAX or "\n" in args.note:
+        raise BenchmarkError("usage", f"--note is one line of at most {NOTE_MAX} characters")
+    released = released_date(_read_text(args.changelog), SCANNER_VERSION) if args.changelog.exists() else None
+    history = None
+    if args.record is not None:
+        if released is None:
+            raise BenchmarkError("usage", f"--record needs the heading '## {SCANNER_VERSION} (YYYY-MM-DD)' in {args.changelog}")
+        history = load_results(args.record) if args.record.exists() else {"results": 1, "about": ABOUT, "entries": []}
+        if history["entries"] and version_key(SCANNER_VERSION) < version_key(history["entries"][-1]["version"]):
+            raise BenchmarkError("usage", f"the installed scanner {SCANNER_VERSION} is lower than the newest entry "
+                                          f"{history['entries'][-1]['version']}")
+    manifest, cache = _measure_from_sources(args, environ)
+    measured = measure(manifest, cache, progress=lambda text: print(text, file=sys.stderr))
+    entry = {**measured, "released": released, "note": args.note}
+    ids_at = f"{args.entry_out if args.entry_out is not None else 'the file of --entry-out'} and, once recorded, " \
+             "benchmarks/RESULTS.md"
+    print(render_text(entry, ids_at=ids_at), end="")
+    if args.entry_out is not None:
+        _write_text(args.entry_out, json.dumps(entry, indent=1, sort_keys=True, ensure_ascii=False) + "\n")
+    code = 0
+    if args.verify is not None:
+        recorded = entry_for(load_results(args.verify), SCANNER_VERSION)
+        if recorded is None:
+            print(f"no entry for {SCANNER_VERSION} in {args.verify}: run the benchmark and record it before tagging")
+            code = 1
+        else:
+            found = differences(measured_part(recorded), measured)
+            if found:
+                print(f"differs from the entry recorded for {SCANNER_VERSION}:")
+                for line in found:
+                    print(f"  {line}")
+                code = 1
+            else:
+                print(f"matches the entry recorded for {SCANNER_VERSION}")
+    elif args.results.exists():
+        recorded = entry_for(load_results(args.results), SCANNER_VERSION)
+        if recorded is not None:
+            same = not differences(measured_part(recorded), measured)
+            print(f"{'matches' if same else 'differs from'} the entry recorded for {SCANNER_VERSION} in {args.results}")
+    if history is not None:
+        kept = [old for old in history["entries"] if old["version"] != SCANNER_VERSION]
+        history["entries"] = sorted([*kept, entry], key=lambda value: version_key(value["version"]))
+        _write_text(args.record, dump_results(check_results(history)))
+        print(f"recorded the entry for {SCANNER_VERSION} in {args.record}; run render next")
+    return code
+
+
+def command_render(args: argparse.Namespace, _environ: Mapping[str, str]) -> int:
+    results = load_results(args.results)
+    markdown = render_markdown(results)
+    readme = with_readme_block(_read_text(args.readme), readme_block(results))
+    if args.check:
+        stale = [str(path) for path, text in ((args.markdown, markdown), (args.readme, readme))
+                 if not path.exists() or _read_text(path) != text]
+        for path in stale:
+            print(f"{path} is not what {args.results} gives: run python benchmarks/rule_benchmark.py render")
+        return 1 if stale else 0
+    if args.json_out is not None or args.markdown_out is not None:
+        if _read_text(args.results) != dump_results(results):
+            print(f"{args.results} is not in its canonical form: record entries with run --record")
+            return 1
+        if args.json_out is not None:
+            _write_text(args.json_out, dump_results(results))
+        if args.markdown_out is not None:
+            _write_text(args.markdown_out, markdown)
+        return 0
+    _write_text(args.markdown, markdown)
+    _write_text(args.readme, readme)
+    return 0
+
+
+def command_changelog_lines(args: argparse.Namespace, _environ: Mapping[str, str]) -> int:
+    for line in changelog_lines(load_results(args.results)):
+        print(line)
+    return 0
+
+
+def command_check_changelog(args: argparse.Namespace, _environ: Mapping[str, str]) -> int:
+    problems = check_changelog(load_results(args.results), _read_text(args.changelog))
+    for problem in problems:
+        print(problem)
+    return 1 if problems else 0
+
+
+def command_check_history(args: argparse.Namespace, _environ: Mapping[str, str]) -> int:
+    problems = check_history(load_results(args.previous), load_results(args.results))
+    for problem in problems:
+        print(problem)
+    return 1 if problems else 0
+
+
+class _Parser(argparse.ArgumentParser):
+    def error(self, message: str) -> None:
+        raise BenchmarkError("usage", message)
+
+
+def parser() -> argparse.ArgumentParser:
+    main_parser = _Parser(prog="rule_benchmark.py", description="The rule benchmark: rules only, no model.")
+    commands = main_parser.add_subparsers(dest="command", required=True, parser_class=_Parser)
+    manifest = BENCHMARKS / "manifest.json"
+    results = BENCHMARKS / "results.json"
+    for name in ("fetch", "run"):
+        sub = commands.add_parser(name)
+        sub.add_argument("--manifest", type=Path, default=manifest)
+        sub.add_argument("--cache", type=Path, default=None)
+    run = commands.choices["run"]
+    run.add_argument("--offline", action="store_true")
+    run.add_argument("--expect-version", default=None)
+    run.add_argument("--verify", type=Path, default=None)
+    run.add_argument("--entry-out", type=Path, default=None)
+    run.add_argument("--record", type=Path, default=None)
+    run.add_argument("--note", default="")
+    run.add_argument("--changelog", type=Path, default=REPOSITORY / "CHANGELOG.md")
+    run.add_argument("--results", type=Path, default=results, help=argparse.SUPPRESS)
+    render = commands.add_parser("render")
+    render.add_argument("--results", type=Path, default=results)
+    render.add_argument("--readme", type=Path, default=REPOSITORY / "README.md")
+    render.add_argument("--markdown", type=Path, default=BENCHMARKS / "RESULTS.md")
+    render.add_argument("--check", action="store_true")
+    render.add_argument("--json-out", type=Path, default=None)
+    render.add_argument("--markdown-out", type=Path, default=None)
+    lines = commands.add_parser("changelog-lines")
+    lines.add_argument("--results", type=Path, default=results)
+    check = commands.add_parser("check-changelog")
+    check.add_argument("--results", type=Path, default=results)
+    check.add_argument("--changelog", type=Path, default=REPOSITORY / "CHANGELOG.md")
+    history = commands.add_parser("check-history")
+    history.add_argument("--previous", type=Path, required=True)
+    history.add_argument("--results", type=Path, default=results)
+    return main_parser
+
+
+COMMANDS = {"fetch": command_fetch, "run": command_run, "render": command_render, "changelog-lines": command_changelog_lines,
+            "check-changelog": command_check_changelog, "check-history": command_check_history}
+
+
+def main(argv: list[str] | None = None, environ: Mapping[str, str] | None = None) -> int:
+    """Exit 0 when the table was produced or a check passed, 1 when a check found a difference, 2 when nothing was measured
+    (10.11). Every error is one line on stderr that starts with its name."""
+    try:
+        args = parser().parse_args(argv)
+        return COMMANDS[args.command](args, os.environ if environ is None else environ)
+    except BenchmarkError as exc:
+        print(exc.line(), file=sys.stderr)
+        return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())
