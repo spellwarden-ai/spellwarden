@@ -54,6 +54,22 @@ jobs:
             dist/spellwarden-*.whl
             dist/spellwarden-*.tar.gz
 
+  rule-pages:
+    # P6-15 spec 6.12 E-9: every baseline rule's page answers 200 with its rule id before anything is published, so the rule links
+    # of the reports and the help link of a code scanning alert open the page. Linux only: one request per rule.
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5.4.2
+        with:
+          python-version: "3.13"
+      - name: Every rule page answers 200 with its rule id
+        run: uv run --locked python scripts/check-rule-pages.py
+
   e2e:
     # Spec 7.4: the Action candidate, checked out at wrappers/scan-action.ref, against this run's wheel, offline,
     # over Task 17's fixture cases with Task 17's tools.
@@ -486,7 +502,7 @@ jobs:
           if-no-files-found: ignore
 
   publish:
-    needs: [build, e2e, e2e-no-python, e2e-permissions, e2e-telemetry, e2e-connected, rule-benchmark, gateway-exports]
+    needs: [build, e2e, e2e-no-python, e2e-permissions, e2e-telemetry, e2e-connected, rule-benchmark, gateway-exports, rule-pages]
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
@@ -514,7 +530,7 @@ jobs:
           attestations: true
 
   image:
-    needs: [build, e2e, e2e-no-python, e2e-permissions, e2e-telemetry, e2e-connected, rule-benchmark, gateway-exports]
+    needs: [build, e2e, e2e-no-python, e2e-permissions, e2e-telemetry, e2e-connected, rule-benchmark, gateway-exports, rule-pages]
     runs-on: ubuntu-latest
     permissions:
       contents: read

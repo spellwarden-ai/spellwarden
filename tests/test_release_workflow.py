@@ -270,3 +270,18 @@ def test_the_rehearsal_pins_every_action_to_a_commit_release_yml_uses_and_names_
     assert "macos" not in text
     build = _rehearsal()["jobs"]["build"]
     assert build["runs-on"] == "ubuntu-latest" and "uv build" in _run(build["steps"])
+
+
+# --- the rule pages (1.21.0, P6-15 fix guidance spec 6.12 E-9) ---------------------------------------------------------------
+
+def test_the_rule_pages_job_checks_every_page_on_linux_after_build():
+    job = _release()["jobs"]["rule-pages"]
+    assert job["needs"] == "build" and job["runs-on"] == "ubuntu-latest"
+    assert [step.get("run") for step in job["steps"] if "run" in step] == ["uv run --locked python scripts/check-rule-pages.py"]
+    assert all("@" in step["uses"] and len(step["uses"].split("@")[1]) == 40 for step in job["steps"] if "uses" in step)
+
+
+def test_nothing_is_published_before_the_rule_pages_answer():
+    jobs = _release()["jobs"]
+    for name in ("publish", "image"):
+        assert jobs[name]["needs"][-1] == "rule-pages", name
