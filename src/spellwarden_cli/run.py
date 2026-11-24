@@ -146,7 +146,9 @@ def scan(options: ScanOptions) -> Report:
         notices.extend(connected.state_notices(state, options.settings))
         org_budget = connected.org_rule_budget if state.compiled else None
     refused: dict[str, str] = {}  # the skills and instruction files whose front matter the engine refused, and the file
-    findings = engine_findings(found, rules, notices, errors, org_budget=org_budget, refused=refused)
+    text_limited: set[str] = set()  # the keys of `refused` refused for a text file over the read limit, not a front matter
+    findings = engine_findings(found, rules, notices, errors, org_budget=org_budget, refused=refused,
+                               text_limited=text_limited)
     remote = agents_module.RemotePhase(trust=agents_module.load_trust(a2a, notices, errors))
     probes = run_probes(options, found, rules, findings, notices, org_budget=org_budget, remote=remote)
     for probe in probes:
@@ -173,7 +175,8 @@ def scan(options: ScanOptions) -> Report:
     if options.analyze is not None:
         from spellwarden_cli import analysis  # here: a scan without --analyze imports neither it nor the model client
 
-        analysed = analysis.analyse(found, findings, options.analyze, notices, errors, refused=refused)
+        analysed = analysis.analyse(found, findings, options.analyze, notices, errors, refused=refused,
+                                    text_limited=text_limited)
     report = Report(
         scanner_version=__version__, rules_version=RULES_VERSION, as_of=options.as_of.isoformat(),
         fail_on=options.settings.fail_on, items=found.items, findings=tuple(findings), probes=tuple(probes), lock=lock,
@@ -231,7 +234,8 @@ def text_refused(error: TextLimit, path: str) -> Notice:
 
 def engine_findings(found: Discovery, rules: RuleSet, notices: list[Notice], errors: list[Notice] | None = None, *,
                     org_budget: Callable[[], OrgRuleBudget] | None = None,
-                    way_out: str = FRONTMATTER_WAY_OUT, refused: dict[str, str] | None = None) -> list[ReportFinding]:
+                    way_out: str = FRONTMATTER_WAY_OUT, refused: dict[str, str] | None = None,
+                    text_limited: set[str] | None = None) -> list[ReportFinding]:
     """The engine once per skill (only that package's files, under scan-root keys, so finding paths are scan-root
     paths), once per instruction file and once for every configuration document that parsed or was truncated (spec 5.5, 6.5).
     In connected mode `org_budget` gives each package a time budget for the org rules; a rule that did not finish is the error
@@ -256,6 +260,8 @@ def engine_findings(found: Discovery, rules: RuleSet, notices: list[Notice], err
             continue
         except TextLimit as exc:
             refused[skill.path] = skill.as_written(exc.path)
+            if text_limited is not None:  # review r0:F1: the analyzer names the read limit, not a front matter
+                text_limited.add(skill.path)
             refused_to.append(text_refused(exc, refused[skill.path]))
             continue
         if result.org_rules_incomplete and errors is not None:
@@ -276,6 +282,8 @@ def engine_findings(found: Discovery, rules: RuleSet, notices: list[Notice], err
             continue
         except TextLimit as exc:
             refused[instruction.path] = exc.path
+            if text_limited is not None:
+                text_limited.add(instruction.path)
             refused_to.append(text_refused(exc, refused[instruction.path]))
             continue
         if result.org_rules_incomplete and errors is not None:
