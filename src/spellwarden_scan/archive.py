@@ -16,6 +16,8 @@ _DRIVE = re.compile(r"^[A-Za-z]:")
 _CHUNK = 65536
 # P6-10 spec 7.4.1, D10 (1.23.0): the four bytes that open a central directory header; `zipfile` builds one entry per header
 _CENTRAL_HEADER = b"PK\x01\x02"
+# P6-10 spec 7.2.2, D8 (1.23.0): the most bytes a symbolic link entry's target text may hold, declared and real
+LINK_MAX = 4096
 
 
 @dataclass(frozen=True)
@@ -121,6 +123,10 @@ def _is_special(info: zipfile.ZipInfo) -> bool:
     return stat.S_ISLNK(mode) or stat.S_ISCHR(mode) or stat.S_ISBLK(mode) or stat.S_ISFIFO(mode) or stat.S_ISSOCK(mode)
 
 
+def _is_link(info: zipfile.ZipInfo) -> bool:
+    return stat.S_ISLNK(info.external_attr >> 16)
+
+
 def _is_executable(info: zipfile.ZipInfo) -> bool:
     mode = info.external_attr >> 16
     return bool(mode & stat.S_IXUSR)
@@ -166,22 +172,27 @@ def unpack_zip(data: bytes, limits: ArchiveLimits = DEFAULT_LIMITS, *, with_mode
     `(files, executable_paths)`. Raises `ArchiveError` (spec 5.6).
 
     The whole-archive compressed limit is checked first, then the number of central directory headers (`max_entries`,
-    1.23.0, P6-10 spec 7.4.1). Everywhere in the archive, a repeated name, a `.`, `..` or empty segment and a file that
-    is also a directory are `unsafe_path` (every extractor reads them differently). Under `root` (the directory that will
-    be scanned, relative to the stripped top; `""` is the whole archive, `None` none of it), two names equal after NFC
-    normalisation and lower-casing and a segment Windows renames or refuses are `unsafe_path` as well: outside it they
-    belong to another directory of a repository. The 255-character path bound is measured on the stripped name, the path
-    inside the repository (1.23.0, P6-10 spec 7.3).
+    1.23.0). Everywhere in the archive, a repeated name, a `.`, `..` or empty segment, a file that is also a directory
+    and an entry whose path passes through a symbolic link or shares its name are `unsafe_path` (every extractor reads
+    them differently). Under `root` (the directory that will be scanned, relative to the stripped top; `""` is the whole
+    archive, `None` none of it), two names equal after NFC normalisation and lower-casing and a segment Windows renames or
+    refuses are `unsafe_path` as well: outside it they belong to another directory of a repository. The 255-character
+    path bound is measured on the stripped name, the path inside the repository (1.23.0).
 
     With a non-empty `root`, every limit and rule above applies to the entries under it only (`max_files`, the
-    declared and real sizes, symlinks and special files, unsafe names, collisions). An entry outside it is skipped:
+    declared and real sizes, links and special files, unsafe names, collisions). An entry outside it is skipped:
     never opened, never returned, never reported as executable. An entry counts as under the root when its stripped
     name, its `normpath` or its platform key equals the root or starts with `root/`, so `other/../skill/x` and
     `Skill/run.sh` for `skill` keep every rule, and so does a name read the way a Windows extractor does (`skill\\x`,
     `/skill/x`, `C:skill/x`). Fail closed, any raw name with a backslash, a leading `/`, a drive or a `.`, `..` or
-    empty segment counts as under the root (`_suspicious`) and is refused as `unsafe_path`, and so is an entry whose
-    path passes through a symlink anywhere in the archive. No file under the root is `empty`.
-    `root=""` and `root=None` read the whole archive as before."""
+    empty segment counts as under the root (`_suspicious`) and is refused as `unsafe_path`. No file under the root is
+    `empty`. `root=""` and `root=None` read the whole archive as before.
+
+    A symbolic link under the root (1.23.0, P6-10 spec 7.2) is read when its target, judged from its text alone, is a
+    regular file of the tree (the root's directory, the whole stripped archive for `""` and `None`) reached through
+    directories of the tree only: the link's path then holds the target's bytes, executable when the target is, and the
+    target's size counts again toward `max_uncompressed`. Every other link is `symlink`, with `why` saying which case; a
+    device, FIFO or socket is `symlink` with `why="special"`."""
     scope = None if root is None else root.strip("/")
     archive, infos = _open(data, limits)
     all_files = [info for info in infos if not info.is_dir()]
@@ -190,13 +201,13 @@ def unpack_zip(data: bytes, limits: ArchiveLimits = DEFAULT_LIMITS, *, with_mode
     def stripped(name: str) -> str:
         return name[len(top) + 1:] if top and name.startswith(top + "/") else name
 
+    _check_symlink_paths(infos, stripped)  # every root (1.23.0, P6-10 spec 7.2.6): a link may now be followed anywhere
     directory_infos = [info for info in infos if info.is_dir()]
     entries = all_files
     if scope:  # a non-empty root: only what is under it is read, counted and checked
         def under(raw: str) -> bool:
             return _suspicious(raw) or _in_scope(stripped(raw.rstrip("/")), scope)
 
-        _check_symlink_paths(infos, stripped)
         directory_infos = [info for info in directory_infos if under(info.filename)]
         entries = [info for info in all_files if under(info.filename)]
         if not entries:
@@ -213,16 +224,17 @@ def unpack_zip(data: bytes, limits: ArchiveLimits = DEFAULT_LIMITS, *, with_mode
     for info in entries:
         if _unsafe(info.filename, limits, length=False):
             raise ArchiveError("unsafe_path", info.filename)
-        if _is_special(info):
-            raise ArchiveError("symlink", info.filename)
+        if _is_special(info) and not _is_link(info):
+            raise ArchiveError("symlink", info.filename, why="special")
     _check_declared(entries, limits)
     files: dict[str, bytes] = {}
+    links: dict[str, zipfile.ZipInfo] = {}
     executable: set[str] = set()
     folded: set[str] = set()
     total = 0
     for info in entries:
         name = stripped(info.filename)
-        if _unsafe(name, limits) or posixpath.normpath(name) != name or name in files:
+        if _unsafe(name, limits) or posixpath.normpath(name) != name or name in files or name in links:
             raise ArchiveError("unsafe_path", info.filename)
         if _under(name, scope):
             # Under the scanned root, a name that differs only in case or normalisation, or that Windows renames,
@@ -232,31 +244,118 @@ def unpack_zip(data: bytes, limits: ArchiveLimits = DEFAULT_LIMITS, *, with_mode
             if not exact or _platform_unsafe(name) or _platform_key(name) in folded:
                 raise ArchiveError("unsafe_path", f"colliding {info.filename}")
             folded.add(_platform_key(name))
+        if _is_link(info):
+            links[name] = info  # resolved below, once every regular file of the tree is read (7.2.7)
+            continue
         content, total = _read_entry(archive, info, limits, total)
         files[name] = content
         if _is_executable(info):
             executable.add(name)
+    _follow_links(archive, links, files, executable, directories, scope or "", limits, total)
     _check_file_directory_clash(files, directories, scope)
     if with_modes:
         return files, frozenset(executable)
     return files
 
 
+def _follow_links(archive: zipfile.ZipFile, links: dict[str, zipfile.ZipInfo], files: dict[str, bytes], executable: set[str],
+                  directories: list[str], tree: str, limits: ArchiveLimits, total: int) -> None:
+    """P6-10 spec 7.1.2, 7.2.3 to 7.2.5 (1.23.0): each link of the tree, in sorted order of its stripped name, is followed
+    into `files` (and `executable`) or refused with the first case that applies: a target through a link, a target whose
+    text walks through a name that is no directory of the tree (`dangling`: a file, or nothing, so no file system reaches
+    the target), then a regular file (followed), a link (`chain`), a directory, nothing (`dangling`). A followed link's
+    target size counts again toward `max_uncompressed` (D5), so links never multiply the bytes the engine judges past the
+    limit."""
+    regular = frozenset(files)
+    named = frozenset(links)
+    held = {"", *directories}  # every directory of the tree: directory entries and every proper prefix of a name
+    for name in (*regular, *named, *directories):
+        parts = name.split("/")
+        held.update("/".join(parts[:depth]) for depth in range(1, len(parts)))
+    for name in sorted(links):
+        info = links[name]
+        target, passed, total = _link_target(archive, info, name, tree, limits, total)
+        parts = target.split("/")
+        if not named.isdisjoint((*passed, *("/".join(parts[:depth]) for depth in range(1, len(parts))))):
+            why = "through_link"
+        elif not held.issuperset(passed):
+            # 7.1.2: a target is reached through real directories only (`missing/../x.md`, `file/../x.md`, `file/.`)
+            why = "dangling"
+        elif target in regular:
+            content = files[target]
+            total += len(content)
+            if total > limits.max_uncompressed:
+                raise ArchiveError("too_large", info.filename)
+            files[name] = content
+            if target in executable:
+                executable.add(name)
+            continue
+        elif target in named:
+            why = "chain"
+        elif target in held:
+            why = "directory"
+        else:
+            why = "dangling"
+        raise ArchiveError("symlink", info.filename, why=why)
+
+
+def _link_target(archive: zipfile.ZipFile, info: zipfile.ZipInfo, name: str, tree: str, limits: ArchiveLimits,
+                 total: int) -> tuple[str, list[str], int]:
+    """The stripped name a link entry's text names, resolved lexically against the link's directory (P6-10 spec 7.2.2,
+    7.2.3, D4, D8), the names the text walks through on the way (each must be a real directory of the tree, which
+    `_follow_links` judges: spec 7.1.2), and the running total of real bytes. The text is at most `LINK_MAX` bytes,
+    UTF-8, not empty, with no NUL and no backslash, not absolute and with no drive, no empty segment and no segment of
+    only dots and spaces other than `.` and `..`, after one leading `./` and one trailing `/` are dropped: otherwise
+    `unsafe_target`. A walk that leaves `tree` at any step, even when a later segment comes back in, is `outside`."""
+    if info.file_size > LINK_MAX:
+        raise ArchiveError("symlink", info.filename, why="unsafe_target")
+    raw, total = _read_entry(archive, info, limits, total)
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        raise ArchiveError("symlink", info.filename, why="unsafe_target") from None
+    if text.startswith("./"):
+        text = text[2:]
+    if text.endswith("/"):
+        text = text[:-1]
+    segments = text.split("/")
+    if (len(raw) > LINK_MAX or not text or "\x00" in text or "\\" in text or text.startswith("/") or _DRIVE.match(text)
+            or any(not segment.strip(". ") and segment not in (".", "..") for segment in segments)):
+        raise ArchiveError("symlink", info.filename, why="unsafe_target")
+    floor = len(tree.split("/")) if tree else 0
+    walk = name.split("/")[:-1]
+    passed: list[str] = []  # every name the text enters before its last segment: a file system reads each as a directory
+    for index, segment in enumerate(segments):
+        if segment == "..":
+            if len(walk) <= floor:
+                raise ArchiveError("symlink", info.filename, why="outside")
+            walk.pop()
+        elif segment != ".":
+            walk.append(segment)
+            if index < len(segments) - 1:
+                passed.append("/".join(walk))
+    return "/".join(walk), passed, total
+
+
 def _check_symlink_paths(infos: list[zipfile.ZipInfo], stripped) -> None:
-    """With a non-empty root, a symlink outside it is allowed, but not one that another entry's path passes through
+    """A symbolic link (or other special entry) is allowed, but not one that another entry's path passes through
     (`link` -> `skill` and `link/evil.sh`, also `Link` and `link/evil.sh`) or that another entry shares its name with
     (`link` written again as a file): an extractor that follows the link it has just written puts that file under the
-    root unscanned. Header metadata only; nothing is opened."""
+    root unscanned. Checked over the whole archive for every root since 1.23.0 (P6-10 spec 7.2.6). Header metadata only;
+    nothing is opened."""
     special = [info for info in infos if not info.is_dir() and _is_special(info)]
     if not special:
         return
     # Compared on the platform key, so `Link` and `link/evil.sh` meet as a case-insensitive extractor merges them.
     links = {_platform_key(stripped(info.filename.rstrip("/"))) for info in special}
+    # By identity, in one step (1.23.0): the guard runs for every root and for `list_zip`, on up to `max_entries` entries, so
+    # it must not compare every entry with every special entry (20,000 links beside 20,000 files took 9 seconds that way).
+    own_entries = {id(info) for info in special}
     for info in infos:
         parts = _platform_key(stripped(info.filename.rstrip("/"))).split("/")
         # Every proper prefix; and the entry's own path unless it is the symlink itself: a file written after a link
         # of the same name is written through it, and a directory entry `link/` is the link's own path.
-        own = 0 if any(info is link for link in special) else 1
+        own = 0 if id(info) in own_entries else 1
         for depth in range(1, len(parts) + own):
             if "/".join(parts[:depth]) in links:
                 raise ArchiveError("unsafe_path", f"through a symlink {info.filename}")
