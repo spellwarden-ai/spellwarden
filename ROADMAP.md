@@ -16,6 +16,8 @@ Since 1.21.0 a rule id is never reused or renamed and a deprecation is announced
 
 Since 1.21.0 every release measures the skill rules on fixed public sets of malicious and harmless skills, rules only and with no model, and publishes each rule's detection and false-positive rates with the samples the rules missed ([Measured rates](README.md#measured-rates), [benchmarks/RESULTS.md](benchmarks/RESULTS.md)).
 
+Since 1.22.0 the skill rules also read a normalised copy of the text, so that content written another way (look-alike letters, hidden characters, base64) is still found, and every release measures how many detections survive disguised versions of the malicious skills ([Disguised content](README.md#disguised-content)). Since 1.22.0 the rules also read text files up to 10 MiB, so a file padded past 1 MiB no longer hides its content.
+
 ## Being built now
 
 Nothing at the moment: the next item comes from the list below.
@@ -24,7 +26,6 @@ Nothing at the moment: the next item comes from the list below.
 
 In no fixed order.
 
-- **Disguised content.** A measurement of how many detections survive when the same content is written another way (look-alike letters, hidden characters, encoding layers), then a normalisation step before the rules match, where the measurement shows a gain.
 - **Published rates for the model-assisted analyzer.** `--analyze` says "Unmeasured model" today. Its detection and false-positive rates are to be measured on held-out skills and published.
 - **The analyzer beyond skills.** Today it reads a skill's `SKILL.md` and scripts. Next it reads instruction files, plugin commands and agents, hooks and the descriptions a probed MCP server sends, and a documented recipe covers one open model on a local server.
 - **Rules for the OWASP entries that have none.** Where a check before install can honestly detect part of an entry, a measured rule; where it cannot, a plain statement of what answers it.

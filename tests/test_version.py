@@ -191,3 +191,24 @@ def test_the_changelog_has_the_1_21_0_entry_above_1_20_0():
         assert needle in entry, needle
     for character in ("—", "–", "!"):
         assert character not in raw
+
+
+def test_the_changelog_has_the_1_22_0_entry_above_1_21_0():
+    """P6-4 spec 6.8.3: the build's part of the entry (the rules and steps that ship, the evidence prefix, the keyword, the steps
+    left out and the read limit); the orchestrator sets the date and adds the lines of the recorded benchmark entry."""
+    from spellwarden_scan import normalise
+
+    text = (PYPROJECT.parent / "CHANGELOG.md").read_text(encoding="utf-8").replace("\r\n", "\n")
+    assert text.index("## 1.22.0 (") < text.index("## 1.21.0 (")
+    raw = text[text.index("## 1.22.0 ("):text.index("## 1.21.0 (")]
+    entry = " ".join(raw.split())
+    assert "Rules version 2026.11.9 (66 rules):" in entry and f"{len(normalise.RULES)} skill rules also read" in entry
+    for rule_id in normalise.RULES:
+        assert rule_id in entry, rule_id
+    assert "The steps, in this order: " + ", ".join(f"`{step}`" for step in normalise.STEPS) + "." in entry
+    for needle in ("No rule id is added, removed or renamed", "`Matched after normalising:`", "`normalise`",
+                   "`spellwarden_scan.normalise`", "Steps left out.", "`findings_truncated`", "`TextLimit`", "10 MiB", "1 MiB",
+                   "`unreadable`", "`benchmarks/RESULTS.md`", "`rule_benchmark.py steps`"):
+        assert needle in entry, needle
+    for character in ("\u2014", "\u2013", "!"):
+        assert character not in raw
