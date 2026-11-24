@@ -31,8 +31,9 @@ VERSION_TEMPLATES = ('"scanner_version": "{}"', '"semanticVersion": "{}"', "Spel
 # Quality reports print none.
 RULES_TEMPLATES = ('"rules_version": "{}"', ", rules {}")
 # The rules version each recorded release printed. 1.20.0 moved it to 2026.11.8 (SW-CFG-012 and SW-CFG-013 read settings
-# documents), so a golden test of an older release sets it back as it sets the scanner's version back.
-RECORDED_RULES = {"1.17.0": "2026.11.7", "1.18.0": "2026.11.7", "1.19.0": "2026.11.7"}
+# documents) and 1.22.0 to 2026.11.9 (P6-4: skill rules also read a normalised copy of the text), so a golden test of an older
+# release sets it back as it sets the scanner's version back.
+RECORDED_RULES = {"1.17.0": "2026.11.7", "1.18.0": "2026.11.7", "1.19.0": "2026.11.7", "1.20.0": "2026.11.8", "1.21.0": "2026.11.8"}
 # The fixture roots whose files 1.20.0 changes (Engine 1.20.0: scan selection, C40a): a file planted there for a new row of the
 # client table is read by the repository scan of every version (a `SKILL.md`, an `AGENTS.md`), so the digests that 1.17.0 and
 # 1.18.0 took from the fixture trees of their day no longer hold there. Their records keep the roots; their tests skip them.
