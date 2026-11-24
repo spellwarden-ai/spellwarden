@@ -371,17 +371,29 @@ def _check_symlink_paths(infos: list[zipfile.ZipInfo], stripped) -> None:
     if not special:
         return
     # Compared on the platform key, so `Link` and `link/evil.sh` meet as a case-insensitive extractor merges them.
-    links = {_platform_key(stripped(info.filename.rstrip("/"))) for info in special}
-    # By identity, in one step (1.23.0): the guard runs for every root and for `list_zip`, on up to `max_entries` entries, so
-    # it must not compare every entry with every special entry (20,000 links beside 20,000 files took 9 seconds that way).
+    # A trie of the links' segments (review r0:F2): an entry's path is walked once, one segment at a time, and the walk ends
+    # where the trie does, so the work is linear in the entry's length. Joining every prefix of the path again was quadratic
+    # in its depth, and the guard runs for every root and for `list_zip`, before any name-length check.
+    trie: dict = {}
+    for info in special:
+        node = trie
+        for part in _platform_key(stripped(info.filename.rstrip("/"))).split("/"):
+            node = node.setdefault(part, {})
+        node[None] = True  # a link ends here
+    # By identity, in one step (1.23.0): the guard must not compare every entry with every special entry (20,000 links
+    # beside 20,000 files took 9 seconds that way).
     own_entries = {id(info) for info in special}
     for info in infos:
         parts = _platform_key(stripped(info.filename.rstrip("/"))).split("/")
         # Every proper prefix; and the entry's own path unless it is the symlink itself: a file written after a link
         # of the same name is written through it, and a directory entry `link/` is the link's own path.
-        own = 0 if id(info) in own_entries else 1
-        for depth in range(1, len(parts) + own):
-            if "/".join(parts[:depth]) in links:
+        last = len(parts) - (1 if id(info) in own_entries else 0)
+        node = trie
+        for depth, part in enumerate(parts, 1):
+            node = node.get(part)
+            if node is None or depth > last:
+                break
+            if None in node:
                 raise ArchiveError("unsafe_path", f"through a symlink {info.filename}")
 
 

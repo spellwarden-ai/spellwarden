@@ -199,3 +199,13 @@ def test_twenty_thousand_links_beside_the_root_are_checked_in_linear_time():
     assert unpack_zip(data, root="skill") == {"skill/SKILL.md": SKILL}
     assert _refused(data).code == "too_many_files"  # the whole archive: the guard runs before its files are counted
     assert time.perf_counter() - started < BUDGET_SECONDS
+
+
+def test_deep_names_beside_a_link_are_checked_in_linear_time():
+    """Review r0:F2: the through-link guard runs for every root, so a name of 16,000 segments must not cost the square of its
+    depth. With one link and forty such names the form that joined every prefix again took about 30 seconds here."""
+    deep = "/".join(["a"] * 16_000)
+    data = _zip([(f"{deep}/f{index}", b"") for index in range(40)] + [("skill/SKILL.md", SKILL)], [("link", b"skill/SKILL.md")])
+    started = time.perf_counter()
+    assert _refused(data).code == "unsafe_path"  # a name over 255 characters, refused after the guard has run
+    assert time.perf_counter() - started < BUDGET_SECONDS

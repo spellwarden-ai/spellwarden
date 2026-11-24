@@ -109,3 +109,15 @@ def test_thirty_thousand_link_entries_are_listed_in_linear_time():
     started = time.perf_counter()
     assert len(list_zip(data)) == 60_001
     assert time.perf_counter() - started < BUDGET_SECONDS
+
+
+def test_deep_names_beside_a_link_are_listed_in_linear_time():
+    """Review r0:F2: the through-link guard walked every prefix of every name by joining the segments again, so the work
+    grew with the square of a name's depth. One link and forty names of 16,000 segments took about 30 seconds here before
+    the guard walked a trie of the links' segments; it takes a few milliseconds now."""
+    deep = "/".join(["a"] * 16_000)
+    data = _zip([(f"repo-main/{deep}/f{index}", b"") for index in range(40)] + [("repo-main/skills/a/SKILL.md", b"a")],
+                [("repo-main/link", b"skills/a/SKILL.md")])
+    started = time.perf_counter()
+    assert len(list_zip(data)) == 42
+    assert time.perf_counter() - started < BUDGET_SECONDS
