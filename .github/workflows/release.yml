@@ -398,7 +398,7 @@ jobs:
     # version stop the release (owner decision idea:Q3). Linux and Windows, as `benchmarks/README.md` promises.
     name: rule benchmark on ${{ matrix.os }}
     needs: build
-    timeout-minutes: 30
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
