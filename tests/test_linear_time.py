@@ -4,12 +4,13 @@ matcher here must read a 300 000-character line in well under a second; at that 
 took between 2 and 400 seconds (measured on the forms of ce9115c), so each case fails on the old code."""
 from __future__ import annotations
 
+import base64
 import os
 import time
 
 import pytest
 
-from spellwarden_scan import RuleSet, scan_skill_package
+from spellwarden_scan import RuleSet, normalise, scan_skill_package
 from spellwarden_scan.evidence import mask_credentials
 from spellwarden_scan.rules import mcp, skill
 from spellwarden_scan.rules import patterns as P
@@ -62,3 +63,32 @@ def test_the_linear_matchers_keep_the_regex_meaning():
     piped = P.Piped("curl\\b", "\\s*(sh|bash)\\b")
     assert piped.search("curl -s x | bash") and not piped.search("curl x | tee y | grep bash") and not piped.search("curl x || sh")
     assert P.AnyOf(P.Then("a", "b"), P.Then("c", "d")).search("c then d")
+
+
+# 1.22.0 (P6-4 spec 6.5.9, claim N15): every normalisation step is linear, on lines of a megabyte
+MEGABYTE = 1_000_000
+
+
+def _megabyte(token: str) -> str:
+    return (token * (MEGABYTE // len(token) + 1))[:MEGABYTE]
+
+
+NORMALISE_LINES = {
+    "base64 alphabet": _megabyte("QUJDRA"),
+    "nested base64": base64.b64encode(base64.b64encode(base64.b64encode(("a b " * 105_000).encode()))).decode(),
+    "U+FDFA": _megabyte("\ufdfa"),
+    "character references": _megabyte("&#110;"),
+    "zero-width runs": _megabyte("a\u200b\u200c"),
+    "look-alike letters": _megabyte("\u0430b "),
+    "spaces and tabs": _megabyte("a \t  "),
+}
+
+
+@pytest.mark.parametrize("name", sorted(NORMALISE_LINES))
+def test_each_normalisation_step_reads_a_megabyte_line_in_linear_time(name):
+    line = NORMALISE_LINES[name]
+    started = time.perf_counter()
+    folded = normalise.fold(line, normalise.CANDIDATE_STEPS)
+    normalise.payloads(folded, normalise.CANDIDATE_STEPS)
+    assert time.perf_counter() - started < BUDGET_SECONDS
+    assert len(folded) <= 3 * len(line)

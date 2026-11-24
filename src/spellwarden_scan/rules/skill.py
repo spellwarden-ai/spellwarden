@@ -11,6 +11,9 @@ from collections.abc import Iterable, Iterator
 from spellwarden_scan.evidence import bounded_evidence, code_point_names, excerpt, fingerprint
 from spellwarden_scan.frontmatter import FrontmatterError, FrontmatterLimit, parse_frontmatter
 from spellwarden_scan.model import Finding, Location
+# 1.22.0: moved to `normalise`, unchanged; SW-MCP-011, the A2A rules and the Docker MCP Gateway export import them from here
+from spellwarden_scan.normalise import _INVISIBLE as _INVISIBLE  # noqa: F401 (re-exported)
+from spellwarden_scan.normalise import visible
 from spellwarden_scan.package import SCRIPT_EXTENSIONS, CodeBlock, Package, TextFile
 from spellwarden_scan.rules import Rule, make_rule
 from spellwarden_scan.rules import patterns as P
@@ -170,19 +173,6 @@ def _stray_selectors(line: str) -> list[str]:
             continue
         stray.append(selector)
     return stray
-# Every format character and the soft hyphen, removed before the injection phrases are matched (SW-SKL-001,
-# SW-MCP-011): `ig\u00adnore previous instructions` reads as the phrase to an agent.
-_INVISIBLE = re.compile("[\u00ad\u034f\u115f\u180b-\u180f\u200b-\u200f\u2060-\u2064\u202a-\u202e\u2066-\u2069\u3164\ufeff\uffa0\ufe00-\ufe0f"
-                        "\ufff9-\ufffb]|[\U000e0000-\U000e007f]|[\U000e0100-\U000e01ef]")
-
-
-def visible(text: str) -> str:
-    """`text` without the characters `_INVISIBLE` names and without every other format character (`Cf`: U+061C,
-    U+1BCA0 and the rest), as an agent reads it."""
-    text = _INVISIBLE.sub("", text)
-    if text.isascii():
-        return text
-    return "".join(char for char in text if unicodedata.category(char) != "Cf")
 
 
 def _skl_002(package: Package) -> Iterator[Finding]:
