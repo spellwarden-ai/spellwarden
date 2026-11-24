@@ -1478,3 +1478,67 @@ def test_the_harness_loads_the_generator_beside_itself():
     """G9: loaded by its path, as these tests load it, the harness finds `disguise.py` in its own directory."""
     assert Path(rb.DISGUISE.__file__).resolve() == (BENCHMARKS / "disguise.py").resolve()
     assert rb.DISGUISE.TECHNIQUE_IDS == TECHNIQUE_IDS
+
+
+# --- P6-4: the `steps` command (spec 6.2.6, 6.6, claim H8) ------------------------------------------------------------------------
+
+def _steps_args(tmp_path: Path) -> list[str]:
+    return ["steps", "--manifest", str(tmp_path / "manifest.json"), "--cache", str(tmp_path / "cache"), "--offline"]
+
+
+def test_steps_reads_no_member_row_or_file_of_a_test_item_and_prints_counts_only(tmp_path, monkeypatch, capsys):
+    """H8: the test item and the tuning items share one tar.gz source; the test set also has a parquet row and a url file."""
+    builder = Builder()
+    builder.add_set("held")
+    builder.add_set("tune", role="tuning")
+    builder.tar_item("m-test", "held", "m", [{"SKILL.md": HIGH}])
+    builder.row_item("b-test-row", "held", "b", CLEAN)
+    builder.url_item("b-test-url", "held", "b", {"SKILL.md": LOW})
+    builder.tar_item("m-tune", "tune", "m", [{"SKILL.md": HIGH + b"\ntune\n"}])
+    builder.tar_item("b-tune", "tune", "b", [{"SKILL.md": MEDIUM + b"\ntune\n"}])
+    document = builder.document()
+    write_manifest(tmp_path, document)
+    builder.fill(rb.Cache(tmp_path / "cache"))
+    asked: list[str] = []
+    real_get = rb.Cache.get
+    monkeypatch.setattr(rb.Cache, "get", lambda self, sha256: asked.append(sha256) or real_get(self, sha256))
+    extracted: list[str] = []
+    real_extract = tarfile.TarFile.extractfile
+    monkeypatch.setattr(tarfile.TarFile, "extractfile", lambda self, member: extracted.append(member.name) or real_extract(self, member))
+    assert rb.main(_steps_args(tmp_path), environ={}) == 0
+    out = capsys.readouterr().out
+    test_files = [entry_ for item in document["items"] if item["set"] == "held" for root in item["roots"] for entry_ in root["files"]]
+    assert sorted(extracted) == ["packages/b-tune/r1/SKILL.md", "packages/m-tune/r1/SKILL.md"]
+    assert document["sources"]["rows"]["sha256"] not in asked
+    assert not [entry_["path"] for entry_ in test_files if entry_["sha256"] in asked]
+    assert out.startswith(f"Rule benchmark steps: scanner {rb.SCANNER_VERSION}, tuning sets only; counts, never text.\n")
+    for name, _steps in rb.step_configurations(tuple(rb.NORMALISE.CANDIDATE_STEPS)):
+        assert f"\n{name} (" in out, name
+    assert "\nDecisions (spec 6.6.2, 6.6.3):\n" in out
+    assert MARKER not in out and "curl" not in out and "pip install" not in out
+
+
+def test_steps_needs_a_scanner_that_takes_a_collection_of_steps(prepared, monkeypatch, capsys):
+    monkeypatch.setattr(rb, "scan_skill_package", fake_scanner(keyword=False))
+    assert rb.main(_steps_args(prepared), environ={}) == 2
+    assert capsys.readouterr().err.startswith("usage: steps needs a scanner whose scan_skill_package takes normalise")
+
+
+def test_step_configurations_and_the_decision_rule():
+    """Spec 6.6.2 and 6.6.3: a step is kept on a gain of one item with no added harmless finding."""
+    assert rb.step_configurations(("entities", "spaces")) == [
+        ("none", ()), ("only entities", ("entities",)), ("only spaces", ("spaces",)), ("all", ("entities", "spaces")),
+        ("all without entities", ("spaces",)), ("all without spaces", ("entities",))]
+
+    def tally(plain_medium: int, added: dict) -> dict:
+        plain = {"found": {"medium": plain_medium, "high": 0}, "found_other": {"medium": plain_medium, "high": 0}}
+        return {"plain": plain, "techniques": {}, "added": added, "seconds": 0.0}
+
+    tallies = {"all": tally(5, {"SW-SKL-013": {"findings": 2, "skills": 1}}), "all without entities": tally(4, {}),
+               "all without spaces": tally(5, {"SW-SKL-013": {"findings": 2, "skills": 1}})}
+    entities, spaces = rb.step_decisions(tallies, ("entities", "spaces"))
+    assert entities == ("entities: raises 2 counts (plain found medium, plain found without the disguise rules medium); "
+                        "adds on harmless skills: SW-SKL-013 2; harmless findings to clear (6.6.3)")
+    assert spaces == "spaces: raises 0 counts (none); adds on harmless skills: none; leave out (no gain)"
+    tallies["all"]["added"] = {}
+    assert rb.step_decisions(tallies, ("entities",))[0].endswith("adds on harmless skills: none; keep")

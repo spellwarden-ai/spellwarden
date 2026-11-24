@@ -1676,6 +1676,126 @@ def command_check_changelog(args: argparse.Namespace, _environ: Mapping[str, str
     return 1 if problems else 0
 
 
+# --- choosing the normalisation steps on the tuning set (P6-4 spec 6.2.6, 6.6) ----------------------------------------------
+
+def tuning_only(manifest: Manifest) -> Manifest:
+    """The manifest cut to the sets whose role is `tuning` and their items: `fetch` and `Objects` built from it fetch and read no
+    member, row or file of a test item, even in a source archive that holds both."""
+    sets = {set_id: value for set_id, value in manifest.sets.items() if value["role"] == "tuning"}
+    items = [item for item in manifest.items if item["set"] in sets]
+    return Manifest(manifest.document, manifest.sha256, manifest.sources, sets, items, [])
+
+
+def step_configurations(candidates: tuple[str, ...]) -> list[tuple[str, tuple[str, ...]]]:
+    """No normalisation, each candidate alone, all candidates, and all candidates without each one (6.2.6)."""
+    configurations = [("none", ())]
+    configurations += [(f"only {step}", (step,)) for step in candidates]
+    configurations.append(("all", tuple(candidates)))
+    configurations += [(f"all without {step}", tuple(other for other in candidates if other != step)) for step in candidates]
+    return configurations
+
+
+def measure_steps(tuning: Manifest, cache: Cache, configurations: list[tuple[str, tuple[str, ...]]], *,
+                  clock: Callable[[], float] = time.perf_counter) -> dict[str, dict]:
+    """Per configuration, over the items of `tuning` only: the plain malicious items found and found without the disguise rules
+    with that normalisation, each technique's counts, the findings it adds on harmless items per rule, and the seconds it took."""
+    rules = RuleSet.baseline()
+    objects = Objects(tuning, cache)
+    tallies = {name: {"plain": _found_block(), "added": {}, "seconds": 0.0,
+                      "techniques": {technique: _technique_block() for technique in DISGUISE.TECHNIQUE_IDS}}
+               for name, _steps in configurations}
+    for item in tuning.items:
+        roots = rebuild(item, objects)
+        label = tuning.sets[item["set"]]["strata"][item["stratum"]]["label"]
+        for name, steps in configurations:
+            tally = tallies[name]
+            started = clock()
+            plain = scan_both(roots, rules, item["id"], steps)
+            if plain.written.unread is None and plain.normalised.unread is None:
+                if label == "benign":
+                    count_added(tally["added"], plain)
+                else:
+                    _add_found(tally["plain"], plain.normalised)
+                    for technique in DISGUISE.TECHNIQUE_IDS:
+                        count_technique(tally["techniques"][technique], plain,
+                                        scan_variant(roots, rules, item["id"], technique, steps))
+            tally["seconds"] += clock() - started
+    return tallies
+
+
+def _gain_counts(tally: dict) -> list[tuple[str, int]]:
+    """The counts a step may raise (6.6.2): plain malicious found and found without the disguise rules, and each technique's
+    normalised found and found without the disguise rules, at each line."""
+    counts = []
+    for line in LINES:
+        counts += [(f"plain found {line}", tally["plain"]["found"][line]),
+                   (f"plain found without the disguise rules {line}", tally["plain"]["found_other"][line])]
+        for technique, block in tally["techniques"].items():
+            normalised = block["disguised_normalised"]
+            counts += [(f"{technique} found {line}", normalised["found"][line]),
+                       (f"{technique} found without the disguise rules {line}", normalised["found_other"][line])]
+    return counts
+
+
+def step_decisions(tallies: dict[str, dict], candidates: tuple[str, ...]) -> list[str]:
+    """For each candidate, all candidates against all candidates without it: the counts it raises (a gain of at least one item
+    keeps it, 6.6.2) and the findings it adds on harmless items per rule (a kept step adds none, 6.6.3)."""
+    out = []
+    every = tallies["all"]
+    for step in candidates:
+        without = tallies[f"all without {step}"]
+        pairs = zip(_gain_counts(every), _gain_counts(without), strict=True)
+        gains = [name for (name, value), (_, other) in pairs if value > other]
+        harmless = {rule_id: counts["findings"] - without["added"].get(rule_id, {}).get("findings", 0)
+                    for rule_id, counts in sorted(every["added"].items())}
+        harmless = {rule_id: count for rule_id, count in harmless.items() if count > 0}
+        verdict = "leave out (no gain)" if not gains else "harmless findings to clear (6.6.3)" if harmless else "keep"
+        added = ", ".join(f"{rule_id} {count}" for rule_id, count in harmless.items()) or "none"
+        raised = ", ".join(gains) or "none"
+        out.append(f"{step}: raises {len(gains)} counts ({raised}); adds on harmless skills: {added}; {verdict}")
+    return out
+
+
+def added_parts(added: dict) -> list[str]:
+    """`<rule>: N findings in M skills` for each rule of an `added_on_harmless` block, in rule order."""
+    return [f"{rule_id}: {counts['findings']} findings in {counts['skills']} skills" for rule_id, counts in sorted(added.items())]
+
+
+def render_steps(tallies: dict[str, dict], candidates: tuple[str, ...]) -> list[str]:
+    """The `steps` output: counts only, never text."""
+    out = [f"Rule benchmark steps: scanner {SCANNER_VERSION}, tuning sets only; counts, never text."]
+    for name, tally in tallies.items():
+        plain = tally["plain"]
+        out.append(f"{name} ({tally['seconds']:.1f} s): plain malicious found " + ", ".join(
+            f"{line} {plain['found'][line]} ({plain['found_other'][line]} without the disguise rules)" for line in LINES))
+        for technique, block in tally["techniques"].items():
+            normalised = block["disguised_normalised"]
+            found = ", ".join(f"{line} {normalised['found'][line]} ({normalised['found_other'][line]} without the disguise rules)"
+                              for line in LINES)
+            out.append(f"  {technique}: {block['changed']} changed, {block['unread']} not read whole; normalised found {found}")
+        out.append(f"  added on harmless skills: {'; '.join(added_parts(tally['added'])) or 'none'}")
+    if "all" in tallies:
+        out += ["Decisions (spec 6.6.2, 6.6.3):", *(f"  {line}" for line in step_decisions(tallies, candidates))]
+    return out
+
+
+def command_steps(args: argparse.Namespace, environ: Mapping[str, str]) -> int:
+    if NORMALISE is None or not hasattr(NORMALISE, "CANDIDATE_STEPS") or not normalises(scan_skill_package):
+        raise BenchmarkError("usage", "steps needs a scanner whose scan_skill_package takes normalise as a collection of steps "
+                                      "(1.22.0 or later)")
+    tuning = tuning_only(load_manifest(args.manifest))
+    if not tuning.items:
+        raise BenchmarkError("usage", "the manifest has no item of a set whose role is tuning")
+    cache = Cache(cache_directory(args.cache, environ, windows=os.name == "nt"))
+    report = fetch(tuning, cache, opener=urllib_opener, offline=args.offline, token=environ.get("GITHUB_TOKEN") or None)
+    print(f"{report.needed} source objects of the tuning sets, {report.fetched} fetched now, the rest from the cache "
+          f"{cache.directory}", file=sys.stderr)
+    candidates = tuple(NORMALISE.CANDIDATE_STEPS)
+    for line in render_steps(measure_steps(tuning, cache, step_configurations(candidates)), candidates):
+        print(line)
+    return 0
+
+
 def command_check_history(args: argparse.Namespace, _environ: Mapping[str, str]) -> int:
     problems = check_history(load_results(args.previous), load_results(args.results))
     for problem in problems:
@@ -1721,11 +1841,15 @@ def parser() -> argparse.ArgumentParser:
     history = commands.add_parser("check-history")
     history.add_argument("--previous", type=Path, required=True)
     history.add_argument("--results", type=Path, default=results)
+    steps = commands.add_parser("steps")
+    steps.add_argument("--manifest", type=Path, default=manifest)
+    steps.add_argument("--cache", type=Path, default=None)
+    steps.add_argument("--offline", action="store_true")
     return main_parser
 
 
 COMMANDS = {"fetch": command_fetch, "run": command_run, "render": command_render, "changelog-lines": command_changelog_lines,
-            "check-changelog": command_check_changelog, "check-history": command_check_history}
+            "check-changelog": command_check_changelog, "check-history": command_check_history, "steps": command_steps}
 
 
 def main(argv: list[str] | None = None, environ: Mapping[str, str] | None = None) -> int:
