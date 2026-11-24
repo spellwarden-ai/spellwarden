@@ -186,15 +186,39 @@ What the rules find on fixed public sets of malicious and harmless skills, measu
 |---|---|---|---|---|---|
 | Held-out half of Spellwarden's labelled set | 163 | medium or above | 54.7% (29 of 53; 41.5% to 67.3%) | 29.1% (32 of 110; 21.4% to 38.2%) | 0 |
 |  |  | high or above | 37.7% (20 of 53; 25.9% to 51.2%) | 6.4% (7 of 110; 3.1% to 12.6%) | 0 |
-| MaliciousSkillBench test split (source-disjoint) | 1384 | medium or above | 36.0% (302 of 839; 32.8% to 39.3%) | 26.6% (145 of 545; 23.1% to 30.5%) | 0 |
-|  |  | high or above | 3.7% (31 of 839; 2.6% to 5.2%) | 9.7% (53 of 545; 7.5% to 12.5%) | 0 |
+| MaliciousSkillBench test split (source-disjoint) | 1384 | medium or above | 36.1% (303 of 839; 32.9% to 39.4%) | 26.6% (145 of 545; 23.1% to 30.5%) | 0 |
+|  |  | high or above | 3.8% (32 of 839; 2.7% to 5.3%) | 9.7% (53 of 545; 7.5% to 12.5%) | 0 |
 | Tuning half of Spellwarden's labelled set (tuning) | 170 | medium or above | 47.5% (29 of 61; 35.5% to 59.8%) | 34.9% (38 of 109; 26.6% to 44.2%) | 0 |
 |  |  | high or above | 23.0% (14 of 61; 14.2% to 34.9%) | 6.4% (7 of 109; 3.1% to 12.7%) | 0 |
 
 Trail of Bits scanner-bypass skills, medium or above: found `m-tob-csv-summarizer`, `m-tob-dev-env-setup`, `m-tob-simple-formatter`; not found `m-tob-context-loader`.
 Trail of Bits scanner-bypass skills, high or above: not found `m-tob-context-loader`, `m-tob-csv-summarizer`, `m-tob-dev-env-setup`, `m-tob-simple-formatter`.
 
-Scanner 1.21.0, rules version 2026.11.8, released 2026-11-24.
+Disguised samples, medium or above, rules on the text as written and after normalisation:
+
+| Samples | Held-out half of Spellwarden's labelled set | MaliciousSkillBench test split (source-disjoint) | Tuning half of Spellwarden's labelled set (tuning) |
+|---|---|---|---|
+| plain samples | as written 54.7% (29 of 53), normalised 54.7% (29 of 53) | as written 36.0% (302 of 839), normalised 36.1% (303 of 839) | as written 47.5% (29 of 61), normalised 47.5% (29 of 61) |
+| look-alike letters | as written 52.8% (28 of 53), normalised 52.8% (28 of 53) | as written 35.3% (296 of 839), normalised 36.1% (303 of 839) | as written 44.3% (27 of 61), normalised 45.9% (28 of 61) |
+| zero-width characters inside words | as written 100.0% (53 of 53), normalised 100.0% (53 of 53) | as written 100.0% (839 of 839), normalised 100.0% (839 of 839) | as written 100.0% (61 of 61), normalised 100.0% (61 of 61) |
+| one encoding layer | as written 83.0% (44 of 53), normalised 83.0% (44 of 53) | as written 88.2% (740 of 839), normalised 89.2% (748 of 839) | as written 82.0% (50 of 61), normalised 82.0% (50 of 61) |
+| two encoding layers | as written 83.0% (44 of 53), normalised 83.0% (44 of 53) | as written 88.2% (740 of 839), normalised 89.2% (748 of 839) | as written 82.0% (50 of 61), normalised 82.0% (50 of 61) |
+| strings joined at run time | as written 45.5% (20 of 44), normalised 45.5% (20 of 44) | as written 30.0% (218 of 727), normalised 30.0% (218 of 727) | as written 50.0% (24 of 48), normalised 50.0% (24 of 48) |
+| padding | as written 52.8% (28 of 53), normalised 54.7% (29 of 53) | as written 12.2% (102 of 839), normalised 36.1% (303 of 839) | as written 41.0% (25 of 61), normalised 47.5% (29 of 61) |
+| markup tricks | as written 54.7% (29 of 53), normalised 54.7% (29 of 53) | as written 35.6% (299 of 839), normalised 36.0% (302 of 839) | as written 45.9% (28 of 61), normalised 45.9% (28 of 61) |
+| word-list translation | as written 54.7% (29 of 53), normalised 54.7% (29 of 53) | as written 35.6% (299 of 839), normalised 35.8% (300 of 839) | as written 47.5% (29 of 61), normalised 47.5% (29 of 61) |
+
+SW-SKL-002, SW-SKL-004 and SW-SKL-014 report the disguise itself (a hidden character, a decode-and-run line), so a row can be high as written while the other rules no longer see the content: [benchmarks/RESULTS.md](benchmarks/RESULTS.md) shows every row without those three rules, as written and normalised.
+
+Trail of Bits scanner-bypass skills, disguised, medium or above: one encoding layer found 3 of 4 as written, 3 of 4 normalised; two encoding layers found 3 of 4 as written, 3 of 4 normalised; strings joined at run time found 3 of 3 as written, 3 of 3 normalised; look-alike letters found 3 of 4 as written, 3 of 4 normalised; markup tricks found 3 of 4 as written, 3 of 4 normalised; padding found 3 of 4 as written, 3 of 4 normalised; word-list translation found 3 of 4 as written, 3 of 4 normalised; zero-width characters inside words found 4 of 4 as written, 4 of 4 normalised.
+
+Held-out half of Spellwarden's labelled set: Normalisation adds no finding on harmless skills.
+
+MaliciousSkillBench test split (source-disjoint): Normalisation adds no finding on harmless skills.
+
+Tuning half of Spellwarden's labelled set: Normalisation adds no finding on harmless skills.
+
+Scanner 1.22.0, rules version 2026.11.9, released 2026-11-24.
 <!-- benchmark:end -->
 
 ### Disguised content

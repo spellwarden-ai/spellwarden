@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.22.0 (2026-11-NN)
+## 1.22.0 (2026-11-24)
 
 Rules version 2026.11.9 (66 rules): 14 skill rules also read a normalised copy of the text, so text written another way can now be
 found: SW-SKL-001, SW-SKL-003, SW-SKL-004, SW-SKL-005, SW-SKL-006, SW-SKL-007, SW-SKL-008, SW-SKL-009, SW-SKL-012, SW-SKL-013,
@@ -36,6 +36,10 @@ survive a disguised version of each malicious skill.
   layers of base64, strings joined at run time, padding, markup tricks and a word-list translation), with the rules on the text as
   written and after normalisation, and publishes the rate per technique in `benchmarks/RESULTS.md`, its history and the README;
   `rule_benchmark.py steps` chooses normalisation steps on the tuning set only.
+
+Rule benchmark: no rate got worse than in 1.21.0.
+Rule benchmark: first table of disguised samples, see benchmarks/RESULTS.md.
+Rule benchmark: normalisation adds no finding on harmless skills.
 
 ## 1.21.0 (2026-11-24)
 
