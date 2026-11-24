@@ -94,7 +94,10 @@ def _recorded() -> dict:
 
 
 def _roots() -> list[str]:
-    return sorted(_recorded()["roots"]) if RECORDED_PATH.exists() else ["(not recorded)"]
+    # 1.22.0 (P6-4 spec 6.9): the fixture whose reports normalisation changes is skipped; the record keeps it
+    if not RECORDED_PATH.exists():
+        return ["(not recorded)"]
+    return sorted(set(_recorded()["roots"]) - set(record.reports.FIXTURES_CHANGED_IN_1_22_0))
 
 
 def test_the_record_is_the_release_and_covers_every_fixture_root():

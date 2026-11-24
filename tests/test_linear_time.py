@@ -5,6 +5,7 @@ took between 2 and 400 seconds (measured on the forms of ce9115c), so each case 
 from __future__ import annotations
 
 import base64
+import itertools
 import os
 import time
 
@@ -92,3 +93,28 @@ def test_each_normalisation_step_reads_a_megabyte_line_in_linear_time(name):
     normalise.payloads(folded, normalise.CANDIDATE_STEPS)
     assert time.perf_counter() - started < BUDGET_SECONDS
     assert len(folded) <= 3 * len(line)
+
+
+@pytest.mark.parametrize("name", sorted(NORMALISE_LINES))
+def test_a_scan_of_a_megabyte_line_of_each_disguise_stays_fast(name):
+    """N15: the whole scan, views and second rule pass included."""
+    files = {"SKILL.md": b"---\nname: x\ndescription: y\n---\n", "scripts/run.sh": NORMALISE_LINES[name].encode()}
+    started = time.perf_counter()
+    scan_skill_package(files, RuleSet.baseline())
+    assert time.perf_counter() - started < 10 * BUDGET_SECONDS
+
+
+def test_a_ten_mib_text_file_of_adversarial_lines_stays_within_its_budget():
+    """N19 (P6-4 spec 6.7.6): the rules read text up to 10 MiB since 1.22.0. One script of 10 MiB made of this file's adversarial
+    lines took 11.1 seconds on the machine the plan was written on; the budget is 40 times `BUDGET_SECONDS`."""
+    from spellwarden_scan.package import TEXT_MAX
+
+    tokens = itertools.cycle([token for _, token in CASES])
+    data = bytearray()
+    while len(data) + N + 1 <= TEXT_MAX:
+        data += (_line(next(tokens)) + "\n").encode()
+    data += b"x" * (TEXT_MAX - len(data))
+    files = {"SKILL.md": b"---\nname: x\ndescription: y\n---\n", "scripts/big.sh": bytes(data)}
+    started = time.perf_counter()
+    scan_skill_package(files, RuleSet.baseline())
+    assert time.perf_counter() - started < 40 * BUDGET_SECONDS

@@ -28,9 +28,10 @@ def test_the_limit_is_ten_mib_the_command_s_and_the_archive_reader_s():
     assert TEXT_HEAD == 2**20
 
 
-def test_a_line_of_a_skill_md_padded_past_one_mib_is_still_read():
+@pytest.mark.parametrize("normalise", [False, True])
+def test_a_line_of_a_skill_md_padded_past_one_mib_is_still_read(normalise):
     files = {"SKILL.md": padded((clean_md() + RISKY).encode(), 2 * 2**20)}
-    found = {(f.rule_id, f.location.path) for f in scan_skill_package(files, RULES).findings}
+    found = {(f.rule_id, f.location.path) for f in scan_skill_package(files, RULES, normalise=normalise).findings}
     assert ("SW-SKL-007", "SKILL.md") in found
 
 
@@ -49,7 +50,7 @@ def test_a_text_file_of_exactly_ten_mib_is_read_and_one_byte_more_is_text_limit(
     assert (raised.value.path, raised.value.size) == ("notes.txt", TEXT_MAX + 1)
     assert str(raised.value) == f"notes.txt is {TEXT_MAX + 1} bytes of text, over the {TEXT_MAX} bytes the rules read"
     with pytest.raises(TextLimit):
-        scan_skill_package({"SKILL.md": clean_md().encode(), "notes.txt": exact + b"x"}, RULES)
+        scan_skill_package({"SKILL.md": clean_md().encode(), "notes.txt": exact + b"x"}, RULES, normalise=False)
 
 
 def test_a_file_over_the_limit_that_is_not_text_stays_binary():

@@ -62,6 +62,16 @@ def test_the_older_golden_tests_skip_the_fixture_homes_this_release_changes():
         assert set(reports.FIXTURES_CHANGED_IN_1_20_0) <= set(module._recorded()["roots"]), name  # the records keep them
 
 
+def test_the_older_golden_tests_skip_the_fixture_whose_reports_1_22_0_changes():
+    """P6-4 spec 6.9: the normalised reading adds SW-SKL-007 to one fixture; the four release records keep it, their tests skip it."""
+    assert reports.FIXTURES_CHANGED_IN_1_22_0 == ("fixtures/skills/SW-SKL-032/positive",)
+    for name in ("test_golden_1_17_0", "test_golden_1_18_0", "test_golden_1_19_0", "test_golden_1_20_0"):
+        module = _module(f"{name}_for_1_22_0_skip", ROOT / "tests" / f"{name}.py")
+        assert not set(module._roots()) & set(reports.FIXTURES_CHANGED_IN_1_22_0), name
+        assert "fixtures/skills/SW-SKL-032/negative" in module._roots(), name
+        assert set(reports.FIXTURES_CHANGED_IN_1_22_0) <= set(module._recorded()["roots"]), name
+
+
 def test_the_selection_fixture_is_a_root_added_after_both_records():
     record = _module("record_1_17_0_for_roots", ROOT / "tests" / "golden" / "record_1_17_0.py")
     release = _module("record_release_1_18_0_for_roots", ROOT / "tests" / "golden" / "record_release_1_18_0.py")

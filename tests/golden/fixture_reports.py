@@ -37,6 +37,10 @@ RECORDED_RULES = {"1.17.0": "2026.11.7", "1.18.0": "2026.11.7", "1.19.0": "2026.
 # client table is read by the repository scan of every version (a `SKILL.md`, an `AGENTS.md`), so the digests that 1.17.0 and
 # 1.18.0 took from the fixture trees of their day no longer hold there. Their records keep the roots; their tests skip them.
 FIXTURES_CHANGED_IN_1_20_0 = ("tests/fixtures/homes/common", "tests/fixtures/homes/windows")
+# The fixture roots whose reports 1.22.0 changes (P6-4 spec 6.9): the normalised reading of the skill rules adds SW-SKL-007 to the
+# positive fixture of SW-SKL-032, whose line 26 decodes a download piped to a shell. The records of 1.17.0 to 1.20.0 keep the root;
+# their tests skip it, and tests/golden/1.22.0 records its reports.
+FIXTURES_CHANGED_IN_1_22_0 = ("fixtures/skills/SW-SKL-032/positive",)
 
 
 def clean_environment(extra: Mapping[str, str] | None = None) -> dict[str, str]:

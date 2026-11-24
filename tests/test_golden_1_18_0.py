@@ -28,7 +28,9 @@ def _roots() -> list[str]:
     # Engine 1.20.0 (C40a): the fixture homes whose files 1.20.0 changes are skipped; the record keeps them
     if not RECORDED_PATH.exists():
         return ["(not recorded)"]
-    return sorted(set(_recorded()["roots"]) - set(record.reports.FIXTURES_CHANGED_IN_1_20_0))
+    # 1.22.0 (P6-4 spec 6.9): and the fixture whose reports normalisation changes
+    return sorted(set(_recorded()["roots"]) - set(record.reports.FIXTURES_CHANGED_IN_1_20_0)
+                  - set(record.reports.FIXTURES_CHANGED_IN_1_22_0))
 
 
 def test_the_record_is_the_release_and_covers_every_fixture_root():
