@@ -14,6 +14,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import http.client
+import importlib.util
+import inspect
 import io
 import json
 import math
@@ -37,8 +39,29 @@ from spellwarden_scan import __version__ as SCANNER_VERSION
 from spellwarden_scan.frontmatter import FrontmatterLimit
 from spellwarden_scan.identity import nested_skill_roots, package_files, package_sha256
 
+try:
+    from spellwarden_scan import normalise as NORMALISE
+    from spellwarden_scan.package import TextLimit
+except ImportError:  # a scanner before 1.22.0: no normalised reading and no read limit error (P6-4 spec 6.2.2)
+    NORMALISE = None
+
+    class TextLimit(Exception):
+        """Never raised: the installed scanner predates 1.22.0."""
+
 REPOSITORY = Path(__file__).resolve().parents[1]
 BENCHMARKS = REPOSITORY / "benchmarks"
+
+
+def _load_disguise():
+    """`disguise.py` beside this file, loaded by its path (P6-4 spec 6.1.1): the tests load this script by its path, where
+    `benchmarks/` is not on `sys.path`, so a plain `import disguise` would fail there."""
+    spec = importlib.util.spec_from_file_location("spellwarden_benchmark_disguise", Path(__file__).with_name("disguise.py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+DISGUISE = _load_disguise()
 USER_AGENT = "spellwarden-rule-benchmark/1 (+https://github.com/spellwarden-ai/spellwarden)"
 TIMEOUT_SECONDS = 60
 PARALLEL_REQUESTS = 8
@@ -664,12 +687,27 @@ NONE = "none"
 SCAN_CAP = 1_000_000
 
 
+# The rules that report a disguise itself whatever the content (P6-4 spec 6.1.7, 6.2.4): a hidden character, a decode-and-run
+# line, obfuscated script code. SW-SKL-032 is not one: its decoding branch reports what the decoded text does.
+DISGUISE_RULES = ("SW-SKL-002", "SW-SKL-004", "SW-SKL-014")
+
+
 class ItemResult(NamedTuple):
     """One item's result: `unread` is the reason it was not read whole (None when it was), `worst` its worst severity over
-    every rule (`none` without a finding) and `rules` the worst severity per rule that found something."""
+    every rule (`none` without a finding), `rules` the worst severity per rule that found something and `other` (1.22.0) the
+    worst severity over the rules that are not `DISGUISE_RULES`."""
     unread: str | None
     worst: str
     rules: dict[str, str]
+    other: str = "none"
+
+
+class RootReading(NamedTuple):
+    """One scan of one root: the reason it was not read whole (or None), the worst severity per rule and, for the check that
+    normalisation removes nothing (P6-4 spec 6.2.3), `(rule id, path, line, fingerprint)` of every finding."""
+    unread: str | None
+    rules: dict[str, str]
+    keys: frozenset
 
 
 def worse(first: str, second: str) -> str:
@@ -685,37 +723,112 @@ def at_or_above(severity: str, line: str) -> bool:
     return severity != NONE and SEVERITY_RANK[severity] <= LINE_RANK[line]
 
 
-def scan_root(files: Mapping[str, bytes], rules: RuleSet) -> tuple[str | None, dict[str, str]]:
-    """The reason one root was not read whole (or None) and the worst severity per rule of its findings (10.5.1, 10.5.2)."""
+def normalises(function: Callable) -> bool:
+    """Whether the installed `scan_skill_package` takes the keyword `normalise` (1.22.0, P6-4 spec 6.2.2)."""
+    parameters = inspect.signature(function).parameters
+    return "normalise" in parameters or any(p.kind is inspect.Parameter.VAR_KEYWORD for p in parameters.values())
+
+
+def read_root(files: Mapping[str, bytes], rules: RuleSet, normalise: object = None) -> RootReading:
+    """One scan of one root (10.5.1, 10.5.2): `normalise` is passed to the scanner unless it is None (the scanner's default).
+    Any exception is unread content, never a clean skill, and no message quotes text."""
+    options = {} if normalise is None else {"normalise": normalise}
     try:
         result = scan_skill_package(files, rules, root="", nested_roots=nested_skill_roots(files, ""),
-                                    max_findings=SCAN_CAP, max_per_rule=SCAN_CAP)
+                                    max_findings=SCAN_CAP, max_per_rule=SCAN_CAP, **options)
     except FrontmatterLimit:
-        return "frontmatter_limit", {}
+        return RootReading("frontmatter_limit", {}, frozenset())
+    except TextLimit:
+        return RootReading("text_limit", {}, frozenset())
     except Exception as exc:  # any scanner failure is unread content, never a clean skill
-        return f"scanner_error:{type(exc).__name__}", {}
+        return RootReading(f"scanner_error:{type(exc).__name__}", {}, frozenset())
     if result.truncated > 0:
-        return "findings_truncated", {}
+        return RootReading("findings_truncated", {}, frozenset())
     found: dict[str, str] = {}
     for finding in result.findings:
         found[finding.rule_id] = worse(found.get(finding.rule_id, NONE), finding.severity)
-    return None, found
+    keys = frozenset((f.rule_id, f.location.path, f.location.line, f.fingerprint) for f in result.findings)
+    return RootReading(None, found, keys)
+
+
+def scan_root(files: Mapping[str, bytes], rules: RuleSet) -> tuple[str | None, dict[str, str]]:
+    """The reason one root was not read whole (or None) and the worst severity per rule of its findings, with the scanner's
+    default reading (10.5.1, 10.5.2)."""
+    reading = read_root(files, rules)
+    return reading.unread, reading.rules
+
+
+def fold_roots(readings: list[RootReading]) -> ItemResult:
+    """Folds the readings of one item's roots (10.5.3): any unread root makes the whole item unread (the first such root's
+    reason); otherwise each rule's worst severity is the worst over the roots."""
+    merged: dict[str, str] = {}
+    for reading in readings:
+        if reading.unread is not None:
+            return ItemResult(reading.unread, NONE, {})
+        for rule_id, severity in reading.rules.items():
+            merged[rule_id] = worse(merged.get(rule_id, NONE), severity)
+    overall = other = NONE
+    for rule_id, severity in merged.items():
+        overall = worse(overall, severity)
+        if rule_id not in DISGUISE_RULES:
+            other = worse(other, severity)
+    return ItemResult(None, overall, merged, other)
 
 
 def scan_item(roots: list[dict[str, bytes]], rules: RuleSet) -> ItemResult:
-    """Folds the roots of one item (10.5.3): any unread root makes the whole item unread (the first such root's reason);
-    otherwise each rule's worst severity is the worst over the roots."""
-    merged: dict[str, str] = {}
+    """One item with the scanner's default reading (10.5.3)."""
+    return fold_roots([read_root(files, rules) for files in roots])
+
+
+class BothReadings(NamedTuple):
+    """One item read as written (`normalise=False`) and normalised (the scanner's default), and per rule the findings the
+    normalised reading adds over all roots read whole both ways."""
+    written: ItemResult
+    normalised: ItemResult
+    added: dict[str, int]
+
+
+def scan_both(roots: list[dict[str, bytes]], rules: RuleSet, item_id: str, normalise: object = True) -> BothReadings:
+    """Each root as written and with `normalise` (P6-4 spec 6.2.1); a scanner without the keyword gives one reading for both
+    (6.2.2). A finding of the reading as written that the normalised reading lacks stops the run (6.2.3,
+    `normalisation_removed`), naming the item and the rule, never text."""
+    both = normalises(scan_skill_package)
+    written: list[RootReading] = []
+    normalised: list[RootReading] = []
+    added: dict[str, int] = {}
     for files in roots:
-        reason, found = scan_root(files, rules)
-        if reason is not None:
-            return ItemResult(reason, NONE, {})
-        for rule_id, severity in found.items():
-            merged[rule_id] = worse(merged.get(rule_id, NONE), severity)
-    overall = NONE
-    for severity in merged.values():
-        overall = worse(overall, severity)
-    return ItemResult(None, overall, merged)
+        plain = read_root(files, rules, False if both else None)
+        other = read_root(files, rules, normalise) if both else plain
+        if plain.unread is None and other.unread is None:
+            lost = sorted(plain.keys - other.keys, key=lambda key: (key[0], key[1], key[2] or 0, key[3]))
+            if lost:
+                raise BenchmarkError("normalisation_removed", f"item {item_id}: the normalised reading lacks a finding of "
+                                                              f"{lost[0][0]} that the text as written gives")
+            for key in other.keys - plain.keys:
+                added[key[0]] = added.get(key[0], 0) + 1
+        written.append(plain)
+        normalised.append(other)
+    return BothReadings(fold_roots(written), fold_roots(normalised), added)
+
+
+class VariantReadings(NamedTuple):
+    """One technique on one item: `changed` is False when the variant of every root equals the root (nothing more was
+    scanned); `readings` is None when the generator failed (the variant is not read whole)."""
+    changed: bool
+    readings: BothReadings | None
+
+
+def scan_variant(roots: list[dict[str, bytes]], rules: RuleSet, item_id: str, technique: str,
+                 normalise: object = True) -> VariantReadings:
+    """The variant of each root under `technique`, scanned both ways when any root changed (P6-4 spec 6.2.1). The variant
+    lives in memory only and is dropped here; an exception from the generator is unread content, and no message quotes text."""
+    try:
+        variants = [DISGUISE.variant(files, technique, key=f"{item_id}/{number}") for number, files in enumerate(roots, start=1)]
+    except Exception:  # the generator failed: the variant is not read whole, the run goes on
+        return VariantReadings(True, None)
+    if all(variant == files for variant, files in zip(variants, roots, strict=True)):
+        return VariantReadings(False, None)
+    return VariantReadings(True, scan_both(variants, rules, item_id, normalise))
 
 
 # --- counting (10.6) and the entry (10.7) ------------------------------------------------------------------------------------
@@ -745,16 +858,82 @@ def count_stratum(title: str, label: str, results: list[tuple[str, ItemResult]],
     return stratum
 
 
+def _found_block() -> dict:
+    return {"found": {line: 0 for line in LINES}, "found_other": {line: 0 for line in LINES}}
+
+
+def _add_found(block: dict, result: ItemResult) -> None:
+    for line in LINES:
+        block["found"][line] += at_or_above(result.worst, line)
+        block["found_other"][line] += at_or_above(result.other, line)
+
+
+def _technique_block() -> dict:
+    return {"changed": 0, "unread": 0, "plain_as_written": _found_block(), "plain_normalised": _found_block(),
+            "disguised_as_written": _found_block(), "disguised_normalised": _found_block()}
+
+
+def count_technique(block: dict, plain: BothReadings, variant: VariantReadings) -> None:
+    """Adds one malicious item to a technique's counts for its set (P6-4 spec 6.2.4): nothing when the technique did not change
+    it; `changed`, and `unread` when its variant was not read whole in either reading; otherwise the four detections."""
+    if not variant.changed:
+        return
+    block["changed"] += 1
+    readings = variant.readings
+    if readings is None or readings.written.unread is not None or readings.normalised.unread is not None:
+        block["unread"] += 1
+        return
+    _add_found(block["plain_as_written"], plain.written)
+    _add_found(block["plain_normalised"], plain.normalised)
+    _add_found(block["disguised_as_written"], readings.written)
+    _add_found(block["disguised_normalised"], readings.normalised)
+
+
+def count_plain(results: list[ItemResult], rule_ids: list[str]) -> dict:
+    """The reading as written of one label of one set (P6-4 spec 6.2.5 `plain_as_written`): items read whole, found at each line
+    and per rule."""
+    read = [result for result in results if result.unread is None]
+    return {"read": len(read), "found": {line: sum(at_or_above(r.worst, line) for r in read) for line in LINES},
+            "rules": {rule_id: {line: sum(at_or_above(r.rules.get(rule_id, NONE), line) for r in read) for line in LINES}
+                      for rule_id in rule_ids}}
+
+
+def count_added(added: dict[str, dict[str, int]], plain: BothReadings) -> None:
+    """Adds one harmless item's added findings to its set's counts per rule: the findings, and the item once per rule."""
+    for rule_id, count in plain.added.items():
+        entry = added.setdefault(rule_id, {"findings": 0, "skills": 0})
+        entry["findings"] += count
+        entry["skills"] += 1
+
+
 def measure(manifest: Manifest, cache: Cache, *, progress: Callable[[str], None] | None = None) -> dict:
-    """The measured part of the entry (10.6, 10.7): every item rebuilt, verified and scanned, or an error that stops the run."""
+    """The measured part of the entry (10.6, 10.7): every item rebuilt, verified and scanned as written and normalised, and
+    every changed variant of a malicious item read whole both ways scanned both ways (P6-4 spec 6.2), or an error that stops the
+    run."""
     rules = RuleSet.baseline()
     skill_rules = sorted(rules.by_area("skill"), key=lambda rule: rule.id)
     rule_ids = [rule.id for rule in skill_rules]
     objects = Objects(manifest, cache)
     results: dict[tuple[str, str], list[tuple[str, ItemResult]]] = {}
+    written: dict[tuple[str, str], list[ItemResult]] = {}
+    techniques = {technique: {set_id: _technique_block() for set_id, value in sorted(manifest.sets.items())
+                              if any(s["label"] == "malicious" for s in value["strata"].values())}
+                  for technique in DISGUISE.TECHNIQUE_IDS}
+    added: dict[str, dict] = {set_id: {} for set_id, value in sorted(manifest.sets.items())
+                              if any(s["label"] == "benign" for s in value["strata"].values())}
     for number, item in enumerate(manifest.items, start=1):
-        result = scan_item(rebuild(item, objects), rules)
-        results.setdefault((item["set"], item["stratum"]), []).append((item["id"], result))
+        roots = rebuild(item, objects)
+        plain = scan_both(roots, rules, item["id"])
+        label = manifest.sets[item["set"]]["strata"][item["stratum"]]["label"]
+        results.setdefault((item["set"], item["stratum"]), []).append((item["id"], plain.normalised))
+        written.setdefault((item["set"], label), []).append(plain.written)
+        read_both = plain.written.unread is None and plain.normalised.unread is None
+        if label == "benign" and read_both:
+            count_added(added[item["set"]], plain)
+        if label == "malicious" and read_both:
+            for technique in DISGUISE.TECHNIQUE_IDS:
+                count_technique(techniques[technique][item["set"]], plain,
+                                scan_variant(roots, rules, item["id"], technique))
         if progress is not None and number % 250 == 0:
             progress(f"measured {number} of {len(manifest.items)} items")
     sets: dict = {}
@@ -769,9 +948,19 @@ def measure(manifest: Manifest, cache: Cache, *, progress: Callable[[str], None]
             block["strata"][stratum_id] = count_stratum(stratum["title"], stratum["label"],
                                                         results.get((set_id, stratum_id), []), rule_ids, per_item=per_item)
         sets[set_id] = block
+    normalising = normalises(scan_skill_package) and NORMALISE is not None
+    plain_as_written = {set_id: {label: count_plain(written.get((set_id, label), []), rule_ids)
+                                 for label in LABELS if any(s["label"] == label for s in value["strata"].values())}
+                        for set_id, value in sorted(manifest.sets.items())}
+    disguise = {"generator": {"version": DISGUISE.GENERATOR_VERSION, "seed": DISGUISE.SEED,
+                              "techniques": list(DISGUISE.TECHNIQUE_IDS)},
+                "steps": list(NORMALISE.STEPS) if normalising else [],
+                "rules_normalised": sorted(NORMALISE.RULES) if normalising else [],
+                "plain_as_written": plain_as_written, "techniques": techniques, "added_on_harmless": added}
     return {"version": SCANNER_VERSION, "rules_version": RULES_VERSION, "manifest_sha256": manifest.sha256,
             "lines": list(LINES), "rules_measured": {rule.id: rule.severity_default for rule in skill_rules},
-            "rules_not_measured": sorted(rule.id for rule in rules if rule.area != "skill"), "sets": sets}
+            "rules_not_measured": sorted(rule.id for rule in rules if rule.area != "skill"), "sets": sets,
+            "disguise": disguise}
 
 
 # --- rates (10.6) ------------------------------------------------------------------------------------------------------------
@@ -857,25 +1046,65 @@ NOTE_MAX = 200
 _VERSION = re.compile(r"\d+\.\d+\.\d+")
 ENTRY_MEMBERS = {"version", "rules_version", "released", "note", "manifest_sha256", "lines", "rules_measured",
                  "rules_not_measured", "sets"}
+# 1.22.0 (P6-4 spec 6.2.5, 6.4.1): the disguised samples, required from this version on and absent from earlier entries
+DISGUISE_FROM = "1.22.0"
+DISGUISE_MEMBERS = {"generator", "steps", "rules_normalised", "plain_as_written", "techniques", "added_on_harmless"}
+GENERATOR_MEMBERS = {"version", "seed", "techniques"}
 
 
 def version_key(version: str) -> tuple[int, ...]:
     return tuple(int(part) for part in version.split("."))
 
 
+def _leaves(value: object):
+    if isinstance(value, dict):
+        for inner in value.values():
+            yield from _leaves(inner)
+    else:
+        yield value
+
+
+def check_disguise(value: object, version: str) -> None:
+    """The member `disguise` of one entry (P6-4 spec 6.4.1): exactly its six members, the generator's three, the steps and rules
+    as lists of text, and every count a whole number of 0 or more. Raises `BenchmarkError` `results_invalid`."""
+    where = f"the disguise member of the entry for {version}"
+    if not isinstance(value, dict) or set(value) != DISGUISE_MEMBERS:
+        raise BenchmarkError("results_invalid", f"{where} must have exactly the members {', '.join(sorted(DISGUISE_MEMBERS))}")
+    generator = value["generator"]
+    if not isinstance(generator, dict) or set(generator) != GENERATOR_MEMBERS or not _count(generator["version"]) \
+            or not isinstance(generator["seed"], str) or not isinstance(generator["techniques"], list) \
+            or not all(isinstance(name, str) for name in generator["techniques"]):
+        raise BenchmarkError("results_invalid", f"{where}: generator must be exactly version (a whole number), seed (text) and "
+                                                "techniques (a list of text)")
+    for name in ("steps", "rules_normalised"):
+        if not isinstance(value[name], list) or not all(isinstance(item, str) for item in value[name]):
+            raise BenchmarkError("results_invalid", f"{where}: {name} must be a list of text")
+    for name in ("plain_as_written", "techniques", "added_on_harmless"):
+        if not isinstance(value[name], dict):
+            raise BenchmarkError("results_invalid", f"{where}: {name} must be an object")
+        if not all(_count(leaf) and leaf >= 0 for leaf in _leaves(value[name])):
+            raise BenchmarkError("results_invalid", f"{where}: every count of {name} must be a whole number of 0 or more")
+
+
 def check_results(document: object) -> dict:
     """The history document, checked: `{"results": 1, "about": text, "entries": [...]}`, entries ascending by version, at most one
-    per version, each with the members of 10.7. Raises `BenchmarkError` `results_invalid` naming the first problem."""
+    per version, each with the members of 10.7, and from 1.22.0 on also `disguise` (P6-4 spec 6.4.1). Raises `BenchmarkError`
+    `results_invalid` naming the first problem."""
     if not isinstance(document, dict) or document.get("results") != 1 or not isinstance(document.get("entries"), list) \
             or not isinstance(document.get("about"), str) or set(document) != {"results", "about", "entries"}:
         raise BenchmarkError("results_invalid", 'the history must be {"results": 1, "about": "...", "entries": [...]}')
     previous: str | None = None
     for entry in document["entries"]:
-        if not isinstance(entry, dict) or set(entry) != ENTRY_MEMBERS:
-            raise BenchmarkError("results_invalid", f"an entry must have exactly the members {', '.join(sorted(ENTRY_MEMBERS))}")
+        if not isinstance(entry, dict) or not ENTRY_MEMBERS <= set(entry) or set(entry) - ENTRY_MEMBERS - {"disguise"}:
+            raise BenchmarkError("results_invalid", f"an entry must have exactly the members {', '.join(sorted(ENTRY_MEMBERS))}"
+                                                    f", and disguise from {DISGUISE_FROM} on")
         version = entry["version"]
         if not isinstance(version, str) or not _VERSION.fullmatch(version):
             raise BenchmarkError("results_invalid", "an entry's version must be X.Y.Z")
+        if "disguise" in entry:
+            check_disguise(entry["disguise"], version)
+        elif version_key(version) >= version_key(DISGUISE_FROM):
+            raise BenchmarkError("results_invalid", f"the entry for {version} lacks the member disguise")
         if previous is not None and version_key(version) <= version_key(previous):
             raise BenchmarkError("results_invalid", f"the entry for {version} comes after {previous}: entries ascend by version")
         if not isinstance(entry["released"], str) or not _DATE.fullmatch(entry["released"]):
