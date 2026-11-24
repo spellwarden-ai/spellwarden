@@ -1,4 +1,5 @@
-"""The current release is 1.21.0, which gives every finding its rule's fix sentence and page without changing a rule; 1.20.0 reads more of the agent files the vendors document and makes SW-CFG-012 and SW-CFG-013 judge
+"""The current release is 1.22.0, in which skill rules also read a normalised copy of the text and the rules read text
+up to 10 MiB (rules version 2026.11.9); 1.21.0 gives every finding its rule's fix sentence and page without changing a rule; 1.20.0 reads more of the agent files the vendors document and makes SW-CFG-012 and SW-CFG-013 judge
 the servers of settings documents (rules version 2026.11.8); 1.19.0 added `spellwarden scan --staged` (the pre-commit hook runs it), limits on SKILL.md
 front matter and the analyzer's span rule without changing a rule (1.18.0 added a pre-commit hook definition, the HTML report
 and presets without changing a rule). 1.17.0 added the model-assisted analyzer (`spellwarden scan --analyze`, advisory and off by
@@ -13,8 +14,7 @@ added SW-MCP-012 (a probed server's tools changed since they were approved, rais
 approved list), `spellwarden_scan.toolhash`, the lock file's probed tool pins and the ToolHive and Docker MCP Gateway exports (1.14.0
 added `spellwarden scan --user` (the agent clients' configuration in a home directory,
 with an opt-in workstation upload) and `--format cyclonedx` without changing a rule (1.13.0 widened the MCP probe to prompts, resources, resource templates and server instructions, tags every rule with MITRE ATLAS and OWASP Agentic Skills Top 10 ids and finds instruction files (1.12.0 added steering and concealment forms to SW-MCP-011 beside 1.11.1's unchanged patterns; 1.11.1 set TLS 1.2 as the minimum of the CLI's own connections and closed the code scanning alerts without changing a result; 1.11.0 made SW-MCP-011 read collapsed whitespace and need the words that aim each pattern at the model or the user; 1.10.0 scoped the archive limits of `unpack_zip(root=...)` to the entries under the root and added `scan_skill_package(kind="instructions")`; 1.9.1 tagged each rule with the OWASP MCP Top Ten entry it detects; 1.9.0 graded severities for SW-MCP-001 and SW-MCP-011 and read whole streamed answers in the probe; 1.8.1 was linear skill discovery, 1.8.0 was the rule batch of five new rules, SW-SKL-032, SW-SKL-036, SW-SKL-037, SW-CFG-012, SW-CFG-013; 1.7.1 was a faster OTLP protobuf reader, 1.7.0 added the OTLP decoder and normaliser `spellwarden_scan.otel` and the command `spellwarden otel normalise`; 1.6.0 added the Zuplo export target; 1.5.0 read the snake-case spellings of 0.x agent card members; 1.4.0 added SW-A2A-019, 1.3.0
-was the O4 agent card release))))). The package metadata says the same version as the code. The rules version is 2026.11.8 because SW-CFG-012 and SW-CFG-013 read settings documents (66
-rules) (2026.11.7: SW-MCP-012 is new; 2026.11.6: SW-MCP-011 reads more places and every rule carries two more kinds of tag; 2026.11.5 added forms to SW-MCP-011; 2026.11.4 narrowed SW-MCP-011; 2026.11.3 changed sixteen rules' and three enforcement rules' OWASP MCP tags; 65 rules in all, as since 1.8.0, when the baseline gained five).
+was the O4 agent card release))))). The package metadata says the same version as the code. The rules version is 2026.11.9 because skill rules also read a normalised copy of the text (66 rules) (2026.11.8: SW-CFG-012 and SW-CFG-013 read settings documents; 2026.11.7: SW-MCP-012 is new; 2026.11.6: SW-MCP-011 reads more places and every rule carries two more kinds of tag; 2026.11.5 added forms to SW-MCP-011; 2026.11.4 narrowed SW-MCP-011; 2026.11.3 changed sixteen rules' and three enforcement rules' OWASP MCP tags; 65 rules in all, as since 1.8.0, when the baseline gained five).
 """
 from __future__ import annotations
 
@@ -27,9 +27,9 @@ PYPROJECT = Path(__file__).resolve().parents[1] / "pyproject.toml"
 
 
 def test_the_versions():
-    assert __version__ == "1.21.0"
+    assert __version__ == "1.22.0"
     assert tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))["project"]["version"] == __version__
-    assert RULES_VERSION == "2026.11.8"
+    assert RULES_VERSION == "2026.11.9"
     assert len(RuleSet.baseline()) == 66
 
 
@@ -190,4 +190,25 @@ def test_the_changelog_has_the_1_21_0_entry_above_1_20_0():
                    "not found."):
         assert needle in entry, needle
     for character in ("—", "–", "!"):
+        assert character not in raw
+
+
+def test_the_changelog_has_the_1_22_0_entry_above_1_21_0():
+    """P6-4 spec 6.8.3: the build's part of the entry (the rules and steps that ship, the evidence prefix, the keyword, the steps
+    left out and the read limit); the orchestrator sets the date and adds the lines of the recorded benchmark entry."""
+    from spellwarden_scan import normalise
+
+    text = (PYPROJECT.parent / "CHANGELOG.md").read_text(encoding="utf-8").replace("\r\n", "\n")
+    assert text.index("## 1.22.0 (") < text.index("## 1.21.0 (")
+    raw = text[text.index("## 1.22.0 ("):text.index("## 1.21.0 (")]
+    entry = " ".join(raw.split())
+    assert "Rules version 2026.11.9 (66 rules):" in entry and f"{len(normalise.RULES)} skill rules also read" in entry
+    for rule_id in normalise.RULES:
+        assert rule_id in entry, rule_id
+    assert "The steps, in this order: " + ", ".join(f"`{step}`" for step in normalise.STEPS) + "." in entry
+    for needle in ("No rule id is added, removed or renamed", "`Matched after normalising:`", "`normalise`",
+                   "`spellwarden_scan.normalise`", "Steps left out.", "`findings_truncated`", "`TextLimit`", "10 MiB", "1 MiB",
+                   "`unreadable`", "`benchmarks/RESULTS.md`", "`rule_benchmark.py steps`"):
+        assert needle in entry, needle
+    for character in ("\u2014", "\u2013", "!"):
         assert character not in raw

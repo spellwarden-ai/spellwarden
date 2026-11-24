@@ -53,7 +53,7 @@ jobs:
   rule-benchmark:
     name: rule benchmark on ${{ matrix.os }}
     needs: build
-    timeout-minutes: 30
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:

@@ -167,7 +167,7 @@ def test_the_rule_benchmark_job_runs_after_build_on_linux_and_windows():
     job = _release()["jobs"]["rule-benchmark"]
     assert job["needs"] == "build" and job["runs-on"] == "${{ matrix.os }}"
     assert job["strategy"]["matrix"]["os"] == ["ubuntu-latest", "windows-latest"] and job["strategy"]["fail-fast"] is False
-    assert job["defaults"]["run"]["shell"] == "bash" and job["timeout-minutes"] == 30
+    assert job["defaults"]["run"]["shell"] == "bash" and job["timeout-minutes"] == 60
     assert job["env"] == {"VERSION": "${{ needs.build.outputs.version }}", "WHEEL_SHA256": "${{ needs.build.outputs.wheel_sha256 }}"}
 
 

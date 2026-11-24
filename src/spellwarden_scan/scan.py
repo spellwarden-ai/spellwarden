@@ -5,20 +5,24 @@ rules worst severity first, keeps at most `max_per_rule` findings per rule and
 configuration documents. `evaluate_agent_card` (O4 spec 5.2) does it for one A2A agent card."""
 from __future__ import annotations
 
-from collections.abc import Collection, Iterable, Mapping, Sequence
+import dataclasses
+from collections.abc import Collection, Iterable, Iterator, Mapping, Sequence
 
 from spellwarden_scan import lint
 from spellwarden_scan.a2a import AgentCardDocument
 from spellwarden_scan.a2a_checklist import a2a_checklist
 from spellwarden_scan.canonical import canonical_sha256
+from spellwarden_scan.evidence import bounded_evidence, fingerprint
 from spellwarden_scan.identity import package_files, package_sha256
 from spellwarden_scan.model import (
-    SEVERITY_RANK, A2aScanResult, CardOrigin, ConfigDocument, ConfigScanResult, Finding, SignatureOutcome, SkillMeta,
+    SEVERITY_RANK, A2aScanResult, CardOrigin, ConfigDocument, ConfigScanResult, Finding, Location, SignatureOutcome, SkillMeta,
     SkillScanResult,
 )
+from spellwarden_scan.normalise import CANDIDATE_STEPS, EVIDENCE_PREFIX, STEPS
+from spellwarden_scan.normalise import RULES as NORMALISED_RULES
 from spellwarden_scan.orgrules import BudgetMeter, OrgRuleBudget, is_org_rule
-from spellwarden_scan.package import Package
-from spellwarden_scan.rules import RuleSet
+from spellwarden_scan.package import Package, View
+from spellwarden_scan.rules import Rule, RuleSet
 from spellwarden_scan.rules.config import AgentConfig
 from spellwarden_scan.version import RULES_VERSION, __version__
 
@@ -49,6 +53,48 @@ def run_rules(rules, subject, *, max_findings: int, max_per_rule: int,
     return retained, truncated
 
 
+def normalisation_steps(normalise: bool | Collection[str]) -> tuple[str, ...]:
+    """The steps `scan_skill_package(normalise=...)` reads with (P6-4 spec 6.5.8): `normalise.STEPS` for True, none for False,
+    the steps of a collection in the order they apply. A step id not in `normalise.CANDIDATE_STEPS` is a `ValueError`."""
+    if normalise is True:
+        return STEPS
+    if normalise is False:
+        return ()
+    if isinstance(normalise, str) or not isinstance(normalise, Collection):
+        raise ValueError("normalise must be True, False or a collection of step ids")
+    unknown = sorted(set(normalise) - set(CANDIDATE_STEPS))
+    if unknown:
+        raise ValueError(f"unknown normalisation step {unknown[0]!r}; the steps are {', '.join(CANDIDATE_STEPS)}")
+    return tuple(step for step in CANDIDATE_STEPS if step in normalise)
+
+
+def read_through(rule: Rule, package: Package, views: Sequence[View]) -> Rule:
+    """`rule` with a detector that yields its findings on `package` unchanged, then (spec 6.5.6) its findings on each view at a
+    line where it has none yet, each moved to the original line it stands for and rewritten to quote that line as written:
+    evidence `EVIDENCE_PREFIX` and the line, fingerprint from the line. A finding without a line is dropped."""
+    texts = {unit.path: unit.lines for unit in package.text_files}
+
+    def detect(subject: Package) -> Iterator[Finding]:
+        seen: set[tuple[str, int | None]] = set()
+        for finding in rule.detect(subject):
+            seen.add((finding.location.path, finding.location.line))
+            yield finding
+        for view in views:
+            for finding in rule.detect(view):
+                path, line = finding.location.path, finding.location.line
+                original = view.original_line(path, line) if line is not None else None
+                lines = texts.get(path, ())
+                if original is None or not 1 <= original <= len(lines) or (path, original) in seen:
+                    continue
+                seen.add((path, original))
+                text = lines[original - 1]
+                yield Finding(rule.id, finding.severity, finding.title, Location(path, original),
+                              bounded_evidence(EVIDENCE_PREFIX + text), fingerprint(rule.id, path, text),
+                              finding.malicious_indicator)
+
+    return dataclasses.replace(rule, detect=detect)
+
+
 SCAN_KINDS = ("skill", "instructions")
 # The two rules about the SKILL.md frontmatter: an instruction file (AGENTS.md, CLAUDE.md) has none to judge.
 INSTRUCTION_SKIPPED_RULES = frozenset({"SW-SKL-015", "SW-SKL-031"})
@@ -58,7 +104,8 @@ def scan_skill_package(files: Mapping[str, bytes], rules: RuleSet, *, root: str 
                        executable_paths: Collection[str] = frozenset(), max_findings: int = 500,
                        max_per_rule: int = 100, org_rule_budget: OrgRuleBudget | None = None,
                        nested_roots: Iterable[str] = (), kind: str = "skill",
-                       markdown_paths: Collection[str] = frozenset()) -> SkillScanResult:
+                       markdown_paths: Collection[str] = frozenset(),
+                       normalise: bool | Collection[str] = True) -> SkillScanResult:
     """`kind` is `"skill"` (the default) or `"instructions"`; any other value is a `ValueError`. With `"instructions"`
     the package is an instruction file such as AGENTS.md, so SW-SKL-015 and SW-SKL-031 (`INSTRUCTION_SKIPPED_RULES`)
     are not run and every other skill rule is. `org_rule_budget` bounds the time org rules may take (Phase C spec 5.2.2);
@@ -66,15 +113,22 @@ def scan_skill_package(files: Mapping[str, bytes], rules: RuleSet, *, root: str 
     skill directories inside `root` (`identity.nested_skill_roots`); the result's `package_sha256` leaves them out.
     `markdown_paths` (1.13.0) are paths read as Markdown whatever their suffix (`Package.build`): the command passes the path of
     an instruction file such as a Cursor `.mdc` rule. The default changes nothing. Raises `frontmatter.FrontmatterLimit` (1.19.0)
-    naming the file when a front matter it reads is past one of the limits: content left unread is the caller's error to
-    report."""
+    naming the file when a front matter it reads is past one of the limits, and `package.TextLimit` (1.22.0) naming a text file
+    over `package.TEXT_MAX`: content left unread is the caller's error to report. `normalise` (1.22.0, P6-4 spec 6.5.8): True
+    (the default) also reads the rules of `normalise.RULES` through the normalised views with `normalise.STEPS`, False reads the
+    text as written only (the reading of 1.21.0), a collection of step ids reads with those steps; a normalised reading only adds
+    findings, each quoting the line as written."""
     if kind not in SCAN_KINDS:
         raise ValueError(f"kind must be one of {', '.join(SCAN_KINDS)}, not {kind!r}")
+    steps = normalisation_steps(normalise)
     package = Package.build(files, root=root, executable_paths=executable_paths, markdown_paths=markdown_paths)
     meter = BudgetMeter(org_rule_budget)
     ordered = rules.ordered_for_scan("skill")
     if kind == "instructions":
         ordered = tuple(rule for rule in ordered if rule.id not in INSTRUCTION_SKIPPED_RULES)
+    views = package.views(steps) if steps else ()
+    if views:
+        ordered = tuple(read_through(rule, package, views) if rule.id in NORMALISED_RULES else rule for rule in ordered)
     retained, truncated = run_rules(ordered, package, max_findings=max_findings,
                                     max_per_rule=max_per_rule, meter=meter)
     identified = package_files(files, root, nested_roots)

@@ -1,5 +1,46 @@
 # Changelog
 
+## 1.22.0 (2026-11-24)
+
+Rules version 2026.11.9 (66 rules): 14 skill rules also read a normalised copy of the text, so text written another way can now be
+found: SW-SKL-001, SW-SKL-003, SW-SKL-004, SW-SKL-005, SW-SKL-006, SW-SKL-007, SW-SKL-008, SW-SKL-009, SW-SKL-012, SW-SKL-013,
+SW-SKL-014, SW-SKL-019, SW-SKL-032 and SW-SKL-037. No rule id is added, removed or renamed, and every finding 1.21.0 reports keeps
+its rule, location, evidence and fingerprint.
+
+1.22.0: disguised content. The skill rules see through simple disguises, and the rule benchmark measures how many detections
+survive a disguised version of each malicious skill.
+
+- Normalisation. The steps, in this order: `entities`, `invisible`, `compat`, `lookalike`, `spaces`, `base64`. HTML character
+  references such as `&#110;` are read as their character, a reference to a line break left as written. Zero-width and other
+  format characters are removed. Compatibility forms such as full-width letters, ligatures and compatibility spaces are folded
+  with Unicode NFKC. Look-alike letters of the Cyrillic, Greek, Armenian and Latin extended blocks are folded to the ASCII letter
+  they look like, in words that hold an ASCII letter or only such letters. Each run of spaces and tabs inside a line, and each
+  tab, becomes one space. Base64 text of 16 characters or more is decoded, up to three layers, and the decoded text is read as
+  part of the line it came from. The text as written is still matched first, as in 1.21.0, and a normalised reading only adds
+  findings, at lines where the same rule found nothing. The evidence of an added finding starts with `Matched after normalising:`
+  and quotes the line as written; its fingerprint is computed from the line as written, so a baseline stays valid and shows an
+  added finding as new, and an added finding at or above `--fail-on` fails a build as any new finding does. At the cap of 500 kept
+  findings an added finding can take the place of a finding of a less severe rule; the notice `findings_truncated` counts it, as
+  for any package at the cap. Normalisation follows the Unicode version of the Python that runs the scanner.
+- The library. `scan_skill_package` takes the keyword `normalise`: `True` (the default) reads through the shipped steps, `False`
+  reads the text as written only, as 1.21.0 did, and a collection of step ids reads with those steps. The command, the GitHub
+  Action, the GitLab component and the pre-commit hook pass nothing, so every scan normalises. The new module
+  `spellwarden_scan.normalise` holds the steps.
+- Steps left out. None: every candidate step raised at least one count on the tuning set and added no finding on its harmless
+  skills.
+- Text over 1 MiB. Until 1.21.0 a text file over 1 MiB in a skill was read by no text rule, so the scan could pass while the file
+  held a finding. Since 1.22.0 the rules read a text file up to 10 MiB, the size up to which the command reads files, which can
+  add findings in such files; a library caller that hands the engine a larger text file gets the error `TextLimit`, never a
+  result, and the command reports it as `unreadable` and exits 2.
+- The rule benchmark measures disguised versions of each malicious skill (look-alike letters, zero-width characters, one and two
+  layers of base64, strings joined at run time, padding, markup tricks and a word-list translation), with the rules on the text as
+  written and after normalisation, and publishes the rate per technique in `benchmarks/RESULTS.md`, its history and the README;
+  `rule_benchmark.py steps` chooses normalisation steps on the tuning set only.
+
+Rule benchmark: no rate got worse than in 1.21.0.
+Rule benchmark: first table of disguised samples, see benchmarks/RESULTS.md.
+Rule benchmark: normalisation adds no finding on harmless skills.
+
 ## 1.21.0 (2026-11-24)
 
 Rules version 2026.11.8, unchanged (66 rules): no rule detects anything new, and no exit code, fingerprint or existing field

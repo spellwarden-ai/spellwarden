@@ -18,12 +18,13 @@ import json
 import os
 import posixpath
 import tempfile
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 
 from spellwarden_scan import analyzer
 from spellwarden_scan.evidence import mask_credentials
 from spellwarden_scan.identity import package_files, package_sha256
+from spellwarden_scan.package import TEXT_MAX
 
 from spellwarden_cli.discover import Discovery, SkillPackage
 from spellwarden_cli.files import FILE_MAX
@@ -171,7 +172,7 @@ def limit_message(limit: analyzer.NotAnalyzed) -> str:
 
 
 def _unread(found: Discovery, skill: SkillPackage, errors: Sequence[Notice] = (),
-            refused: Mapping[str, str] | None = None) -> tuple[str, str] | None:
+            refused: Mapping[str, str] | None = None, text_limited: Collection[str] = ()) -> tuple[str, str] | None:
     """The file that makes the skill one the scan did not read whole (spec 4.8): `(path relative to the skill, why)`, else
     None. First a file of any kind whose front matter the engine refused (`front_matter`: `refused`, from `run.engine_findings`,
     maps the skill to it): then no rule judged the package, so nothing of it may be shown as analysed. Else the first file
@@ -182,7 +183,9 @@ def _unread(found: Discovery, skill: SkillPackage, errors: Sequence[Notice] = ()
     user controls as analysed."""
     prefix = "" if skill.path == "." else f"{skill.path}/"
     if refused is not None and skill.path in refused:
-        return refused[skill.path][len(prefix):], "front_matter"
+        # 1.22.0 (review r0:F1): the engine refuses a package for a front matter past its limits or for a text file over its
+        # read limit; the reason decides what the notice says
+        return refused[skill.path][len(prefix):], "text_limit" if skill.path in text_limited else "front_matter"
     links = set(skill.links)
     sized = {notice.path for notice in found.errors if notice.code == "unreadable"}
     if found.fileset is not None:
@@ -203,6 +206,9 @@ def _unread_message(relative: str, why: str) -> str:
     if why == "front_matter":
         return (f"Not analysed: the front matter of {relative} is past a limit of the scanner, so the rules did not judge the "
                 "skill and the analyzer cannot read it whole. Make the front matter smaller, or leave the skill out.")
+    if why == "text_limit":
+        return (f"Not analysed: {relative} is a text file over the {TEXT_MAX // 2**20} MiB the rules read, so the rules did not "
+                "judge the skill and the analyzer cannot read it whole. Make the file smaller, or leave it out of the skill.")
     if why == "unread":
         return (f"Not analysed: {relative} was not read by the scan (its error `unreadable` says why), so the analyzer cannot "
                 "read the skill whole. Fix what that error names, or leave the file out of the skill.")
@@ -215,7 +221,7 @@ def _unread_message(relative: str, why: str) -> str:
 
 def analyse(found: Discovery, findings: Sequence[ReportFinding], options: AnalyzeOptions, notices: list[Notice],
             errors: list[Notice], *, client_factory: Callable[[AnalyzeOptions], object] | None = None,
-            refused: Mapping[str, str] | None = None) -> tuple[dict, ...]:
+            refused: Mapping[str, str] | None = None, text_limited: Collection[str] = ()) -> tuple[dict, ...]:
     """One `analysis` entry per skill, in path order; appends `analysis_incomplete` notices (or errors, by
     `incomplete_analysis_is_scan_error`) and the one `model_assisted` notice. `findings` are the scan's, after the baseline:
     a category whose rules have an open finding in the skill carries `rules_found: true`. `refused` is `run.engine_findings`'s
@@ -236,12 +242,12 @@ def analyse(found: Discovery, findings: Sequence[ReportFinding], options: Analyz
     for skill in sorted(found.skills, key=lambda one: one.path):
         package_hash = _package_hash(skill)
         rules = analyzer.rules_found(open_ids.get(skill.path, ()))
-        unread = _unread(found, skill, errors, refused)
+        unread = _unread(found, skill, errors, refused, text_limited)
         if unread is not None:  # before the cache and the request: nothing is sent or kept for a skill not read whole
             prefix = "" if skill.path == "." else f"{skill.path}/"
             # a file whose front matter was refused was read, so its size is known; a file over the size limit or a link not
             # followed is 10 MiB or more; any other file not read has no size known, so none is given
-            size = (len(skill.files.get(prefix + unread[0], b"")) if unread[1] == "front_matter"
+            size = (len(skill.files.get(prefix + unread[0], b"")) if unread[1] in ("front_matter", "text_limit")
                     else None if unread[1] == "unread" else FILE_MAX)
             limit = analyzer.NotAnalyzed("too_large", bytes=size, max=options.max_bytes, path=unread[0])
             notice = Notice("analysis_incomplete", skill.path, _unread_message(*unread))

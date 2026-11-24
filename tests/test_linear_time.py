@@ -4,12 +4,14 @@ matcher here must read a 300 000-character line in well under a second; at that 
 took between 2 and 400 seconds (measured on the forms of ce9115c), so each case fails on the old code."""
 from __future__ import annotations
 
+import base64
+import itertools
 import os
 import time
 
 import pytest
 
-from spellwarden_scan import RuleSet, scan_skill_package
+from spellwarden_scan import RuleSet, normalise, scan_skill_package
 from spellwarden_scan.evidence import mask_credentials
 from spellwarden_scan.rules import mcp, skill
 from spellwarden_scan.rules import patterns as P
@@ -62,3 +64,57 @@ def test_the_linear_matchers_keep_the_regex_meaning():
     piped = P.Piped("curl\\b", "\\s*(sh|bash)\\b")
     assert piped.search("curl -s x | bash") and not piped.search("curl x | tee y | grep bash") and not piped.search("curl x || sh")
     assert P.AnyOf(P.Then("a", "b"), P.Then("c", "d")).search("c then d")
+
+
+# 1.22.0 (P6-4 spec 6.5.9, claim N15): every normalisation step is linear, on lines of a megabyte
+MEGABYTE = 1_000_000
+
+
+def _megabyte(token: str) -> str:
+    return (token * (MEGABYTE // len(token) + 1))[:MEGABYTE]
+
+
+NORMALISE_LINES = {
+    "base64 alphabet": _megabyte("QUJDRA"),
+    "nested base64": base64.b64encode(base64.b64encode(base64.b64encode(("a b " * 105_000).encode()))).decode(),
+    "U+FDFA": _megabyte("\ufdfa"),
+    "character references": _megabyte("&#110;"),
+    "zero-width runs": _megabyte("a\u200b\u200c"),
+    "look-alike letters": _megabyte("\u0430b "),
+    "spaces and tabs": _megabyte("a \t  "),
+}
+
+
+@pytest.mark.parametrize("name", sorted(NORMALISE_LINES))
+def test_each_normalisation_step_reads_a_megabyte_line_in_linear_time(name):
+    line = NORMALISE_LINES[name]
+    started = time.perf_counter()
+    folded = normalise.fold(line, normalise.CANDIDATE_STEPS)
+    normalise.payloads(folded, normalise.CANDIDATE_STEPS)
+    assert time.perf_counter() - started < BUDGET_SECONDS
+    assert len(folded) <= 3 * len(line)
+
+
+@pytest.mark.parametrize("name", sorted(NORMALISE_LINES))
+def test_a_scan_of_a_megabyte_line_of_each_disguise_stays_fast(name):
+    """N15: the whole scan, views and second rule pass included."""
+    files = {"SKILL.md": b"---\nname: x\ndescription: y\n---\n", "scripts/run.sh": NORMALISE_LINES[name].encode()}
+    started = time.perf_counter()
+    scan_skill_package(files, RuleSet.baseline())
+    assert time.perf_counter() - started < 10 * BUDGET_SECONDS
+
+
+def test_a_ten_mib_text_file_of_adversarial_lines_stays_within_its_budget():
+    """N19 (P6-4 spec 6.7.6): the rules read text up to 10 MiB since 1.22.0. One script of 10 MiB made of this file's adversarial
+    lines took 11.1 seconds on the machine the plan was written on; the budget is 40 times `BUDGET_SECONDS`."""
+    from spellwarden_scan.package import TEXT_MAX
+
+    tokens = itertools.cycle([token for _, token in CASES])
+    data = bytearray()
+    while len(data) + N + 1 <= TEXT_MAX:
+        data += (_line(next(tokens)) + "\n").encode()
+    data += b"x" * (TEXT_MAX - len(data))
+    files = {"SKILL.md": b"---\nname: x\ndescription: y\n---\n", "scripts/big.sh": bytes(data)}
+    started = time.perf_counter()
+    scan_skill_package(files, RuleSet.baseline())
+    assert time.perf_counter() - started < 40 * BUDGET_SECONDS

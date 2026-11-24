@@ -179,3 +179,12 @@ def test_1_17_0_adds_the_analyzer_module_and_no_package_name():
     for name in ANALYZER_NAMES:
         assert hasattr(analyzer, name) and name in analyzer.__all__, name
     assert "analyzer" not in spellwarden_scan.__all__
+
+def test_1_22_0_adds_the_normalise_module_and_no_package_name():
+    """P6-4 spec 5.1: the public module `spellwarden_scan.normalise`; `__all__` of the package is unchanged."""
+    from spellwarden_scan import normalise
+
+    assert spellwarden_scan.normalise is normalise
+    for name in ("CANDIDATE_STEPS", "STEPS", "RULES", "MAX_LAYERS", "EVIDENCE_PREFIX", "fold", "payloads", "visible"):
+        assert hasattr(normalise, name) and name in normalise.__all__, name
+    assert "normalise" not in spellwarden_scan.__all__

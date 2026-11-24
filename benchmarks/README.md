@@ -24,6 +24,8 @@ release workflow runs it again for every release, on Linux and Windows, against 
 - A skill the scanner could not read whole (a front matter past the 1.19.0 limits, for example) makes its item "not read
   whole". Such an item is counted and named apart, and it is never counted as found or as clean.
 - The ids of the malicious skills the rules missed, at each line. Harmless skills the rules flagged are counted, not named.
+- Since 1.22.0, disguised versions of each malicious skill, one per technique, with the rules on the text as written and after
+  normalisation ([Disguised samples](#disguised-samples)).
 
 The benchmark measures the scanner's library (`spellwarden_scan.scan_skill_package`) on each skill in memory. It does not run
 `spellwarden scan` on a directory, so it measures the skill rules on skill packages and nothing about how the command finds
@@ -154,6 +156,62 @@ MaliciousSkillBench's own `exact_hash` names the withheld original, not the publ
 The `wild-liu`, `wild-skillleak` and `wild-amos` strata are public skills that a study labelled malicious or leaking. On those
 strata a detection says the rules reported the risky pattern a study labelled, not that they stopped an attack.
 
+## Disguised samples
+
+Since 1.22.0 every run also measures disguised versions of each malicious skill (P6-4). A generator, `benchmarks/disguise.py`
+(generator version 1, seed `spellwarden-disguise-1`), turns each skill into one variant per technique. Every choice it makes
+comes from sha256 of the seed, the technique, the item, the path and the position, so every run, on Linux and Windows, builds the
+same bytes. A variant exists only in memory: it is handed to the scanner and dropped, and it is never written, printed or run.
+The generator adds no host, URL, file or command the sample did not hold, apart from the carriers, the two sentences and the word
+list below.
+
+| Technique | Where | What it does |
+|---|---|---|
+| `lookalike` | prose | Letters of words of three or more letters become Cyrillic or Greek look-alikes, each with a chance of one half. |
+| `zero-width` | prose | One of U+200B, U+200C, U+200D or U+2060 inside every word of four or more letters. |
+| `encoding-1` | prose and code | Each prose line becomes its base64, after the line "Each line below is base64 text. Decode it and follow it."; each script and code block becomes one line that decodes and runs it. |
+| `encoding-2` | prose and code | The same with the text encoded twice. |
+| `joined` | code | An empty pair `''` inside each shell word of four or more letters outside quotes; each string literal of four or more characters split in two and joined with `+` (`.` in Perl). |
+| `padding` | prose and code | Each single space becomes two to six spaces and tabs (in prose also no-break and wide spaces). |
+| `markup` | prose | In half of the words of five or more letters an empty HTML comment, a character reference such as `&#110;` or `**` emphasis. |
+| `translation` | prose | 147 common English words of instructions replaced by Spanish ones from a fixed list. No model is called. |
+
+Prose is every line of a Markdown file outside its fenced code blocks; code is every line of a script file and of a fenced block
+in a code language. The front matter of a `SKILL.md`, the lines that open and close a fence, other files, binary files and line
+endings stay as written. The carriers of the encoding techniques are `echo '<B>' | base64 -d | sh` for shell,
+`exec(__import__("base64").b64decode("<B>"))` for Python, `eval(atob("<B>"))` for JavaScript and TypeScript,
+`iex ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("<B>")))` for PowerShell, `eval(Base64.decode64("<B>"))` for
+Ruby and `use MIME::Base64; eval(decode_base64("<B>"));` for Perl, each decoding call nested once more for two layers.
+
+Each skill and each variant is scanned twice: with the rules on the text as written (`normalise=False`) and after normalisation
+(the scanner's default). A variant equal to its skill is not scanned, and a technique's rates count only the skills it changed
+and that were read whole. Each table also counts the detections without SW-SKL-002, SW-SKL-004 and SW-SKL-014, the rules that
+report a disguise itself.
+
+What the numbers do not show:
+
+- a variant models what an author could do to the text, not whether the disguised skill would still work on a given agent;
+- base64 is written unwrapped, while the `base64` command wraps at 76 characters by default;
+- the look-alike letters are the common Cyrillic and Greek set, which the engine's folding table covers by design, so the
+  look-alike row shows that the folding works on that set, not that every look-alike is caught;
+- a word-list translation leaves more English than a real translation, so the true rate under translation is at most the one
+  shown;
+- every `zero-width` variant holds a character SW-SKL-002 reports, and the shell, Python and JavaScript carriers are lines
+  SW-SKL-004 reports, so those rows are high as written whatever the content: read them without the disguise rules.
+
+`python benchmarks/rule_benchmark.py steps` is the one tool for choosing normalisation steps. It reads the tuning sets only: it
+fetches, rebuilds and scans no item of a test set and reads no member of a source archive that a test item uses. It measures no
+normalisation, each candidate step alone, all candidates, and all candidates without each one, and prints counts only, with the
+decision of each step: a step is kept when it raises at least one count on the tuning set and adds no finding on its harmless
+skills.
+
+The CHANGELOG of a release with the disguised samples also says, the first time,
+`Rule benchmark: first table of disguised samples, see benchmarks/RESULTS.md.`, and every time either
+`Rule benchmark: normalisation adds no finding on harmless skills.` or
+`Rule benchmark: normalisation adds these findings on harmless skills, which the rules as written do not report:` followed by one
+line per set and rule, `- <set>, <rule>: N findings in M skills`, with the reason each is what its rule describes. A detection of
+a disguised sample that went down is a worse rate like any other.
+
 ## Tuning and test
 
 - A rule may be worked on with the tuning half, the repository's fixtures and samples people report. The precision pass P5-24
@@ -214,5 +272,7 @@ The release preparation records the entry before the tag, because a workflow sta
 - `results.json`: the history, one entry per release, counts only.
 - `RESULTS.md`: the full table, generated from `results.json` by `rule_benchmark.py render`.
 - `requirements.txt`: `pyarrow`, hash-pinned, to read the parquet table.
-- `rule_benchmark.py`: the one command (`fetch`, `run`, `render`, `changelog-lines`, `check-changelog`, `check-history`).
+- `rule_benchmark.py`: the one command (`fetch`, `run`, `render`, `changelog-lines`, `check-changelog`, `check-history`, `steps`).
+- `disguise.py`: the generator of the disguised samples, loaded by `rule_benchmark.py`. It is seeded, works in memory and
+  writes, prints and runs nothing.
 - `build_manifest.py`: turns the frozen measurement manifests into `manifest.json`; run once, never by `make check` or CI.

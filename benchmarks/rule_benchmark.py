@@ -14,6 +14,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import http.client
+import importlib.util
+import inspect
 import io
 import json
 import math
@@ -37,8 +39,29 @@ from spellwarden_scan import __version__ as SCANNER_VERSION
 from spellwarden_scan.frontmatter import FrontmatterLimit
 from spellwarden_scan.identity import nested_skill_roots, package_files, package_sha256
 
+try:
+    from spellwarden_scan import normalise as NORMALISE
+    from spellwarden_scan.package import TextLimit
+except ImportError:  # a scanner before 1.22.0: no normalised reading and no read limit error (P6-4 spec 6.2.2)
+    NORMALISE = None
+
+    class TextLimit(Exception):
+        """Never raised: the installed scanner predates 1.22.0."""
+
 REPOSITORY = Path(__file__).resolve().parents[1]
 BENCHMARKS = REPOSITORY / "benchmarks"
+
+
+def _load_disguise():
+    """`disguise.py` beside this file, loaded by its path (P6-4 spec 6.1.1): the tests load this script by its path, where
+    `benchmarks/` is not on `sys.path`, so a plain `import disguise` would fail there."""
+    spec = importlib.util.spec_from_file_location("spellwarden_benchmark_disguise", Path(__file__).with_name("disguise.py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+DISGUISE = _load_disguise()
 USER_AGENT = "spellwarden-rule-benchmark/1 (+https://github.com/spellwarden-ai/spellwarden)"
 TIMEOUT_SECONDS = 60
 PARALLEL_REQUESTS = 8
@@ -664,12 +687,27 @@ NONE = "none"
 SCAN_CAP = 1_000_000
 
 
+# The rules that report a disguise itself whatever the content (P6-4 spec 6.1.7, 6.2.4): a hidden character, a decode-and-run
+# line, obfuscated script code. SW-SKL-032 is not one: its decoding branch reports what the decoded text does.
+DISGUISE_RULES = ("SW-SKL-002", "SW-SKL-004", "SW-SKL-014")
+
+
 class ItemResult(NamedTuple):
     """One item's result: `unread` is the reason it was not read whole (None when it was), `worst` its worst severity over
-    every rule (`none` without a finding) and `rules` the worst severity per rule that found something."""
+    every rule (`none` without a finding), `rules` the worst severity per rule that found something and `other` (1.22.0) the
+    worst severity over the rules that are not `DISGUISE_RULES`."""
     unread: str | None
     worst: str
     rules: dict[str, str]
+    other: str = "none"
+
+
+class RootReading(NamedTuple):
+    """One scan of one root: the reason it was not read whole (or None), the worst severity per rule and, for the check that
+    normalisation removes nothing (P6-4 spec 6.2.3), `(rule id, path, line, fingerprint)` of every finding."""
+    unread: str | None
+    rules: dict[str, str]
+    keys: frozenset
 
 
 def worse(first: str, second: str) -> str:
@@ -685,37 +723,112 @@ def at_or_above(severity: str, line: str) -> bool:
     return severity != NONE and SEVERITY_RANK[severity] <= LINE_RANK[line]
 
 
-def scan_root(files: Mapping[str, bytes], rules: RuleSet) -> tuple[str | None, dict[str, str]]:
-    """The reason one root was not read whole (or None) and the worst severity per rule of its findings (10.5.1, 10.5.2)."""
+def normalises(function: Callable) -> bool:
+    """Whether the installed `scan_skill_package` takes the keyword `normalise` (1.22.0, P6-4 spec 6.2.2)."""
+    parameters = inspect.signature(function).parameters
+    return "normalise" in parameters or any(p.kind is inspect.Parameter.VAR_KEYWORD for p in parameters.values())
+
+
+def read_root(files: Mapping[str, bytes], rules: RuleSet, normalise: object = None) -> RootReading:
+    """One scan of one root (10.5.1, 10.5.2): `normalise` is passed to the scanner unless it is None (the scanner's default).
+    Any exception is unread content, never a clean skill, and no message quotes text."""
+    options = {} if normalise is None else {"normalise": normalise}
     try:
         result = scan_skill_package(files, rules, root="", nested_roots=nested_skill_roots(files, ""),
-                                    max_findings=SCAN_CAP, max_per_rule=SCAN_CAP)
+                                    max_findings=SCAN_CAP, max_per_rule=SCAN_CAP, **options)
     except FrontmatterLimit:
-        return "frontmatter_limit", {}
+        return RootReading("frontmatter_limit", {}, frozenset())
+    except TextLimit:
+        return RootReading("text_limit", {}, frozenset())
     except Exception as exc:  # any scanner failure is unread content, never a clean skill
-        return f"scanner_error:{type(exc).__name__}", {}
+        return RootReading(f"scanner_error:{type(exc).__name__}", {}, frozenset())
     if result.truncated > 0:
-        return "findings_truncated", {}
+        return RootReading("findings_truncated", {}, frozenset())
     found: dict[str, str] = {}
     for finding in result.findings:
         found[finding.rule_id] = worse(found.get(finding.rule_id, NONE), finding.severity)
-    return None, found
+    keys = frozenset((f.rule_id, f.location.path, f.location.line, f.fingerprint) for f in result.findings)
+    return RootReading(None, found, keys)
+
+
+def scan_root(files: Mapping[str, bytes], rules: RuleSet) -> tuple[str | None, dict[str, str]]:
+    """The reason one root was not read whole (or None) and the worst severity per rule of its findings, with the scanner's
+    default reading (10.5.1, 10.5.2)."""
+    reading = read_root(files, rules)
+    return reading.unread, reading.rules
+
+
+def fold_roots(readings: list[RootReading]) -> ItemResult:
+    """Folds the readings of one item's roots (10.5.3): any unread root makes the whole item unread (the first such root's
+    reason); otherwise each rule's worst severity is the worst over the roots."""
+    merged: dict[str, str] = {}
+    for reading in readings:
+        if reading.unread is not None:
+            return ItemResult(reading.unread, NONE, {})
+        for rule_id, severity in reading.rules.items():
+            merged[rule_id] = worse(merged.get(rule_id, NONE), severity)
+    overall = other = NONE
+    for rule_id, severity in merged.items():
+        overall = worse(overall, severity)
+        if rule_id not in DISGUISE_RULES:
+            other = worse(other, severity)
+    return ItemResult(None, overall, merged, other)
 
 
 def scan_item(roots: list[dict[str, bytes]], rules: RuleSet) -> ItemResult:
-    """Folds the roots of one item (10.5.3): any unread root makes the whole item unread (the first such root's reason);
-    otherwise each rule's worst severity is the worst over the roots."""
-    merged: dict[str, str] = {}
+    """One item with the scanner's default reading (10.5.3)."""
+    return fold_roots([read_root(files, rules) for files in roots])
+
+
+class BothReadings(NamedTuple):
+    """One item read as written (`normalise=False`) and normalised (the scanner's default), and per rule the findings the
+    normalised reading adds over all roots read whole both ways."""
+    written: ItemResult
+    normalised: ItemResult
+    added: dict[str, int]
+
+
+def scan_both(roots: list[dict[str, bytes]], rules: RuleSet, item_id: str, normalise: object = True) -> BothReadings:
+    """Each root as written and with `normalise` (P6-4 spec 6.2.1); a scanner without the keyword gives one reading for both
+    (6.2.2). A finding of the reading as written that the normalised reading lacks stops the run (6.2.3,
+    `normalisation_removed`), naming the item and the rule, never text."""
+    both = normalises(scan_skill_package)
+    written: list[RootReading] = []
+    normalised: list[RootReading] = []
+    added: dict[str, int] = {}
     for files in roots:
-        reason, found = scan_root(files, rules)
-        if reason is not None:
-            return ItemResult(reason, NONE, {})
-        for rule_id, severity in found.items():
-            merged[rule_id] = worse(merged.get(rule_id, NONE), severity)
-    overall = NONE
-    for severity in merged.values():
-        overall = worse(overall, severity)
-    return ItemResult(None, overall, merged)
+        plain = read_root(files, rules, False if both else None)
+        other = read_root(files, rules, normalise) if both else plain
+        if plain.unread is None and other.unread is None:
+            lost = sorted(plain.keys - other.keys, key=lambda key: (key[0], key[1], key[2] or 0, key[3]))
+            if lost:
+                raise BenchmarkError("normalisation_removed", f"item {item_id}: the normalised reading lacks a finding of "
+                                                              f"{lost[0][0]} that the text as written gives")
+            for key in other.keys - plain.keys:
+                added[key[0]] = added.get(key[0], 0) + 1
+        written.append(plain)
+        normalised.append(other)
+    return BothReadings(fold_roots(written), fold_roots(normalised), added)
+
+
+class VariantReadings(NamedTuple):
+    """One technique on one item: `changed` is False when the variant of every root equals the root (nothing more was
+    scanned); `readings` is None when the generator failed (the variant is not read whole)."""
+    changed: bool
+    readings: BothReadings | None
+
+
+def scan_variant(roots: list[dict[str, bytes]], rules: RuleSet, item_id: str, technique: str,
+                 normalise: object = True) -> VariantReadings:
+    """The variant of each root under `technique`, scanned both ways when any root changed (P6-4 spec 6.2.1). The variant
+    lives in memory only and is dropped here; an exception from the generator is unread content, and no message quotes text."""
+    try:
+        variants = [DISGUISE.variant(files, technique, key=f"{item_id}/{number}") for number, files in enumerate(roots, start=1)]
+    except Exception:  # the generator failed: the variant is not read whole, the run goes on
+        return VariantReadings(True, None)
+    if all(variant == files for variant, files in zip(variants, roots, strict=True)):
+        return VariantReadings(False, None)
+    return VariantReadings(True, scan_both(variants, rules, item_id, normalise))
 
 
 # --- counting (10.6) and the entry (10.7) ------------------------------------------------------------------------------------
@@ -745,16 +858,82 @@ def count_stratum(title: str, label: str, results: list[tuple[str, ItemResult]],
     return stratum
 
 
+def _found_block() -> dict:
+    return {"found": {line: 0 for line in LINES}, "found_other": {line: 0 for line in LINES}}
+
+
+def _add_found(block: dict, result: ItemResult) -> None:
+    for line in LINES:
+        block["found"][line] += at_or_above(result.worst, line)
+        block["found_other"][line] += at_or_above(result.other, line)
+
+
+def _technique_block() -> dict:
+    return {"changed": 0, "unread": 0, "plain_as_written": _found_block(), "plain_normalised": _found_block(),
+            "disguised_as_written": _found_block(), "disguised_normalised": _found_block()}
+
+
+def count_technique(block: dict, plain: BothReadings, variant: VariantReadings) -> None:
+    """Adds one malicious item to a technique's counts for its set (P6-4 spec 6.2.4): nothing when the technique did not change
+    it; `changed`, and `unread` when its variant was not read whole in either reading; otherwise the four detections."""
+    if not variant.changed:
+        return
+    block["changed"] += 1
+    readings = variant.readings
+    if readings is None or readings.written.unread is not None or readings.normalised.unread is not None:
+        block["unread"] += 1
+        return
+    _add_found(block["plain_as_written"], plain.written)
+    _add_found(block["plain_normalised"], plain.normalised)
+    _add_found(block["disguised_as_written"], readings.written)
+    _add_found(block["disguised_normalised"], readings.normalised)
+
+
+def count_plain(results: list[ItemResult], rule_ids: list[str]) -> dict:
+    """The reading as written of one label of one set (P6-4 spec 6.2.5 `plain_as_written`): items read whole, found at each line
+    and per rule."""
+    read = [result for result in results if result.unread is None]
+    return {"read": len(read), "found": {line: sum(at_or_above(r.worst, line) for r in read) for line in LINES},
+            "rules": {rule_id: {line: sum(at_or_above(r.rules.get(rule_id, NONE), line) for r in read) for line in LINES}
+                      for rule_id in rule_ids}}
+
+
+def count_added(added: dict[str, dict[str, int]], plain: BothReadings) -> None:
+    """Adds one harmless item's added findings to its set's counts per rule: the findings, and the item once per rule."""
+    for rule_id, count in plain.added.items():
+        entry = added.setdefault(rule_id, {"findings": 0, "skills": 0})
+        entry["findings"] += count
+        entry["skills"] += 1
+
+
 def measure(manifest: Manifest, cache: Cache, *, progress: Callable[[str], None] | None = None) -> dict:
-    """The measured part of the entry (10.6, 10.7): every item rebuilt, verified and scanned, or an error that stops the run."""
+    """The measured part of the entry (10.6, 10.7): every item rebuilt, verified and scanned as written and normalised, and
+    every changed variant of a malicious item read whole both ways scanned both ways (P6-4 spec 6.2), or an error that stops the
+    run."""
     rules = RuleSet.baseline()
     skill_rules = sorted(rules.by_area("skill"), key=lambda rule: rule.id)
     rule_ids = [rule.id for rule in skill_rules]
     objects = Objects(manifest, cache)
     results: dict[tuple[str, str], list[tuple[str, ItemResult]]] = {}
+    written: dict[tuple[str, str], list[ItemResult]] = {}
+    techniques = {technique: {set_id: _technique_block() for set_id, value in sorted(manifest.sets.items())
+                              if any(s["label"] == "malicious" for s in value["strata"].values())}
+                  for technique in DISGUISE.TECHNIQUE_IDS}
+    added: dict[str, dict] = {set_id: {} for set_id, value in sorted(manifest.sets.items())
+                              if any(s["label"] == "benign" for s in value["strata"].values())}
     for number, item in enumerate(manifest.items, start=1):
-        result = scan_item(rebuild(item, objects), rules)
-        results.setdefault((item["set"], item["stratum"]), []).append((item["id"], result))
+        roots = rebuild(item, objects)
+        plain = scan_both(roots, rules, item["id"])
+        label = manifest.sets[item["set"]]["strata"][item["stratum"]]["label"]
+        results.setdefault((item["set"], item["stratum"]), []).append((item["id"], plain.normalised))
+        written.setdefault((item["set"], label), []).append(plain.written)
+        read_both = plain.written.unread is None and plain.normalised.unread is None
+        if label == "benign" and read_both:
+            count_added(added[item["set"]], plain)
+        if label == "malicious" and read_both:
+            for technique in DISGUISE.TECHNIQUE_IDS:
+                count_technique(techniques[technique][item["set"]], plain,
+                                scan_variant(roots, rules, item["id"], technique))
         if progress is not None and number % 250 == 0:
             progress(f"measured {number} of {len(manifest.items)} items")
     sets: dict = {}
@@ -769,9 +948,19 @@ def measure(manifest: Manifest, cache: Cache, *, progress: Callable[[str], None]
             block["strata"][stratum_id] = count_stratum(stratum["title"], stratum["label"],
                                                         results.get((set_id, stratum_id), []), rule_ids, per_item=per_item)
         sets[set_id] = block
+    normalising = normalises(scan_skill_package) and NORMALISE is not None
+    plain_as_written = {set_id: {label: count_plain(written.get((set_id, label), []), rule_ids)
+                                 for label in LABELS if any(s["label"] == label for s in value["strata"].values())}
+                        for set_id, value in sorted(manifest.sets.items())}
+    disguise = {"generator": {"version": DISGUISE.GENERATOR_VERSION, "seed": DISGUISE.SEED,
+                              "techniques": list(DISGUISE.TECHNIQUE_IDS)},
+                "steps": list(NORMALISE.STEPS) if normalising else [],
+                "rules_normalised": sorted(NORMALISE.RULES) if normalising else [],
+                "plain_as_written": plain_as_written, "techniques": techniques, "added_on_harmless": added}
     return {"version": SCANNER_VERSION, "rules_version": RULES_VERSION, "manifest_sha256": manifest.sha256,
             "lines": list(LINES), "rules_measured": {rule.id: rule.severity_default for rule in skill_rules},
-            "rules_not_measured": sorted(rule.id for rule in rules if rule.area != "skill"), "sets": sets}
+            "rules_not_measured": sorted(rule.id for rule in rules if rule.area != "skill"), "sets": sets,
+            "disguise": disguise}
 
 
 # --- rates (10.6) ------------------------------------------------------------------------------------------------------------
@@ -857,25 +1046,65 @@ NOTE_MAX = 200
 _VERSION = re.compile(r"\d+\.\d+\.\d+")
 ENTRY_MEMBERS = {"version", "rules_version", "released", "note", "manifest_sha256", "lines", "rules_measured",
                  "rules_not_measured", "sets"}
+# 1.22.0 (P6-4 spec 6.2.5, 6.4.1): the disguised samples, required from this version on and absent from earlier entries
+DISGUISE_FROM = "1.22.0"
+DISGUISE_MEMBERS = {"generator", "steps", "rules_normalised", "plain_as_written", "techniques", "added_on_harmless"}
+GENERATOR_MEMBERS = {"version", "seed", "techniques"}
 
 
 def version_key(version: str) -> tuple[int, ...]:
     return tuple(int(part) for part in version.split("."))
 
 
+def _leaves(value: object):
+    if isinstance(value, dict):
+        for inner in value.values():
+            yield from _leaves(inner)
+    else:
+        yield value
+
+
+def check_disguise(value: object, version: str) -> None:
+    """The member `disguise` of one entry (P6-4 spec 6.4.1): exactly its six members, the generator's three, the steps and rules
+    as lists of text, and every count a whole number of 0 or more. Raises `BenchmarkError` `results_invalid`."""
+    where = f"the disguise member of the entry for {version}"
+    if not isinstance(value, dict) or set(value) != DISGUISE_MEMBERS:
+        raise BenchmarkError("results_invalid", f"{where} must have exactly the members {', '.join(sorted(DISGUISE_MEMBERS))}")
+    generator = value["generator"]
+    if not isinstance(generator, dict) or set(generator) != GENERATOR_MEMBERS or not _count(generator["version"]) \
+            or not isinstance(generator["seed"], str) or not isinstance(generator["techniques"], list) \
+            or not all(isinstance(name, str) for name in generator["techniques"]):
+        raise BenchmarkError("results_invalid", f"{where}: generator must be exactly version (a whole number), seed (text) and "
+                                                "techniques (a list of text)")
+    for name in ("steps", "rules_normalised"):
+        if not isinstance(value[name], list) or not all(isinstance(item, str) for item in value[name]):
+            raise BenchmarkError("results_invalid", f"{where}: {name} must be a list of text")
+    for name in ("plain_as_written", "techniques", "added_on_harmless"):
+        if not isinstance(value[name], dict):
+            raise BenchmarkError("results_invalid", f"{where}: {name} must be an object")
+        if not all(_count(leaf) and leaf >= 0 for leaf in _leaves(value[name])):
+            raise BenchmarkError("results_invalid", f"{where}: every count of {name} must be a whole number of 0 or more")
+
+
 def check_results(document: object) -> dict:
     """The history document, checked: `{"results": 1, "about": text, "entries": [...]}`, entries ascending by version, at most one
-    per version, each with the members of 10.7. Raises `BenchmarkError` `results_invalid` naming the first problem."""
+    per version, each with the members of 10.7, and from 1.22.0 on also `disguise` (P6-4 spec 6.4.1). Raises `BenchmarkError`
+    `results_invalid` naming the first problem."""
     if not isinstance(document, dict) or document.get("results") != 1 or not isinstance(document.get("entries"), list) \
             or not isinstance(document.get("about"), str) or set(document) != {"results", "about", "entries"}:
         raise BenchmarkError("results_invalid", 'the history must be {"results": 1, "about": "...", "entries": [...]}')
     previous: str | None = None
     for entry in document["entries"]:
-        if not isinstance(entry, dict) or set(entry) != ENTRY_MEMBERS:
-            raise BenchmarkError("results_invalid", f"an entry must have exactly the members {', '.join(sorted(ENTRY_MEMBERS))}")
+        if not isinstance(entry, dict) or not ENTRY_MEMBERS <= set(entry) or set(entry) - ENTRY_MEMBERS - {"disguise"}:
+            raise BenchmarkError("results_invalid", f"an entry must have exactly the members {', '.join(sorted(ENTRY_MEMBERS))}"
+                                                    f", and disguise from {DISGUISE_FROM} on")
         version = entry["version"]
         if not isinstance(version, str) or not _VERSION.fullmatch(version):
             raise BenchmarkError("results_invalid", "an entry's version must be X.Y.Z")
+        if "disguise" in entry:
+            check_disguise(entry["disguise"], version)
+        elif version_key(version) >= version_key(DISGUISE_FROM):
+            raise BenchmarkError("results_invalid", f"the entry for {version} lacks the member disguise")
         if previous is not None and version_key(version) <= version_key(previous):
             raise BenchmarkError("results_invalid", f"the entry for {version} comes after {previous}: entries ascend by version")
         if not isinstance(entry["released"], str) or not _DATE.fullmatch(entry["released"]):
@@ -937,6 +1166,11 @@ def differences(recorded: object, computed: object, limit: int = 10) -> list[str
 
 LINE_TEXT = {"medium": "medium or above", "high": "high or above"}
 FIRST_TABLE = "Rule benchmark: first published table, see benchmarks/RESULTS.md."
+# 1.22.0 (P6-4 spec 6.4.4): the CHANGELOG lines of the disguised samples
+FIRST_DISGUISE_TABLE = "Rule benchmark: first table of disguised samples, see benchmarks/RESULTS.md."
+NO_HARMLESS_ADDED = "Rule benchmark: normalisation adds no finding on harmless skills."
+HARMLESS_ADDED = ("Rule benchmark: normalisation adds these findings on harmless skills, which the rules as written do not "
+                  "report:")
 
 
 def _rule_rows(previous: Total, current: Total, rule_ids: list[str], line: str) -> list[tuple[str, int, int]]:
@@ -983,7 +1217,55 @@ def worse_rates(previous: dict, current: dict) -> list[str]:
         new_unread = sum(len(stratum["unread"]) for stratum in block["strata"].values())
         if new_unread > old_unread:
             lines.append(f"- {title}, items not read whole: {old_unread} to {new_unread}")
+    return lines + worse_disguised(previous, current)
+
+
+def technique_titles() -> dict[str, str]:
+    return dict(DISGUISE.TECHNIQUES)
+
+
+def disguise_read(block: dict) -> int:
+    """The denominator of every rate of a technique in a set (P6-4 spec 6.2.4): items changed and read whole."""
+    return block["changed"] - block["unread"]
+
+
+def worse_disguised(previous: dict, current: dict) -> list[str]:
+    """P6-4 spec 6.4.3: per technique and set both entries measured, at each line, a line when the disguised normalised
+    detection went down and a second when its detection without the disguise rules went down (exact fractions). Nothing when
+    either entry has no `disguise`."""
+    if "disguise" not in previous or "disguise" not in current:
+        return []
+    titles = technique_titles()
+    lines: list[str] = []
+    for technique, by_set in current["disguise"]["techniques"].items():
+        for set_id, block in by_set.items():
+            before = previous["disguise"]["techniques"].get(technique, {}).get(set_id)
+            if before is None or set_id not in current["sets"]:
+                continue
+            title = current["sets"][set_id]["title"]
+            per_item = current["sets"][set_id].get("report") == PER_ITEM
+            old_read, new_read = disguise_read(before), disguise_read(block)
+            if old_read == 0 or new_read == 0:
+                continue
+            for line in LINES:
+                for member, word in (("found", "detection"), ("found_other", "detection without the disguise rules")):
+                    old_found = before["disguised_normalised"][member][line]
+                    new_found = block["disguised_normalised"][member][line]
+                    if new_found * old_read >= old_found * new_read:
+                        continue
+                    counts = f"{old_found} of {old_read} to {new_found} of {new_read}"
+                    head = f"- {title}, disguised: {titles.get(technique, technique)}, {LINE_TEXT[line]}: {word}"
+                    lines.append(f"{head} {counts}" if per_item else
+                                 f"{head} {percent(old_found / old_read)}% to {percent(new_found / new_read)}% ({counts})")
     return lines
+
+
+def harmless_lines(entry: dict) -> list[str]:
+    """`- <set title>, <rule>: N findings in M skills` for each set with a harmless stratum, test sets first, and each rule with
+    an added finding (P6-4 spec 6.4.4)."""
+    added = entry["disguise"]["added_on_harmless"]
+    return [f"- {block['title']}, {rule_id}: {counts['findings']} findings in {counts['skills']} skills"
+            for set_id, block in ordered_sets(entry) for rule_id, counts in sorted(added.get(set_id, {}).items())]
 
 
 def changelog_lines(results: dict) -> list[str]:
@@ -992,7 +1274,7 @@ def changelog_lines(results: dict) -> list[str]:
     if not entries:
         return []
     if len(entries) == 1:
-        return [FIRST_TABLE]
+        return [FIRST_TABLE, *disguise_changelog_lines(None, entries[0])]
     previous, current = entries[-2], entries[-1]
     worse_lines = worse_rates(previous, current)
     if worse_lines:
@@ -1002,7 +1284,17 @@ def changelog_lines(results: dict) -> list[str]:
     if current["manifest_sha256"] != previous["manifest_sha256"]:
         required.append(f"Rule benchmark: the sets changed since {previous['version']}; benchmarks/README.md lists what was "
                         "left out.")
-    return required
+    return required + disguise_changelog_lines(previous, current)
+
+
+def disguise_changelog_lines(previous: dict | None, current: dict) -> list[str]:
+    """P6-4 spec 6.4.4: with `disguise` in the newest entry, the first-table sentence when the entry before has none, then the
+    harmless findings normalisation adds, as one sentence or as a sentence and its list."""
+    if "disguise" not in current:
+        return []
+    required = [FIRST_DISGUISE_TABLE] if previous is None or "disguise" not in previous else []
+    listed = harmless_lines(current)
+    return required + ([HARMLESS_ADDED, *listed] if listed else [NO_HARMLESS_ADDED])
 
 
 def changelog_section(text: str, version: str) -> str | None:
@@ -1029,23 +1321,26 @@ def check_changelog(results: dict, text: str) -> list[str]:
     if section is None:
         return [f"CHANGELOG.md has no section for {version}"]
     # A sentence may sit inside a paragraph that the file wraps at its usual width, so sentences are matched with whitespace
-    # joined (review r0:F2). The list of worse rates is matched line by line: each `- ` line stands on a line of its own,
-    # unwrapped, in order, right after the sentence that introduces it.
+    # joined (review r0:F2). Each list is matched line by line: each `- ` line stands on a line of its own, unwrapped, in order,
+    # right after the sentence that introduces it (1.22.0, P6-4 spec 6.4.5: every sentence ending in `:` has its own list).
     have = [line.rstrip() for line in section.splitlines()]
     flat = " ".join(section.split())
     problems = []
-    worse_lines = [line for line in required if line.startswith("- ")]
+    groups: list[tuple[str, list[str]]] = []
     for line in required:
-        if line.startswith("- "):
-            continue
+        if line.startswith("- ") and groups:
+            groups[-1][1].append(line)
+        else:
+            groups.append((line, []))
+    for line, items in groups:
         sentence = " ".join(line.split())
         if sentence not in flat:
             problems.append(f"the CHANGELOG section of {version} lacks the sentence: {line}")
         elif line.endswith(":"):
-            starts = [i for i in range(len(have) - len(worse_lines) + 1) if have[i:i + len(worse_lines)] == worse_lines]
-            listed = " | ".join(worse_lines)
-            first = " ".join(worse_lines[0].split()) if worse_lines else ""
-            right_under = bool(worse_lines) and flat.find(f"{sentence} {first}") != -1
+            starts = [i for i in range(len(have) - len(items) + 1) if have[i:i + len(items)] == items]
+            listed = " | ".join(items)
+            first = " ".join(items[0].split()) if items else ""
+            right_under = bool(items) and flat.find(f"{sentence} {first}") != -1
             if not starts or not right_under:
                 problems.append(f"the CHANGELOG section of {version} must list under that sentence, one line each, "
                                 f"in order: {listed}")
@@ -1083,6 +1378,34 @@ README_START, README_END = "<!-- benchmark:start -->", "<!-- benchmark:end -->"
 BELOW = "below this line"
 LABEL_TEXT = {"malicious": "malicious", "benign": "harmless"}
 RATE_WORD = {"malicious": "detection", "benign": "false positives"}
+DISGUISE_RULES_SENTENCE = ("The disguise rules are SW-SKL-002, SW-SKL-004 and SW-SKL-014: they report a hidden character or a "
+                           "decode-and-run line whatever the content.")
+README_DISGUISE_HEAD = "Disguised samples, medium or above, rules on the text as written and after normalisation:"
+README_DISGUISE_RULES = ("SW-SKL-002, SW-SKL-004 and SW-SKL-014 report the disguise itself (a hidden character, a decode-and-run "
+                         "line), so a row can be high as written while the other rules no longer see the content: "
+                         "[benchmarks/RESULTS.md](benchmarks/RESULTS.md) shows every row without those three rules, as written "
+                         "and normalised.")
+
+
+def harmless_sentence(entry: dict, set_id: str) -> str:
+    """P6-4 spec 6.3.1: what normalisation adds on a set's harmless skills, each rule with its own counts, never a sum of skills
+    over rules."""
+    parts = added_parts(entry["disguise"]["added_on_harmless"].get(set_id, {}))
+    if not parts:
+        return "Normalisation adds no finding on harmless skills."
+    return "Normalisation adds these findings on harmless skills: " + "; ".join(parts) + "."
+
+
+def set_techniques(entry: dict, set_id: str) -> list[tuple[str, dict]]:
+    """`(technique, counts)` of one set in the generator's order, empty for an entry without `disguise` or a set without a
+    malicious stratum."""
+    if "disguise" not in entry:
+        return []
+    return [(technique, by_set[set_id]) for technique, by_set in entry["disguise"]["techniques"].items() if set_id in by_set]
+
+
+def _count_or_rate(found: int, read: int, per_item: bool) -> str:
+    return f"{found} of {read}" if per_item else rate_text(found, read)
 
 
 def ordered_sets(entry: dict) -> list[tuple[str, dict]]:
@@ -1135,7 +1458,7 @@ def render_text(entry: dict, *, ids_at: str) -> str:
     """The terminal table of one entry (10.8.1). `ids_at` says where the ids of missed items are."""
     out = [f"Spellwarden rule benchmark: scanner {entry['version']}, rules {entry['rules_version']}, manifest "
            f"{entry['manifest_sha256']}; rules only, no model.", ""]
-    for _set_id, block in ordered_sets(entry):
+    for set_id, block in ordered_sets(entry):
         per_item = block.get("report") == PER_ITEM
         out.append(f"{block['title']} ({block['role']}{', shown skill by skill' if per_item else ''})")
         if block["role"] == "tuning":
@@ -1176,6 +1499,7 @@ def render_text(entry: dict, *, ids_at: str) -> str:
                         parts.append(f"{RATE_WORD[label]} {_short(total.rules[rule_id][line], total.read, per_item)}")
                 cells.append(f"{LINE_TEXT[line]}: " + ", ".join(parts))
             out.append(f"    {rule_id} ({severity}): " + "; ".join(cells))
+        out += _disguise_text(entry, set_id)
         if not per_item and totals(block, "malicious") is not None:
             at_medium, at_high = _missed(block)
             out.append(f"  missed malicious skills: {at_medium} at medium or above, {at_high} at high or above; their ids are in "
@@ -1183,6 +1507,30 @@ def render_text(entry: dict, *, ids_at: str) -> str:
         out.append("")
     out.append(not_measured_text(entry))
     return "\n".join(out) + "\n"
+
+
+def _disguise_text(entry: dict, set_id: str) -> list[str]:
+    """P6-4 spec 6.3.4: the disguised samples of one set in the terminal, as counts."""
+    techniques = set_techniques(entry, set_id)
+    if not techniques:
+        return []
+    titles = technique_titles()
+    out = ["  disguised samples:"]
+    for technique, block in techniques:
+        cells = []
+        for line in LINES:
+            parts = [f"{block[name]['found'][line]} {word}" for name, word in (
+                ("plain_as_written", "plain as written"), ("plain_normalised", "plain normalised"),
+                ("disguised_as_written", "disguised as written"), ("disguised_normalised", "disguised normalised"))]
+            parts += [f"{block[name]['found_other'][line]} {word} without the disguise rules" for name, word in (
+                ("disguised_as_written", "disguised as written"), ("disguised_normalised", "disguised normalised"))]
+            cells.append(f"{LINE_TEXT[line]}: " + ", ".join(parts))
+        out.append(f"    {titles.get(technique, technique)}: {block['changed']} changed, {block['unread']} not read whole, "
+                   f"{disguise_read(block)} read; " + "; ".join(cells))
+    if set_id in entry["disguise"]["added_on_harmless"]:
+        parts = added_parts(entry["disguise"]["added_on_harmless"][set_id])
+        out.append("  normalisation on harmless skills: " + ("; ".join(parts) or "no finding added"))
+    return out
 
 
 def _ids(values: list[str]) -> str:
@@ -1194,7 +1542,7 @@ def _entry_markdown(entry: dict) -> list[str]:
            f"Rules version {entry['rules_version']}, released {entry['released']}. Manifest `{entry['manifest_sha256']}`."]
     if entry["note"]:
         out += ["", f"Note: {entry['note']}"]
-    for _set_id, block in ordered_sets(entry):
+    for set_id, block in ordered_sets(entry):
         per_item = block.get("report") == PER_ITEM
         out += ["", f"### {block['title']} ({block['role']}{', shown skill by skill' if per_item else ''})", ""]
         if block["role"] == "tuning":
@@ -1241,7 +1589,51 @@ def _entry_markdown(entry: dict) -> list[str]:
                         for item_id, reason in stratum["unread"].items())
         out += ["", "Skills not read whole: " + (", ".join(f"`{item_id}` ({reason})" for item_id, reason in unread)
                                                  if unread else "none") + "."]
+        out += _disguise_markdown(entry, set_id, block)
     out += ["", f"{not_measured_text(entry)}."]
+    return out
+
+
+TECHNIQUE_HEADER = ["Technique", "Skills changed", "Not read whole", "Line", "Plain, as written", "Plain, normalised",
+                    "Disguised, as written", "Disguised, normalised", "Disguised, as written, without the disguise rules",
+                    "Disguised, normalised, without the disguise rules"]
+
+
+def _disguise_markdown(entry: dict, set_id: str, block: dict) -> list[str]:
+    """P6-4 spec 6.3.1: the subsection "Disguised samples" of one set of the newest entry."""
+    techniques = set_techniques(entry, set_id)
+    if not techniques:
+        return []
+    per_item = block.get("report") == PER_ITEM
+    disguise = entry["disguise"]
+    out = ["", "#### Disguised samples", "", "Plain samples, as written and normalised:", "",
+           "| Skills | Line | As written | Normalised |", "|---|---|---|---|"]
+    for label in LABELS:
+        total = totals(block, label)
+        written = disguise["plain_as_written"].get(set_id, {}).get(label)
+        if total is None or written is None:
+            continue
+        for line in LINES:
+            as_written = _count_or_rate(written["found"][line], written["read"], per_item)
+            out.append(f"| {LABEL_TEXT[label]} | {LINE_TEXT[line]} | {as_written} | "
+                       f"{_count_or_rate(total.found[line], total.read, per_item)} |")
+    titles = technique_titles()
+    out += ["", "| " + " | ".join(TECHNIQUE_HEADER) + " |", "|" + "---|" * len(TECHNIQUE_HEADER)]
+    for technique, counts in techniques:
+        read = disguise_read(counts)
+        for line in LINES:
+            cells = [_count_or_rate(counts[name]["found"][line], read, per_item) for name in (
+                "plain_as_written", "plain_normalised", "disguised_as_written", "disguised_normalised")]
+            cells += [_count_or_rate(counts[name]["found_other"][line], read, per_item)
+                      for name in ("disguised_as_written", "disguised_normalised")]
+            out.append(f"| {titles.get(technique, technique)} | {counts['changed']} | {counts['unread']} | {LINE_TEXT[line]} | "
+                       + " | ".join(cells) + " |")
+    out += ["", DISGUISE_RULES_SENTENCE]
+    if set_id in disguise["added_on_harmless"]:
+        out += ["", harmless_sentence(entry, set_id)]
+    steps = ", ".join(disguise["steps"]) or "none"
+    generator = disguise["generator"]
+    out += ["", f"Normalisation steps: {steps}; generator version {generator['version']}, seed `{generator['seed']}`."]
     return out
 
 
@@ -1270,6 +1662,20 @@ def _history_markdown(entries: list[dict]) -> list[str]:
                         cells.append(_short(total.found[line], total.read, False))
                 name = "found" if per_item else RATE_WORD[label]
                 out.append(f"| {block['title']}, {name}, {LINE_TEXT[line]} | " + " | ".join(cells) + " |")
+    titles = technique_titles()
+    for set_id, block in ordered_sets(newest):
+        per_item = block.get("report") == PER_ITEM
+        for technique, _counts in set_techniques(newest, set_id):
+            cells = []
+            for entry in entries:
+                counts = dict(set_techniques(entry, set_id)).get(technique)
+                if counts is None:
+                    cells.append("not in this release")
+                    continue
+                found, read = counts["disguised_normalised"]["found"]["medium"], disguise_read(counts)
+                cells.append(f"found {found} of {read}" if per_item else _short(found, read, False))
+            out.append(f"| {block['title']}, disguised: {titles.get(technique, technique)}, detection, medium or above | "
+                       + " | ".join(cells) + " |")
     if any(entry["note"] for entry in entries):
         out.append("| Note | " + " | ".join(entry["note"] for entry in entries) + " |")
     return out
@@ -1318,8 +1724,50 @@ def readme_block(results: dict) -> str:
             out.append(f"| {first} | {LINE_TEXT[line]} | {cells[0]} | {cells[1]} | {unread} |")
     if sentences:
         out += [""] + sentences
+    out += _disguise_readme(entry)
     out += ["", f"Scanner {entry['version']}, rules version {entry['rules_version']}, released {entry['released']}."]
     return "\n".join(out) + "\n"
+
+
+def _disguise_readme(entry: dict) -> list[str]:
+    """P6-4 spec 6.3.3: the disguised samples in the README block, medium or above; nothing for an entry without them."""
+    if "disguise" not in entry:
+        return []
+    disguise = entry["disguise"]
+    titles = technique_titles()
+    shown = [(set_id, block) for set_id, block in ordered_sets(entry)
+             if block.get("report") != PER_ITEM and set_techniques(entry, set_id)]
+    names = [block["title"] + (" (tuning)" if block["role"] == "tuning" else "") for _set_id, block in shown]
+    out = ["", README_DISGUISE_HEAD, "", "| Samples | " + " | ".join(names) + " |", "|---|" + "---|" * len(names)]
+    cells = []
+    for set_id, block in shown:
+        written, total = disguise["plain_as_written"][set_id]["malicious"], totals(block, "malicious")
+        cells.append(f"as written {_short(written['found']['medium'], written['read'], False)}, "
+                     f"normalised {_short(total.found['medium'], total.read, False)}")
+    out.append("| plain samples | " + " | ".join(cells) + " |")
+    for technique in disguise["generator"]["techniques"]:
+        cells = []
+        for set_id, _block in shown:
+            counts = disguise["techniques"][technique][set_id]
+            read = disguise_read(counts)
+            cells.append(f"as written {_short(counts['disguised_as_written']['found']['medium'], read, False)}, "
+                         f"normalised {_short(counts['disguised_normalised']['found']['medium'], read, False)}")
+        out.append(f"| {titles.get(technique, technique)} | " + " | ".join(cells) + " |")
+    out += ["", README_DISGUISE_RULES]
+    for set_id, block in ordered_sets(entry):
+        if block.get("report") != PER_ITEM:
+            continue
+        parts = []
+        for technique, counts in set_techniques(entry, set_id):
+            read = disguise_read(counts)
+            parts.append(f"{titles.get(technique, technique)} found {counts['disguised_as_written']['found']['medium']} of {read}"
+                         f" as written, {counts['disguised_normalised']['found']['medium']} of {read} normalised")
+        if parts:
+            out += ["", f"{block['title']}, disguised, medium or above: " + "; ".join(parts) + "."]
+    for set_id, block in ordered_sets(entry):
+        if set_id in disguise["added_on_harmless"]:
+            out += ["", f"{block['title']}: {harmless_sentence(entry, set_id)}"]
+    return out
 
 
 def with_readme_block(readme: str, block: str) -> str:
@@ -1447,6 +1895,126 @@ def command_check_changelog(args: argparse.Namespace, _environ: Mapping[str, str
     return 1 if problems else 0
 
 
+# --- choosing the normalisation steps on the tuning set (P6-4 spec 6.2.6, 6.6) ----------------------------------------------
+
+def tuning_only(manifest: Manifest) -> Manifest:
+    """The manifest cut to the sets whose role is `tuning` and their items: `fetch` and `Objects` built from it fetch and read no
+    member, row or file of a test item, even in a source archive that holds both."""
+    sets = {set_id: value for set_id, value in manifest.sets.items() if value["role"] == "tuning"}
+    items = [item for item in manifest.items if item["set"] in sets]
+    return Manifest(manifest.document, manifest.sha256, manifest.sources, sets, items, [])
+
+
+def step_configurations(candidates: tuple[str, ...]) -> list[tuple[str, tuple[str, ...]]]:
+    """No normalisation, each candidate alone, all candidates, and all candidates without each one (6.2.6)."""
+    configurations = [("none", ())]
+    configurations += [(f"only {step}", (step,)) for step in candidates]
+    configurations.append(("all", tuple(candidates)))
+    configurations += [(f"all without {step}", tuple(other for other in candidates if other != step)) for step in candidates]
+    return configurations
+
+
+def measure_steps(tuning: Manifest, cache: Cache, configurations: list[tuple[str, tuple[str, ...]]], *,
+                  clock: Callable[[], float] = time.perf_counter) -> dict[str, dict]:
+    """Per configuration, over the items of `tuning` only: the plain malicious items found and found without the disguise rules
+    with that normalisation, each technique's counts, the findings it adds on harmless items per rule, and the seconds it took."""
+    rules = RuleSet.baseline()
+    objects = Objects(tuning, cache)
+    tallies = {name: {"plain": _found_block(), "added": {}, "seconds": 0.0,
+                      "techniques": {technique: _technique_block() for technique in DISGUISE.TECHNIQUE_IDS}}
+               for name, _steps in configurations}
+    for item in tuning.items:
+        roots = rebuild(item, objects)
+        label = tuning.sets[item["set"]]["strata"][item["stratum"]]["label"]
+        for name, steps in configurations:
+            tally = tallies[name]
+            started = clock()
+            plain = scan_both(roots, rules, item["id"], steps)
+            if plain.written.unread is None and plain.normalised.unread is None:
+                if label == "benign":
+                    count_added(tally["added"], plain)
+                else:
+                    _add_found(tally["plain"], plain.normalised)
+                    for technique in DISGUISE.TECHNIQUE_IDS:
+                        count_technique(tally["techniques"][technique], plain,
+                                        scan_variant(roots, rules, item["id"], technique, steps))
+            tally["seconds"] += clock() - started
+    return tallies
+
+
+def _gain_counts(tally: dict) -> list[tuple[str, int]]:
+    """The counts a step may raise (6.6.2): plain malicious found and found without the disguise rules, and each technique's
+    normalised found and found without the disguise rules, at each line."""
+    counts = []
+    for line in LINES:
+        counts += [(f"plain found {line}", tally["plain"]["found"][line]),
+                   (f"plain found without the disguise rules {line}", tally["plain"]["found_other"][line])]
+        for technique, block in tally["techniques"].items():
+            normalised = block["disguised_normalised"]
+            counts += [(f"{technique} found {line}", normalised["found"][line]),
+                       (f"{technique} found without the disguise rules {line}", normalised["found_other"][line])]
+    return counts
+
+
+def step_decisions(tallies: dict[str, dict], candidates: tuple[str, ...]) -> list[str]:
+    """For each candidate, all candidates against all candidates without it: the counts it raises (a gain of at least one item
+    keeps it, 6.6.2) and the findings it adds on harmless items per rule (a kept step adds none, 6.6.3)."""
+    out = []
+    every = tallies["all"]
+    for step in candidates:
+        without = tallies[f"all without {step}"]
+        pairs = zip(_gain_counts(every), _gain_counts(without), strict=True)
+        gains = [name for (name, value), (_, other) in pairs if value > other]
+        harmless = {rule_id: counts["findings"] - without["added"].get(rule_id, {}).get("findings", 0)
+                    for rule_id, counts in sorted(every["added"].items())}
+        harmless = {rule_id: count for rule_id, count in harmless.items() if count > 0}
+        verdict = "leave out (no gain)" if not gains else "harmless findings to clear (6.6.3)" if harmless else "keep"
+        added = ", ".join(f"{rule_id} {count}" for rule_id, count in harmless.items()) or "none"
+        raised = ", ".join(gains) or "none"
+        out.append(f"{step}: raises {len(gains)} counts ({raised}); adds on harmless skills: {added}; {verdict}")
+    return out
+
+
+def added_parts(added: dict) -> list[str]:
+    """`<rule>: N findings in M skills` for each rule of an `added_on_harmless` block, in rule order."""
+    return [f"{rule_id}: {counts['findings']} findings in {counts['skills']} skills" for rule_id, counts in sorted(added.items())]
+
+
+def render_steps(tallies: dict[str, dict], candidates: tuple[str, ...]) -> list[str]:
+    """The `steps` output: counts only, never text."""
+    out = [f"Rule benchmark steps: scanner {SCANNER_VERSION}, tuning sets only; counts, never text."]
+    for name, tally in tallies.items():
+        plain = tally["plain"]
+        out.append(f"{name} ({tally['seconds']:.1f} s): plain malicious found " + ", ".join(
+            f"{line} {plain['found'][line]} ({plain['found_other'][line]} without the disguise rules)" for line in LINES))
+        for technique, block in tally["techniques"].items():
+            normalised = block["disguised_normalised"]
+            found = ", ".join(f"{line} {normalised['found'][line]} ({normalised['found_other'][line]} without the disguise rules)"
+                              for line in LINES)
+            out.append(f"  {technique}: {block['changed']} changed, {block['unread']} not read whole; normalised found {found}")
+        out.append(f"  added on harmless skills: {'; '.join(added_parts(tally['added'])) or 'none'}")
+    if "all" in tallies:
+        out += ["Decisions (spec 6.6.2, 6.6.3):", *(f"  {line}" for line in step_decisions(tallies, candidates))]
+    return out
+
+
+def command_steps(args: argparse.Namespace, environ: Mapping[str, str]) -> int:
+    if NORMALISE is None or not hasattr(NORMALISE, "CANDIDATE_STEPS") or not normalises(scan_skill_package):
+        raise BenchmarkError("usage", "steps needs a scanner whose scan_skill_package takes normalise as a collection of steps "
+                                      "(1.22.0 or later)")
+    tuning = tuning_only(load_manifest(args.manifest))
+    if not tuning.items:
+        raise BenchmarkError("usage", "the manifest has no item of a set whose role is tuning")
+    cache = Cache(cache_directory(args.cache, environ, windows=os.name == "nt"))
+    report = fetch(tuning, cache, opener=urllib_opener, offline=args.offline, token=environ.get("GITHUB_TOKEN") or None)
+    print(f"{report.needed} source objects of the tuning sets, {report.fetched} fetched now, the rest from the cache "
+          f"{cache.directory}", file=sys.stderr)
+    candidates = tuple(NORMALISE.CANDIDATE_STEPS)
+    for line in render_steps(measure_steps(tuning, cache, step_configurations(candidates)), candidates):
+        print(line)
+    return 0
+
+
 def command_check_history(args: argparse.Namespace, _environ: Mapping[str, str]) -> int:
     problems = check_history(load_results(args.previous), load_results(args.results))
     for problem in problems:
@@ -1492,11 +2060,15 @@ def parser() -> argparse.ArgumentParser:
     history = commands.add_parser("check-history")
     history.add_argument("--previous", type=Path, required=True)
     history.add_argument("--results", type=Path, default=results)
+    steps = commands.add_parser("steps")
+    steps.add_argument("--manifest", type=Path, default=manifest)
+    steps.add_argument("--cache", type=Path, default=None)
+    steps.add_argument("--offline", action="store_true")
     return main_parser
 
 
 COMMANDS = {"fetch": command_fetch, "run": command_run, "render": command_render, "changelog-lines": command_changelog_lines,
-            "check-changelog": command_check_changelog, "check-history": command_check_history}
+            "check-changelog": command_check_changelog, "check-history": command_check_history, "steps": command_steps}
 
 
 def main(argv: list[str] | None = None, environ: Mapping[str, str] | None = None) -> int:

@@ -49,7 +49,18 @@ def test_a_target_that_is_no_recorded_release_or_the_same_rules_version_changes_
     assert reports.as_version("json", data, "1.20.0", "1.20.0", current_rules=NEW) == data
     data = f'"rules_version": "{OLD}"'.encode()
     assert reports.as_version("json", data, "1.19.0", "1.19.0", current_rules=OLD) == data
-    assert reports.RECORDED_RULES == {"1.17.0": OLD, "1.18.0": OLD, "1.19.0": OLD}
+    assert reports.RECORDED_RULES == {"1.17.0": OLD, "1.18.0": OLD, "1.19.0": OLD, "1.20.0": NEW, "1.21.0": NEW}
+
+
+def test_a_report_of_1_22_0_is_set_back_to_the_rules_version_each_older_release_printed():
+    """P6-4 spec 6.9: 1.22.0 moved the rules version to 2026.11.9; 1.20.0 and 1.21.0 printed 2026.11.8, 1.19.0 printed 2026.11.7."""
+    data = b'{"scanner_version": "1.22.0", "rules_version": "2026.11.9"}'
+    for target, rules in (("1.21.0", NEW), ("1.20.0", NEW), ("1.19.0", OLD)):
+        assert reports.as_version("json", data, "1.22.0", target, current_rules="2026.11.9") == \
+            f'{{"scanner_version": "{target}", "rules_version": "{rules}"}}'.encode()
+    markdown = b"Spellwarden 1.22.0, rules 2026.11.9. Generated on 2026-11-17."
+    assert reports.as_version("markdown", markdown, "1.22.0", "1.21.0", current_rules="2026.11.9") == \
+        f"Spellwarden 1.21.0, rules {NEW}. Generated on 2026-11-17.".encode()
 
 
 def test_the_older_golden_tests_skip_the_fixture_homes_this_release_changes():
@@ -60,6 +71,16 @@ def test_the_older_golden_tests_skip_the_fixture_homes_this_release_changes():
         assert not set(roots) & set(reports.FIXTURES_CHANGED_IN_1_20_0), name
         assert {"tests/fixtures/homes/linux", "tests/fixtures/homes/macos"} <= set(roots), name
         assert set(reports.FIXTURES_CHANGED_IN_1_20_0) <= set(module._recorded()["roots"]), name  # the records keep them
+
+
+def test_the_older_golden_tests_skip_the_fixture_whose_reports_1_22_0_changes():
+    """P6-4 spec 6.9: the normalised reading adds SW-SKL-007 to one fixture; the four release records keep it, their tests skip it."""
+    assert reports.FIXTURES_CHANGED_IN_1_22_0 == ("fixtures/skills/SW-SKL-032/positive",)
+    for name in ("test_golden_1_17_0", "test_golden_1_18_0", "test_golden_1_19_0", "test_golden_1_20_0"):
+        module = _module(f"{name}_for_1_22_0_skip", ROOT / "tests" / f"{name}.py")
+        assert not set(module._roots()) & set(reports.FIXTURES_CHANGED_IN_1_22_0), name
+        assert "fixtures/skills/SW-SKL-032/negative" in module._roots(), name
+        assert set(reports.FIXTURES_CHANGED_IN_1_22_0) <= set(module._recorded()["roots"]), name
 
 
 def test_the_selection_fixture_is_a_root_added_after_both_records():

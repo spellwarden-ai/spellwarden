@@ -15,6 +15,7 @@ import re
 import sys
 import tarfile
 import tomllib
+import types
 from pathlib import Path
 
 import pytest
@@ -811,12 +812,12 @@ def test_results_md_without_an_entry_says_no_release_has_published_a_table():
 
 
 def test_results_md_holds_the_newest_entry_in_full_and_the_history():
-    markdown = rb.render_markdown(history(entry("1.21.0"), entry("1.22.0", manifest="b" * 64, note="P5-24 precision pass")))
-    assert "## Scanner 1.22.0" in markdown and "## Scanner 1.21.0" not in markdown
+    markdown = rb.render_markdown(history(entry("1.20.0"), entry("1.21.0", manifest="b" * 64, note="P5-24 precision pass")))
+    assert "## Scanner 1.21.0" in markdown and "## Scanner 1.20.0" not in markdown
     assert "| Constructed attacks (SkillHarm) | malicious | 839 | 0 | 36.0% (302 of 839; 32.8% to 39.3%) |" in markdown
     rule_rows = [line for line in markdown.splitlines() if line.startswith("| `SW-")]
     assert len(rule_rows) == 3 * 3 and not [line for line in markdown.splitlines() if line.startswith("| SW-")]
-    assert "| 1.21.0 | 1.22.0 (sets changed) |" in markdown and "| Note |  | P5-24 precision pass |" in markdown
+    assert "| 1.20.0 | 1.21.0 (sets changed) |" in markdown and "| Note |  | P5-24 precision pass |" in markdown
     assert "Malicious skills missed at medium or above: `m-asb04-000018`." in markdown
     assert "Malicious skills missed at high or above: `m-asb04-000018`, `m-asb04-000025`." in markdown
     assert rb.TUNING_SENTENCE in _section(markdown, "### Tuning half")
@@ -824,7 +825,7 @@ def test_results_md_holds_the_newest_entry_in_full_and_the_history():
 
 
 def test_results_md_shows_a_per_item_set_skill_by_skill_with_no_percent():
-    markdown = rb.render_markdown(history(entry("1.21.0"), entry("1.22.0")))
+    markdown = rb.render_markdown(history(entry("1.20.0"), entry("1.21.0")))
     section = _section(markdown, "### Trail of Bits scanner-bypass skills")
     assert "| Skill | Medium or above | High or above |" in section
     assert "| `m-tob-alpha` | found | found |" in section and "| `m-tob-beta` | not found | not found |" in section
@@ -864,21 +865,21 @@ def test_the_readme_block_replaces_only_the_text_between_the_markers():
 # --- T-15: the CHANGELOG rule ---------------------------------------------------------------------------------------------------
 
 def test_worse_rates_reports_a_detection_drop_a_false_positive_rise_and_more_unread_items_only():
-    before = entry("1.21.0")
-    after = entry("1.22.0", test_m=(301, 31), test_b=(146, 50), rule_009=(90, 0), unread={"m-asb04-000099": "frontmatter_limit"})
+    before = entry("1.20.0")
+    after = entry("1.21.0", test_m=(301, 31), test_b=(146, 50), rule_009=(90, 0), unread={"m-asb04-000099": "frontmatter_limit"})
     lines = rb.worse_rates(before, after)
     assert "- MaliciousSkillBench test split (source-disjoint), all rules, medium or above: detection 36.0% to 35.9% (302 of 839 to 301 of 838)" in lines
     assert "- MaliciousSkillBench test split (source-disjoint), all rules, medium or above: false positives 26.6% to 26.8% (145 of 545 to 146 of 545)" in lines
     assert "- MaliciousSkillBench test split (source-disjoint), SW-SKL-009, medium or above: detection 11.9% to 10.7% (100 of 839 to 90 of 838)" in lines
     assert "- MaliciousSkillBench test split (source-disjoint), items not read whole: 0 to 1" in lines
     assert not [line for line in lines if "high or above: false positives" in line]
-    better = entry("1.22.0", test_m=(400, 60), test_b=(100, 20), rule_009=(120, 0))
+    better = entry("1.21.0", test_m=(400, 60), test_b=(100, 20), rule_009=(120, 0))
     assert rb.worse_rates(before, better) == []
 
 
 def test_worse_rates_compares_a_per_item_set_skill_by_skill_and_with_counts():
-    before = entry("1.21.0")
-    after = entry("1.22.0", tob={"m-tob-alpha": "medium", "m-tob-beta": "none", "m-tob-gamma": "medium", "m-tob-new": "none"})
+    before = entry("1.20.0")
+    after = entry("1.21.0", tob={"m-tob-alpha": "medium", "m-tob-beta": "none", "m-tob-gamma": "medium", "m-tob-new": "none"})
     lines = rb.worse_rates(before, after)
     tob = [line for line in lines if line.startswith("- Trail of Bits")]
     assert "- Trail of Bits scanner-bypass skills, m-tob-alpha, high or above: found to not found" in tob
@@ -887,27 +888,27 @@ def test_worse_rates_compares_a_per_item_set_skill_by_skill_and_with_counts():
 
 
 def test_the_changelog_must_hold_the_lines_the_history_requires():
-    first = history(entry("1.21.0"))
+    first = history(entry("1.20.0"))
     assert rb.changelog_lines(first) == [rb.FIRST_TABLE]
-    assert rb.check_changelog(first, "# Changelog\n\n## 1.21.0 (2026-12-01)\n\nText.\n") == [
-        f"the CHANGELOG section of 1.21.0 lacks the sentence: {rb.FIRST_TABLE}"]
-    assert rb.check_changelog(first, f"# Changelog\n\n## 1.21.0 (2026-12-01)\n\n{rb.FIRST_TABLE}\n") == []
+    assert rb.check_changelog(first, "# Changelog\n\n## 1.20.0 (2026-12-01)\n\nText.\n") == [
+        f"the CHANGELOG section of 1.20.0 lacks the sentence: {rb.FIRST_TABLE}"]
+    assert rb.check_changelog(first, f"# Changelog\n\n## 1.20.0 (2026-12-01)\n\n{rb.FIRST_TABLE}\n") == []
     # Review r0:F2: the sentence may open a paragraph the file wraps at its usual width.
     head, tail = rb.FIRST_TABLE.split(" see ")
-    wrapped = f"## 1.21.0 (2026-12-01)\n\n{head}\nsee {tail} The benchmark measures the 20 skill\nrules on fixed public sets.\n"
+    wrapped = f"## 1.20.0 (2026-12-01)\n\n{head}\nsee {tail} The benchmark measures the 20 skill\nrules on fixed public sets.\n"
     assert rb.check_changelog(first, wrapped) == []
-    assert rb.check_changelog(first, "# Changelog\n\n## 1.20.0 (2026-11-25)\n") == ["CHANGELOG.md has no section for 1.21.0"]
-    same = history(entry("1.21.0"), entry("1.22.0"))
-    assert rb.changelog_lines(same) == ["Rule benchmark: no rate got worse than in 1.21.0."]
-    worse = history(entry("1.21.0"), entry("1.22.0", test_m=(301, 31), manifest="b" * 64))
+    assert rb.check_changelog(first, "# Changelog\n\n## 1.19.0 (2026-11-25)\n") == ["CHANGELOG.md has no section for 1.20.0"]
+    same = history(entry("1.20.0"), entry("1.21.0"))
+    assert rb.changelog_lines(same) == ["Rule benchmark: no rate got worse than in 1.20.0."]
+    worse = history(entry("1.20.0"), entry("1.21.0", test_m=(301, 31), manifest="b" * 64))
     lines = rb.changelog_lines(worse)
-    assert lines[0] == "Rule benchmark: these rates got worse than in 1.21.0:" and lines[1].startswith("- ")
-    assert lines[-1] == "Rule benchmark: the sets changed since 1.21.0; benchmarks/README.md lists what was left out."
-    good = "## 1.22.0 (2026-12-08)\n\n" + "\n".join(lines) + "\n\n## 1.21.0 (2026-12-01)\n"
+    assert lines[0] == "Rule benchmark: these rates got worse than in 1.20.0:" and lines[1].startswith("- ")
+    assert lines[-1] == "Rule benchmark: the sets changed since 1.20.0; benchmarks/README.md lists what was left out."
+    good = "## 1.21.0 (2026-12-08)\n\n" + "\n".join(lines) + "\n\n## 1.20.0 (2026-12-01)\n"
     assert rb.check_changelog(worse, good) == []
-    shuffled = "## 1.22.0 (2026-12-08)\n\n" + "\n".join([lines[0], "Something else.", *lines[1:]]) + "\n"
+    shuffled = "## 1.21.0 (2026-12-08)\n\n" + "\n".join([lines[0], "Something else.", *lines[1:]]) + "\n"
     assert rb.check_changelog(worse, shuffled) and "in order" in rb.check_changelog(worse, shuffled)[0]
-    wrapped_list = "## 1.22.0 (2026-12-08)\n\n" + "\n".join([lines[0], *(line[:20] + "\n  " + line[20:] if line.startswith("- ") else line for line in lines[1:])]) + "\n"
+    wrapped_list = "## 1.21.0 (2026-12-08)\n\n" + "\n".join([lines[0], *(line[:20] + "\n  " + line[20:] if line.startswith("- ") else line for line in lines[1:])]) + "\n"
     assert rb.check_changelog(worse, wrapped_list), "a worse-rate line must stay on one line"
     assert rb.check_changelog(history(), "") == []
 
@@ -921,21 +922,21 @@ def test_released_date_reads_the_heading_of_the_version():
 # --- T-16: the history ----------------------------------------------------------------------------------------------------------
 
 def test_check_history_passes_when_new_extends_old_and_fails_on_any_change():
-    old = history(entry("1.21.0"))
-    assert rb.check_history(old, history(entry("1.21.0"), entry("1.22.0"))) == []
-    assert "missing" in rb.check_history(old, history(entry("1.22.0")))[0]
-    assert "measured part" in rb.check_history(old, history(entry("1.21.0", test_m=(300, 31))))[0]
-    assert "note" in rb.check_history(old, history(entry("1.21.0", note="changed")))[0]
-    assert "release date" in rb.check_history(old, history(entry("1.21.0", released="2026-12-02")))[0]
-    assert "not above" in rb.check_history(history(entry("1.22.0")), history(entry("1.21.0"), entry("1.22.0")))[0]
+    old = history(entry("1.20.0"))
+    assert rb.check_history(old, history(entry("1.20.0"), entry("1.21.0"))) == []
+    assert "missing" in rb.check_history(old, history(entry("1.21.0")))[0]
+    assert "measured part" in rb.check_history(old, history(entry("1.20.0", test_m=(300, 31))))[0]
+    assert "note" in rb.check_history(old, history(entry("1.20.0", note="changed")))[0]
+    assert "release date" in rb.check_history(old, history(entry("1.20.0", released="2026-12-02")))[0]
+    assert "not above" in rb.check_history(history(entry("1.21.0")), history(entry("1.20.0"), entry("1.21.0")))[0]
 
 
 def test_the_history_document_is_checked():
-    assert rb.check_results(history(entry("1.21.0"), entry("1.22.0")))
+    assert rb.check_results(history(entry("1.20.0"), entry("1.21.0")))
     with pytest.raises(rb.BenchmarkError, match="ascend"):
-        rb.check_results(history(entry("1.22.0"), entry("1.21.0")))
+        rb.check_results(history(entry("1.21.0"), entry("1.20.0")))
     with pytest.raises(rb.BenchmarkError, match="release date"):
-        rb.check_results(history(entry("1.21.0", released=None)))
+        rb.check_results(history(entry("1.20.0", released=None)))
     with pytest.raises(rb.BenchmarkError, match="results"):
         rb.check_results({"results": 1, "entries": []})
 
@@ -1045,12 +1046,12 @@ def test_another_installed_version_exits_2_and_record_refuses_a_missing_date_or_
     (prepared / "CHANGELOG.md").write_text("# Changelog\n", encoding="utf-8")
     assert rb.main(_run_args(prepared, "--offline", "--record", str(prepared / "results.json")), environ={}) == 2
     assert capsys.readouterr().err.startswith("usage: --record needs the heading")
-    newer = {"results": 1, "about": rb.ABOUT, "entries": [entry("99.0.0")]}
+    newer = {"results": 1, "about": rb.ABOUT, "entries": [entry("1.21.0")]}
     (prepared / "results.json").write_text(rb.dump_results(newer), encoding="utf-8")
     monkeypatch.setattr(rb, "SCANNER_VERSION", "1.0.0")
     (prepared / "CHANGELOG.md").write_text("# Changelog\n\n## 1.0.0 (2026-12-01)\n", encoding="utf-8")
     assert rb.main(_run_args(prepared, "--offline", "--record", str(prepared / "results.json")), environ={}) == 2
-    assert "lower than the newest entry 99.0.0" in capsys.readouterr().err
+    assert "lower than the newest entry 1.21.0" in capsys.readouterr().err
 
 
 def test_run_and_fetch_without_a_manifest_exit_2_with_manifest_missing(tmp_path, capsys):
@@ -1088,14 +1089,14 @@ def test_render_writes_and_checks_the_markdown_the_readme_block_and_the_assets(t
 
 def test_changelog_lines_and_check_history_on_the_command_line(tmp_path, capsys):
     old, new = tmp_path / "old.json", tmp_path / "new.json"
-    old.write_text(rb.dump_results(history(entry("1.21.0"))), encoding="utf-8")
-    new.write_text(rb.dump_results(history(entry("1.21.0"), entry("1.22.0"))), encoding="utf-8")
+    old.write_text(rb.dump_results(history(entry("1.20.0"))), encoding="utf-8")
+    new.write_text(rb.dump_results(history(entry("1.20.0"), entry("1.21.0"))), encoding="utf-8")
     assert rb.main(["changelog-lines", "--results", str(new)], environ={}) == 0
-    assert capsys.readouterr().out == "Rule benchmark: no rate got worse than in 1.21.0.\n"
+    assert capsys.readouterr().out == "Rule benchmark: no rate got worse than in 1.20.0.\n"
     assert rb.main(["check-history", "--previous", str(old), "--results", str(new)], environ={}) == 0
     assert rb.main(["check-history", "--previous", str(new), "--results", str(old)], environ={}) == 1
     changelog = tmp_path / "CHANGELOG.md"
-    changelog.write_text("## 1.22.0 (2026-12-08)\n\nNothing.\n", encoding="utf-8")
+    changelog.write_text("## 1.21.0 (2026-12-08)\n\nNothing.\n", encoding="utf-8")
     assert rb.main(["check-changelog", "--results", str(new), "--changelog", str(changelog)], environ={}) == 1
 
 
@@ -1164,8 +1165,9 @@ def test_the_script_imports_nothing_from_scripts_or_the_command_and_reads_only_i
     imported |= {node.module or "" for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)}
     assert not [name for name in imported if name.startswith(("scripts", "spellwarden_cli", "measure_analyzer"))]
     assert {name.split(".")[0] for name in imported} <= {
-        "__future__", "argparse", "collections", "concurrent", "dataclasses", "hashlib", "http", "io", "json", "math", "os",
-        "pathlib", "re", "spellwarden_scan", "sys", "tarfile", "tempfile", "time", "typing", "urllib", "pyarrow"}
+        "__future__", "argparse", "collections", "concurrent", "dataclasses", "hashlib", "http", "importlib", "inspect", "io",
+        "json", "math", "os", "pathlib", "re", "spellwarden_scan", "sys", "tarfile", "tempfile", "time", "typing", "urllib",
+        "pyarrow"}
     read: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
@@ -1208,3 +1210,428 @@ def test_the_readme_has_the_measured_rates_section_after_the_rules_and_names_the
     assert "`rule-benchmark.json` and `rule-benchmark.md`" in releases
     development = " ".join(text[text.index("## Development\n"):text.index("## Use it in CI\n")].split())
     assert "`make benchmark` runs the rule benchmark with this checkout's scanner" in development
+
+
+# --- P6-4: the disguised samples (spec 6.2, claims H1 to H4, H9, G8, G9) --------------------------------------------------------
+
+ZERO_WIDTH = ("\u200b", "\u200c", "\u200d", "\u2060")
+
+
+def fake_scanner(*, keyword: bool = True, drop: bool = False, fail_on: tuple[str, ...] = (), calls: list | None = None):
+    """A stand-in for `scan_skill_package`. As written: SW-SKL-002 (high) for a file with a zero-width character, SW-SKL-007
+    (high) for `curl`, SW-SKL-032 (critical) for `LURE` and SW-SKL-009 (medium) for `pip`. Normalised (any `normalise` but
+    False): the same, with zero-width characters removed before the three words are looked for. `drop` leaves SW-SKL-002 out
+    of the normalised reading; `fail_on` raises KeyError for a root that holds any of those texts; `calls` records each
+    `normalise`."""
+    def findings(files, normalised: bool) -> tuple:
+        out = []
+        for path, data in sorted(files.items()):
+            text = data.decode("utf-8", "replace")
+            if any(needle in text for needle in fail_on):
+                raise KeyError("not read")
+            if any(char in text for char in ZERO_WIDTH) and not (drop and normalised):
+                out.append(("SW-SKL-002", "high", path, "hidden"))
+            seen = "".join(char for char in text if char not in ZERO_WIDTH) if normalised else text
+            for needle, rule_id, severity in (("curl", "SW-SKL-007", "high"), ("LURE", "SW-SKL-032", "critical"),
+                                              ("pip", "SW-SKL-009", "medium")):
+                if needle in seen:
+                    out.append((rule_id, severity, path, needle))
+        return tuple(rb_finding(rule_id, severity, path, what) for rule_id, severity, path, what in out)
+
+    if keyword:
+        def scan(files, _rules, **options):
+            if calls is not None:
+                calls.append(options.get("normalise", True))
+            return types.SimpleNamespace(findings=findings(files, options.get("normalise", True) is not False), truncated=0)
+        return scan
+
+    def old_scan(files, _rules, *, root="", nested_roots=(), max_findings=500, max_per_rule=100):
+        del root, nested_roots, max_findings, max_per_rule
+        return types.SimpleNamespace(findings=findings(files, False), truncated=0)
+    return old_scan
+
+
+def rb_finding(rule_id: str, severity: str, path: str, what: str):
+    from spellwarden_scan.model import Finding, Location
+
+    return Finding(rule_id, severity, "title", Location(path, 1), "evidence", sha(f"{rule_id}\0{path}\0{what}".encode()))
+
+
+CURL = (FRONT + "# Sample\n\nRun curl now, then stop.\n").encode()
+LURE = (FRONT + "# Sample\n\nThe LURE text.\n").encode()
+PIP = (FRONT + "# Sample\n\nUse pip here.\n").encode()
+HIDDEN_CURL = (FRONT + "# Sample\n\nRun cu\u200brl now.\n").encode()
+
+
+def disguise_builder() -> Builder:
+    builder = Builder()
+    builder.add_set("alpha")
+    builder.add_set("beta", role="tuning", strata={"m": "malicious"})
+    builder.tar_item("m-curl", "alpha", "m", [{"SKILL.md": CURL}])
+    builder.tar_item("m-lure", "alpha", "m", [{"SKILL.md": LURE}])
+    builder.tar_item("b-pip", "alpha", "b", [{"SKILL.md": PIP}])
+    builder.tar_item("b-hidden", "alpha", "b", [{"SKILL.md": HIDDEN_CURL}])
+    builder.tar_item("m-beta", "beta", "m", [{"SKILL.md": CURL + b"\nbeta\n"}])
+    return builder
+
+
+def test_measure_fills_disguise_with_the_schema_and_the_counts_the_findings_imply(tmp_path, monkeypatch):
+    """H1: plain items both ways, every technique per set with a malicious stratum, the harmless findings normalisation adds; a
+    finding of SW-SKL-032 counts without the disguise rules, one of SW-SKL-002 does not."""
+    monkeypatch.setattr(rb, "scan_skill_package", fake_scanner())
+    manifest, cache = _measured(tmp_path, disguise_builder())
+    entry_ = rb.measure(manifest, cache)
+    rb.check_disguise(entry_["disguise"], "1.22.0")
+    disguise = entry_["disguise"]
+    assert set(disguise) == rb.DISGUISE_MEMBERS
+    assert disguise["generator"] == {"version": 1, "seed": "spellwarden-disguise-1", "techniques": list(rb.DISGUISE.TECHNIQUE_IDS)}
+    assert disguise["steps"] == list(rb.NORMALISE.STEPS) and disguise["rules_normalised"] == sorted(rb.NORMALISE.RULES)
+    assert set(disguise["techniques"]) == set(rb.DISGUISE.TECHNIQUE_IDS)
+    assert all(set(by_set) == {"alpha", "beta"} for by_set in disguise["techniques"].values())
+    written = disguise["plain_as_written"]["alpha"]
+    assert written["malicious"]["read"] == 2 and written["malicious"]["found"] == {"medium": 2, "high": 2}
+    assert written["malicious"]["rules"]["SW-SKL-032"] == {"medium": 1, "high": 1}
+    assert written["benign"]["found"] == {"medium": 2, "high": 1} and set(disguise["plain_as_written"]["beta"]) == {"malicious"}
+    zero = disguise["techniques"]["zero-width"]["alpha"]
+    assert (zero["changed"], zero["unread"]) == (2, 0)
+    both = {"medium": 2, "high": 2}
+    assert zero["plain_as_written"] == {"found": both, "found_other": both} == zero["plain_normalised"]
+    assert zero["disguised_as_written"] == {"found": both, "found_other": {"medium": 0, "high": 0}}
+    assert zero["disguised_normalised"] == {"found": both, "found_other": both}
+    assert disguise["techniques"]["joined"]["alpha"]["changed"] == 0  # no code in these skills: nothing to join
+    assert disguise["added_on_harmless"] == {"alpha": {"SW-SKL-007": {"findings": 1, "skills": 1}}}
+    # the main block is the normalised reading: there SW-SKL-007 finds the harmless skill with the hidden character
+    assert entry_["sets"]["alpha"]["strata"]["b"]["rules"]["SW-SKL-007"] == {"medium": 1, "high": 1}
+    assert written["benign"]["rules"]["SW-SKL-007"] == {"medium": 0, "high": 0}
+
+
+def test_an_unchanged_variant_is_not_scanned_and_an_unread_item_is_not_disguised(tmp_path, monkeypatch):
+    """H2: a variant equal to its root is neither scanned nor counted; an item not read whole is never given to the generator."""
+    calls: list = []
+    monkeypatch.setattr(rb, "scan_skill_package", fake_scanner(fail_on=("BROKEN",), calls=calls))
+    keys: list[str] = []
+    real = rb.DISGUISE.variant
+
+    def spy(files, technique, *, key):
+        keys.append(key)
+        return real(files, technique, key=key)
+
+    monkeypatch.setattr(rb.DISGUISE, "variant", spy)
+    builder = Builder()
+    builder.add_set("alpha", strata={"m": "malicious"})
+    builder.tar_item("m-curl", "alpha", "m", [{"SKILL.md": CURL}])
+    builder.tar_item("m-broken", "alpha", "m", [{"SKILL.md": CURL + b"\nBROKEN\n"}])
+    manifest, cache = _measured(tmp_path, builder)
+    techniques = rb.measure(manifest, cache)["disguise"]["techniques"]
+    assert not [key for key in keys if key.startswith("m-broken/")]
+    assert sorted({key for key in keys}) == ["m-curl/1"]
+    assert techniques["joined"]["alpha"]["changed"] == 0
+    changed = sum(1 for by_set in techniques.values() if by_set["alpha"]["changed"])
+    assert len(calls) == 2 * 2 + 2 * changed  # each plain item both ways, then each changed variant of m-curl both ways
+    assert all(by_set["alpha"]["unread"] == 0 for by_set in techniques.values())
+
+
+def test_a_variant_not_read_whole_or_not_built_is_changed_and_unread_and_never_found(tmp_path, monkeypatch):
+    """H2: the zero-width variant makes the scanner fail and the generator fails on `markup`: both are in `changed` and
+    `unread` and in no detection."""
+    monkeypatch.setattr(rb, "scan_skill_package", fake_scanner(fail_on=ZERO_WIDTH))
+    real = rb.DISGUISE.variant
+
+    def failing(files, technique, *, key):
+        if technique == "markup":
+            raise RuntimeError("generator failed")
+        return real(files, technique, key=key)
+
+    monkeypatch.setattr(rb.DISGUISE, "variant", failing)
+    builder = Builder()
+    builder.add_set("alpha", strata={"m": "malicious"})
+    builder.tar_item("m-curl", "alpha", "m", [{"SKILL.md": CURL}])
+    manifest, cache = _measured(tmp_path, builder)
+    techniques = rb.measure(manifest, cache)["disguise"]["techniques"]
+    nothing = {"found": {"medium": 0, "high": 0}, "found_other": {"medium": 0, "high": 0}}
+    for name in ("markup", "zero-width"):
+        block = techniques[name]["alpha"]
+        assert (block["changed"], block["unread"]) == (1, 1), name
+        assert all(block[member] == nothing for member in ("plain_as_written", "plain_normalised", "disguised_as_written",
+                                                          "disguised_normalised")), name
+
+
+def test_a_scanner_without_normalise_gives_equal_readings_and_no_steps(tmp_path, monkeypatch):
+    """H3 (spec 6.2.2): an older scanner is read once; "normalised" equals "as written" everywhere and `steps` is empty."""
+    monkeypatch.setattr(rb, "scan_skill_package", fake_scanner(keyword=False))
+    manifest, cache = _measured(tmp_path, disguise_builder())
+    disguise = rb.measure(manifest, cache)["disguise"]
+    assert disguise["steps"] == [] and disguise["rules_normalised"] == []
+    for by_set in disguise["techniques"].values():
+        for block in by_set.values():
+            assert block["plain_normalised"] == block["plain_as_written"]
+            assert block["disguised_normalised"] == block["disguised_as_written"]
+    assert disguise["added_on_harmless"] == {"alpha": {}}
+
+
+def test_a_normalised_reading_that_drops_a_finding_stops_the_run(tmp_path, monkeypatch, capsys):
+    """H9 (spec 6.2.3): `normalisation_removed`, naming the item and the rule, exit 2, and no sample text."""
+    monkeypatch.setattr(rb, "scan_skill_package", fake_scanner(drop=True))
+    builder = Builder()
+    builder.add_set("alpha", strata={"m": "malicious"})
+    builder.tar_item("m-hidden", "alpha", "m", [{"SKILL.md": HIDDEN_CURL}])
+    manifest, cache = _measured(tmp_path, builder)
+    with pytest.raises(rb.BenchmarkError) as raised:
+        rb.measure(manifest, cache)
+    assert raised.value.code == "normalisation_removed" and "m-hidden" in str(raised.value) and "SW-SKL-002" in str(raised.value)
+    (tmp_path / "CHANGELOG.md").write_text("# Changelog\n", encoding="utf-8")
+    assert rb.main(_run_args(tmp_path, "--offline"), environ={}) == 2
+    last = capsys.readouterr().err.splitlines()[-1]
+    assert last.startswith("normalisation_removed: item m-hidden: ") and "curl" not in last
+
+
+def test_the_real_scanner_reads_both_ways_and_reports_a_text_file_over_the_limit_as_text_limit():
+    """N18 for the benchmark (spec 6.7.4): a root with a text file over 10 MiB is not read whole, with the reason `text_limit`."""
+    reading = rb.read_root({"SKILL.md": FRONT.encode(), "notes.md": b"a\n" * (5 * 2**20 + 1)}, RULES, False)
+    assert reading.unread == "text_limit" and reading.rules == {}
+    assert rb.scan_root({"SKILL.md": FRONT.encode(), "notes.md": b"a\n" * (5 * 2**20 + 1)}, RULES) == ("text_limit", {})
+
+
+def disguise_entry(version: str, *, zero_width: tuple = (280, 25, 270, 24), added: dict | None = None,
+                   steps: tuple = ("entities", "invisible", "base64"), **options) -> dict:
+    """`entry(version, **options)` with a `disguise` member for its three sets (see `disguise_block`)."""
+    value = entry(version, **options)
+    value["disguise"] = disguise_block(zero_width=zero_width, added=added, steps=steps)
+    return value
+
+
+TECHNIQUE_IDS = ("lookalike", "zero-width", "encoding-1", "encoding-2", "joined", "padding", "markup", "translation")
+
+
+def detections(medium: int, high: int, other_medium: int, other_high: int) -> dict:
+    return {"found": {"medium": medium, "high": high}, "found_other": {"medium": other_medium, "high": other_high}}
+
+
+def technique_counts(changed: int, unread: int, *, plain: tuple = (300, 30, 290, 28), plain_normalised: tuple = (302, 31, 292, 29),
+                     written: tuple = (250, 20, 240, 18), normalised: tuple = (280, 25, 270, 24)) -> dict:
+    return {"changed": changed, "unread": unread, "plain_as_written": detections(*plain),
+            "plain_normalised": detections(*plain_normalised), "disguised_as_written": detections(*written),
+            "disguised_normalised": detections(*normalised)}
+
+
+def disguise_block(*, zero_width: tuple = (280, 25, 270, 24), added: dict | None = None,
+                   steps: tuple = ("entities", "invisible", "base64")) -> dict:
+    """A `disguise` member for `entry()`'s sets: msb-test (800 changed, 2 not read whole), trailofbits (3, counts) and tuning
+    (60) in every technique; `zero_width` is msb-test's disguised normalised detection under `zero-width` (found medium, high,
+    without the disguise rules medium, high); `added` the harmless findings of msb-test (default: two rules)."""
+    added = {"SW-SKL-007": {"findings": 3, "skills": 2}, "SW-SKL-013": {"findings": 1, "skills": 1}} if added is None else added
+    rules = {rule_id: {"medium": 0, "high": 0} for rule_id in RULES_SHOWN}
+    techniques = {name: {"msb-test": technique_counts(800, 2, normalised=zero_width if name == "zero-width" else (280, 25, 270, 24)),
+                         "trailofbits": technique_counts(3, 0, plain=(3, 1, 3, 1), plain_normalised=(3, 1, 3, 1),
+                                                         written=(1, 0, 1, 0), normalised=(2, 1, 2, 1)),
+                         "tuning": technique_counts(60, 0, plain=(28, 14, 27, 13), plain_normalised=(29, 14, 28, 13),
+                                                    written=(20, 8, 18, 7), normalised=(25, 10, 24, 9))}
+                  for name in TECHNIQUE_IDS}
+    return {"generator": {"version": 1, "seed": "spellwarden-disguise-1", "techniques": list(TECHNIQUE_IDS)},
+            "steps": list(steps), "rules_normalised": ["SW-SKL-001", "SW-SKL-007"],
+            "plain_as_written": {
+                "msb-test": {"malicious": {"read": 839, "found": {"medium": 300, "high": 30}, "rules": rules},
+                             "benign": {"read": 545, "found": {"medium": 140, "high": 50}, "rules": rules}},
+                "trailofbits": {"malicious": {"read": 3, "found": {"medium": 2, "high": 1}, "rules": rules}},
+                "tuning": {"malicious": {"read": 61, "found": {"medium": 28, "high": 14}, "rules": rules},
+                           "benign": {"read": 109, "found": {"medium": 38, "high": 7}, "rules": rules}}},
+            "techniques": techniques, "added_on_harmless": {"msb-test": added, "tuning": {}}}
+
+
+def test_the_history_accepts_1_21_0_without_disguise_and_requires_a_well_formed_one_from_1_22_0():
+    """H4 (spec 6.4.1)."""
+    committed = rb.load_results(BENCHMARKS / "results.json")
+    assert [entry_["version"] for entry_ in committed["entries"]][:1] == ["1.21.0"] and "disguise" not in committed["entries"][0]
+    assert rb.check_results(history(entry("1.21.0"), disguise_entry("1.22.0")))
+    with pytest.raises(rb.BenchmarkError, match="lacks the member disguise"):
+        rb.check_results(history(entry("1.21.0"), entry("1.22.0")))
+    broken = []
+    for change in (lambda d: d.update(extra=1), lambda d: d["generator"].pop("seed"), lambda d: d["generator"].update(version="1"),
+                   lambda d: d.update(steps="base64"), lambda d: d["techniques"]["lookalike"]["msb-test"].update(changed=-1),
+                   lambda d: d["added_on_harmless"]["msb-test"]["SW-SKL-007"].update(skills=True),
+                   lambda d: d.update(plain_as_written=[])):
+        value = disguise_entry("1.22.0")
+        change(value["disguise"])
+        broken.append(value)
+    for value in broken:
+        with pytest.raises(rb.BenchmarkError) as raised:
+            rb.check_results(history(entry("1.21.0"), value))
+        assert raised.value.code == "results_invalid" and "disguise member of the entry for 1.22.0" in str(raised.value)
+
+
+def test_a_run_prints_nothing_of_a_sample_or_of_any_variant_of_it(prepared, capsys):
+    """G8: the whole run, every technique included, prints ids and counts only."""
+    entry_out = prepared / "entry.json"
+    assert rb.main(_run_args(prepared, "--offline", "--entry-out", str(entry_out)), environ={}) == 0
+    captured = capsys.readouterr()
+    printed = captured.out + captured.err + entry_out.read_text(encoding="utf-8")
+    assert MARKER not in printed and "pip install" not in printed and "curl" not in printed
+    variant_lines = set()
+    for sample in (HIGH, MEDIUM, CLEAN):
+        for technique in rb.DISGUISE.TECHNIQUE_IDS:
+            text = rb.DISGUISE.variant({"SKILL.md": sample}, technique, key="m-alpha-1/1")["SKILL.md"].decode("utf-8")
+            variant_lines |= {line for line in text.splitlines() if len(line) >= 12 and line not in FRONT}
+    assert not [line for line in variant_lines if line in printed]
+
+
+def test_the_harness_loads_the_generator_beside_itself():
+    """G9: loaded by its path, as these tests load it, the harness finds `disguise.py` in its own directory."""
+    assert Path(rb.DISGUISE.__file__).resolve() == (BENCHMARKS / "disguise.py").resolve()
+    assert rb.DISGUISE.TECHNIQUE_IDS == TECHNIQUE_IDS
+
+
+# --- P6-4: the `steps` command (spec 6.2.6, 6.6, claim H8) ------------------------------------------------------------------------
+
+def _steps_args(tmp_path: Path) -> list[str]:
+    return ["steps", "--manifest", str(tmp_path / "manifest.json"), "--cache", str(tmp_path / "cache"), "--offline"]
+
+
+def test_steps_reads_no_member_row_or_file_of_a_test_item_and_prints_counts_only(tmp_path, monkeypatch, capsys):
+    """H8: the test item and the tuning items share one tar.gz source; the test set also has a parquet row and a url file."""
+    builder = Builder()
+    builder.add_set("held")
+    builder.add_set("tune", role="tuning")
+    builder.tar_item("m-test", "held", "m", [{"SKILL.md": HIGH}])
+    builder.row_item("b-test-row", "held", "b", CLEAN)
+    builder.url_item("b-test-url", "held", "b", {"SKILL.md": LOW})
+    builder.tar_item("m-tune", "tune", "m", [{"SKILL.md": HIGH + b"\ntune\n"}])
+    builder.tar_item("b-tune", "tune", "b", [{"SKILL.md": MEDIUM + b"\ntune\n"}])
+    document = builder.document()
+    write_manifest(tmp_path, document)
+    builder.fill(rb.Cache(tmp_path / "cache"))
+    asked: list[str] = []
+    real_get = rb.Cache.get
+    monkeypatch.setattr(rb.Cache, "get", lambda self, sha256: asked.append(sha256) or real_get(self, sha256))
+    extracted: list[str] = []
+    real_extract = tarfile.TarFile.extractfile
+    monkeypatch.setattr(tarfile.TarFile, "extractfile", lambda self, member: extracted.append(member.name) or real_extract(self, member))
+    assert rb.main(_steps_args(tmp_path), environ={}) == 0
+    out = capsys.readouterr().out
+    test_files = [entry_ for item in document["items"] if item["set"] == "held" for root in item["roots"] for entry_ in root["files"]]
+    assert sorted(extracted) == ["packages/b-tune/r1/SKILL.md", "packages/m-tune/r1/SKILL.md"]
+    assert document["sources"]["rows"]["sha256"] not in asked
+    assert not [entry_["path"] for entry_ in test_files if entry_["sha256"] in asked]
+    assert out.startswith(f"Rule benchmark steps: scanner {rb.SCANNER_VERSION}, tuning sets only; counts, never text.\n")
+    for name, _steps in rb.step_configurations(tuple(rb.NORMALISE.CANDIDATE_STEPS)):
+        assert f"\n{name} (" in out, name
+    assert "\nDecisions (spec 6.6.2, 6.6.3):\n" in out
+    assert MARKER not in out and "curl" not in out and "pip install" not in out
+
+
+def test_steps_needs_a_scanner_that_takes_a_collection_of_steps(prepared, monkeypatch, capsys):
+    monkeypatch.setattr(rb, "scan_skill_package", fake_scanner(keyword=False))
+    assert rb.main(_steps_args(prepared), environ={}) == 2
+    assert capsys.readouterr().err.startswith("usage: steps needs a scanner whose scan_skill_package takes normalise")
+
+
+def test_step_configurations_and_the_decision_rule():
+    """Spec 6.6.2 and 6.6.3: a step is kept on a gain of one item with no added harmless finding."""
+    assert rb.step_configurations(("entities", "spaces")) == [
+        ("none", ()), ("only entities", ("entities",)), ("only spaces", ("spaces",)), ("all", ("entities", "spaces")),
+        ("all without entities", ("spaces",)), ("all without spaces", ("entities",))]
+
+    def tally(plain_medium: int, added: dict) -> dict:
+        plain = {"found": {"medium": plain_medium, "high": 0}, "found_other": {"medium": plain_medium, "high": 0}}
+        return {"plain": plain, "techniques": {}, "added": added, "seconds": 0.0}
+
+    tallies = {"all": tally(5, {"SW-SKL-013": {"findings": 2, "skills": 1}}), "all without entities": tally(4, {}),
+               "all without spaces": tally(5, {"SW-SKL-013": {"findings": 2, "skills": 1}})}
+    entities, spaces = rb.step_decisions(tallies, ("entities", "spaces"))
+    assert entities == ("entities: raises 2 counts (plain found medium, plain found without the disguise rules medium); "
+                        "adds on harmless skills: SW-SKL-013 2; harmless findings to clear (6.6.3)")
+    assert spaces == "spaces: raises 0 counts (none); adds on harmless skills: none; leave out (no gain)"
+    tallies["all"]["added"] = {}
+    assert rb.step_decisions(tallies, ("entities",))[0].endswith("adds on harmless skills: none; keep")
+
+
+# --- P6-4: rendering, worse rates and the CHANGELOG lines of the disguised samples (spec 6.3, 6.4, claims H5 to H7) --------------
+
+def test_results_md_shows_the_disguised_samples_of_each_set_and_the_history_rows():
+    """H5: both columns without the disguise rules, the sentence naming the disguise rules, each rule's own harmless counts and
+    no sum of skills over rules; counts only for the per-item set; one history row per set and technique."""
+    markdown = rb.render_markdown(history(entry("1.21.0"), disguise_entry("1.22.0")))
+    msb = _section(markdown, "### MaliciousSkillBench test split (source-disjoint)")
+    assert "#### Disguised samples" in msb and "Plain samples, as written and normalised:" in msb
+    assert "| malicious | medium or above | 35.8% (300 of 839; 32.6% to 39.1%) | 36.0% (302 of 839; 32.8% to 39.3%) |" in msb
+    assert "| harmless | high or above | 9.2% (50 of 545; 7.0% to 11.9%) | 9.7% (53 of 545; 7.5% to 12.5%) |" in msb
+    assert "| " + " | ".join(rb.TECHNIQUE_HEADER) + " |" in msb
+    assert ("| zero-width characters inside words | 800 | 2 | medium or above | 37.6% (300 of 798; 34.3% to 41.0%) | "
+            "37.8% (302 of 798; 34.5% to 41.3%) | 31.3% (250 of 798; 28.2% to 34.6%) | 35.1% (280 of 798; 31.9% to 38.5%) | "
+            "30.1% (240 of 798; 27.0% to 33.3%) | 33.8% (270 of 798; 30.6% to 37.2%) |") in msb
+    assert rb.DISGUISE_RULES_SENTENCE in msb
+    assert ("Normalisation adds these findings on harmless skills: SW-SKL-007: 3 findings in 2 skills; SW-SKL-013: 1 findings "
+            "in 1 skills.") in msb and "3 skills" not in msb
+    assert "Normalisation steps: entities, invisible, base64; generator version 1, seed `spellwarden-disguise-1`." in msb
+    tob = _section(markdown, "### Trail of Bits scanner-bypass skills")
+    assert "| look-alike letters | 3 | 0 | medium or above | 3 of 3 | 3 of 3 | 1 of 3 | 2 of 3 | 1 of 3 | 2 of 3 |" in tob
+    assert "%" not in tob and "Normalisation adds" not in tob
+    assert "Normalisation adds no finding on harmless skills." in _section(markdown, "### Tuning half")
+    assert ("| MaliciousSkillBench test split (source-disjoint), disguised: look-alike letters, detection, medium or above | "
+            "not in this release | 35.1% (280 of 798) |") in markdown
+    assert ("| Trail of Bits scanner-bypass skills, disguised: word-list translation, detection, medium or above | "
+            "not in this release | found 2 of 3 |") in markdown
+    assert rb.render_markdown(history(entry("1.21.0"))).count("Disguised samples") == 0
+
+
+def test_the_readme_block_and_the_terminal_show_the_disguised_samples():
+    """H5: the README block's table, fixed sentence, Trail of Bits counts and one harmless sentence per set; the terminal's
+    counts."""
+    block = rb.readme_block(history(entry("1.21.0"), disguise_entry("1.22.0")))
+    lines = block.splitlines()
+    head = lines.index(rb.README_DISGUISE_HEAD)
+    assert lines[head + 2] == ("| Samples | MaliciousSkillBench test split (source-disjoint) | Tuning half of Spellwarden's labelled set "
+                               "(tuning) |")
+    assert lines[head + 4] == "| plain samples | as written 35.8% (300 of 839), normalised 36.0% (302 of 839) | as written 45.9% (28 of 61), normalised 47.5% (29 of 61) |"
+    assert "| padding | as written 31.3% (250 of 798), normalised 35.1% (280 of 798) | as written 33.3% (20 of 60), normalised 41.7% (25 of 60) |" in lines
+    assert rb.README_DISGUISE_RULES in lines
+    assert any(line.startswith("Trail of Bits scanner-bypass skills, disguised, medium or above: look-alike letters found 1 of 3 as "
+                               "written, 2 of 3 normalised; ") for line in lines)
+    assert ("MaliciousSkillBench test split (source-disjoint): Normalisation adds these findings on harmless skills: SW-SKL-007: 3 "
+            "findings in 2 skills; SW-SKL-013: 1 findings in 1 skills.") in lines
+    assert "Tuning half of Spellwarden's labelled set: Normalisation adds no finding on harmless skills." in lines
+    assert lines[-1] == "Scanner 1.22.0, rules version 2026.11.8, released 2026-12-01."
+    assert rb.README_DISGUISE_HEAD not in rb.readme_block(history(entry("1.21.0")))
+    text = rb.render_text(disguise_entry("1.22.0"), ids_at="x")
+    assert ("    zero-width characters inside words: 800 changed, 2 not read whole, 798 read; medium or above: 300 plain as written, "
+            "302 plain normalised, 250 disguised as written, 280 disguised normalised, 240 disguised as written without the disguise "
+            "rules, 270 disguised normalised without the disguise rules;") in text
+    assert "  normalisation on harmless skills: SW-SKL-007: 3 findings in 2 skills; SW-SKL-013: 1 findings in 1 skills" in text
+    assert "  normalisation on harmless skills: no finding added" in text
+
+
+def test_worse_rates_reports_a_drop_of_a_disguised_detection_and_of_one_without_the_disguise_rules():
+    """H6 (spec 6.4.3)."""
+    before = disguise_entry("1.22.0")
+    lines = rb.worse_rates(before, disguise_entry("1.23.0", zero_width=(270, 25, 270, 24)))
+    assert lines == ["- MaliciousSkillBench test split (source-disjoint), disguised: zero-width characters inside words, medium or above: "
+                     "detection 35.1% to 33.8% (280 of 798 to 270 of 798)"]
+    lines = rb.worse_rates(before, disguise_entry("1.23.0", zero_width=(280, 25, 260, 24)))
+    assert lines == ["- MaliciousSkillBench test split (source-disjoint), disguised: zero-width characters inside words, medium or above: "
+                     "detection without the disguise rules 33.8% to 32.6% (270 of 798 to 260 of 798)"]
+    assert rb.worse_rates(entry("1.21.0"), disguise_entry("1.22.0")) == []
+    after = disguise_entry("1.23.0")
+    after["disguise"]["techniques"]["padding"]["trailofbits"]["disguised_normalised"]["found"]["medium"] = 1
+    assert rb.worse_rates(before, after) == ["- Trail of Bits scanner-bypass skills, disguised: padding, medium or above: detection 2 of 3 "
+                                             "to 1 of 3"]
+
+
+def test_the_changelog_lines_of_the_disguised_samples_and_two_lists_each_under_its_sentence():
+    """H7 (spec 6.4.4, 6.4.5)."""
+    first = history(entry("1.21.0"), disguise_entry("1.22.0"))
+    listed = ["- MaliciousSkillBench test split (source-disjoint), SW-SKL-007: 3 findings in 2 skills",
+              "- MaliciousSkillBench test split (source-disjoint), SW-SKL-013: 1 findings in 1 skills"]
+    assert rb.changelog_lines(first) == ["Rule benchmark: no rate got worse than in 1.21.0.", rb.FIRST_DISGUISE_TABLE,
+                                         rb.HARMLESS_ADDED, *listed]
+    later = history(entry("1.21.0"), disguise_entry("1.22.0"), disguise_entry("1.23.0", added={}))
+    assert rb.changelog_lines(later) == ["Rule benchmark: no rate got worse than in 1.22.0.", rb.NO_HARMLESS_ADDED]
+    two = history(entry("1.21.0"), disguise_entry("1.22.0", test_m=(301, 31)))
+    lines = rb.changelog_lines(two)
+    worse_head = lines.index("Rule benchmark: these rates got worse than in 1.21.0:")
+    harmless_head = lines.index(rb.HARMLESS_ADDED)
+    worse_list, harmless_list = lines[worse_head + 1:lines.index(rb.FIRST_DISGUISE_TABLE)], lines[harmless_head + 1:]
+    assert worse_list and harmless_list == listed
+    good = "## 1.22.0 (2026-12-08)\n\n" + "\n".join(lines) + "\n\n## 1.21.0 (2026-12-01)\n"
+    assert rb.check_changelog(two, good) == []
+    swapped = "\n".join([lines[worse_head], *harmless_list, rb.FIRST_DISGUISE_TABLE, rb.HARMLESS_ADDED, *worse_list])
+    problems = rb.check_changelog(two, "## 1.22.0 (2026-12-08)\n\n" + swapped + "\n")
+    assert len(problems) == 2 and all("must list under that sentence" in problem for problem in problems)
