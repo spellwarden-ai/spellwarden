@@ -73,8 +73,8 @@ def test_make_rule_still_refuses_sw_org():
     make_rule("SW-REG-009", "x", "high", "registry", owasp=(), nist=(), atlas=(), detect=lambda _: ())
 
 
-def test_versions_are_1_22_0_and_2026_11_9():
-    assert (__version__, RULES_VERSION) == ("1.22.0", "2026.11.9")
+def test_versions_are_1_23_0_and_2026_11_9():
+    assert (__version__, RULES_VERSION) == ("1.23.0", "2026.11.9")
     pyproject = Path(__file__).resolve().parents[1] / "pyproject.toml"
     assert tomllib.loads(pyproject.read_text(encoding="utf-8"))["project"]["version"] == __version__
 

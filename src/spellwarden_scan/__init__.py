@@ -25,7 +25,7 @@ from spellwarden_scan.agentconfig import (
 from spellwarden_scan import cyclonedx, frameworks, gate, identity, toolhash  # noqa: F401 (`spellwarden_scan.gate`, `.identity`: O3 spec 5.4; `.frameworks`: 1.13.0; `.cyclonedx`: 1.14.0; `.toolhash`: 1.15.0)
 from spellwarden_scan import lint  # noqa: F401 (`spellwarden_scan.lint`, the description lint: Phase 4 batch B spec 11.4, 1.17.0)
 from spellwarden_scan import analyzer  # noqa: F401 (`spellwarden_scan.analyzer`, the analyzer's interface: Phase 4 batch B spec 11.2)
-from spellwarden_scan.archive import ArchiveError, ArchiveLimits, unpack_zip
+from spellwarden_scan.archive import REPOSITORY_LIMITS, ArchiveError, ArchiveLimits, list_zip, unpack_zip
 from spellwarden_scan.canonical import canonical_sha256
 from spellwarden_scan.evidence import mask_credentials
 from spellwarden_scan.exports import EXPORT_MODES, EXPORT_TARGETS, PLANNED_TARGETS
@@ -73,4 +73,6 @@ __all__ = [
     "A2A_MIGRATION_STATUSES", "A2A_SIGNATURE_STATUSES",
     # Phase 3 batch 1 spec 11.2: added in 1.13.0
     "PromptArgument", "PromptInfo", "ResourceInfo", "ResourceTemplateInfo",
+    # P6-10 spec 7.4.2 and 7.5: added in 1.23.0
+    "REPOSITORY_LIMITS", "list_zip",
 ]

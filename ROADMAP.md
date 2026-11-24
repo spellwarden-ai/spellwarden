@@ -16,6 +16,8 @@ Since 1.21.0 a rule id is never reused or renamed and a deprecation is announced
 
 Since 1.21.0 every release measures the skill rules on fixed public sets of malicious and harmless skills, rules only and with no model, and publishes each rule's detection and false-positive rates with the samples the rules missed ([Measured rates](README.md#measured-rates), [benchmarks/RESULTS.md](benchmarks/RESULTS.md)).
 
+Since 1.23.0 a skill read from a large repository's archive is read whole: the scanner reads a symbolic link to a file inside the scanned tree at its target, measures the path bound on the path in the repository and bounds an archive's entries, and a link that leaves the tree is still left unread, with an incomplete scan that says so ([What a scan reads](README.md#what-a-scan-reads)). The hosted scan's part (a repository's archive up to 50 MiB zipped and a re-measurement of the first catalog round) is still to come.
+
 Since 1.22.0 the skill rules also read a normalised copy of the text, so that content written another way (look-alike letters, hidden characters, base64) is still found, and every release measures how many detections survive disguised versions of the malicious skills ([Disguised content](README.md#disguised-content)). Since 1.22.0 the rules also read text files up to 10 MiB, so a file padded past 1 MiB no longer hides its content.
 
 ## Being built now
@@ -29,7 +31,7 @@ In no fixed order.
 - **Published rates for the model-assisted analyzer.** `--analyze` says "Unmeasured model" today. Its detection and false-positive rates are to be measured on held-out skills and published.
 - **The analyzer beyond skills.** Today it reads a skill's `SKILL.md` and scripts. Next it reads instruction files, plugin commands and agents, hooks and the descriptions a probed MCP server sends, and a documented recipe covers one open model on a local server.
 - **Rules for the OWASP entries that have none.** Where a check before install can honestly detect part of an entry, a measured rule; where it cannot, a plain statement of what answers it.
-- **Repositories the scan cannot read whole.** Fewer scans that end incomplete on large repositories: the skill's own directory instead of the whole archive, and symbolic links that stay inside the scanned tree. The rule does not change: content left unread never looks like a pass.
+- **Repositories the scan cannot read whole, in the hosted product.** The scanner's part shipped in 1.23.0. Next the hosted scan reads a repository's archive up to 50 MiB zipped and lists a marketplace without unpacking it, and the first catalog round is measured again. The rule does not change: content left unread never looks like a pass.
 - **More export targets for policy packs.** AWS AgentCore Policy and Cloudflare's sandbox egress proxy are named in the code as planned targets.
 - **Signed attestations** for skills and servers that were scanned and admitted.
 - **A way to report misses and false alarms** with issue forms, and a public corpus of the accepted samples, each one a test.

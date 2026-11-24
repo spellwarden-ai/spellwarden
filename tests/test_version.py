@@ -1,4 +1,6 @@
-"""The current release is 1.22.0, in which skill rules also read a normalised copy of the text and the rules read text
+"""The current release is 1.23.0, which reads an archive's links inside the scanned tree, measures the path bound on the path
+in the repository, bounds an archive's entries and makes the command's link out of the scan root an error, without changing a
+rule (rules version 2026.11.9, unchanged); 1.22.0 made skill rules also read a normalised copy of the text and the rules read text
 up to 10 MiB (rules version 2026.11.9); 1.21.0 gives every finding its rule's fix sentence and page without changing a rule; 1.20.0 reads more of the agent files the vendors document and makes SW-CFG-012 and SW-CFG-013 judge
 the servers of settings documents (rules version 2026.11.8); 1.19.0 added `spellwarden scan --staged` (the pre-commit hook runs it), limits on SKILL.md
 front matter and the analyzer's span rule without changing a rule (1.18.0 added a pre-commit hook definition, the HTML report
@@ -27,7 +29,7 @@ PYPROJECT = Path(__file__).resolve().parents[1] / "pyproject.toml"
 
 
 def test_the_versions():
-    assert __version__ == "1.22.0"
+    assert __version__ == "1.23.0"
     assert tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))["project"]["version"] == __version__
     assert RULES_VERSION == "2026.11.9"
     assert len(RuleSet.baseline()) == 66
@@ -211,4 +213,26 @@ def test_the_changelog_has_the_1_22_0_entry_above_1_21_0():
                    "`unreadable`", "`benchmarks/RESULTS.md`", "`rule_benchmark.py steps`"):
         assert needle in entry, needle
     for character in ("\u2014", "\u2013", "!"):
+        assert character not in raw
+
+
+def test_the_changelog_has_the_1_23_0_entry_above_1_22_0():
+    """P6-10 spec 7.10 and 7.11: the count first, then every behaviour change, the command's link out of the scan root with its
+    way out among them, and what stays as it was; the orchestrator sets the date when the release is tagged."""
+    text = (PYPROJECT.parent / "CHANGELOG.md").read_text(encoding="utf-8").replace("\r\n", "\n")
+    assert text.index("## 1.23.0 (") < text.index("## 1.22.0 (")
+    raw = text[text.index("## 1.23.0 ("):text.index("## 1.22.0 (")]
+    entry = " ".join(raw.split())
+    assert "Rules version 2026.11.9, unchanged (66 rules): no rule detects anything new" in entry
+    assert entry.index("35 read whole since 1.10.0") < entry.index("Links in an archive.")
+    for needle in ("Of the 39 entries of the first catalog round", "closes the other four", "258 characters", "24.8 MiB zipped",
+                   "`ArchiveError.why`", "`outside`", "`dangling`", "`chain`", "`directory`", "`through_link`", "`unsafe_target`",
+                   "`special`", "measured on the path inside the archive's top directory", "`ArchiveLimits.max_entries` (100,000)",
+                   "`archive_entries`", "`REPOSITORY_LIMITS`", "50 MiB zipped", "`list_zip(data, limits=REPOSITORY_LIMITS)`",
+                   "by the owner's decision", "is the error `unsafe_path` and an incomplete scan (exit 2)",
+                   "`spellwarden lock` writes no lock", "replace the link with the file it names",
+                   "leave it out with `exclude` in `.spellwarden/config.yml`", "exit 2 from `scan --locked`, not exit 3",
+                   "stays the notice `symlink_skipped`", "is still read at its target", "`scan --user` keeps its own rule"):
+        assert needle in entry, needle
+    for character in ("—", "–", "!"):
         assert character not in raw

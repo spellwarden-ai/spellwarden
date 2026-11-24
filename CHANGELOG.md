@@ -1,5 +1,45 @@
 # Changelog
 
+## 1.23.0 (2026-11-24)
+
+Rules version 2026.11.9, unchanged (66 rules): no rule detects anything new, and every finding 1.22.0 reports keeps its rule,
+location, evidence and fingerprint.
+
+1.23.0: repositories the scan cannot read whole. Of the 39 entries of the first catalog round (6 and 7 November 2026) that could
+not be scanned whole, 35 read whole since 1.10.0, which reads a skill from its own directory (`root`) instead of the whole
+repository archive. This release closes the other four: two whose repository holds a name of 258 characters, 54 of them the
+forge's top directory, and two whose repository archive is 24.8 MiB zipped (read under `REPOSITORY_LIMITS`; the hosted scan takes
+that bound in its own release).
+
+- Links in an archive. `unpack_zip` reads a symbolic link under `root` when its target, judged from its text alone, is a regular
+  file inside the tree (the directory `root` names; the whole archive for `root=""` and `root=None`): the link's path holds the
+  target's bytes, executable when the target is, and the target's size counts again toward the 50 MiB uncompressed limit. Up to
+  1.22.0 every link under `root` was refused as `symlink`. Every other link is still `symlink`, and the new `ArchiveError.why`
+  names the case: `outside` (the target leaves the tree, even when it comes back in), `dangling`, `chain`, `directory`,
+  `through_link`, `unsafe_target`, and `special` for a device, FIFO or socket. An entry whose path passes through a link, or that
+  shares a link's name, is `unsafe_path` for every `root`, not only a non-empty one.
+- Path length. The 255-character bound is measured on the path inside the archive's top directory, not on the raw entry name
+  with the forge's top directory: a raw name over 255 characters whose path in the repository is within the bound is read.
+- Entries. `ArchiveLimits.max_entries` (100,000) bounds the entries of the whole archive, counted as the central directory
+  headers its bytes hold before any is parsed; over it is `too_many_files` with `why` `archive_entries`, whatever the archive's
+  end record declares.
+- `REPOSITORY_LIMITS` holds the limits for a repository's archive read under a named `root`: 50 MiB zipped, every other limit
+  the default. `ArchiveLimits()` and its 20 MiB stay the default. `list_zip(data, limits=REPOSITORY_LIMITS)` lists the names of
+  every file and link of an archive from its central directory alone, opening no entry.
+- The command, by the owner's decision: a symbolic link inside a skill or a local plugin directory whose target leaves the scan
+  root, and with `--follow-links` a linked instruction folder whose target leaves it, is the error `unsafe_path` and an
+  incomplete scan (exit 2), and `spellwarden lock` writes no lock while it is there. Up to 1.22.0 it was the notice
+  `symlink_skipped` and the scan could pass. The way out: replace the link with the file it names (for a folder, with the files
+  it should hold), or leave it out with `exclude` in `.spellwarden/config.yml`. A repository whose lock was written with such a
+  link gets exit 2 from `scan --locked`, not exit 3.
+- Unchanged in the command: an instruction file (`CLAUDE.md`, `AGENTS.md`, a rule file) that is itself a link the scan cannot
+  follow stays the notice `symlink_skipped`, and a link inside a skill to a file elsewhere inside the scan root is still read at
+  its target, since the command reads a skill in place in its repository. The hosted scan judges a copy of the skill's folder
+  alone, so there the same link leaves the tree and the scan is incomplete. `scan --user` keeps its own rule.
+
+Rule benchmark: no rate got worse than in 1.22.0.
+Rule benchmark: normalisation adds no finding on harmless skills.
+
 ## 1.22.0 (2026-11-24)
 
 Rules version 2026.11.9 (66 rules): 14 skill rules also read a normalised copy of the text, so text written another way can now be

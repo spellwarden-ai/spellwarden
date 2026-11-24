@@ -706,24 +706,19 @@ def test_a_skill_records_the_targets_of_the_member_links_it_followed(make_repo, 
                                                                        "skills/y": frozenset()}
 
 
-def test_a_member_link_that_cannot_be_followed_is_skipped_and_its_target_text_is_locked(make_repo, tmp_path, run_cli):
-    # A skill may legitimately link outside the repository: that is a notice, not an error, but the link's target
-    # text is in the package's lock hash, so pointing the link elsewhere makes the lock stale.
+def test_a_member_link_out_of_the_scan_root_is_an_error_and_no_lock_is_written(make_repo, tmp_path, run_cli):
+    # P6-10 spec 7.7 (1.23.0, owner spec:Q1): a skill's link out of the scan root is the error `unsafe_path` with the way
+    # out, the skill is not scanned and `spellwarden lock` writes no lock. Up to 1.22.0 it was a notice and the link's
+    # target text was in the package's lock hash.
     repo = make_repo(tmp_path / "repo", {"skills/x/SKILL.md": SKILL})
     (tmp_path / "outside.sh").write_text(SAFE_SCRIPT, encoding="utf-8")
-    link = repo / "skills" / "x" / "run.sh"
-    _symlink("../../../outside.sh", link)
+    _symlink("../../../outside.sh", repo / "skills" / "x" / "run.sh")
     found = _discover(repo)
-    assert found.errors == ()
-    assert [n.path for n in found.notices if n.code == "symlink_skipped"] == ["skills/x/run.sh"]
-    assert found.skills[0].files == {"skills/x/SKILL.md": SKILL.encode()}
-    assert found.skills[0].links == {"skills/x/run.sh": b"../../../outside.sh"}
-    assert run_cli(["lock", str(repo)])[0] == 0
-    assert run_cli(["lock", str(repo), "--check"])[0] == 0
-    link.unlink()
-    _symlink("../../../elsewhere.sh", link)
-    code, out, _err = run_cli(["lock", str(repo), "--check"])
-    assert code == 3 and "skills/x" in out
+    assert [(e.code, e.path, e.message) for e in found.errors] == [
+        ("unsafe_path", "skills/x/run.sh", discover_module._MEMBER_OUTSIDE)]
+    assert found.skills == () and "symlink_skipped" not in {n.code for n in found.notices}
+    assert run_cli(["lock", str(repo)])[0] == 2
+    assert not (repo / ".spellwarden" / "lock.json").exists()
 
 
 def test_a_link_inside_a_local_plugin_directory_is_followed(make_repo, tmp_path):
@@ -733,10 +728,12 @@ def test_a_link_inside_a_local_plugin_directory_is_followed(make_repo, tmp_path)
     _symlink("../../shared/run.sh", repo / "p" / "bin" / "run.sh")
     _symlink("../../../outside.sh", repo / "p" / "bin" / "out.sh")
     found = _discover(repo)
-    assert found.errors == ()
+    # P6-10 spec 7.7 (1.23.0, owner spec:Q1): the link out of the scan root is an error, no longer a notice
+    assert [(e.code, e.path, e.message) for e in found.errors] == [
+        ("unsafe_path", "p/bin/out.sh", discover_module._MEMBER_OUTSIDE)]
     assert found.plugin_dirs[0].files["p/bin/run.sh"] == SAFE_SCRIPT.encode()
-    assert found.plugin_dirs[0].links == {"p/bin/out.sh": b"../../../outside.sh"}
-    assert [n.path for n in found.notices if n.code == "symlink_skipped"] == ["p/bin/out.sh"]
+    assert found.plugin_dirs[0].links == {}
+    assert "p/bin/out.sh" not in [n.path for n in found.notices if n.code == "symlink_skipped"]
 
 
 def test_member_links_count_toward_the_package_limits_before_any_target_is_read(make_repo, tmp_path, monkeypatch):
@@ -813,9 +810,10 @@ def test_a_package_rejected_after_resolving_its_links_leaves_them_for_the_next_p
     monkeypatch.setattr(discover_module, "DEFAULT_LIMITS", ArchiveLimits(max_uncompressed=len(SKILL) + 50))
     assert discover_module._package(builder, "skills/x", inside, "skill package") is None
     monkeypatch.setattr(discover_module, "DEFAULT_LIMITS", ArchiveLimits())
-    members, links = discover_module._package(builder, "skills/x", inside, "skill package")
+    members = discover_module._package(builder, "skills/x", inside, "skill package")
     assert members == ["skills/x/SKILL.md", "skills/x/big.txt"]
-    assert links == {"skills/x/out.sh": b"../../../outside.sh"}
+    # P6-10 spec 7.7 (1.23.0): the link out of the scan root is an error, recorded once although resolved for two packages
+    assert [e.path for e in builder.errors if e.code == "unsafe_path"] == ["skills/x/out.sh"]
 
 
 
@@ -907,25 +905,26 @@ def test_a_member_link_that_reaches_the_scan_root_through_an_absolute_alias_is_a
 
 def test_a_relative_target_through_an_alias_outside_the_root_is_decided_by_its_spelling(make_repo, tmp_path):
     # Orchestrator decision after r3:N1/N2: "outside" is lexical. An alias of the root that sits outside it is the
-    # operator's machine, not the repository, and no file-system call may test it; the link is skipped and its
-    # target text locked, so retargeting it makes the lock stale.
+    # operator's machine, not the repository, and no file-system call may test it. Since 1.23.0 (P6-10 spec 7.7, owner
+    # spec:Q1) such a link is the error `unsafe_path`; it was skipped with its target text locked.
     repo = make_repo(tmp_path / "real" / "repo", {"skills/x/SKILL.md": SKILL, "shared/run.sh": SAFE_SCRIPT})
     _symlink(str(tmp_path / "real"), tmp_path / "alias")
     _symlink("../../../../alias/repo/shared/run.sh", repo / "skills" / "x" / "run.sh")
     found = _discover(repo)
-    assert found.errors == ()
-    assert found.skills[0].links == {"skills/x/run.sh": b"../../../../alias/repo/shared/run.sh"}
+    assert [(e.code, e.path, e.message) for e in found.errors] == [
+        ("unsafe_path", "skills/x/run.sh", discover_module._MEMBER_OUTSIDE)]
+    assert found.skills == ()
 
 
-def test_a_member_link_through_an_outside_alias_to_outside_content_is_skipped(make_repo, tmp_path):
+def test_a_member_link_through_an_outside_alias_to_outside_content_is_an_error(make_repo, tmp_path):
     repo = make_repo(tmp_path / "real" / "repo", {"skills/x/SKILL.md": SKILL})
     (tmp_path / "elsewhere").mkdir()
     (tmp_path / "elsewhere" / "run.sh").write_text(SAFE_SCRIPT, encoding="utf-8")
     _symlink(str(tmp_path / "elsewhere"), tmp_path / "alias")
     _symlink("../../../../alias/run.sh", repo / "skills" / "x" / "run.sh")
     found = _discover(repo)
-    assert found.errors == ()
-    assert found.skills[0].links == {"skills/x/run.sh": b"../../../../alias/run.sh"}
+    assert [(e.code, e.path) for e in found.errors] == [("unsafe_path", "skills/x/run.sh")]
+    assert found.skills == ()
 
 
 def test_realpath_failure_fails_closed(make_repo, tmp_path, monkeypatch):
@@ -1103,20 +1102,22 @@ def test_a_target_that_may_re_enter_the_root_under_another_spelling_fails_closed
 
 
 @pytest.mark.parametrize("target", ["../../../other/x.sh", "../../../repository/x.sh", "../../../../elsewhere/repo/x.sh"])
-def test_a_genuine_sibling_outside_the_root_is_still_skipped_and_hashed(target, make_repo, tmp_path):
+def test_a_genuine_sibling_outside_the_root_is_an_error_with_the_way_out(target, make_repo, tmp_path):
+    # P6-10 spec 7.7 (1.23.0, owner spec:Q1): it was skipped with its target text hashed into the lock
     repo = make_repo(tmp_path / "repo", {"skills/x/SKILL.md": SKILL})
     _symlink(target, repo / "skills" / "x" / "run.sh")
     found = _discover(repo)
-    assert found.errors == () and found.skills[0].links == {"skills/x/run.sh": target.encode()}
+    assert [(e.code, e.path, e.message) for e in found.errors] == [
+        ("unsafe_path", "skills/x/run.sh", discover_module._MEMBER_OUTSIDE)]
 
 
-def test_a_genuine_relative_outside_target_is_skipped_and_hashed(make_repo, tmp_path):
+def test_a_genuine_relative_outside_target_is_an_error_and_no_notice(make_repo, tmp_path):
     repo = make_repo(tmp_path / "repo", {"skills/x/SKILL.md": SKILL})
     _symlink("../../../tools/run.sh", repo / "skills" / "x" / "run.sh")
     found = _discover(repo)
-    assert found.errors == () and found.skills[0].links == {"skills/x/run.sh": b"../../../tools/run.sh"}
-    notice = next(n for n in found.notices if n.code == "symlink_skipped")
-    assert notice.path == "skills/x/run.sh" and "leaves the scan root" in notice.message
+    assert [(e.code, e.path) for e in found.errors] == [("unsafe_path", "skills/x/run.sh")]
+    assert "outside the scan root" in found.errors[0].message and "replace the link" in found.errors[0].message
+    assert not [n for n in found.notices if n.code == "symlink_skipped"]
 
 
 def test_a_root_plugin_owns_only_the_skills_under_its_skills_directory(make_repo, tmp_path):
@@ -1245,14 +1246,16 @@ def test_a_non_ascii_name_descending_from_above_the_root_fails_closed(segment, m
     assert found.skills == ()
 
 
-def test_an_ascii_sibling_of_the_root_is_still_skipped_and_a_non_ascii_root_still_re_entered(make_repo, tmp_path):
-    # r4:R4-4: the rule is for other spellings only; the root's own name, ASCII or not, re-enters as before.
-    repo = make_repo(tmp_path / "café", {"skills/x/SKILL.md": SKILL, "shared/run.sh": SAFE_SCRIPT})
-    _symlink("../../../n5/x.sh", repo / "skills" / "x" / "a.sh")
+def test_an_ascii_sibling_of_the_root_is_outside_and_a_non_ascii_root_still_re_entered(make_repo, tmp_path):
+    # r4:R4-4: the rule is for other spellings only; the root's own name, ASCII or not, re-enters as before. Since 1.23.0
+    # (P6-10 spec 7.7, owner spec:Q1) the sibling is the error `unsafe_path`, so it sits in a skill of its own here.
+    repo = make_repo(tmp_path / "café", {"skills/x/SKILL.md": SKILL, "skills/y/SKILL.md": SKILL, "shared/run.sh": SAFE_SCRIPT})
+    _symlink("../../../n5/x.sh", repo / "skills" / "y" / "a.sh")
     _symlink("../../../café/shared/run.sh", repo / "skills" / "x" / "b.sh")
     found = _discover(repo)
-    assert found.errors == ()
-    assert found.skills[0].links == {"skills/x/a.sh": b"../../../n5/x.sh"}
+    assert [(e.code, e.path, e.message) for e in found.errors] == [
+        ("unsafe_path", "skills/y/a.sh", discover_module._MEMBER_OUTSIDE)]
+    assert [skill.path for skill in found.skills] == ["skills/x"]
     assert found.skills[0].files["skills/x/b.sh"] == SAFE_SCRIPT.encode()
 
 
