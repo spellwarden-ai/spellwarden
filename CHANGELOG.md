@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.23.0 (2026-11-NN)
+## 1.23.0 (2026-11-24)
 
 Rules version 2026.11.9, unchanged (66 rules): no rule detects anything new, and every finding 1.22.0 reports keeps its rule,
 location, evidence and fingerprint.
@@ -36,6 +36,9 @@ that bound in its own release).
   follow stays the notice `symlink_skipped`, and a link inside a skill to a file elsewhere inside the scan root is still read at
   its target, since the command reads a skill in place in its repository. The hosted scan judges a copy of the skill's folder
   alone, so there the same link leaves the tree and the scan is incomplete. `scan --user` keeps its own rule.
+
+Rule benchmark: no rate got worse than in 1.22.0.
+Rule benchmark: normalisation adds no finding on harmless skills.
 
 ## 1.22.0 (2026-11-24)
 
