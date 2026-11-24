@@ -1542,3 +1542,96 @@ def test_step_configurations_and_the_decision_rule():
     assert spaces == "spaces: raises 0 counts (none); adds on harmless skills: none; leave out (no gain)"
     tallies["all"]["added"] = {}
     assert rb.step_decisions(tallies, ("entities",))[0].endswith("adds on harmless skills: none; keep")
+
+
+# --- P6-4: rendering, worse rates and the CHANGELOG lines of the disguised samples (spec 6.3, 6.4, claims H5 to H7) --------------
+
+def test_results_md_shows_the_disguised_samples_of_each_set_and_the_history_rows():
+    """H5: both columns without the disguise rules, the sentence naming the disguise rules, each rule's own harmless counts and
+    no sum of skills over rules; counts only for the per-item set; one history row per set and technique."""
+    markdown = rb.render_markdown(history(entry("1.21.0"), disguise_entry("1.22.0")))
+    msb = _section(markdown, "### MaliciousSkillBench test split (source-disjoint)")
+    assert "#### Disguised samples" in msb and "Plain samples, as written and normalised:" in msb
+    assert "| malicious | medium or above | 35.8% (300 of 839; 32.6% to 39.1%) | 36.0% (302 of 839; 32.8% to 39.3%) |" in msb
+    assert "| harmless | high or above | 9.2% (50 of 545; 7.0% to 11.9%) | 9.7% (53 of 545; 7.5% to 12.5%) |" in msb
+    assert "| " + " | ".join(rb.TECHNIQUE_HEADER) + " |" in msb
+    assert ("| zero-width characters inside words | 800 | 2 | medium or above | 37.6% (300 of 798; 34.3% to 41.0%) | "
+            "37.8% (302 of 798; 34.5% to 41.3%) | 31.3% (250 of 798; 28.2% to 34.6%) | 35.1% (280 of 798; 31.9% to 38.5%) | "
+            "30.1% (240 of 798; 27.0% to 33.3%) | 33.8% (270 of 798; 30.6% to 37.2%) |") in msb
+    assert rb.DISGUISE_RULES_SENTENCE in msb
+    assert ("Normalisation adds these findings on harmless skills: SW-SKL-007: 3 findings in 2 skills; SW-SKL-013: 1 findings "
+            "in 1 skills.") in msb and "3 skills" not in msb
+    assert "Normalisation steps: entities, invisible, base64; generator version 1, seed `spellwarden-disguise-1`." in msb
+    tob = _section(markdown, "### Trail of Bits scanner-bypass skills")
+    assert "| look-alike letters | 3 | 0 | medium or above | 3 of 3 | 3 of 3 | 1 of 3 | 2 of 3 | 1 of 3 | 2 of 3 |" in tob
+    assert "%" not in tob and "Normalisation adds" not in tob
+    assert "Normalisation adds no finding on harmless skills." in _section(markdown, "### Tuning half")
+    assert ("| MaliciousSkillBench test split (source-disjoint), disguised: look-alike letters, detection, medium or above | "
+            "not in this release | 35.1% (280 of 798) |") in markdown
+    assert ("| Trail of Bits scanner-bypass skills, disguised: word-list translation, detection, medium or above | "
+            "not in this release | found 2 of 3 |") in markdown
+    assert rb.render_markdown(history(entry("1.21.0"))).count("Disguised samples") == 0
+
+
+def test_the_readme_block_and_the_terminal_show_the_disguised_samples():
+    """H5: the README block's table, fixed sentence, Trail of Bits counts and one harmless sentence per set; the terminal's
+    counts."""
+    block = rb.readme_block(history(entry("1.21.0"), disguise_entry("1.22.0")))
+    lines = block.splitlines()
+    head = lines.index(rb.README_DISGUISE_HEAD)
+    assert lines[head + 2] == ("| Samples | MaliciousSkillBench test split (source-disjoint) | Tuning half of Spellwarden's labelled set "
+                               "(tuning) |")
+    assert lines[head + 4] == "| plain samples | as written 35.8% (300 of 839), normalised 36.0% (302 of 839) | as written 45.9% (28 of 61), normalised 47.5% (29 of 61) |"
+    assert "| padding | as written 31.3% (250 of 798), normalised 35.1% (280 of 798) | as written 33.3% (20 of 60), normalised 41.7% (25 of 60) |" in lines
+    assert rb.README_DISGUISE_RULES in lines
+    assert any(line.startswith("Trail of Bits scanner-bypass skills, disguised, medium or above: look-alike letters found 1 of 3 as "
+                               "written, 2 of 3 normalised; ") for line in lines)
+    assert ("MaliciousSkillBench test split (source-disjoint): Normalisation adds these findings on harmless skills: SW-SKL-007: 3 "
+            "findings in 2 skills; SW-SKL-013: 1 findings in 1 skills.") in lines
+    assert "Tuning half of Spellwarden's labelled set: Normalisation adds no finding on harmless skills." in lines
+    assert lines[-1] == "Scanner 1.22.0, rules version 2026.11.8, released 2026-12-01."
+    assert rb.README_DISGUISE_HEAD not in rb.readme_block(history(entry("1.21.0")))
+    text = rb.render_text(disguise_entry("1.22.0"), ids_at="x")
+    assert ("    zero-width characters inside words: 800 changed, 2 not read whole, 798 read; medium or above: 300 plain as written, "
+            "302 plain normalised, 250 disguised as written, 280 disguised normalised, 240 disguised as written without the disguise "
+            "rules, 270 disguised normalised without the disguise rules;") in text
+    assert "  normalisation on harmless skills: SW-SKL-007: 3 findings in 2 skills; SW-SKL-013: 1 findings in 1 skills" in text
+    assert "  normalisation on harmless skills: no finding added" in text
+
+
+def test_worse_rates_reports_a_drop_of_a_disguised_detection_and_of_one_without_the_disguise_rules():
+    """H6 (spec 6.4.3)."""
+    before = disguise_entry("1.22.0")
+    lines = rb.worse_rates(before, disguise_entry("1.23.0", zero_width=(270, 25, 270, 24)))
+    assert lines == ["- MaliciousSkillBench test split (source-disjoint), disguised: zero-width characters inside words, medium or above: "
+                     "detection 35.1% to 33.8% (280 of 798 to 270 of 798)"]
+    lines = rb.worse_rates(before, disguise_entry("1.23.0", zero_width=(280, 25, 260, 24)))
+    assert lines == ["- MaliciousSkillBench test split (source-disjoint), disguised: zero-width characters inside words, medium or above: "
+                     "detection without the disguise rules 33.8% to 32.6% (270 of 798 to 260 of 798)"]
+    assert rb.worse_rates(entry("1.21.0"), disguise_entry("1.22.0")) == []
+    after = disguise_entry("1.23.0")
+    after["disguise"]["techniques"]["padding"]["trailofbits"]["disguised_normalised"]["found"]["medium"] = 1
+    assert rb.worse_rates(before, after) == ["- Trail of Bits scanner-bypass skills, disguised: padding, medium or above: detection 2 of 3 "
+                                             "to 1 of 3"]
+
+
+def test_the_changelog_lines_of_the_disguised_samples_and_two_lists_each_under_its_sentence():
+    """H7 (spec 6.4.4, 6.4.5)."""
+    first = history(entry("1.21.0"), disguise_entry("1.22.0"))
+    listed = ["- MaliciousSkillBench test split (source-disjoint), SW-SKL-007: 3 findings in 2 skills",
+              "- MaliciousSkillBench test split (source-disjoint), SW-SKL-013: 1 findings in 1 skills"]
+    assert rb.changelog_lines(first) == ["Rule benchmark: no rate got worse than in 1.21.0.", rb.FIRST_DISGUISE_TABLE,
+                                         rb.HARMLESS_ADDED, *listed]
+    later = history(entry("1.21.0"), disguise_entry("1.22.0"), disguise_entry("1.23.0", added={}))
+    assert rb.changelog_lines(later) == ["Rule benchmark: no rate got worse than in 1.22.0.", rb.NO_HARMLESS_ADDED]
+    two = history(entry("1.21.0"), disguise_entry("1.22.0", test_m=(301, 31)))
+    lines = rb.changelog_lines(two)
+    worse_head = lines.index("Rule benchmark: these rates got worse than in 1.21.0:")
+    harmless_head = lines.index(rb.HARMLESS_ADDED)
+    worse_list, harmless_list = lines[worse_head + 1:lines.index(rb.FIRST_DISGUISE_TABLE)], lines[harmless_head + 1:]
+    assert worse_list and harmless_list == listed
+    good = "## 1.22.0 (2026-12-08)\n\n" + "\n".join(lines) + "\n\n## 1.21.0 (2026-12-01)\n"
+    assert rb.check_changelog(two, good) == []
+    swapped = "\n".join([lines[worse_head], *harmless_list, rb.FIRST_DISGUISE_TABLE, rb.HARMLESS_ADDED, *worse_list])
+    problems = rb.check_changelog(two, "## 1.22.0 (2026-12-08)\n\n" + swapped + "\n")
+    assert len(problems) == 2 and all("must list under that sentence" in problem for problem in problems)
