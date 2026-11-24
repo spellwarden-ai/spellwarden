@@ -98,6 +98,19 @@ def test_an_instruction_file_that_is_a_link_the_scan_cannot_follow_stays_a_notic
     assert link in {n["path"] for n in report["notices"] if n["code"] == "symlink_skipped"}
 
 
+@pytest.mark.parametrize("link", [".claude/rules/a.md", ".claude/commands/c.md", ".claude/agents/g.md", "CLAUDE.md"])
+def test_an_instruction_file_link_out_of_the_scan_root_stays_a_notice_under_follow_links(link, make_repo, run_cli, tmp_path):
+    """T13a with `--follow-links` (r0:F1, owner spec:Q2): the link is an instruction file, not a folder, so as on 1.22.0 it is
+    the notice `symlink_skipped` and exit 0; only a link that is no instruction file is a folder candidate (spec:Q1)."""
+    repo = make_repo(tmp_path / "repo", {"README.md": "# x\n"})
+    (tmp_path / "outside.md").write_text("# O\n", encoding="utf-8")
+    _symlink("../" * (link.count("/") + 1) + "outside.md", repo.joinpath(*link.split("/")))
+    found = discover(list_files(str(repo), Settings()), follow_links=True)
+    assert found.errors == () and link in [n.path for n in found.notices if n.code == "symlink_skipped"]
+    code, report, _out, _err = scan_json(run_cli, repo, None, "--follow-links")
+    assert code == 0 and report["errors"] == []
+
+
 def test_a_member_link_to_a_file_elsewhere_inside_the_scan_root_is_still_read(make_repo, run_cli, tmp_path):
     """T13b (owner spec:Q3, kept): the command's tree is the scan root, as since 1.19.0."""
     repo = make_repo(tmp_path / "repo", {"skills/x/SKILL.md": SKILL, "docs/a.md": "# Guide\n"})

@@ -1077,6 +1077,8 @@ def _linked_directories(builder: _Builder, skill_directories: frozenset[str],
                 or _owned_by_a_skill(path, skill_directories) or any(_under(path, directory) for directory in plugin_dirs)):
             continue
         resolution = builder.directory_link(path)
+        if resolution.outside and instruction_files.format_of(path) is not None:
+            continue  # a rule, command or agent file that is a link out of the scan root: the notice of spec:Q2, not a folder
         if resolution.refusal is not None:
             builder.followed.add(path)
             builder.errors.append(resolution.refusal)
