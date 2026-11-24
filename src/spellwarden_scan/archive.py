@@ -337,6 +337,30 @@ def _link_target(archive: zipfile.ZipFile, info: zipfile.ZipInfo, name: str, tre
     return "/".join(walk), passed, total
 
 
+def list_zip(data: bytes, limits: ArchiveLimits = REPOSITORY_LIMITS) -> frozenset[str]:
+    """The stripped names of every file and symbolic link entry of a zip held in memory (no directory entry), read from the
+    central directory only: no entry is opened (1.23.0, P6-10 spec 7.5, D13). It applies the checks `unpack_zip` applies to
+    the whole archive when a root is named, and no other: `max_compressed`, `max_entries`, `bad_zip`, a suspicious raw name
+    (`unsafe_path`) and an entry through a link or sharing its name (`unsafe_path`). Each name is read later, if at all, by
+    `unpack_zip` with its own root, where every rule applies. No file at all is `empty`. Devices, FIFOs and sockets are not
+    listed."""
+    _archive, infos = _open(data, limits)
+    for info in infos:
+        if _suspicious(info.filename):
+            raise ArchiveError("unsafe_path", info.filename)
+    all_files = [info for info in infos if not info.is_dir()]
+    top = _strip_common_top([info.filename for info in all_files])
+
+    def stripped(name: str) -> str:
+        return name[len(top) + 1:] if top and name.startswith(top + "/") else name
+
+    _check_symlink_paths(infos, stripped)
+    names = frozenset(stripped(info.filename) for info in all_files if _is_link(info) or not _is_special(info))
+    if not names:
+        raise ArchiveError("empty")
+    return names
+
+
 def _check_symlink_paths(infos: list[zipfile.ZipInfo], stripped) -> None:
     """A symbolic link (or other special entry) is allowed, but not one that another entry's path passes through
     (`link` -> `skill` and `link/evil.sh`, also `Link` and `link/evil.sh`) or that another entry shares its name with

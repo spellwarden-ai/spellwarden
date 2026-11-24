@@ -29,7 +29,7 @@ NAMES_1_3_0 = (
 # Phase 3 batch 1 spec 11.2
 NAMES_1_13_0 = ("PromptArgument", "PromptInfo", "ResourceInfo", "ResourceTemplateInfo")
 # P6-10 spec 7.4.2 and 7.5
-NAMES_1_23_0 = ("REPOSITORY_LIMITS",)
+NAMES_1_23_0 = ("REPOSITORY_LIMITS", "list_zip")
 # O3 spec 5.4: the names that live in a submodule of the engine, which the package imports so that they are reachable.
 IDENTITY_NAMES = (
     "package_files", "PackageFiles", "package_sha256", "nested_skill_roots", "is_skill_file", "fold_skill_name",
@@ -191,3 +191,12 @@ def test_1_22_0_adds_the_normalise_module_and_no_package_name():
     for name in ("CANDIDATE_STEPS", "STEPS", "RULES", "MAX_LAYERS", "EVIDENCE_PREFIX", "fold", "payloads", "visible"):
         assert hasattr(normalise, name) and name in normalise.__all__, name
     assert "normalise" not in spellwarden_scan.__all__
+
+
+def test_1_23_0_adds_the_repository_bound_and_the_names_only_listing():
+    from spellwarden_scan import archive
+
+    for name in NAMES_1_23_0:
+        assert name in spellwarden_scan.__all__ and hasattr(spellwarden_scan, name), name
+    assert spellwarden_scan.REPOSITORY_LIMITS is archive.REPOSITORY_LIMITS and spellwarden_scan.list_zip is archive.list_zip
+    assert spellwarden_scan.ArchiveLimits().max_entries == 100_000
