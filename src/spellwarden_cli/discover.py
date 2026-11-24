@@ -280,7 +280,8 @@ def _join(directory: str, name: str) -> str:
 
 class _Escape(UnsafePath):
     """A relative link target refused because it resolves, lexically, outside the scan root (`_Builder._link_target`).
-    Only such a target may be skipped (a member link); every other refusal is an error wherever it leads."""
+    Since 1.23.0 (P6-10 spec 7.7, owner spec:Q1) it is an error wherever it leads, like every other refusal; the class
+    only lets a member link and a linked instruction directory name the case in their message."""
 
 
 class _LockDirAbsent(UnsafePath):
@@ -349,7 +350,6 @@ class _Builder:
         self.folded = {_fold(p): p for p in (*self.paths, *self.links)}
         self.followed: set[str] = set()  # every link followed, or refused with an error
         self.resolved: dict[str, _Resolution] = {}  # package member links, resolved once, adopted only when accepted
-        self.skipped: set[str] = set()  # member links of an accepted package whose target is outside the scan root
         self.own: dict[str, str] = {}  # member links followed to the lock itself -> the lock's path
         # links whose target text names the lock while the file set holds none (`_resolve`); a package member among them is
         # the package's own, like a member link followed to the lock (`member`, 1.16.2), any other stays `unsafe_path`
@@ -447,13 +447,13 @@ class _Builder:
 
     def member(self, path: str) -> _Resolution | None:
         """The resolution of a link inside a skill package or local plugin directory, by the rules of `follow`
-        (r2:F6); None for a link already followed or already an error. A member link that names repository content
-        is followed or is an error: a chain, a path through a directory link, a link to a directory, a missing or
-        excluded target inside the scan root and an unreadable target text are `unsafe_path` or `unreadable`, so
-        what the lock covers cannot change behind it. Only a target outside the scan root (a skill may link outside
-        the repository) is skipped, with its target text in the package's lock hash. Only the target text is read
-        here; resolving marks nothing followed (a package over the limits leaves its links to the next package),
-        `adopt` does."""
+        (r2:F6); None for a link already followed or already an error. A member link is followed or is an error: a
+        chain, a path through a directory link, a link to a directory, a missing or excluded target inside the scan
+        root and an unreadable target text are `unsafe_path` or `unreadable`, so what the lock covers cannot change
+        behind it. Since 1.23.0 (P6-10 spec 7.7, owner spec:Q1) a target outside the scan root is the error
+        `unsafe_path` too, with the way out (`_MEMBER_OUTSIDE`): it was a notice with its target text in the
+        package's lock hash. Only the target text is read here; resolving marks nothing followed (a package over the
+        limits leaves its links to the next package), `adopt` does."""
         if path not in self.links or path in self.followed:
             return None
         if path not in self.resolved:
@@ -462,8 +462,8 @@ class _Builder:
                 self.lock_links.add(path)
                 self.followed.add(path)
                 return None
-            if resolution.refusal is not None and not (resolution.outside and resolution.text is not None):
-                self.errors.append(resolution.refusal)
+            if resolution.refusal is not None:
+                self.errors.append(Notice("unsafe_path", path, _MEMBER_OUTSIDE) if resolution.outside else resolution.refusal)
                 self.followed.add(path)
                 return None
             self.resolved[path] = resolution
@@ -521,9 +521,9 @@ class _Builder:
         link `path` in an instruction folder names, read from the link's text by `_link_target`, as every link is (no file-system
         call receives the text). `target` is that directory when the link can be followed: inside the scan root, reached through
         real directories only, not the scan root and not a directory that holds the link. No `target` and no `refusal`: the link
-        names a regular file of the set, left to the rules of 1.19.0. Otherwise `refusal` says why: the notice `symlink_skipped`
-        for a relative target outside the scan root (the scanner never reads there), `unreadable` for a text the system cannot
-        read, `unsafe_path` for every other target, with the way out."""
+        names a regular file of the set, left to the rules of 1.19.0. Otherwise `refusal` says why: `unreadable` for a text the
+        system cannot read, `unsafe_path` for every other target, with the way out; since 1.23.0 (P6-10 spec 7.7, owner
+        spec:Q1) a relative target outside the scan root is `unsafe_path` too (it was the notice `symlink_skipped`)."""
         try:
             raw = self.fileset.link_target(path)
         except (UnsafePath, paths.TooLarge) as exc:
@@ -536,7 +536,7 @@ class _Builder:
         except UnicodeDecodeError:
             return _Resolution(None, raw, _link_refused(path, "symbolic link: target is not UTF-8"), False)
         except _Escape:
-            return _Resolution(None, raw, Notice("symlink_skipped", path, _LINK_OUTSIDE), True)
+            return _Resolution(None, raw, _link_refused(path, "symbolic link to a place outside the scan root"), True)
         except UnsafePath as exc:
             return _Resolution(None, raw, _link_refused(path, f"symbolic link: {exc}"), False)
         if target in self.links:
@@ -826,8 +826,9 @@ _TOO_LARGE = (f"larger than {FILE_MAX // 2**20} MiB; not read, so the scan is in
 # Engine 1.20.0 (scan selection, 7.20.3, D41): a linked instruction directory that `--follow-links` cannot follow
 _LINK_WAY_OUT = ("not followed, so the scan is incomplete: replace the link with the files it should hold, or leave it out with "
                  "`exclude` in .spellwarden/config.yml")
-_LINK_OUTSIDE = ("symbolic link to a place outside the scan root; not followed, so the instruction files reached only through it "
-                 "are not judged")
+# P6-10 spec 7.7 (1.23.0, owner spec:Q1): a link inside a skill or a local plugin directory whose target leaves the scan root
+_MEMBER_OUTSIDE = ("symbolic link to a place outside the scan root; not followed, so the scan is incomplete: replace the link "
+                   "with the file it names, or leave it out with `exclude` in .spellwarden/config.yml")
 
 
 def _link_refused(path: str, why: str) -> Notice:
@@ -923,10 +924,9 @@ def discover(fileset: FileSet, *, listed_cards: Sequence[str] = (), agents_confi
     # package limits is an item error and is not read whole, like a skill (r0:F8).
     dirs: list[PluginDir] = []
     for directory in sorted(plugin_dirs):
-        package = _package(builder, directory, _inside(directory, []), "plugin directory")
-        if package is not None and (package[0] or package[1]):
-            dirs.append(PluginDir(directory, _read_all(builder, package[0]), package[1],
-                                  frozenset(p for p in package[0] if p in builder.own)))
+        members = _package(builder, directory, _inside(directory, []), "plugin directory")
+        if members:
+            dirs.append(PluginDir(directory, _read_all(builder, members), own=frozenset(p for p in members if p in builder.own)))
     cards = _agent_cards(builder, listed_cards)
     # Before the loop below: a link followed here is no `symlink_skipped`.
     skill_directories = frozenset(skill.path for skill in skills)
@@ -939,12 +939,7 @@ def discover(fileset: FileSet, *, listed_cards: Sequence[str] = (), agents_confi
         skills = [replace(skill, markdown=frozenset(p for p in skill.files if instruction_files.format_of(p) is not None))
                   for skill in skills]
     for path in sorted(builder.links):
-        if path in builder.skipped:
-            refusal = builder.resolved[path].refusal
-            builder.notices.append(Notice("symlink_skipped", path, f"{refusal.message if refusal else 'symbolic link'}; "
-                                                                   "not followed, and its target text is in the "
-                                                                   "package's lock hash"))
-        elif path in builder.lock_links:  # 1.16.2: as `own`, before the lock exists
+        if path in builder.lock_links:  # 1.16.2: as `own`, before the lock exists
             builder.notices.append(Notice("symlink_skipped", path, "symbolic link to the scanner's own file "
                                                                    "'.spellwarden/lock.json', which does not exist yet: left "
                                                                    "out of the package's lock hash like that file"))
@@ -1084,7 +1079,7 @@ def _linked_directories(builder: _Builder, skill_directories: frozenset[str],
         resolution = builder.directory_link(path)
         if resolution.refusal is not None:
             builder.followed.add(path)
-            (builder.notices if resolution.refusal.code == "symlink_skipped" else builder.errors).append(resolution.refusal)
+            builder.errors.append(resolution.refusal)
         elif resolution.target is not None:
             followed.append((path, resolution.target))
     followed.sort(key=lambda pair: (not instruction_files.linked_first(pair[0]), pair[0]))
@@ -1234,13 +1229,12 @@ def _inside(directory: str, nested: Sequence[str]) -> Callable[[str], bool]:
     return inside
 
 
-def _package(builder: _Builder, directory: str, inside: Callable[[str], bool],
-             what: str) -> tuple[list[str], dict[str, bytes]] | None:
-    """`(members, links)` of a skill package or local plugin directory: its files of the set, with every member link
-    the rules of `_Builder.follow` accept followed (its target's bytes are the member's content under the link's
-    path, r2:F6), and the target text of each member link they refuse. None, with the item error recorded, when the
-    package is over the limits, judged before any member or link target is read: the count with every link, the
-    bytes with the listed size of each target followed."""
+def _package(builder: _Builder, directory: str, inside: Callable[[str], bool], what: str) -> list[str] | None:
+    """The members of a skill package or local plugin directory: its files of the set, with every member link the rules
+    of `_Builder.follow` accept followed (its target's bytes are the member's content under the link's path, r2:F6); a
+    member link they refuse is an error (`_Builder.member`; since 1.23.0 one whose target leaves the scan root too,
+    P6-10 spec 7.7). None, with the item error recorded, when the package is over the limits, judged before any member
+    or link target is read: the count with every link, the bytes with the listed size of each target followed."""
     candidates = _under_range(builder, directory)
     regular = [p for p in candidates if p in builder.paths and inside(p)]
     pending = [p for p in candidates if p in builder.links and p not in builder.paths and inside(p)]
@@ -1259,10 +1253,7 @@ def _package(builder: _Builder, directory: str, inside: Callable[[str], bool],
     for link, target in targets.items():
         if builder.adopt(link, target) and target == LOCK_PATH:
             builder.own[link] = target
-    skipped = {link: r.text for link, r in resolved.items() if r.target is None and r.text is not None}
-    builder.skipped.update(skipped)
-    members = [p for p in candidates if p in builder.paths and inside(p)]
-    return members, skipped  # type: ignore[return-value]
+    return [p for p in candidates if p in builder.paths and inside(p)]
 
 
 def _too_large(builder: _Builder, directory: str, count: int, size: int, what: str) -> bool:
@@ -1292,10 +1283,9 @@ def _skills(builder: _Builder, plugin_of_dir: dict[str, str]) -> list[SkillPacka
     for directory in directories:
         nested = _nested_roots(builder, directory)
         before = len(builder.errors)
-        package = _package(builder, directory, _inside(directory, list(nested)), "skill package")
-        if package is None:
+        members = _package(builder, directory, _inside(directory, list(nested)), "skill package")
+        if members is None:
             continue
-        members, links = package
         files = _read_all(builder, members)
         if len(builder.errors) != before:
             continue  # an unreadable member makes the skill an item error, not a partial scan
@@ -1307,8 +1297,8 @@ def _skills(builder: _Builder, plugin_of_dir: dict[str, str]) -> list[SkillPacka
         # one skill file per directory: two names that fold alike are a `case_collision` and left out of the set
         variant = next((p for p in members if posixpath.dirname(p) == directory and _is_loaded_variant(p)), None)
         packages.append(SkillPackage(directory, name, files, frozenset(p for p in members if entries[p].executable), plugin,
-                                     links, variant, frozenset(p for p in members if p in builder.own), nested,
-                                     frozenset(builder.targets[p] for p in members if p in builder.targets)))
+                                     variant=variant, own=frozenset(p for p in members if p in builder.own), nested=nested,
+                                     targets=frozenset(builder.targets[p] for p in members if p in builder.targets)))
     return packages
 
 

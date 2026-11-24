@@ -239,7 +239,9 @@ def test_unhashable_skill_when_the_settings_drop_one_of_its_files(config, droppe
     assert code == 1 and finding["evidence"] == f"deploy ({dropped}): unhashable"
 
 
-def test_unhashable_skill_with_an_unfollowed_member_link(make_repo, run_cli, tmp_path, api_double):
+def test_a_skill_with_a_member_link_out_of_the_scan_root_is_incomplete_not_unhashable(make_repo, run_cli, tmp_path, api_double):
+    # P6-10 spec 7.7 (1.23.0, owner spec:Q1): the link is the error `unsafe_path`, so the skill is not scanned and the scan is
+    # incomplete (exit 2); up to 1.22.0 the skill was scanned and the gate found it unhashable
     fake, _ = api_double
     serve(fake)
     repo = tmp_path / "repo"
@@ -250,8 +252,8 @@ def test_unhashable_skill_with_an_unfollowed_member_link(make_repo, run_cli, tmp
         pytest.skip("symbolic links cannot be created here")
     make_repo(repo, {})
     code, report, _, _ = scan_json(run_cli, repo, env_of())
-    (finding,) = regs(report)
-    assert code == 1 and finding["evidence"] == "deploy (skills/deploy/ext): unhashable"
+    assert code == 2 and regs(report) == []
+    assert ("unsafe_path", "skills/deploy/ext") in {(e["code"], e["path"]) for e in report["errors"]}
 
 
 def _real_git_repo(make_repo, tmp_path: Path, extra: dict) -> Path:
