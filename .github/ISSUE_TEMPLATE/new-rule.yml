@@ -1,0 +1,47 @@
+name: New rule proposal
+description: Propose a rule before writing code, as CONTRIBUTING.md asks.
+labels: ["rule proposal"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        CONTRIBUTING.md says what a merged rule needs: https://github.com/spellwarden-ai/spellwarden/blob/main/CONTRIBUTING.md
+  - type: textarea
+    id: detects
+    attributes:
+      label: What the rule detects
+      description: One sentence.
+    validations:
+      required: true
+  - type: dropdown
+    id: content
+    attributes:
+      label: Which kind of content it reads
+      options:
+        - A skill (SKILL.md package)
+        - An MCP client configuration
+        - Claude Code settings or hooks
+        - A plugin marketplace
+        - An instruction file
+        - An A2A agent card
+        - A probed MCP server
+    validations:
+      required: true
+  - type: textarea
+    id: example
+    attributes:
+      label: A public example of the problem, or a harmless sample you wrote
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: gap
+    attributes:
+      label: Why no rule finds it today
+    validations:
+      required: true
+  - type: textarea
+    id: harmless
+    attributes:
+      label: Which harmless content the pattern would also match
+      description: As far as you checked. A rule that fires on most harmless content is not merged as it is.

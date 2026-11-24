@@ -1,0 +1,37 @@
+name: Missed detection
+description: The scanner found nothing in content that a rule should have caught.
+labels: ["missed detection"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you. An issue is public: make a malicious sample harmless first, and take out every secret, address and private name.
+        If the sample is a working attack, or publishing the method would help someone hide content from the scanner before a fix is released, do not open an issue: send it to security@spellwarden.ai.
+  - type: input
+    id: versions
+    attributes:
+      label: Scanner version and rules version
+      description: Every report carries both, and `spellwarden version` prints them.
+      placeholder: spellwarden 1.21.0 (rules 2026.11.8)
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected to be found
+      description: The rule id if you know it, or what the content does.
+    validations:
+      required: true
+  - type: textarea
+    id: sample
+    attributes:
+      label: The smallest harmless sample that shows it
+      description: Name the file it comes from (for example SKILL.md, a hook or an MCP configuration).
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: source
+    attributes:
+      label: Where you saw it
+      description: A public link if there is one. No private repositories and no customer content.

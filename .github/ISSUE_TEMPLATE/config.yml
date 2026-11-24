@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: A security problem, or a working way past a rule
+    url: https://github.com/spellwarden-ai/spellwarden/blob/main/SECURITY.md
+    about: Do not open a public issue. Send it to security@spellwarden.ai, as the security policy says.
+  - name: The hosted product at spellwarden.ai
+    url: https://spellwarden.ai/docs?utm_source=github&utm_medium=issue-form&utm_campaign=issue-forms
+    about: Questions about the dashboard, the API or billing go to the contact address on the site, not here.

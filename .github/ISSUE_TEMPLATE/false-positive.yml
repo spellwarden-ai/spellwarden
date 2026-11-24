@@ -1,0 +1,38 @@
+name: False positive
+description: A rule reported a finding on content that is not a problem.
+labels: ["false positive"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting it. An issue is public: take every secret, address and private name out of the sample first.
+        Until the rule changes, you can accept the finding in the baseline file with a reason and an end date: https://spellwarden.ai/docs/false-positives?utm_source=github&utm_medium=issue-form&utm_campaign=issue-forms
+  - type: input
+    id: rule
+    attributes:
+      label: Rule id
+      placeholder: SW-SKL-009
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Scanner version and rules version
+      description: Every report carries both, and `spellwarden version` prints them.
+      placeholder: spellwarden 1.21.0 (rules 2026.11.8)
+    validations:
+      required: true
+  - type: textarea
+    id: sample
+    attributes:
+      label: The smallest sample that makes the rule fire
+      description: Safe to publish. Name the file it comes from (for example SKILL.md or .mcp.json).
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it is not a problem
+    validations:
+      required: true
