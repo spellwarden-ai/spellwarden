@@ -32,3 +32,32 @@ def test_text_limit_from_the_engine_is_unreadable_and_the_scan_exits_2(make_repo
                                 f"not read, so the scan is incomplete: {run.TEXT_WAY_OUT}")
     assert "`exclude` in .spellwarden/config.yml" in run.TEXT_WAY_OUT
     assert {finding["item"] for finding in report["findings"]} == {"skills/risky"}
+
+
+def test_text_limit_for_an_instruction_file_is_unreadable_and_the_scan_exits_2(make_repo, tmp_path, run_cli, monkeypatch):
+    # Review r0:F2: the instruction-file branch of `engine_findings` reports the refusal as the skill branch does.
+    real = run.scan_skill_package
+
+    def refusing(files, rules, **options):
+        if options.get("kind") == "instructions" and "AGENTS.md" in files:
+            raise TextLimit("AGENTS.md", TEXT_MAX + 1)
+        return real(files, rules, **options)
+
+    monkeypatch.setattr(run, "scan_skill_package", refusing)
+    repo = make_repo(tmp_path / "repo", {"AGENTS.md": "Be careful.\n", "skills/risky/SKILL.md": RISKY.format(name="risky")})
+    code, report, _out, err = scan_json(run_cli, repo)
+    assert code == 2, err
+    (error,) = report["errors"]
+    assert (error["code"], error["path"]) == ("unreadable", "AGENTS.md")
+    assert "AGENTS.md" not in {finding["item"] for finding in report["findings"]}
+    assert {finding["item"] for finding in report["findings"]} == {"skills/risky"}
+
+
+def test_engine_findings_records_which_refusals_are_for_the_text_limit():
+    # Review r0:F1: the analyzer must tell a text file over the read limit from a front matter past its limits.
+    from spellwarden_cli import analysis
+
+    message = analysis._unread_message("notes.md", "text_limit")
+    assert f"over the {TEXT_MAX // 2**20} MiB the rules read" in message
+    assert "front matter" not in message
+    assert "front matter" in analysis._unread_message("notes.md", "front_matter")
