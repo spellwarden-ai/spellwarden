@@ -28,6 +28,8 @@ NAMES_1_3_0 = (
 )
 # Phase 3 batch 1 spec 11.2
 NAMES_1_13_0 = ("PromptArgument", "PromptInfo", "ResourceInfo", "ResourceTemplateInfo")
+# P6-10 spec 7.4.2 and 7.5
+NAMES_1_23_0 = ("REPOSITORY_LIMITS",)
 # O3 spec 5.4: the names that live in a submodule of the engine, which the package imports so that they are reachable.
 IDENTITY_NAMES = (
     "package_files", "PackageFiles", "package_sha256", "nested_skill_roots", "is_skill_file", "fold_skill_name",
@@ -49,7 +51,8 @@ def test_the_1_0_0_names_are_all_still_exported():
 def test_1_1_0_adds_exactly_the_names_of_spec_5_8():
     for name in NAMES_1_1_0:
         assert name in spellwarden_scan.__all__ and hasattr(spellwarden_scan, name), name
-    assert sorted(spellwarden_scan.__all__) == sorted(NAMES_1_0_0 + NAMES_1_1_0 + NAMES_1_2_0 + NAMES_1_3_0 + NAMES_1_13_0)
+    assert sorted(spellwarden_scan.__all__) == sorted(NAMES_1_0_0 + NAMES_1_1_0 + NAMES_1_2_0 + NAMES_1_3_0 + NAMES_1_13_0
+                                                      + NAMES_1_23_0)
     assert len(spellwarden_scan.__all__) == len(set(spellwarden_scan.__all__))
 
 

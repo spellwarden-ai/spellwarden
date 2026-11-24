@@ -14,6 +14,8 @@ from dataclasses import dataclass
 
 _DRIVE = re.compile(r"^[A-Za-z]:")
 _CHUNK = 65536
+# P6-10 spec 7.4.1, D10 (1.23.0): the four bytes that open a central directory header; `zipfile` builds one entry per header
+_CENTRAL_HEADER = b"PK\x01\x02"
 
 
 @dataclass(frozen=True)
@@ -23,24 +25,35 @@ class ArchiveLimits:
     max_files: int = 2000
     max_file: int = 10 * 2**20
     max_path: int = 255
+    # P6-10 spec 7.4.1, D10 (1.23.0): the most central directory headers the whole archive may hold, whatever `root` is
+    max_entries: int = 100_000
 
 
 DEFAULT_LIMITS = ArchiveLimits()
+# P6-10 spec 7.4.2, D11 (1.23.0): a repository's archive read under a named root (the hosted git source); every other field
+# is the default, and `DEFAULT_LIMITS` keeps 20 MiB
+REPOSITORY_LIMITS = ArchiveLimits(max_compressed=50 * 2**20)
 
 
 class ArchiveError(ValueError):
-    """`code` is one of `too_large`, `too_many_files`, `unsafe_path`, `symlink`, `bad_zip`, `empty`."""
+    """`code` is one of `too_large`, `too_many_files`, `unsafe_path`, `symlink`, `bad_zip`, `empty`. `why` (1.23.0, P6-10
+    spec 7.6) names the case: for `symlink` one of `special`, `unsafe_target`, `outside`, `dangling`, `chain`, `directory`,
+    `through_link`; for `too_many_files` `archive_entries` (the whole archive's headers) or `""` (`max_files`); `""` for
+    every other code."""
 
-    def __init__(self, code: str, detail: str = "") -> None:
+    def __init__(self, code: str, detail: str = "", why: str = "") -> None:
         super().__init__(f"{code}: {detail}" if detail else code)
         self.code = code
         self.detail = detail
+        self.why = why
 
 
-def _unsafe(name: str, limits: ArchiveLimits) -> bool:
+def _unsafe(name: str, limits: ArchiveLimits, *, length: bool = True) -> bool:
+    """`length=False` (1.23.0, P6-10 spec 7.3, D9) for a raw entry name, which may hold the forge's top directory: the
+    255-character bound is measured on the stripped name, the path inside the repository."""
     if not name or "\x00" in name or "\\" in name or _DRIVE.match(name) or name.startswith("/"):
         return True
-    if len(name) > limits.max_path:
+    if length and len(name) > limits.max_path:
         return True
     parts = name.split("/")
     # `.` and `..` anywhere, and empty parts (`a//b`): every consumer must read the same path the scan read.
@@ -129,15 +142,36 @@ def _strip_common_top(names: list[str]) -> str:
     return top if all("/" in name for name in names) else ""
 
 
+def _open(data: bytes, limits: ArchiveLimits) -> tuple[zipfile.ZipFile, list[zipfile.ZipInfo]]:
+    """The archive and its central directory, after the two whole-archive bounds: the compressed size, then the number of
+    central directory headers its bytes hold (P6-10 spec 7.4.1, D10), counted before `zipfile` parses one. `zipfile`
+    ignores the count the end record declares and builds one entry per header it finds, and it refuses a header without
+    the signature, so the count bounds what it builds; it can only be higher than the real number of entries (the same
+    four bytes stored in file data), which fails closed."""
+    if len(data) > limits.max_compressed:
+        raise ArchiveError("too_large", "compressed size over the limit")
+    if data.count(_CENTRAL_HEADER) > limits.max_entries:
+        raise ArchiveError("too_many_files", f"more than {limits.max_entries} entries in the archive", why="archive_entries")
+    try:
+        archive = zipfile.ZipFile(io.BytesIO(data))
+        infos = archive.infolist()
+    except (zipfile.BadZipFile, ValueError, EOFError, RuntimeError, OSError) as exc:
+        # `NotImplementedError` (a `RuntimeError`) for an unsupported "version needed to extract" in the central directory.
+        raise ArchiveError("bad_zip", str(exc)) from exc
+    return archive, infos
+
+
 def unpack_zip(data: bytes, limits: ArchiveLimits = DEFAULT_LIMITS, *, with_modes: bool = False, root: str | None = ""):
     """`{path: bytes}` of a zip held in memory; with `with_modes=True`,
     `(files, executable_paths)`. Raises `ArchiveError` (spec 5.6).
 
-    The whole-archive compressed limit is checked first. Everywhere in the archive, a repeated name, a `.`, `..` or
-    empty segment and a file that is also a directory are `unsafe_path` (every extractor reads them differently).
-    Under `root` (the directory that will be scanned, relative to the stripped top; `""` is the whole archive,
-    `None` none of it), two names equal after NFC normalisation and lower-casing and a segment Windows renames or
-    refuses are `unsafe_path` as well: outside it they belong to another directory of a repository.
+    The whole-archive compressed limit is checked first, then the number of central directory headers (`max_entries`,
+    1.23.0, P6-10 spec 7.4.1). Everywhere in the archive, a repeated name, a `.`, `..` or empty segment and a file that
+    is also a directory are `unsafe_path` (every extractor reads them differently). Under `root` (the directory that will
+    be scanned, relative to the stripped top; `""` is the whole archive, `None` none of it), two names equal after NFC
+    normalisation and lower-casing and a segment Windows renames or refuses are `unsafe_path` as well: outside it they
+    belong to another directory of a repository. The 255-character path bound is measured on the stripped name, the path
+    inside the repository (1.23.0, P6-10 spec 7.3).
 
     With a non-empty `root`, every limit and rule above applies to the entries under it only (`max_files`, the
     declared and real sizes, symlinks and special files, unsafe names, collisions). An entry outside it is skipped:
@@ -149,14 +183,7 @@ def unpack_zip(data: bytes, limits: ArchiveLimits = DEFAULT_LIMITS, *, with_mode
     path passes through a symlink anywhere in the archive. No file under the root is `empty`.
     `root=""` and `root=None` read the whole archive as before."""
     scope = None if root is None else root.strip("/")
-    if len(data) > limits.max_compressed:
-        raise ArchiveError("too_large", "compressed size over the limit")
-    try:
-        archive = zipfile.ZipFile(io.BytesIO(data))
-        infos = archive.infolist()
-    except (zipfile.BadZipFile, ValueError, EOFError, RuntimeError, OSError) as exc:
-        # `NotImplementedError` (a `RuntimeError`) for an unsupported "version needed to extract" in the central directory.
-        raise ArchiveError("bad_zip", str(exc)) from exc
+    archive, infos = _open(data, limits)
     all_files = [info for info in infos if not info.is_dir()]
     top = _strip_common_top([info.filename for info in all_files])
 
@@ -175,15 +202,16 @@ def unpack_zip(data: bytes, limits: ArchiveLimits = DEFAULT_LIMITS, *, with_mode
         if not entries:
             raise ArchiveError("empty", f"nothing under {scope}")
     for info in directory_infos:
-        if _unsafe(info.filename.rstrip("/"), limits):
+        raw = info.filename.rstrip("/")
+        if _unsafe(raw, limits, length=False) or len(stripped(raw)) > limits.max_path:
             raise ArchiveError("unsafe_path", info.filename)
     if not entries:  # no file at all: checked after the directory names, as it always was
         raise ArchiveError("empty")
-    directories = [info.filename.rstrip("/") for info in directory_infos]
+    directories = [stripped(info.filename.rstrip("/")) for info in directory_infos]
     if len(entries) > limits.max_files:
         raise ArchiveError("too_many_files", str(len(entries)))
     for info in entries:
-        if _unsafe(info.filename, limits):
+        if _unsafe(info.filename, limits, length=False):
             raise ArchiveError("unsafe_path", info.filename)
         if _is_special(info):
             raise ArchiveError("symlink", info.filename)
@@ -208,7 +236,7 @@ def unpack_zip(data: bytes, limits: ArchiveLimits = DEFAULT_LIMITS, *, with_mode
         files[name] = content
         if _is_executable(info):
             executable.add(name)
-    _check_file_directory_clash(files, [stripped(d) for d in directories], scope)
+    _check_file_directory_clash(files, directories, scope)
     if with_modes:
         return files, frozenset(executable)
     return files
