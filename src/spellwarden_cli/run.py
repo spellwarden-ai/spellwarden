@@ -16,6 +16,7 @@ from spellwarden_scan import (RULES_VERSION, Finding, OrgRuleBudget, RuleSet, __
                               scan_skill_package)
 from spellwarden_scan.frontmatter import FrontmatterLimit, metadata_of
 from spellwarden_scan.model import SkillMeta
+from spellwarden_scan.package import TextLimit
 
 from spellwarden_cli import agents as agents_module
 from spellwarden_cli import details, discover, files
@@ -217,6 +218,17 @@ def frontmatter_refused(error: FrontmatterLimit, path: str, way_out: str = FRONT
     return Notice("unreadable", path, f"{error.detail}; not read, so the scan is incomplete: {way_out}")
 
 
+# 1.22.0 (P6-4 spec 6.7.3): the way out of a text file over the engine's read limit. The command and `scan --user` stop at the
+# same 10 MiB before the engine sees a file, so only a later path into the engine can reach it.
+TEXT_WAY_OUT = "make the file smaller, or leave it out with `exclude` in .spellwarden/config.yml"
+
+
+def text_refused(error: TextLimit, path: str) -> Notice:
+    """1.22.0 (P6-4 spec 6.7.3): the error `unreadable` of a text file over the engine's read limit (`package.TextLimit`): the
+    file, its size and the way out. The skill or instruction file holding it is not judged, so the scan is incomplete (exit 2)."""
+    return Notice("unreadable", path, f"{error}; not read, so the scan is incomplete: {TEXT_WAY_OUT}")
+
+
 def engine_findings(found: Discovery, rules: RuleSet, notices: list[Notice], errors: list[Notice] | None = None, *,
                     org_budget: Callable[[], OrgRuleBudget] | None = None,
                     way_out: str = FRONTMATTER_WAY_OUT, refused: dict[str, str] | None = None) -> list[ReportFinding]:
@@ -242,6 +254,10 @@ def engine_findings(found: Discovery, rules: RuleSet, notices: list[Notice], err
             refused[skill.path] = skill.as_written(exc.path) if exc.path else skill.path
             refused_to.append(frontmatter_refused(exc, refused[skill.path], way_out))
             continue
+        except TextLimit as exc:
+            refused[skill.path] = skill.as_written(exc.path)
+            refused_to.append(text_refused(exc, refused[skill.path]))
+            continue
         if result.org_rules_incomplete and errors is not None:
             errors.append(connected.org_rules_incomplete_error(result.org_rules_incomplete, skill.path))
         findings.extend(ReportFinding(_as_written(skill, finding), skill.path) for finding in result.findings)
@@ -257,6 +273,10 @@ def engine_findings(found: Discovery, rules: RuleSet, notices: list[Notice], err
         except FrontmatterLimit as exc:
             refused[instruction.path] = exc.path or instruction.path
             refused_to.append(frontmatter_refused(exc, refused[instruction.path], way_out))
+            continue
+        except TextLimit as exc:
+            refused[instruction.path] = exc.path
+            refused_to.append(text_refused(exc, refused[instruction.path]))
             continue
         if result.org_rules_incomplete and errors is not None:
             errors.append(connected.org_rules_incomplete_error(result.org_rules_incomplete, instruction.path))

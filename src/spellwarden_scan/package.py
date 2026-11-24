@@ -10,7 +10,10 @@ from dataclasses import dataclass
 from spellwarden_scan.frontmatter import metadata_of
 from spellwarden_scan.model import Metadata
 
-TEXT_MAX = 2**20
+# 1.22.0 (P6-4 spec 6.7): text is read up to 10 MiB, the command's `FILE_MAX` and the archive reader's `max_file`; a larger file
+# whose first `TEXT_HEAD` bytes pass the text test is `TextLimit`, never a binary file that no text rule reads
+TEXT_MAX = 10 * 2**20
+TEXT_HEAD = 2**20
 REPLACEMENT_SHARE = 0.05
 SCRIPT_EXTENSIONS = (".sh", ".bash", ".zsh", ".py", ".js", ".mjs", ".ts", ".rb", ".ps1", ".pl")
 SHELL_LANGUAGES = ("sh", "bash", "shell", "zsh", "console")
@@ -69,10 +72,19 @@ class CodeBlock:
         return split_lines(self.text)
 
 
+class TextLimit(Exception):
+    """1.22.0 (P6-4 spec 6.7.2): a text file over `TEXT_MAX`, which the engine does not read. `path` names the file and `size` is
+    its size in bytes. Content left unread is the caller's error to report, never a pass: `scan_skill_package` returns no finding
+    of such a package."""
+
+    def __init__(self, path: str, size: int) -> None:
+        super().__init__(f"{path} is {size} bytes of text, over the {TEXT_MAX} bytes the rules read")
+        self.path = path
+        self.size = size
+
+
 def _decode(content: bytes) -> str | None:
-    """UTF-8 with replacement; `None` (binary) when too large or too damaged."""
-    if len(content) > TEXT_MAX:
-        return None
+    """UTF-8 with replacement; `None` (binary) when too damaged. The caller checks the size first (`TEXT_MAX`)."""
     text = content.decode("utf-8", errors="replace")
     if content and text.count("\ufffd") > len(content) * REPLACEMENT_SHARE:
         return None
@@ -148,6 +160,11 @@ class Package:
             if prefix and not path.startswith(prefix):
                 continue
             content = files[path]
+            if len(content) > TEXT_MAX:
+                if _decode(content[:TEXT_HEAD]) is not None:
+                    raise TextLimit(path, len(content))
+                binaries.append(BinaryFile(path, content[:8], len(content)))
+                continue
             text = _decode(content)
             if text is None:
                 binaries.append(BinaryFile(path, content[:8], len(content)))
