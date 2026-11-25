@@ -27,6 +27,7 @@ from spellwarden_scan import lint  # noqa: F401 (`spellwarden_scan.lint`, the de
 from spellwarden_scan import analyzer  # noqa: F401 (`spellwarden_scan.analyzer`, the analyzer's interface: Phase 4 batch B spec 11.2)
 from spellwarden_scan.archive import REPOSITORY_LIMITS, ArchiveError, ArchiveLimits, list_zip, unpack_zip
 from spellwarden_scan.canonical import canonical_sha256
+from spellwarden_scan.deadline import Deadline, TimeLimit
 from spellwarden_scan.evidence import mask_credentials
 from spellwarden_scan.exports import EXPORT_MODES, EXPORT_TARGETS, PLANNED_TARGETS
 from spellwarden_scan.exports import build as build_export
@@ -75,4 +76,6 @@ __all__ = [
     "PromptArgument", "PromptInfo", "ResourceInfo", "ResourceTemplateInfo",
     # P6-10 spec 7.4.2 and 7.5: added in 1.23.0
     "REPOSITORY_LIMITS", "list_zip",
+    # speed and deadline spec 7.1: added in 1.24.0
+    "Deadline", "TimeLimit",
 ]

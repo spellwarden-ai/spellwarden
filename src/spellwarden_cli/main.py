@@ -5,6 +5,7 @@ their own modules and register a sub-parser below the anchor line of
 from __future__ import annotations
 
 import argparse
+import math
 import os
 import sys
 import tempfile
@@ -39,6 +40,17 @@ def _iso_date(text: str) -> date:
         return date.fromisoformat(text)
     except ValueError as exc:
         raise argparse.ArgumentTypeError(f"{text!r} is not a date of the form YYYY-MM-DD") from exc
+
+
+def _positive_seconds(text: str) -> float:
+    """1.24.0: the value of `--time-limit`, a positive finite number of seconds."""
+    try:
+        value = float(text)
+    except ValueError:
+        value = math.nan
+    if not math.isfinite(value) or value <= 0:
+        raise argparse.ArgumentTypeError(f"{text!r} is not a positive number of seconds")
+    return value
 
 
 class _FormatAction(argparse.Action):
@@ -103,6 +115,11 @@ def _add_scan(commands) -> None:
     scan.add_argument("--follow-links", action="store_true",
                       help="follow a linked directory in an instruction folder and judge its files under the link's path (off "
                            "by default; give lock and baseline the same argument)")
+    # 1.24.0 (speed and deadline spec 10.1): a limit on the engine's reading of skills and instruction files; there is no
+    # environment variable and no settings key for it, so a file in the repository cannot raise or remove it
+    scan.add_argument("--time-limit", type=_positive_seconds, metavar="SECONDS", default=None,
+                      help="stop reading skills and instruction files after SECONDS and end the scan incomplete (exit 2); "
+                           "default: no limit")
     # 1.17.0 (Phase 4 batch B spec 11.3): the model-assisted analyzer, off by default; the key comes from
     # SPELLWARDEN_MODEL_KEY only, never a flag
     scan.add_argument("--analyze", action="store_true",
@@ -235,7 +252,8 @@ def _scan_report(args: argparse.Namespace, context, credentials: Credentials,
                               api_url=api_url if overridden and staged is None else None,
                               as_of_given=args.as_of is not None, scope=scope, config=args.config,
                               analyze=_analyze_options(args, model_key), staged=staged,
-                              follow_links=getattr(args, "follow_links", False))
+                              follow_links=getattr(args, "follow_links", False),
+                              time_limit=getattr(args, "time_limit", None))
     started = time.monotonic()
     try:
         report = run.scan(options)
@@ -338,7 +356,8 @@ def _usage_problem(args: argparse.Namespace, outputs: list[tuple[str, str | None
         return None
     for flag, given in (("PATH", args.path is not None), ("--locked", args.locked), ("--baseline", args.baseline is not None),
                         ("--config", args.config is not None), ("--preset", getattr(args, "preset", None) is not None),
-                        ("--follow-links", getattr(args, "follow_links", False))):
+                        ("--follow-links", getattr(args, "follow_links", False)),
+                        ("--time-limit", getattr(args, "time_limit", None) is not None)):
         if given:
             return f"--user scans the home directory and cannot be used with {flag}"
     if args.inventory and args.probe:

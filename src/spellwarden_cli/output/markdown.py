@@ -20,6 +20,8 @@ MAX_CHARS = 60_000
 MAX_ROWS = 25
 CELL_MAX = 200
 ERROR_FIX_MAX = 1000  # a connected error says what to fix: it is not cut at a table cell's length
+# 1.24.0: nor is the error of a scan that reached `--time-limit`, whose message ends with the way out
+WHOLE_ERRORS = (*CONNECTED_ERRORS, "time_limit")
 README_URL = "https://github.com/spellwarden-ai/spellwarden"
 RULES_URL = f"{README_URL}#the-rules"
 # O3 spec 6.10: where the README explains why an item cannot be judged. Its connected-mode section has one heading per
@@ -138,7 +140,7 @@ def _errors(report: Report) -> list[str]:
     lines = ["**These problems stopped a complete scan:**", ""]
     for error in report.errors[:MAX_ROWS]:
         where = f" {_code(error.path)}" if error.path else ""
-        message = escape.markdown(error.message[:ERROR_FIX_MAX]) if error.code in CONNECTED_ERRORS else _text(error.message)
+        message = escape.markdown(error.message[:ERROR_FIX_MAX]) if error.code in WHOLE_ERRORS else _text(error.message)
         lines.append(f"- {error.code}{where}: {message}")
     if len(report.errors) > MAX_ROWS:
         lines.append(f"- and {len(report.errors) - MAX_ROWS} more in the JSON report")

@@ -698,7 +698,8 @@ def validate_org_rule(spec: object) -> None:
 
 @dataclass(frozen=True)
 class OrgRuleBudget:
-    """The org-rule time budget of a scan (spec 5.2.2): `clock` is the caller's (the engine reads no clock of its own)."""
+    """The org-rule time budget of a scan (spec 5.2.2): `clock` is the caller's. The org-rule budget reads only the clock you
+    pass; the engine's one default clock is that of `deadline.Deadline` (1.24.0)."""
 
     clock: Callable[[], float]
     seconds: float

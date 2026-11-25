@@ -1,5 +1,64 @@
 # Changelog
 
+## 1.24.0 (2026-11-25)
+
+Rules version 2026.11.9, unchanged (66 rules): no rule detects anything new, and every finding 1.23.0 reports keeps its rule,
+location, evidence and fingerprint. A test pins the findings of 1.23.0, byte for byte, on every fixture, on the benchmark's
+disguised variants of the fixtures and on generated inputs.
+
+1.24.0: a faster scan, and a scan that runs out of time ends incomplete. On 24 November 2026 a skill of 50 MiB of text, five
+files near 10 MiB, ran past the hosted function's timeout and ended as the error `internal`. The hosted product got more memory
+first; this release is the other two steps.
+
+A faster scan. `benchmarks/speed_profile.py profile` shows where a scan's time goes. Most of it is the rules reading the text as
+written, which this release leaves as it is. It named three pieces of work that were done twice or one character at a time, and
+each is removed:
+
+- SW-SKL-012 began by working out again the commands that SW-SKL-008 had just judged (`skl_008_lines`). The list is now worked
+  out once for each package and each normalised view, and both rules read it. The profile of ordinary Markdown of 10 MiB put
+  SW-SKL-008 at 1.57 s and SW-SKL-012 at 3.39 s.
+- The look-alike step cut every non-ASCII line into words with a Python loop that classified each character. A line without a
+  look-alike letter is now left as it is, a line whose only letters are ASCII letters and look-alike letters is folded whole, and
+  any other line is cut into words by one compiled pattern. The profile of the worst-case file put this step at 1.09 s.
+- The step that removes format characters looked up the category of each character. It now looks up each distinct character of a
+  line once. The same profile put this step at 0.44 s.
+
+Measured with `benchmarks/speed_profile.py run` on Linux 6.18, an AMD Ryzen 9 7950X3D and Python 3.13, medians of three whole scans, with
+normalisation on and off: (a) ordinary Markdown of 10 MiB: 12.27 s before and 10.79 s after with normalisation on, 11.32 s before and
+9.86 s after with it off; (b) 10 MiB built to be the worst case of the normalised pass: 25.48 s before and 20.79 s after with
+normalisation on, 10.52 s before and 8.58 s after with it off; (c) a skill of 50 MiB made of five files like (b): 126.82 s before and
+103.20 s after with normalisation on, 52.40 s before and 42.37 s after with it off. The findings are the same: `benchmarks/speed_profile.py
+check` compares the full-size ones with those 1.23.0 recorded.
+
+A scan can be given a time limit. `scan_skill_package` takes the keyword-only argument `deadline`, a `Deadline` made with
+`Deadline.after(seconds)` and shared by every package of a scan. When its clock reaches it the call raises `TimeLimit`, which names
+the file being read (`path`, or `None`) and the stage (`stage`: `before`, `reading`, `normalising` or `judging`), and returns nothing
+for that package. A package is judged whole or not at all, so a package that was not read whole never looks like a pass. Without
+`deadline` nothing changes, and the entry points that read bounded input take none (`scan_agent_config`, `evaluate_agent_card`,
+`evaluate_probe`, `unpack_zip`, `list_zip`).
+
+- The command. `spellwarden scan --time-limit SECONDS` counts from the start of the scan and limits the reading of skills and
+  instruction files. The flag `--time-limit` takes a positive number of seconds; there is no default limit, no environment
+  variable and no settings key, so a file in the repository cannot raise or remove it. A skill or instruction file the engine had not finished is the error `time_limit`, with the file
+  being read when there was one, and so is every skill and instruction file after it, so nothing unread goes unnamed. The packages
+  judged before the limit keep their findings, none of the others has one, and the exit code is 2. The way out: split the content,
+  leave a file out with `exclude` in `.spellwarden/config.yml`, or raise the limit. `--user` refuses the flag. The description lint
+  leaves a package that was not judged alone, and `--analyze` sends nothing for it (the reason `time_limit`).
+- The report. `time_limit` is a new value of `error.code` in `schemas/report.schema.json`, after `staged_unavailable`: an
+  incomplete result, never a pass. The JSON, text, Markdown and HTML reports print it, the Markdown report with its whole
+  message; SARIF names it in the run's invocation (`toolExecutionNotifications`), as it names the two upload errors; the GitLab
+  Code Quality report carries no error, so there the exit code 2 says it, as for `unreadable`; CycloneDX says `complete` is false.
+- Granularity. The scan looks at the clock before each file, each view and each rule, and once for every 64 KiB of line text, so it
+  stops within about the time one rule needs for one line of 10 MiB after the limit: at most 1.79 s past the limit on this machine
+  in the five cases of `benchmarks/speed_profile.py overshoot`. The hosted step measured about twice this machine's time on a skill
+  like (c) (257 s on 24 November against 126.82 s here before this release), so a limit set on it should leave about twice that
+  room before the function's own timeout. Looking at the clock adds 2.1 per cent to a scan on (a) (1.9 and
+  2.3 per cent in two runs of `benchmarks/speed_profile.py cost` at 10 MiB, their mean) and nothing measurable on (b) (-0.8 and -0.4 per
+  cent), within the 3 per cent the build asked for, and keeps no copy of a code block's lines.
+
+Rule benchmark: no rate got worse than in 1.23.0.
+Rule benchmark: normalisation adds no finding on harmless skills.
+
 ## 1.23.0 (2026-11-24)
 
 Rules version 2026.11.9, unchanged (66 rules): no rule detects anything new, and every finding 1.22.0 reports keeps its rule,

@@ -261,7 +261,7 @@ def _encoded_one_liners(package: Package) -> Iterator[tuple[str, int, str]]:
     # Imported here: rules/skill.py imports this module when the rule is registered, so a top-level import would cycle.
     from spellwarden_scan.rules.skill import decodes_and_runs, logical_commands, pipes_remote_to_shell
 
-    fenced = {(block.path, block.first_line + offset) for block in package.code_blocks for offset in range(len(block.lines))}
+    fenced = {(block.path, block.first_line + offset) for block in package.code_blocks for offset in range(block.line_count)}
     for unit in (*package.instructions(), *package.code_blocks):
         prose = isinstance(unit, TextFile)
         commands = (entry for entry in logical_commands(unit) if not (prose and (entry[0], entry[1]) in fenced))

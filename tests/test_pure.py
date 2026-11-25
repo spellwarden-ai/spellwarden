@@ -55,3 +55,16 @@ def test_nothing_opens_a_file():
                 raise AssertionError(f"{name} calls open()")
             if isinstance(func, ast.Attribute) and func.attr == "open" and name not in OPEN_ALLOWED_IN:
                 raise AssertionError(f"{name} calls .open()")
+
+
+def test_time_is_imported_by_deadline_py_only_and_the_engine_never_sleeps():
+    """Engine 1.24.0 (speed and deadline spec 7.1, claim T14): a monotonic clock is neither the network, nor the file system, nor
+    the environment, so the one module that reads a clock may import `time`; no module sleeps."""
+    for name, tree in modules():
+        if "time" in imported_roots(tree):
+            assert name == "deadline.py", f"{name} imports time"
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+                assert node.func.attr != "sleep", f"{name} sleeps"
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                assert node.func.id != "sleep", f"{name} sleeps"

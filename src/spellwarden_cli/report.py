@@ -31,7 +31,9 @@ ERROR_CODES = (*DOCUMENT_ERRORS, "unsafe_path", "case_collision", "unreadable", 
                # 1.17.0 (Phase 4 batch B spec:Q4, D23): written only when `analysis.incomplete_analysis_is_scan_error` says so
                "analysis_incomplete",
                # 1.19.0: `scan --staged` outside a git repository, or the index could not be read
-               "staged_unavailable")
+               "staged_unavailable",
+               # 1.24.0: a scan that reached `--time-limit`; the package was not judged
+               "time_limit")
 # The error codes whose message says what to fix (O3 spec 6.9); the Markdown report prints them whole.
 CONNECTED_ERRORS = ERROR_CODES[ERROR_CODES.index("connected_config"):ERROR_CODES.index("registry_check_too_large") + 1]
 NOTICE_CODES = ("no_agent_content", "git_unavailable", "exec_bits_unknown", "symlink_skipped", "file_too_large",

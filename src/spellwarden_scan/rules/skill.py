@@ -284,7 +284,7 @@ def _skl_007(package: Package) -> Iterator[Finding]:
     # A fenced block is read as a script (joined at `|`, `&&` and `||`); the prose of its Markdown file skips the
     # block's lines, so a command is reported once, at its first line, by whichever view holds it.
     fenced: set[tuple[str, int]] = {(block.path, block.first_line + offset)
-                                    for block in package.code_blocks for offset in range(len(block.lines))}
+                                    for block in package.code_blocks for offset in range(block.line_count)}
     for unit in (*package.text_files, *package.code_blocks):
         prose = not isinstance(unit, CodeBlock)
         # `curl ... |` then `sh` on the next line is one pipe
@@ -309,19 +309,25 @@ def sends_file_contents(commands: Iterable[tuple[str, int, str]]) -> Iterator[tu
             yield path, number, text
 
 
+def _exfiltrating_commands(package: Package) -> list[tuple[str, int, str]]:
+    """1.24.0 (speed and deadline spec 6.2, F1): `(path, first line, command text)` of every command `sends_file_contents` accepts in
+    the text files of `package`, in file and line order. SW-SKL-008 reports them and SW-SKL-012 skips their lines, so the list is
+    worked out once for each subject (a package, and each of its views) and kept in `package.shared`, nowhere else."""
+    found = package.shared.get("skl_008")
+    if found is None:
+        found = [entry for unit in package.text_files for entry in sends_file_contents(logical_commands(unit))]
+        package.shared["skl_008"] = found
+    return found
+
+
 def skl_008_lines(package: Package) -> set[tuple[str, int]]:
     """`(path, line)` of every SW-SKL-008 match, shared with SW-SKL-012."""
-    hits: set[tuple[str, int]] = set()
-    for unit in package.text_files:
-        for path, number, _text in sends_file_contents(logical_commands(unit)):
-            hits.add((path, number))
-    return hits
+    return {(path, number) for path, number, _text in _exfiltrating_commands(package)}
 
 
 def _skl_008(package: Package) -> Iterator[Finding]:
-    for unit in package.text_files:
-        for path, number, text in sends_file_contents(logical_commands(unit)):
-            yield _finding("SW-SKL-008", "critical", TITLES["SW-SKL-008"], path, number, text, malicious=True)
+    for path, number, text in _exfiltrating_commands(package):
+        yield _finding("SW-SKL-008", "critical", TITLES["SW-SKL-008"], path, number, text, malicious=True)
 
 
 # --- SW-SKL-009 ------------------------------------------------------------------------------
