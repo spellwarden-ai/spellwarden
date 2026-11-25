@@ -20,6 +20,8 @@ Since 1.23.0 a skill read from a large repository's archive is read whole: the s
 
 Since 1.22.0 the skill rules also read a normalised copy of the text, so that content written another way (look-alike letters, hidden characters, base64) is still found, and every release measures how many detections survive disguised versions of the malicious skills ([Disguised content](README.md#disguised-content)). Since 1.22.0 the rules also read text files up to 10 MiB, so a file padded past 1 MiB no longer hides its content.
 
+Since 1.24.0 a scan can be given a time limit: `spellwarden scan --time-limit SECONDS` ends a scan that reaches it incomplete, naming every skill and instruction file it did not read and judging none of them in part, and the normalised scan is faster ([Limits](README.md#limits)).
+
 ## Being built now
 
 Nothing at the moment: the next item comes from the list below.

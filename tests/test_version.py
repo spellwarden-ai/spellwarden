@@ -238,3 +238,35 @@ def test_the_changelog_has_the_1_23_0_entry_above_1_22_0():
         assert needle in entry, needle
     for character in ("—", "–", "!"):
         assert character not in raw
+
+
+def test_the_changelog_has_the_1_24_0_entry_above_1_23_0():
+    """Speed and deadline spec 12.2 and T20: the rules count first, the speed work with the profile line each change removed and the
+    times before and after, the library argument and the exception, the command flag and the error with its way out, the report
+    code and the granularity; the orchestrator sets the date when the release is tagged."""
+    import re
+
+    text = (PYPROJECT.parent / "CHANGELOG.md").read_text(encoding="utf-8").replace("\r\n", "\n")
+    assert text.index("## 1.24.0 (") < text.index("## 1.23.0 (")
+    raw = text[text.index("## 1.24.0 ("):text.index("## 1.23.0 (")]
+    entry = " ".join(raw.split())
+    assert entry.startswith("## 1.24.0 (")
+    assert "Rules version 2026.11.9, unchanged (66 rules): no rule detects anything new, and every finding 1.23.0 reports keeps" in entry
+    for needle in ("`Deadline`", "`Deadline.after(seconds)`", "`TimeLimit`", "`path`", "`stage`", "`time_limit`", "`--time-limit`",
+                   "split the content", "leave a file out with `exclude` in `.spellwarden/config.yml`", "or raise the limit",
+                   "Granularity.", "`benchmarks/speed_profile.py profile`", "`benchmarks/speed_profile.py check`",
+                   "`benchmarks/speed_profile.py overshoot`", "`skl_008_lines`", "`schemas/report.schema.json`", "after `staged_unavailable`",
+                   "whole or not at all", "keep their findings", "`--user` refuses the flag", "the reason `time_limit`"):
+        assert needle in entry, needle
+    # the measured figures are in it: the profile of each change, and the times of (a), (b) and (c) before and after, on and off
+    for label in ("(a)", "(b)", "(c)"):
+        part = entry[entry.index(label + " "):]
+        assert re.match(rf"\{label[0]}[abc]\) [^:]*: (\d+\.\d+) s before and (\d+\.\d+) s after with normalisation on, "
+                        r"(\d+\.\d+) s before and (\d+\.\d+) s after with it off", part), label
+    assert re.search(r"put SW-SKL-008 at \d+\.\d+ s and SW-SKL-012 at \d+\.\d+ s", entry)
+    assert re.search(r"this step at \d+\.\d+ s", entry) and re.search(r"this step at \d+\.\d+ s\.", entry)
+    assert re.search(r"at most \d+\.\d+ s past the limit on this machine", entry)
+    assert re.search(r"Looking at the clock adds \d+\.\d+ per cent to a scan", entry)
+    assert not re.search(r"<[a-z_0-9]+>", raw), "a figure of the measurements is still a slot"
+    for character in ("\u2014", "\u2013", "!"):
+        assert character not in raw
