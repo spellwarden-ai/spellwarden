@@ -182,3 +182,28 @@ def test_a_lines_carries_the_path_it_was_made_for():
     with pytest.raises(TimeLimit) as raised:
         list(Lines(("x",), meter, "scripts/run.sh"))
     assert raised.value.path == "scripts/run.sh"
+
+
+def reference_cuts(lines, step):
+    """The cut of the slices as one loop over the lines: a slice ends at the first line that brings its characters to `step`."""
+    cuts, start, total = [], 0, 0
+    for count, line in enumerate(lines, start=1):
+        total += len(line)
+        if total >= step:
+            cuts.append((start, count, total))
+            start, total = count, 0
+    if start < len(lines):
+        cuts.append((start, len(lines), total))
+    return tuple(cuts)
+
+
+@pytest.mark.parametrize("block", [1, 2, 3, 7, deadline.CUT_BLOCK])
+def test_the_cuts_found_a_block_of_lines_at_a_time_are_those_of_a_loop_over_the_lines(monkeypatch, block):
+    """The cut is made in C a block of lines at a time (cost, spec 7.5): whatever the block, the step and the lengths, the slices
+    are those of the plain loop, for a list as for a tuple."""
+    monkeypatch.setattr(deadline, "CUT_BLOCK", block)
+    sizes = (0, 0, 1, 2, 5, 40, 300)
+    for count in (0, 1, 2, 5, 30, 200):
+        lines = ["x" * sizes[(number * 7 + count) % len(sizes)] for number in range(count)]
+        for step in (-1, 0, 1, 2, 3, 10, 64, 500, 10**6):
+            assert deadline._cuts(tuple(lines), step) == reference_cuts(lines, step) == deadline._cuts(lines, step), (count, step)

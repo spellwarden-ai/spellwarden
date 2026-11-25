@@ -6,6 +6,7 @@ hands out and reads the clock once for every `CHECK_STEP` of them, so a rule tha
 line of its own. The clock is a function the caller can replace; the default is `time.monotonic`. The engine never sleeps."""
 from __future__ import annotations
 
+import bisect
 import itertools
 import math
 import time
@@ -76,19 +77,31 @@ class Meter:
             self.check(path)
 
 
-def _cuts(lines: Iterable[str], step: int) -> tuple[tuple[int, int, int], ...]:
+CUT_BLOCK = 8192  # lines whose running totals `_cuts` holds at once, so that a file of millions of lines costs a bounded list
+
+
+def _cuts(lines: tuple[str, ...] | list[str], step: int) -> tuple[tuple[int, int, int], ...]:
     """The slices a `Lines` hands out, `(start, end, weight)`: a slice ends at the first line that brings its characters to `step`
-    or more, and the last one holds the rest."""
+    or more, and the last one holds the rest. The lengths are summed and searched in C a block of lines at a time; Python runs
+    once for each slice, not once for each line. Most calls are for a few lines that never reach `step`: one sum answers those."""
+    total = sum(map(len, lines))
+    if total < step:
+        return ((0, len(lines), total),) if lines else ()
     cuts: list[tuple[int, int, int]] = []
-    start = total = count = 0
-    for line in lines:
-        count += 1
-        total += len(line)
-        if total >= step:
-            cuts.append((start, count, total))
-            start, total = count, 0
-    if start < count:
-        cuts.append((start, count, total))
+    start = held = 0  # held: the characters of the lines from `start` to the block's start
+    for block_start in range(0, len(lines), CUT_BLOCK):
+        running = list(itertools.accumulate(map(len, lines[block_start:block_start + CUT_BLOCK])))
+        base = position = 0  # the running total before `position`'s slice, and where the search goes on
+        while True:
+            at = bisect.bisect_left(running, base + step - held, position)
+            if at == len(running):
+                held += running[-1] - base
+                break
+            end = block_start + at + 1
+            cuts.append((start, end, held + running[at] - base))
+            start, held, base, position = end, 0, running[at], at + 1
+    if start < len(lines):
+        cuts.append((start, len(lines), held))
     return tuple(cuts)
 
 
@@ -99,15 +112,18 @@ class Lines(tuple):
     `enumerate`, `zip`, `sorted`. Make it from a plain tuple or list, never from another `Lines`."""
 
     def __new__(cls, lines: Iterable[str], meter: Meter, path: str | None) -> Lines:
+        if not isinstance(lines, (tuple, list)):
+            lines = tuple(lines)
         self = super().__new__(cls, lines)
-        self._meter = meter
-        self._path = path
-        self._cuts = _cuts(tuple.__iter__(self), meter.step)
+        total = sum(map(len, lines))
+        # the common case, a few lines that never reach the step, needs no cut: one slice that is the whole of them
+        one = 0 < len(lines) and total < meter.step
+        self._state = (meter, path, ((0, len(lines), total),) if one else _cuts(lines, meter.step))
         return self
 
     def _slices(self) -> Iterator[tuple[str, ...]]:
-        meter, path = self._meter, self._path
-        for start, end, weight in self._cuts:
+        meter, path, cuts = self._state
+        for start, end, weight in cuts:
             meter.tick(weight, path)
             yield tuple.__getitem__(self, slice(start, end))
 

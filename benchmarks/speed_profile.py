@@ -13,6 +13,7 @@ import argparse
 import base64
 import hashlib
 import json
+import math
 import platform
 import statistics
 import sys
@@ -267,16 +268,22 @@ def case_files(name: str, size: int) -> dict[str, bytes]:
     return big_skill(size) if name == "big-skill" else generated_case(name, size)
 
 
-def timed(files: Mapping[str, bytes], normalise: bool, repeat: int) -> tuple[float, dict]:
-    """The median of `repeat` whole scans of `files`, in seconds, and the digest of the last result."""
+def timed(files: Mapping[str, bytes], normalise: bool, repeat: int, *, deadline: bool = False) -> tuple[float, dict]:
+    """The median of `repeat` whole scans of `files`, in seconds, and the digest of the last result. With `deadline`, each scan
+    has one that never passes (`Deadline.after(math.inf)`), so that only the cost of looking at the clock is measured."""
     from spellwarden_scan import RuleSet, scan_skill_package
 
     rules = RuleSet.baseline()
     seconds: list[float] = []
     result = None
     for _ in range(repeat):
+        options: dict = {}
+        if deadline:  # imported here: the first run of the tool is on a tree that has no `Deadline`
+            from spellwarden_scan import Deadline
+
+            options = {"deadline": Deadline.after(math.inf)}
         started = time.perf_counter()
-        result = scan_skill_package(files, rules, normalise=normalise)
+        result = scan_skill_package(files, rules, normalise=normalise, **options)
         seconds.append(time.perf_counter() - started)
     return statistics.median(seconds), digest(result)
 
@@ -390,6 +397,75 @@ def format_comparison(before: dict, after: dict) -> str:
     return "\n".join(lines)
 
 
+OVERSHOOT_CASES = ("ordinary", "worst", "base64-line", "lookalike-line", "nested-base64-line")
+OVERSHOOT_LIMIT_SECONDS = 5.0  # spec 7.5: the most a scan may run past its deadline on the machine of the build
+COST_LIMIT = 0.03  # spec 7.5: the most the clock reads may add to a scan, as a fraction of its time
+
+
+def overshoot_once(files: Mapping[str, bytes], rules, seconds: float, clock=time.perf_counter) -> float | None:
+    """How many seconds past a deadline `seconds` away, by `clock`, `TimeLimit` was raised; None when the scan finished first."""
+    from spellwarden_scan import Deadline, TimeLimit, scan_skill_package
+
+    deadline = Deadline.after(seconds, clock)
+    try:
+        scan_skill_package(files, rules, deadline=deadline)
+    except TimeLimit:
+        return clock() - deadline.at
+    return None
+
+
+def overshoot(name: str, size: int, fractions: int = 20) -> dict:
+    """Spec 7.5: one scan of the case to find its run time, then `fractions` scans with a deadline at evenly spread fractions of
+    it; the time each ran past its deadline, as the median and the maximum."""
+    from spellwarden_scan import RuleSet, scan_skill_package
+
+    files, rules = case_files(name, size), RuleSet.baseline()
+    started = time.perf_counter()
+    scan_skill_package(files, rules)
+    total = time.perf_counter() - started
+    late = [value for index in range(1, fractions + 1)
+            if (value := overshoot_once(files, rules, total * index / (fractions + 1))) is not None]
+    return {"case": name, "size": size, "seconds": round(total, 3), "stopped": len(late),
+            "median": round(statistics.median(late), 3) if late else None, "max": round(max(late), 3) if late else None}
+
+
+def format_overshoot(rows: list[dict]) -> str:
+    lines = [f"{'case':<20}{'run time':>10}{'stopped':>9}{'median past':>13}{'maximum past':>14}"]
+    for row in rows:
+        median = "" if row["median"] is None else f"{row['median']:.2f} s"
+        worst = "" if row["max"] is None else f"{row['max']:.2f} s"
+        lines.append(f"{row['case']:<20}{row['seconds']:>8.2f} s{row['stopped']:>9}{median:>13}{worst:>14}")
+    longest = max((row["max"] or 0.0 for row in rows), default=0.0)
+    lines.append(f"the longest: {longest:.2f} s; the build's requirement is at most {OVERSHOOT_LIMIT_SECONDS:.0f} s")
+    return "\n".join(lines)
+
+
+def cost(names: list[str], size: int, repeat: int) -> dict:
+    """Spec 7.5: each case scanned without a deadline and with one that never passes: the medians, and what the reads add."""
+    rows = {}
+    for name in names:
+        files = case_files(name, size)
+        # alternate the two, the order swapping at each repeat, so that a machine that warms or cools over a run favours neither
+        plain: list[float] = []
+        limited: list[float] = []
+        for index in range(repeat):
+            for with_one in ((False, True) if index % 2 == 0 else (True, False)):
+                (limited if with_one else plain).append(timed(files, True, 1, deadline=with_one)[0])
+        without, with_deadline = statistics.median(plain), statistics.median(limited)
+        rows[name] = {"without": round(without, 3), "with": round(with_deadline, 3),
+                      "extra": round(with_deadline / without - 1, 4)}
+    return {"size": size, "repeat": repeat, "cases": rows}
+
+
+def format_cost(document: dict) -> str:
+    lines = [f"{'case':<20}{'no deadline':>13}{'a deadline':>12}{'extra':>9}"]
+    for name, row in document["cases"].items():
+        lines.append(f"{name:<20}{row['without']:>11.2f} s{row['with']:>10.2f} s{row['extra']:>9.1%}")
+    worst = max((row["extra"] for row in document["cases"].values()), default=0.0)
+    verdict = "within" if worst <= COST_LIMIT else "OVER"
+    return "\n".join([*lines, f"the largest extra is {worst:.1%}: {verdict} the build's requirement of {COST_LIMIT:.0%}"])
+
+
 def check_pin(only: list[str] | None = None) -> int:
     """The full-size cases against the digests 1.23.0 recorded (`tests/golden/record_1_23_0_findings.py`): 0 when every one is
     the same, 1 when one differs. `make check` does not run it: it takes minutes."""
@@ -422,6 +498,16 @@ def main(argv: list[str] | None = None) -> int:
     compare = commands.add_parser("compare", help="two outputs of `run --json`: the change, and the acceptance of spec 6.3")
     compare.add_argument("before")
     compare.add_argument("after")
+    late = commands.add_parser("overshoot", help="how far past its deadline a scan runs (spec 7.5), at 20 deadlines in each case")
+    late.add_argument("--cases", default=",".join(OVERSHOOT_CASES))
+    late.add_argument("--size", type=int, default=FULL)
+    late.add_argument("--fractions", type=int, default=20)
+    late.add_argument("--json", action="store_true")
+    price = commands.add_parser("cost", help="what the clock reads add to a scan: a deadline that never passes against none")
+    price.add_argument("--cases", default="ordinary,worst")
+    price.add_argument("--size", type=int, default=FULL)
+    price.add_argument("--repeat", type=int, default=3)
+    price.add_argument("--json", action="store_true")
     pin = commands.add_parser("check", help="the full-size digests against those 1.23.0 recorded (minutes)")
     pin.add_argument("--only", action="append", help="one of " + ", ".join(FULL_IDS))
     args = parser.parse_args(argv)
@@ -439,6 +525,14 @@ def main(argv: list[str] | None = None) -> int:
         problems = acceptance_problems(before, after)
         print("\n".join(problems) if problems else "every target of spec 6.3 is met, and no finding differs")
         return 1 if problems else 0
+    if args.command == "overshoot":
+        rows = [overshoot(name, args.size, args.fractions) for name in args.cases.split(",") if name]
+        print(json.dumps(rows, indent=1) if args.json else format_overshoot(rows))
+        return 0
+    if args.command == "cost":
+        document = cost([name for name in args.cases.split(",") if name], args.size, args.repeat)
+        print(json.dumps(document, indent=1) if args.json else format_cost(document))
+        return 0
     return check_pin(args.only)
 
 

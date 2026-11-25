@@ -106,3 +106,53 @@ def test_check_compares_the_full_size_digests_with_the_pin(tmp_path, monkeypatch
 def test_the_tool_reads_the_pin_where_the_recorder_writes_it():
     assert speed.GOLDEN == ROOT / "tests" / "golden" / "1.23.0" / "findings.json" and speed.GOLDEN.exists()
     assert set(speed.FULL_IDS) == {name.removeprefix("full/") for name in RECORDED if name.startswith("full/")}
+
+
+# --- the deadline's measurements (spec 7.5): `overshoot` and `cost` -----------------------------------------------------------
+
+class Ticking:
+    """A clock that moves one second at every read: a deadline that is `n` seconds away is `n` reads away."""
+
+    def __init__(self) -> None:
+        self.now = 0.0
+
+    def __call__(self) -> float:
+        self.now += 1.0
+        return self.now
+
+
+def test_overshoot_once_is_the_clock_after_the_error_minus_the_deadline():
+    from spellwarden_scan import RuleSet
+
+    files = speed.generated_case("worst", 20_000)
+    late = speed.overshoot_once(files, RuleSet.baseline(), 30.0, Ticking())
+    assert late == 1.0  # the read that found the deadline passed was the deadline's own second; the next read is one more
+    assert speed.overshoot_once(files, RuleSet.baseline(), 10.0**9, Ticking()) is None  # the scan finished first
+
+
+def test_overshoot_runs_a_scan_for_each_fraction_and_reports_the_median_and_the_maximum(capsys):
+    rows = speed.overshoot("worst", 60_000, fractions=4)
+    assert rows["case"] == "worst" and 0 <= rows["stopped"] <= 4 and rows["seconds"] >= 0
+    if rows["stopped"]:
+        assert 0 <= rows["median"] <= rows["max"]
+    assert speed.main(["overshoot", "--cases", "worst,ordinary", "--size", "60000", "--fractions", "3", "--json"]) == 0
+    printed = json.loads(capsys.readouterr().out)
+    assert [row["case"] for row in printed] == ["worst", "ordinary"]
+    assert speed.main(["overshoot", "--cases", "worst", "--size", "60000", "--fractions", "3"]) == 0
+    assert "the build's requirement is at most 5 s" in capsys.readouterr().out
+
+
+def test_cost_reports_the_extra_the_clock_reads_add(capsys):
+    document = speed.cost(["ordinary", "worst"], 60_000, 1)
+    assert list(document["cases"]) == ["ordinary", "worst"]
+    for row in document["cases"].values():
+        assert row["without"] > 0 and row["with"] > 0 and row["extra"] == pytest.approx(row["with"] / row["without"] - 1, abs=0.02)  # the times are rounded to a millisecond
+    assert speed.main(["cost", "--cases", "ordinary", "--size", "60000", "--repeat", "1"]) == 0
+    out = capsys.readouterr().out
+    assert "the largest extra is" in out and "requirement of 3%" in out
+
+
+def test_the_limits_of_spec_7_5():
+    assert (speed.OVERSHOOT_LIMIT_SECONDS, speed.COST_LIMIT) == (5.0, 0.03)
+    assert speed.format_cost({"cases": {"a": {"without": 1.0, "with": 1.5, "extra": 0.5}}}).endswith("OVER the build's requirement of 3%")
+    assert speed.format_cost({"cases": {"a": {"without": 1.0, "with": 1.01, "extra": 0.01}}}).endswith("within the build's requirement of 3%")
