@@ -116,16 +116,20 @@ class Lines(tuple):
             lines = tuple(lines)
         self = super().__new__(cls, lines)
         total = sum(map(len, lines))
-        # the common case, a few lines that never reach the step, needs no cut: one slice that is the whole of them
-        one = 0 < len(lines) and total < meter.step
-        self._state = (meter, path, ((0, len(lines), total),) if one else _cuts(lines, meter.step))
+        # the common case, a few lines that never reach the step, needs no cut: one tick of all their characters, `cuts` is None
+        small = 0 < len(lines) and total < meter.step
+        self._state = (meter, path, total, None if small else _cuts(lines, meter.step))
         return self
 
-    def _slices(self) -> Iterator[tuple[str, ...]]:
-        meter, path, cuts = self._state
+    def _slices(self, cuts: tuple[tuple[int, int, int], ...]) -> Iterator[tuple[str, ...]]:
+        meter, path = self._state[:2]
         for start, end, weight in cuts:
             meter.tick(weight, path)
             yield tuple.__getitem__(self, slice(start, end))
 
     def __iter__(self) -> Iterator[str]:
-        return itertools.chain.from_iterable(self._slices())
+        meter, path, total, cuts = self._state
+        if cuts is None:  # a few lines that never reach the step: one tick, then the lines as a tuple hands them out
+            meter.tick(total, path)
+            return tuple.__iter__(self)
+        return itertools.chain.from_iterable(self._slices(cuts))

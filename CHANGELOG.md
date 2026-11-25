@@ -51,8 +51,9 @@ for that package. A package is judged whole or not at all, so a package that was
 - Granularity. The scan looks at the clock before each file, each view and each rule, and once for every 64 KiB of line text, so it
   stops within about the time one rule needs for one line of 10 MiB after the limit: at most 1.79 s past the limit on this machine
   in the five cases of `benchmarks/speed_profile.py overshoot`. The hosted step is about three times slower, so a limit set on it
-  should leave that much room before the function's own timeout. Looking at the clock adds 3.4 per cent to a scan. That is on (a); on (b) it is -0.7 per cent. The build asked for at most 3 per cent, so on (a) this release is 0.4
-  points over it.
+  should leave that much room before the function's own timeout. Looking at the clock adds 2.0 per cent to a scan on (a) (1.9 to
+  2.1 per cent in three runs of `benchmarks/speed_profile.py cost` at 10 MiB) and nothing measurable on (b) (-0.8 to 0.4 per
+  cent), within the 3 per cent the build asked for.
 
 ## 1.23.0 (2026-11-24)
 

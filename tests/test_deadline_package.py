@@ -163,3 +163,32 @@ def test_the_rules_that_read_no_line_are_still_those_that_read_none():
     clock.now = 500.0
     for rule_id in READ_NO_LINE:
         list(RuleSet.baseline().get(rule_id).detect(package))
+
+
+def test_a_code_blocks_lines_are_built_once_and_shared_by_every_read():
+    """r0:F1 (spec 7.5): `CodeBlock.lines` was a property that split the text and built a new `Lines` with its cuts at every read, about
+    seven times a block; the clock reads then cost more than the build's 3 per cent. The counted work is one build for each block."""
+    for meter in (None, meter_with(Clock())):
+        block = CodeBlock("a.md", "sh", "echo 1\necho 2", 3, meter)
+        assert block.lines is block.lines
+        assert tuple(block.lines) == ("echo 1", "echo 2") and len(block.lines) == 2
+    assert type(CodeBlock("a.md", "sh", "x", 1).lines) is tuple
+    assert type(CodeBlock("a.md", "sh", "x", 1, meter_with(Clock())).lines) is Lines
+    assert CodeBlock("a.md", "sh", "x", 1, meter_with(Clock())) == CodeBlock("a.md", "sh", "x", 1)
+
+
+def test_a_small_lines_ticks_once_for_each_iteration_and_raises_at_the_deadline():
+    """r0:F1: a `Lines` whose characters never reach the step is iterated without a generator, and counts the same as before."""
+    clock = Clock()
+    meter = meter_with(clock, step=100)
+    small = Lines(("echo 1", "echo 2"), meter, "a.md")
+    assert list(small) == ["echo 1", "echo 2"] and meter.pending == 12
+    assert list(small) == ["echo 1", "echo 2"] and meter.pending == 24
+    assert list(Lines((), meter, "a.md")) == [] and meter.pending == 24
+    meter.pending = 90
+    list(small)  # reaches the step: the clock is read and the count starts again
+    assert meter.pending == 0
+    clock.now = 1000.0
+    with pytest.raises(TimeLimit):
+        meter.pending = 95
+        list(small)

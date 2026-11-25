@@ -70,11 +70,12 @@ class CodeBlock:
     first_line: int
     # 1.24.0 (speed and deadline spec 7.3): the scan's time meter; with one, `lines` ticks it as it is iterated
     meter: Meter | None = field(default=None, compare=False, repr=False)
+    # built once, when the block is made: every rule reads it several times, and a `Lines` costs its cuts each time it is built
+    lines: tuple[str, ...] = field(init=False, compare=False, repr=False)
 
-    @property
-    def lines(self) -> tuple[str, ...]:
+    def __post_init__(self) -> None:
         lines = split_lines(self.text)
-        return lines if self.meter is None else Lines(lines, self.meter, self.path)
+        object.__setattr__(self, "lines", lines if self.meter is None else Lines(lines, self.meter, self.path))
 
 
 class TextLimit(Exception):
