@@ -49,7 +49,7 @@ def test_a_target_that_is_no_recorded_release_or_the_same_rules_version_changes_
     assert reports.as_version("json", data, "1.20.0", "1.20.0", current_rules=NEW) == data
     data = f'"rules_version": "{OLD}"'.encode()
     assert reports.as_version("json", data, "1.19.0", "1.19.0", current_rules=OLD) == data
-    assert reports.RECORDED_RULES == {"1.17.0": OLD, "1.18.0": OLD, "1.19.0": OLD, "1.20.0": NEW, "1.21.0": NEW}
+    assert reports.RECORDED_RULES == {"1.17.0": OLD, "1.18.0": OLD, "1.19.0": OLD, "1.20.0": NEW, "1.21.0": NEW, "1.22.0": "2026.11.9"}
 
 
 def test_a_report_of_1_22_0_is_set_back_to_the_rules_version_each_older_release_printed():

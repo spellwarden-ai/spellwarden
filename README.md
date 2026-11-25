@@ -451,7 +451,7 @@ followed by one entry that joins the nine prompt-injection patterns, `(?i:ignore
             "version": "1.0",
             "built_at": "2026-12-01T00:00:00Z",
             "engine": "<engine version>",
-            "rules_version": "2026.11.9",
+            "rules_version": "2026.11.10",
             "guard_sha256": "<sha256 of the guard file>",
             "options_sha256": "<sha256 of the canonical options>"
           },
