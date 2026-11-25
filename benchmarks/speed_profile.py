@@ -9,10 +9,16 @@ commands in the ordinary Markdown give the rules something to find. Their Unicod
 3.11) to 15.1 (Python 3.13), so a digest recorded on one version holds on every version the checks run on."""
 from __future__ import annotations
 
+import argparse
 import base64
 import hashlib
 import json
+import platform
+import statistics
+import sys
+import time
 from collections.abc import Iterator, Mapping
+from pathlib import Path
 
 MIB = 2**20
 FULL = 10 * MIB  # 10,485,760 bytes: the most `package.TEXT_MAX` reads of one file
@@ -246,3 +252,195 @@ def scan_digest(files: Mapping[str, bytes], **options) -> dict:
     from spellwarden_scan import RuleSet, scan_skill_package
 
     return digest(scan_skill_package(files, RuleSet.baseline(), **options))
+
+
+# --- the tool: runs, profiles, comparisons and the check of the pin ----------------------------------------------------------
+
+CASES = ("ordinary", "worst", "base64-line", "lookalike-line", "big-skill")  # (a), (b), (b1), (b2), (c): what `run` measures
+NOISE_SECONDS = 0.5  # whole-scan figures move by about this much between runs on one machine: a smaller difference is no result
+TARGETS = {"ordinary": 0.10, "worst": 0.15}  # spec 6.3: how much faster (a) and (b) must be with `normalise=True`
+GOLDEN = Path(__file__).resolve().parents[1] / "tests" / "golden" / "1.23.0" / "findings.json"
+
+
+def case_files(name: str, size: int) -> dict[str, bytes]:
+    """The package of one case of `CASES` (or `nested-base64-line`) at `size` bytes of agent text a file."""
+    return big_skill(size) if name == "big-skill" else generated_case(name, size)
+
+
+def timed(files: Mapping[str, bytes], normalise: bool, repeat: int) -> tuple[float, dict]:
+    """The median of `repeat` whole scans of `files`, in seconds, and the digest of the last result."""
+    from spellwarden_scan import RuleSet, scan_skill_package
+
+    rules = RuleSet.baseline()
+    seconds: list[float] = []
+    result = None
+    for _ in range(repeat):
+        started = time.perf_counter()
+        result = scan_skill_package(files, rules, normalise=normalise)
+        seconds.append(time.perf_counter() - started)
+    return statistics.median(seconds), digest(result)
+
+
+def run_cases(names: list[str], size: int, repeat: int) -> dict:
+    """Each case scanned with `normalise=False` and `normalise=True`: the median of `repeat` scans, and the findings' digest."""
+    document: dict = {"python": platform.python_version(), "system": platform.platform(), "machine": platform.machine(),
+                      "size": size, "repeat": repeat, "cases": {}}
+    for name in names:
+        files = case_files(name, size)
+        off, _ = timed(files, False, repeat)
+        on, found = timed(files, True, repeat)
+        document["cases"][name] = {"bytes": sum(len(data) for data in files.values()), "off": round(off, 3), "on": round(on, 3),
+                                   "digest": found}
+        del files
+    return document
+
+
+def format_run(document: dict) -> str:
+    lines = [f"Python {document['python']} on {document['system']} ({document['machine']}), medians of {document['repeat']}",
+             f"{'case':<20}{'bytes':>12}{'normalise off':>16}{'normalise on':>16}{'added':>10}  digest of the findings"]
+    for name, row in document["cases"].items():
+        added = row["on"] - row["off"]
+        lines.append(f"{name:<20}{row['bytes']:>12,}{row['off']:>14.2f} s{row['on']:>14.2f} s{added:>8.2f} s  "
+                     f"{row['digest']['count']} findings, {row['digest']['truncated']} truncated, {row['digest']['sha256'][:16]}")
+    return "\n".join(lines)
+
+
+def profile(name: str, size: int) -> dict:
+    """Where the time of one case goes (spec 5.4, 5.5): building the package and the views, each rule over the text as written
+    and over each view, and each fold step and the base64 search over every line."""
+    from spellwarden_scan import RuleSet, normalise
+    from spellwarden_scan.package import Package
+
+    files = case_files(name, size)
+    started = time.perf_counter()
+    package = Package.build(files)
+    built = time.perf_counter() - started
+    started = time.perf_counter()
+    views = package.views(normalise.STEPS)
+    viewed = time.perf_counter() - started
+    rows = []
+    for rule in RuleSet.baseline().ordered_for_scan("skill"):
+        started = time.perf_counter()
+        for _ in rule.detect(package):
+            pass
+        written = time.perf_counter() - started
+        over = []
+        for view in views:
+            started = time.perf_counter()
+            for _ in rule.detect(view):
+                pass
+            over.append(time.perf_counter() - started)
+        rows.append({"rule": rule.id, "written": round(written, 3), "views": [round(value, 3) for value in over]})
+    lines = [line for unit in package.text_files for line in unit.lines]
+    steps: dict[str, float] = {}
+    for step in (*normalise.FOLD_STEPS, "all fold steps", "base64 search"):
+        started = time.perf_counter()
+        if step == "base64 search":
+            for line in lines:
+                normalise.payloads(line, ("base64",))
+        else:
+            chosen = normalise.FOLD_STEPS if step == "all fold steps" else (step,)
+            for line in lines:
+                normalise.fold(line, chosen)
+        steps[step] = round(time.perf_counter() - started, 3)
+    return {"case": name, "size": size, "build": round(built, 3), "views": round(viewed, 3), "view_count": len(views),
+            "rules": rows, "steps": steps}
+
+
+def format_profile(document: dict) -> str:
+    lines = [f"{document['case']}: package {document['build']:.2f} s, {document['view_count']} views {document['views']:.2f} s",
+             f"{'rule':<12}{'as written':>12}  over each view"]
+    for row in sorted(document["rules"], key=lambda one: -one["written"]):
+        lines.append(f"{row['rule']:<12}{row['written']:>10.2f} s  " + ", ".join(f"{value:.2f} s" for value in row["views"]))
+    lines.append("fold steps and the base64 search over every line: " + ", ".join(
+        f"{step} {seconds:.2f} s" for step, seconds in document["steps"].items()))
+    return "\n".join(lines)
+
+
+def acceptance_problems(before: dict, after: dict) -> list[str]:
+    """What spec 6.3 asks of two runs of `run_cases`, the first on the unchanged tree: the findings digests equal, no case slower
+    than the noise allows, and (a) and (b) faster by their targets with `normalise=True`. Empty when all hold."""
+    problems = []
+    for name, row in after["cases"].items():
+        first = before["cases"].get(name)
+        if first is None:
+            continue
+        if row["digest"] != first["digest"]:
+            problems.append(f"{name}: the findings differ from the first run")
+        for mode in ("off", "on"):
+            if row[mode] > first[mode] + NOISE_SECONDS:
+                problems.append(f"{name}: normalise {mode} is slower, {first[mode]:.2f} s before and {row[mode]:.2f} s after")
+    for name, target in TARGETS.items():
+        if name in before["cases"] and name in after["cases"]:
+            gain = 1 - after["cases"][name]["on"] / before["cases"][name]["on"]
+            if gain < target:
+                problems.append(f"{name}: {gain:.1%} faster with normalisation on, the target is {target:.0%}")
+    return problems
+
+
+def format_comparison(before: dict, after: dict) -> str:
+    lines = [f"{'case':<20}{'on, before':>12}{'on, after':>12}{'change':>9}{'off, before':>13}{'off, after':>12}{'change':>9}"]
+    for name, row in after["cases"].items():
+        first = before["cases"].get(name)
+        if first is None:
+            continue
+        change = {mode: f"{row[mode] / first[mode] - 1:+.1%}" for mode in ("on", "off")}
+        lines.append(f"{name:<20}{first['on']:>10.2f} s{row['on']:>10.2f} s{change['on']:>9}{first['off']:>11.2f} s"
+                     f"{row['off']:>10.2f} s{change['off']:>9}")
+    return "\n".join(lines)
+
+
+def check_pin(only: list[str] | None = None) -> int:
+    """The full-size cases against the digests 1.23.0 recorded (`tests/golden/record_1_23_0_findings.py`): 0 when every one is
+    the same, 1 when one differs. `make check` does not run it: it takes minutes."""
+    recorded = json.loads(GOLDEN.read_text(encoding="utf-8"))["cases"]
+    wrong = 0
+    for name in FULL_IDS:
+        if only and name not in only:
+            continue
+        found = scan_digest(full_input(name), normalise=True)
+        same = found == recorded[f"full/{name}"]
+        wrong += not same
+        verdict = "the same as 1.23.0" if same else "DIFFERENT from 1.23.0"
+        print(f"{name}: {verdict} ({found['count']} findings, {found['sha256'][:16]})")
+    return 1 if wrong else 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="The scan's speed profile (engine 1.24.0, speed and deadline spec 5).")
+    commands = parser.add_subparsers(dest="command", required=True)
+    run = commands.add_parser("run", help="whole scans with normalisation off and on, medians, and a digest of the findings")
+    run.add_argument("--cases", default=",".join(CASES),
+                     help=f"comma separated, from {', '.join((*CASES, 'nested-base64-line'))}")
+    run.add_argument("--size", type=int, default=FULL, help="bytes of agent text a file (default 10 MiB)")
+    run.add_argument("--repeat", type=int, default=3)
+    run.add_argument("--json", action="store_true", help="print the numbers as JSON, for `compare`, instead of the table")
+    where = commands.add_parser("profile", help="where the time of one case goes: the rules, the views, the fold steps")
+    where.add_argument("case")
+    where.add_argument("--size", type=int, default=FULL)
+    where.add_argument("--json", action="store_true")
+    compare = commands.add_parser("compare", help="two outputs of `run --json`: the change, and the acceptance of spec 6.3")
+    compare.add_argument("before")
+    compare.add_argument("after")
+    pin = commands.add_parser("check", help="the full-size digests against those 1.23.0 recorded (minutes)")
+    pin.add_argument("--only", action="append", help="one of " + ", ".join(FULL_IDS))
+    args = parser.parse_args(argv)
+    if args.command == "run":
+        document = run_cases([name for name in args.cases.split(",") if name], args.size, args.repeat)
+        print(json.dumps(document, indent=1) if args.json else format_run(document))
+        return 0
+    if args.command == "profile":
+        document = profile(args.case, args.size)
+        print(json.dumps(document, indent=1) if args.json else format_profile(document))
+        return 0
+    if args.command == "compare":
+        before, after = (json.loads(Path(name).read_text(encoding="utf-8")) for name in (args.before, args.after))
+        print(format_comparison(before, after))
+        problems = acceptance_problems(before, after)
+        print("\n".join(problems) if problems else "every target of spec 6.3 is met, and no finding differs")
+        return 1 if problems else 0
+    return check_pin(args.only)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

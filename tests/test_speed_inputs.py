@@ -114,11 +114,11 @@ def test_the_lines_of_the_normalise_names_are_those_of_test_linear_time():
     assert normalise.payloads(lines["nested base64"])  # three layers of `a b ` text, the engine finds a payload
 
 
-def test_the_script_uses_no_random_module_and_writes_nothing_and_prints_nothing_of_the_inputs():
+def test_the_script_uses_no_random_module_and_writes_no_file():
     tree = ast.parse(SCRIPT.read_text(encoding="utf-8"))
     imported = {alias.name for node in ast.walk(tree) if isinstance(node, ast.Import) for alias in node.names}
     imported |= {node.module for node in ast.walk(tree) if isinstance(node, ast.ImportFrom) and node.module}
-    assert "random" not in imported and not imported & {"os", "pathlib", "tempfile", "shutil", "subprocess", "socket", "urllib"}
+    assert "random" not in imported and not imported & {"tempfile", "shutil", "subprocess", "socket", "urllib"}
     for node in ast.walk(tree):
         if isinstance(node, ast.Call):
             name = node.func.id if isinstance(node.func, ast.Name) else getattr(node.func, "attr", "")
