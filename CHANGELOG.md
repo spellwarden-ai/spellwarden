@@ -1,5 +1,59 @@
 # Changelog
 
+## 1.25.0 (2026-11-NN)
+
+Rules version 2026.11.10 (69 rules): three rules are new and no rule changed, so every finding 1.24.0 reports keeps its rule,
+location, evidence and fingerprint. The new rules read content that no rule read before, so a project can get a new finding at
+medium that it did not have on 1.24.0, and `--fail-on medium` or the `balanced` preset can fail a build that passed. The preset
+`strict` raises each of the three to high, and `low-noise` keeps them at medium. The baseline and accepted findings record them
+like any other finding.
+
+1.25.0: rules for OWASP entries that had none. The documentation listed five entries with no rule: ASI06 Memory & Context
+Poisoning, ASI08 Cascading Failures, MCP05 Command Injection & Execution, MCP08 Lack of Audit and Telemetry and MCP10 Context
+Injection & Over-Sharing. For each, a check before install can see part of it or nothing. Two entries have a part it can see,
+and each gets a rule; a third rule is added under MCP02 because the roadmap named it.
+
+- `SW-SKL-038` "Writes to an agent's memory or instruction files" (skill, medium, ASI06 and MCP10): a sentence or a shell
+  command that names a memory or instruction file (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `.cursorrules`, the rule folders, a
+  `MEMORY.md`, the memory folder of a Claude project), writes to it and puts a standing directive ("always", "never", "from now
+  on", "in every future session") into it. It is quiet when the same file asks the user for approval, when the sentence forbids
+  the write, when the directive only says when the file is updated ("Always update `CLAUDE.md` when you add a command") and in
+  a README or another file written for people. An instruction file is scanned like a skill, so the rule also reads `CLAUDE.md`
+  and `AGENTS.md`. It reads through the normalised copies of the text, like the other prose rules, so `normalise.RULES` lists 15
+  rules. It does not see memory poisoned while an agent runs, memory a product keeps outside files, memory that is already
+  poisoned, or a write made by code the text does not describe.
+- `SW-MCP-013` "Tool takes a command line to run as an argument" (mcp, medium, MCP05 and ASI05): a probed tool whose input
+  schema has a free-text `command`, `cmd`, `commandLine`, `shell_command`, `bash_command`, `powershell_command`, `shell` or `bash` parameter with no
+  `enum` or `const`, and whose name or description says that it runs or executes. A claim by the server that the tool is
+  sandboxed or read-only never silences it. A tool whose schema the prober dropped for size is not judged, and the probe still
+  names `tools` in `lists_cut`. It does not see injection through an argument of a tool that runs a fixed program, whether a
+  server filters the command, servers that run as local processes (the probe reaches remote servers only) or code
+  interpreters whose parameter is `code`.
+- `SW-CFG-015` "MCP server given the whole home directory or the filesystem root" (config, medium, MCP02 and ASI03): an
+  argument that is the home directory itself (`~`, `$HOME`, `/Users/<name>`, `C:\Users\<name>`) or the root (`/`, `C:\`),
+  after the package of a filesystem server, as the value of `--root`, `--allowed-directories` and the other flags that name a
+  directory, or as the host side of a bind mount of `docker` or `podman`. A deeper path and a project variable are quiet. The
+  evidence names the form and never the path. "Every environment variable" is not checked: the fields the scanner reads
+  cannot express it. `SW-CFG-014` stays reserved.
+
+Measurement. Each rule is released only at the severity its own measurement gives, and a rule that does not reach the bar is
+taken out before the release. The measurement is on a set of public files of its own, never published because it holds
+third-party text; `benchmarks/measured_sets.json` holds its record (counts, hashes and dates) and `benchmarks/README.md` says
+how it is made. The bar is on precision on a held-out half, with its 95% Wilson interval: medium needs a precision of at least
+0.60 and a lower end of at least 0.45, high needs 0.80 and 0.65, and fewer than 20 labelled units cannot be assessed. Recall is
+never a condition and is always published with its interval. `python benchmarks/rule_benchmark.py check-measured --release`
+refuses a release in which a rule is not `measured` at the severity it is registered at, and the release workflow runs it before
+anything is built. The measured numbers are written into this entry by the commit that records the measurement.
+
+Tags. ASI06 and MCP05 are now allowed tags of the baseline. Organisation rules keep the tag lists of 1.2.x, so a pack that uses
+either is refused, and the pack schema is unchanged. ASI08 is not added: no rule carries it.
+
+Entries that stay without a detection rule. ASI08 Cascading Failures is a fault that spreads between agents and tools while they
+run, so no file or tool list shows it before install; runtime traces show where a failure began and how far it went. MCP08 Lack
+of Audit and Telemetry cannot be seen in a file or a tool list either; the enforcement rule `SW-OB-008` asks for an audit
+record of every tool call, runtime traces keep the tool calls sent to Spellwarden, and the audit evidence pack carries the log
+of what people did in Spellwarden itself.
+
 ## 1.24.0 (2026-11-25)
 
 Rules version 2026.11.9, unchanged (66 rules): no rule detects anything new, and every finding 1.23.0 reports keeps its rule,
