@@ -138,6 +138,8 @@ QUIET = (
     "Always run the tests before you commit.",                                             # no memory path
     "Remember that you must never skip the tests.",
     "Edit settings.json and add the hook: never ask.",
+    'Read CLAUDE.md, which says "always write tests first".',                             # a verb inside a quote is content, not a write
+    'Check whether CLAUDE.md has the line "Always update the changelog".',
 )
 
 

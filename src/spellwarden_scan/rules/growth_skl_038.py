@@ -234,7 +234,7 @@ def detect(package: Package) -> Iterator[Finding]:
                 if P.AGENT_MEMORY_PATHS.search(sentence) is None:
                     continue
                 outside = _blanked(sentence)
-                verb_at = _verb_at(sentence)
+                verb_at = _verb_at(outside)  # quoted text and echo bodies are content, never a verb
                 if verb_at is None:
                     continue
                 prohibition = _PROHIBITION.search(outside)
