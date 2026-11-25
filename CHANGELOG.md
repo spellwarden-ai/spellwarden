@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.24.0 (2026-11-NN)
+## 1.24.0 (2026-11-25)
 
 Rules version 2026.11.9, unchanged (66 rules): no rule detects anything new, and every finding 1.23.0 reports keeps its rule,
 location, evidence and fingerprint. A test pins the findings of 1.23.0, byte for byte, on every fixture, on the benchmark's
@@ -55,6 +55,9 @@ for that package. A package is judged whole or not at all, so a package that was
   room before the function's own timeout. Looking at the clock adds 2.1 per cent to a scan on (a) (1.9 and
   2.3 per cent in two runs of `benchmarks/speed_profile.py cost` at 10 MiB, their mean) and nothing measurable on (b) (-0.8 and -0.4 per
   cent), within the 3 per cent the build asked for, and keeps no copy of a code block's lines.
+
+Rule benchmark: no rate got worse than in 1.23.0.
+Rule benchmark: normalisation adds no finding on harmless skills.
 
 ## 1.23.0 (2026-11-24)
 

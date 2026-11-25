@@ -10866,6 +10866,4329 @@
     }
    },
    "version": "1.23.0"
+  },
+  {
+   "disguise": {
+    "added_on_harmless": {
+     "held-out": {},
+     "msb-test": {},
+     "tuning": {}
+    },
+    "generator": {
+     "seed": "spellwarden-disguise-1",
+     "techniques": [
+      "lookalike",
+      "zero-width",
+      "encoding-1",
+      "encoding-2",
+      "joined",
+      "padding",
+      "markup",
+      "translation"
+     ],
+     "version": 1
+    },
+    "plain_as_written": {
+     "held-out": {
+      "benign": {
+       "found": {
+        "high": 7,
+        "medium": 32
+       },
+       "read": 110,
+       "rules": {
+        "SW-SKL-001": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-002": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-003": {
+         "high": 1,
+         "medium": 1
+        },
+        "SW-SKL-004": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-005": {
+         "high": 1,
+         "medium": 1
+        },
+        "SW-SKL-006": {
+         "high": 0,
+         "medium": 4
+        },
+        "SW-SKL-007": {
+         "high": 1,
+         "medium": 1
+        },
+        "SW-SKL-008": {
+         "high": 1,
+         "medium": 1
+        },
+        "SW-SKL-009": {
+         "high": 0,
+         "medium": 18
+        },
+        "SW-SKL-010": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-011": {
+         "high": 3,
+         "medium": 3
+        },
+        "SW-SKL-012": {
+         "high": 0,
+         "medium": 2
+        },
+        "SW-SKL-013": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-014": {
+         "high": 0,
+         "medium": 1
+        },
+        "SW-SKL-015": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-019": {
+         "high": 0,
+         "medium": 11
+        },
+        "SW-SKL-031": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-032": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-036": {
+         "high": 0,
+         "medium": 6
+        },
+        "SW-SKL-037": {
+         "high": 0,
+         "medium": 0
+        }
+       }
+      },
+      "malicious": {
+       "found": {
+        "high": 20,
+        "medium": 29
+       },
+       "read": 53,
+       "rules": {
+        "SW-SKL-001": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-002": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-003": {
+         "high": 2,
+         "medium": 2
+        },
+        "SW-SKL-004": {
+         "high": 1,
+         "medium": 1
+        },
+        "SW-SKL-005": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-006": {
+         "high": 0,
+         "medium": 1
+        },
+        "SW-SKL-007": {
+         "high": 13,
+         "medium": 13
+        },
+        "SW-SKL-008": {
+         "high": 2,
+         "medium": 2
+        },
+        "SW-SKL-009": {
+         "high": 0,
+         "medium": 8
+        },
+        "SW-SKL-010": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-011": {
+         "high": 5,
+         "medium": 5
+        },
+        "SW-SKL-012": {
+         "high": 0,
+         "medium": 2
+        },
+        "SW-SKL-013": {
+         "high": 0,
+         "medium": 2
+        },
+        "SW-SKL-014": {
+         "high": 0,
+         "medium": 3
+        },
+        "SW-SKL-015": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-019": {
+         "high": 0,
+         "medium": 14
+        },
+        "SW-SKL-031": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-032": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-036": {
+         "high": 0,
+         "medium": 5
+        },
+        "SW-SKL-037": {
+         "high": 0,
+         "medium": 2
+        }
+       }
+      }
+     },
+     "msb-test": {
+      "benign": {
+       "found": {
+        "high": 53,
+        "medium": 145
+       },
+       "read": 545,
+       "rules": {
+        "SW-SKL-001": {
+         "high": 3,
+         "medium": 3
+        },
+        "SW-SKL-002": {
+         "high": 1,
+         "medium": 1
+        },
+        "SW-SKL-003": {
+         "high": 4,
+         "medium": 4
+        },
+        "SW-SKL-004": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-005": {
+         "high": 1,
+         "medium": 1
+        },
+        "SW-SKL-006": {
+         "high": 0,
+         "medium": 4
+        },
+        "SW-SKL-007": {
+         "high": 36,
+         "medium": 36
+        },
+        "SW-SKL-008": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-009": {
+         "high": 0,
+         "medium": 83
+        },
+        "SW-SKL-010": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-011": {
+         "high": 8,
+         "medium": 8
+        },
+        "SW-SKL-012": {
+         "high": 0,
+         "medium": 4
+        },
+        "SW-SKL-013": {
+         "high": 0,
+         "medium": 1
+        },
+        "SW-SKL-014": {
+         "high": 0,
+         "medium": 1
+        },
+        "SW-SKL-015": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-019": {
+         "high": 0,
+         "medium": 14
+        },
+        "SW-SKL-031": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-032": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-036": {
+         "high": 0,
+         "medium": 22
+        },
+        "SW-SKL-037": {
+         "high": 0,
+         "medium": 1
+        }
+       }
+      },
+      "malicious": {
+       "found": {
+        "high": 31,
+        "medium": 302
+       },
+       "read": 839,
+       "rules": {
+        "SW-SKL-001": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-002": {
+         "high": 2,
+         "medium": 2
+        },
+        "SW-SKL-003": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-004": {
+         "high": 3,
+         "medium": 3
+        },
+        "SW-SKL-005": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-006": {
+         "high": 0,
+         "medium": 6
+        },
+        "SW-SKL-007": {
+         "high": 8,
+         "medium": 8
+        },
+        "SW-SKL-008": {
+         "high": 1,
+         "medium": 1
+        },
+        "SW-SKL-009": {
+         "high": 0,
+         "medium": 217
+        },
+        "SW-SKL-010": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-011": {
+         "high": 12,
+         "medium": 12
+        },
+        "SW-SKL-012": {
+         "high": 0,
+         "medium": 6
+        },
+        "SW-SKL-013": {
+         "high": 0,
+         "medium": 1
+        },
+        "SW-SKL-014": {
+         "high": 0,
+         "medium": 13
+        },
+        "SW-SKL-015": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-019": {
+         "high": 0,
+         "medium": 63
+        },
+        "SW-SKL-031": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-032": {
+         "high": 5,
+         "medium": 5
+        },
+        "SW-SKL-036": {
+         "high": 0,
+         "medium": 3
+        },
+        "SW-SKL-037": {
+         "high": 0,
+         "medium": 2
+        }
+       }
+      }
+     },
+     "trailofbits": {
+      "malicious": {
+       "found": {
+        "high": 0,
+        "medium": 3
+       },
+       "read": 4,
+       "rules": {
+        "SW-SKL-001": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-002": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-003": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-004": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-005": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-006": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-007": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-008": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-009": {
+         "high": 0,
+         "medium": 1
+        },
+        "SW-SKL-010": {
+         "high": 0,
+         "medium": 1
+        },
+        "SW-SKL-011": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-012": {
+         "high": 0,
+         "medium": 1
+        },
+        "SW-SKL-013": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-014": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-015": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-019": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-031": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-032": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-036": {
+         "high": 0,
+         "medium": 2
+        },
+        "SW-SKL-037": {
+         "high": 0,
+         "medium": 0
+        }
+       }
+      }
+     },
+     "tuning": {
+      "benign": {
+       "found": {
+        "high": 7,
+        "medium": 38
+       },
+       "read": 109,
+       "rules": {
+        "SW-SKL-001": {
+         "high": 1,
+         "medium": 1
+        },
+        "SW-SKL-002": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-003": {
+         "high": 1,
+         "medium": 1
+        },
+        "SW-SKL-004": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-005": {
+         "high": 1,
+         "medium": 1
+        },
+        "SW-SKL-006": {
+         "high": 0,
+         "medium": 6
+        },
+        "SW-SKL-007": {
+         "high": 2,
+         "medium": 2
+        },
+        "SW-SKL-008": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-009": {
+         "high": 0,
+         "medium": 13
+        },
+        "SW-SKL-010": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-011": {
+         "high": 2,
+         "medium": 2
+        },
+        "SW-SKL-012": {
+         "high": 0,
+         "medium": 3
+        },
+        "SW-SKL-013": {
+         "high": 0,
+         "medium": 1
+        },
+        "SW-SKL-014": {
+         "high": 0,
+         "medium": 1
+        },
+        "SW-SKL-015": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-019": {
+         "high": 0,
+         "medium": 9
+        },
+        "SW-SKL-031": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-032": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-036": {
+         "high": 0,
+         "medium": 15
+        },
+        "SW-SKL-037": {
+         "high": 0,
+         "medium": 0
+        }
+       }
+      },
+      "malicious": {
+       "found": {
+        "high": 14,
+        "medium": 29
+       },
+       "read": 61,
+       "rules": {
+        "SW-SKL-001": {
+         "high": 1,
+         "medium": 1
+        },
+        "SW-SKL-002": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-003": {
+         "high": 1,
+         "medium": 1
+        },
+        "SW-SKL-004": {
+         "high": 1,
+         "medium": 1
+        },
+        "SW-SKL-005": {
+         "high": 3,
+         "medium": 3
+        },
+        "SW-SKL-006": {
+         "high": 0,
+         "medium": 6
+        },
+        "SW-SKL-007": {
+         "high": 6,
+         "medium": 6
+        },
+        "SW-SKL-008": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-009": {
+         "high": 0,
+         "medium": 14
+        },
+        "SW-SKL-010": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-011": {
+         "high": 4,
+         "medium": 4
+        },
+        "SW-SKL-012": {
+         "high": 0,
+         "medium": 2
+        },
+        "SW-SKL-013": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-014": {
+         "high": 0,
+         "medium": 1
+        },
+        "SW-SKL-015": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-019": {
+         "high": 0,
+         "medium": 5
+        },
+        "SW-SKL-031": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-032": {
+         "high": 1,
+         "medium": 1
+        },
+        "SW-SKL-036": {
+         "high": 0,
+         "medium": 1
+        },
+        "SW-SKL-037": {
+         "high": 0,
+         "medium": 3
+        }
+       }
+      }
+     }
+    },
+    "rules_normalised": [
+     "SW-SKL-001",
+     "SW-SKL-003",
+     "SW-SKL-004",
+     "SW-SKL-005",
+     "SW-SKL-006",
+     "SW-SKL-007",
+     "SW-SKL-008",
+     "SW-SKL-009",
+     "SW-SKL-012",
+     "SW-SKL-013",
+     "SW-SKL-014",
+     "SW-SKL-019",
+     "SW-SKL-032",
+     "SW-SKL-037"
+    ],
+    "steps": [
+     "entities",
+     "invisible",
+     "compat",
+     "lookalike",
+     "spaces",
+     "base64"
+    ],
+    "techniques": {
+     "encoding-1": {
+      "held-out": {
+       "changed": 53,
+       "disguised_as_written": {
+        "found": {
+         "high": 44,
+         "medium": 44
+        },
+        "found_other": {
+         "high": 13,
+         "medium": 17
+        }
+       },
+       "disguised_normalised": {
+        "found": {
+         "high": 44,
+         "medium": 44
+        },
+        "found_other": {
+         "high": 17,
+         "medium": 28
+        }
+       },
+       "plain_as_written": {
+        "found": {
+         "high": 20,
+         "medium": 29
+        },
+        "found_other": {
+         "high": 20,
+         "medium": 29
+        }
+       },
+       "plain_normalised": {
+        "found": {
+         "high": 20,
+         "medium": 29
+        },
+        "found_other": {
+         "high": 20,
+         "medium": 29
+        }
+       },
+       "unread": 0
+      },
+      "msb-test": {
+       "changed": 839,
+       "disguised_as_written": {
+        "found": {
+         "high": 739,
+         "medium": 740
+        },
+        "found_other": {
+         "high": 7,
+         "medium": 10
+        }
+       },
+       "disguised_normalised": {
+        "found": {
+         "high": 746,
+         "medium": 748
+        },
+        "found_other": {
+         "high": 15,
+         "medium": 287
+        }
+       },
+       "plain_as_written": {
+        "found": {
+         "high": 31,
+         "medium": 302
+        },
+        "found_other": {
+         "high": 26,
+         "medium": 294
+        }
+       },
+       "plain_normalised": {
+        "found": {
+         "high": 32,
+         "medium": 303
+        },
+        "found_other": {
+         "high": 27,
+         "medium": 295
+        }
+       },
+       "unread": 0
+      },
+      "trailofbits": {
+       "changed": 4,
+       "disguised_as_written": {
+        "found": {
+         "high": 3,
+         "medium": 3
+        },
+        "found_other": {
+         "high": 0,
+         "medium": 3
+        }
+       },
+       "disguised_normalised": {
+        "found": {
+         "high": 3,
+         "medium": 3
+        },
+        "found_other": {
+         "high": 0,
+         "medium": 3
+        }
+       },
+       "plain_as_written": {
+        "found": {
+         "high": 0,
+         "medium": 3
+        },
+        "found_other": {
+         "high": 0,
+         "medium": 3
+        }
+       },
+       "plain_normalised": {
+        "found": {
+         "high": 0,
+         "medium": 3
+        },
+        "found_other": {
+         "high": 0,
+         "medium": 3
+        }
+       },
+       "unread": 0
+      },
+      "tuning": {
+       "changed": 61,
+       "disguised_as_written": {
+        "found": {
+         "high": 49,
+         "medium": 50
+        },
+        "found_other": {
+         "high": 4,
+         "medium": 6
+        }
+       },
+       "disguised_normalised": {
+        "found": {
+         "high": 49,
+         "medium": 50
+        },
+        "found_other": {
+         "high": 10,
+         "medium": 26
+        }
+       },
+       "plain_as_written": {
+        "found": {
+         "high": 14,
+         "medium": 29
+        },
+        "found_other": {
+         "high": 14,
+         "medium": 28
+        }
+       },
+       "plain_normalised": {
+        "found": {
+         "high": 14,
+         "medium": 29
+        },
+        "found_other": {
+         "high": 14,
+         "medium": 28
+        }
+       },
+       "unread": 0
+      }
+     },
+     "encoding-2": {
+      "held-out": {
+       "changed": 53,
+       "disguised_as_written": {
+        "found": {
+         "high": 44,
+         "medium": 44
+        },
+        "found_other": {
+         "high": 3,
+         "medium": 7
+        }
+       },
+       "disguised_normalised": {
+        "found": {
+         "high": 44,
+         "medium": 44
+        },
+        "found_other": {
+         "high": 17,
+         "medium": 28
+        }
+       },
+       "plain_as_written": {
+        "found": {
+         "high": 20,
+         "medium": 29
+        },
+        "found_other": {
+         "high": 20,
+         "medium": 29
+        }
+       },
+       "plain_normalised": {
+        "found": {
+         "high": 20,
+         "medium": 29
+        },
+        "found_other": {
+         "high": 20,
+         "medium": 29
+        }
+       },
+       "unread": 0
+      },
+      "msb-test": {
+       "changed": 839,
+       "disguised_as_written": {
+        "found": {
+         "high": 739,
+         "medium": 740
+        },
+        "found_other": {
+         "high": 0,
+         "medium": 3
+        }
+       },
+       "disguised_normalised": {
+        "found": {
+         "high": 746,
+         "medium": 748
+        },
+        "found_other": {
+         "high": 15,
+         "medium": 287
+        }
+       },
+       "plain_as_written": {
+        "found": {
+         "high": 31,
+         "medium": 302
+        },
+        "found_other": {
+         "high": 26,
+         "medium": 294
+        }
+       },
+       "plain_normalised": {
+        "found": {
+         "high": 32,
+         "medium": 303
+        },
+        "found_other": {
+         "high": 27,
+         "medium": 295
+        }
+       },
+       "unread": 0
+      },
+      "trailofbits": {
+       "changed": 4,
+       "disguised_as_written": {
+        "found": {
+         "high": 3,
+         "medium": 3
+        },
+        "found_other": {
+         "high": 0,
+         "medium": 3
+        }
+       },
+       "disguised_normalised": {
+        "found": {
+         "high": 3,
+         "medium": 3
+        },
+        "found_other": {
+         "high": 0,
+         "medium": 3
+        }
+       },
+       "plain_as_written": {
+        "found": {
+         "high": 0,
+         "medium": 3
+        },
+        "found_other": {
+         "high": 0,
+         "medium": 3
+        }
+       },
+       "plain_normalised": {
+        "found": {
+         "high": 0,
+         "medium": 3
+        },
+        "found_other": {
+         "high": 0,
+         "medium": 3
+        }
+       },
+       "unread": 0
+      },
+      "tuning": {
+       "changed": 61,
+       "disguised_as_written": {
+        "found": {
+         "high": 49,
+         "medium": 50
+        },
+        "found_other": {
+         "high": 2,
+         "medium": 6
+        }
+       },
+       "disguised_normalised": {
+        "found": {
+         "high": 49,
+         "medium": 50
+        },
+        "found_other": {
+         "high": 10,
+         "medium": 26
+        }
+       },
+       "plain_as_written": {
+        "found": {
+         "high": 14,
+         "medium": 29
+        },
+        "found_other": {
+         "high": 14,
+         "medium": 28
+        }
+       },
+       "plain_normalised": {
+        "found": {
+         "high": 14,
+         "medium": 29
+        },
+        "found_other": {
+         "high": 14,
+         "medium": 28
+        }
+       },
+       "unread": 0
+      }
+     },
+     "joined": {
+      "held-out": {
+       "changed": 44,
+       "disguised_as_written": {
+        "found": {
+         "high": 7,
+         "medium": 20
+        },
+        "found_other": {
+         "high": 7,
+         "medium": 20
+        }
+       },
+       "disguised_normalised": {
+        "found": {
+         "high": 7,
+         "medium": 20
+        },
+        "found_other": {
+         "high": 7,
+         "medium": 20
+        }
+       },
+       "plain_as_written": {
+        "found": {
+         "high": 20,
+         "medium": 29
+        },
+        "found_other": {
+         "high": 20,
+         "medium": 29
+        }
+       },
+       "plain_normalised": {
+        "found": {
+         "high": 20,
+         "medium": 29
+        },
+        "found_other": {
+         "high": 20,
+         "medium": 29
+        }
+       },
+       "unread": 0
+      },
+      "msb-test": {
+       "changed": 727,
+       "disguised_as_written": {
+        "found": {
+         "high": 11,
+         "medium": 218
+        },
+        "found_other": {
+         "high": 7,
+         "medium": 205
+        }
+       },
+       "disguised_normalised": {
+        "found": {
+         "high": 11,
+         "medium": 218
+        },
+        "found_other": {
+         "high": 7,
+         "medium": 205
+        }
+       },
+       "plain_as_written": {
+        "found": {
+         "high": 22,
+         "medium": 292
+        },
+        "found_other": {
+         "high": 18,
+         "medium": 284
+        }
+       },
+       "plain_normalised": {
+        "found": {
+         "high": 22,
+         "medium": 292
+        },
+        "found_other": {
+         "high": 18,
+         "medium": 284
+        }
+       },
+       "unread": 0
+      },
+      "trailofbits": {
+       "changed": 3,
+       "disguised_as_written": {
+        "found": {
+         "high": 0,
+         "medium": 3
+        },
+        "found_other": {
+         "high": 0,
+         "medium": 3
+        }
+       },
+       "disguised_normalised": {
+        "found": {
+         "high": 0,
+         "medium": 3
+        },
+        "found_other": {
+         "high": 0,
+         "medium": 3
+        }
+       },
+       "plain_as_written": {
+        "found": {
+         "high": 0,
+         "medium": 3
+        },
+        "found_other": {
+         "high": 0,
+         "medium": 3
+        }
+       },
+       "plain_normalised": {
+        "found": {
+         "high": 0,
+         "medium": 3
+        },
+        "found_other": {
+         "high": 0,
+         "medium": 3
+        }
+       },
+       "unread": 0
+      },
+      "tuning": {
+       "changed": 48,
+       "disguised_as_written": {
+        "found": {
+         "high": 9,
+         "medium": 24
+        },
+        "found_other": {
+         "high": 9,
+         "medium": 23
+        }
+       },
+       "disguised_normalised": {
+        "found": {
+         "high": 9,
+         "medium": 24
+        },
+        "found_other": {
+         "high": 9,
+         "medium": 23
+        }
+       },
+       "plain_as_written": {
+        "found": {
+         "high": 13,
+         "medium": 27
+        },
+        "found_other": {
+         "high": 13,
+         "medium": 26
+        }
+       },
+       "plain_normalised": {
+        "found": {
+         "high": 13,
+         "medium": 27
+        },
+        "found_other": {
+         "high": 13,
+         "medium": 26
+        }
+       },
+       "unread": 0
+      }
+     },
+     "lookalike": {
+      "held-out": {
+       "changed": 53,
+       "disguised_as_written": {
+        "found": {
+         "high": 19,
+         "medium": 28
+        },
+        "found_other": {
+         "high": 19,
+         "medium": 28
+        }
+       },
+       "disguised_normalised": {
+        "found": {
+         "high": 19,
+         "medium": 28
+        },
+        "found_other": {
+         "high": 19,
+         "medium": 28
+        }
+       },
+       "plain_as_written": {
+        "found": {
+         "high": 20,
+         "medium": 29
+        },
+        "found_other": {
+         "high": 20,
+         "medium": 29
+        }
+       },
+       "plain_normalised": {
+        "found": {
+         "high": 20,
+         "medium": 29
+        },
+        "found_other": {
+         "high": 20,
+         "medium": 29
+        }
+       },
+       "unread": 0
+      },
+      "msb-test": {
+       "changed": 839,
+       "disguised_as_written": {
+        "found": {
+         "high": 26,
+         "medium": 296
+        },
+        "found_other": {
+         "high": 21,
+         "medium": 288
+        }
+       },
+       "disguised_normalised": {
+        "found": {
+         "high": 32,
+         "medium": 303
+        },
+        "found_other": {
+         "high": 27,
+         "medium": 295
+        }
+       },
+       "plain_as_written": {
+        "found": {
+         "high": 31,
+         "medium": 302
+        },
+        "found_other": {
+         "high": 26,
+         "medium": 294
+        }
+       },
+       "plain_normalised": {
+        "found": {
+         "high": 32,
+         "medium": 303
+        },
+        "found_other": {
+         "high": 27,
+         "medium": 295
+        }
+       },
+       "unread": 0
+      },
+      "trailofbits": {
+       "changed": 4,
+       "disguised_as_written": {
+        "found": {
+         "high": 0,
+         "medium": 3
+        },
+        "found_other": {
+         "high": 0,
+         "medium": 3
+        }
+       },
+       "disguised_normalised": {
+        "found": {
+         "high": 0,
+         "medium": 3
+        },
+        "found_other": {
+         "high": 0,
+         "medium": 3
+        }
+       },
+       "plain_as_written": {
+        "found": {
+         "high": 0,
+         "medium": 3
+        },
+        "found_other": {
+         "high": 0,
+         "medium": 3
+        }
+       },
+       "plain_normalised": {
+        "found": {
+         "high": 0,
+         "medium": 3
+        },
+        "found_other": {
+         "high": 0,
+         "medium": 3
+        }
+       },
+       "unread": 0
+      },
+      "tuning": {
+       "changed": 61,
+       "disguised_as_written": {
+        "found": {
+         "high": 11,
+         "medium": 27
+        },
+        "found_other": {
+         "high": 11,
+         "medium": 26
+        }
+       },
+       "disguised_normalised": {
+        "found": {
+         "high": 13,
+         "medium": 28
+        },
+        "found_other": {
+         "high": 13,
+         "medium": 27
+        }
+       },
+       "plain_as_written": {
+        "found": {
+         "high": 14,
+         "medium": 29
+        },
+        "found_other": {
+         "high": 14,
+         "medium": 28
+        }
+       },
+       "plain_normalised": {
+        "found": {
+         "high": 14,
+         "medium": 29
+        },
+        "found_other": {
+         "high": 14,
+         "medium": 28
+        }
+       },
+       "unread": 0
+      }
+     },
+     "markup": {
+      "held-out": {
+       "changed": 53,
+       "disguised_as_written": {
+        "found": {
+         "high": 20,
+         "medium": 29
+        },
+        "found_other": {
+         "high": 20,
+         "medium": 29
+        }
+       },
+       "disguised_normalised": {
+        "found": {
+         "high": 20,
+         "medium": 29
+        },
+        "found_other": {
+         "high": 20,
+         "medium": 29
+        }
+       },
+       "plain_as_written": {
+        "found": {
+         "high": 20,
+         "medium": 29
+        },
+        "found_other": {
+         "high": 20,
+         "medium": 29
+        }
+       },
+       "plain_normalised": {
+        "found": {
+         "high": 20,
+         "medium": 29
+        },
+        "found_other": {
+         "high": 20,
+         "medium": 29
+        }
+       },
+       "unread": 0
+      },
+      "msb-test": {
+       "changed": 839,
+       "disguised_as_written": {
+        "found": {
+         "high": 27,
+         "medium": 299
+        },
+        "found_other": {
+         "high": 22,
+         "medium": 291
+        }
+       },
+       "disguised_normalised": {
+        "found": {
+         "high": 29,
+         "medium": 302
+        },
+        "found_other": {
+         "high": 24,
+         "medium": 294
+        }
+       },
+       "plain_as_written": {
+        "found": {
+         "high": 31,
+         "medium": 302
+        },
+        "found_other": {
+         "high": 26,
+         "medium": 294
+        }
+       },
+       "plain_normalised": {
+        "found": {
+         "high": 32,
+         "medium": 303
+        },
+        "found_other": {
+         "high": 27,
+         "medium": 295
+        }
+       },
+       "unread": 0
+      },
+      "trailofbits": {
+       "changed": 4,
+       "disguised_as_written": {
+        "found": {
+         "high": 0,
+         "medium": 3
+        },
+        "found_other": {
+         "high": 0,
+         "medium": 3
+        }
+       },
+       "disguised_normalised": {
+        "found": {
+         "high": 0,
+         "medium": 3
+        },
+        "found_other": {
+         "high": 0,
+         "medium": 3
+        }
+       },
+       "plain_as_written": {
+        "found": {
+         "high": 0,
+         "medium": 3
+        },
+        "found_other": {
+         "high": 0,
+         "medium": 3
+        }
+       },
+       "plain_normalised": {
+        "found": {
+         "high": 0,
+         "medium": 3
+        },
+        "found_other": {
+         "high": 0,
+         "medium": 3
+        }
+       },
+       "unread": 0
+      },
+      "tuning": {
+       "changed": 61,
+       "disguised_as_written": {
+        "found": {
+         "high": 12,
+         "medium": 28
+        },
+        "found_other": {
+         "high": 12,
+         "medium": 27
+        }
+       },
+       "disguised_normalised": {
+        "found": {
+         "high": 13,
+         "medium": 28
+        },
+        "found_other": {
+         "high": 13,
+         "medium": 27
+        }
+       },
+       "plain_as_written": {
+        "found": {
+         "high": 14,
+         "medium": 29
+        },
+        "found_other": {
+         "high": 14,
+         "medium": 28
+        }
+       },
+       "plain_normalised": {
+        "found": {
+         "high": 14,
+         "medium": 29
+        },
+        "found_other": {
+         "high": 14,
+         "medium": 28
+        }
+       },
+       "unread": 0
+      }
+     },
+     "padding": {
+      "held-out": {
+       "changed": 53,
+       "disguised_as_written": {
+        "found": {
+         "high": 20,
+         "medium": 28
+        },
+        "found_other": {
+         "high": 20,
+         "medium": 28
+        }
+       },
+       "disguised_normalised": {
+        "found": {
+         "high": 20,
+         "medium": 29
+        },
+        "found_other": {
+         "high": 20,
+         "medium": 29
+        }
+       },
+       "plain_as_written": {
+        "found": {
+         "high": 20,
+         "medium": 29
+        },
+        "found_other": {
+         "high": 20,
+         "medium": 29
+        }
+       },
+       "plain_normalised": {
+        "found": {
+         "high": 20,
+         "medium": 29
+        },
+        "found_other": {
+         "high": 20,
+         "medium": 29
+        }
+       },
+       "unread": 0
+      },
+      "msb-test": {
+       "changed": 839,
+       "disguised_as_written": {
+        "found": {
+         "high": 27,
+         "medium": 102
+        },
+        "found_other": {
+         "high": 22,
+         "medium": 88
+        }
+       },
+       "disguised_normalised": {
+        "found": {
+         "high": 32,
+         "medium": 303
+        },
+        "found_other": {
+         "high": 27,
+         "medium": 295
+        }
+       },
+       "plain_as_written": {
+        "found": {
+         "high": 31,
+         "medium": 302
+        },
+        "found_other": {
+         "high": 26,
+         "medium": 294
+        }
+       },
+       "plain_normalised": {
+        "found": {
+         "high": 32,
+         "medium": 303
+        },
+        "found_other": {
+         "high": 27,
+         "medium": 295
+        }
+       },
+       "unread": 0
+      },
+      "trailofbits": {
+       "changed": 4,
+       "disguised_as_written": {
+        "found": {
+         "high": 0,
+         "medium": 3
+        },
+        "found_other": {
+         "high": 0,
+         "medium": 3
+        }
+       },
+       "disguised_normalised": {
+        "found": {
+         "high": 0,
+         "medium": 3
+        },
+        "found_other": {
+         "high": 0,
+         "medium": 3
+        }
+       },
+       "plain_as_written": {
+        "found": {
+         "high": 0,
+         "medium": 3
+        },
+        "found_other": {
+         "high": 0,
+         "medium": 3
+        }
+       },
+       "plain_normalised": {
+        "found": {
+         "high": 0,
+         "medium": 3
+        },
+        "found_other": {
+         "high": 0,
+         "medium": 3
+        }
+       },
+       "unread": 0
+      },
+      "tuning": {
+       "changed": 61,
+       "disguised_as_written": {
+        "found": {
+         "high": 13,
+         "medium": 25
+        },
+        "found_other": {
+         "high": 13,
+         "medium": 24
+        }
+       },
+       "disguised_normalised": {
+        "found": {
+         "high": 14,
+         "medium": 29
+        },
+        "found_other": {
+         "high": 14,
+         "medium": 28
+        }
+       },
+       "plain_as_written": {
+        "found": {
+         "high": 14,
+         "medium": 29
+        },
+        "found_other": {
+         "high": 14,
+         "medium": 28
+        }
+       },
+       "plain_normalised": {
+        "found": {
+         "high": 14,
+         "medium": 29
+        },
+        "found_other": {
+         "high": 14,
+         "medium": 28
+        }
+       },
+       "unread": 0
+      }
+     },
+     "translation": {
+      "held-out": {
+       "changed": 53,
+       "disguised_as_written": {
+        "found": {
+         "high": 20,
+         "medium": 29
+        },
+        "found_other": {
+         "high": 20,
+         "medium": 29
+        }
+       },
+       "disguised_normalised": {
+        "found": {
+         "high": 20,
+         "medium": 29
+        },
+        "found_other": {
+         "high": 20,
+         "medium": 29
+        }
+       },
+       "plain_as_written": {
+        "found": {
+         "high": 20,
+         "medium": 29
+        },
+        "found_other": {
+         "high": 20,
+         "medium": 29
+        }
+       },
+       "plain_normalised": {
+        "found": {
+         "high": 20,
+         "medium": 29
+        },
+        "found_other": {
+         "high": 20,
+         "medium": 29
+        }
+       },
+       "unread": 0
+      },
+      "msb-test": {
+       "changed": 839,
+       "disguised_as_written": {
+        "found": {
+         "high": 29,
+         "medium": 299
+        },
+        "found_other": {
+         "high": 24,
+         "medium": 291
+        }
+       },
+       "disguised_normalised": {
+        "found": {
+         "high": 30,
+         "medium": 300
+        },
+        "found_other": {
+         "high": 25,
+         "medium": 292
+        }
+       },
+       "plain_as_written": {
+        "found": {
+         "high": 31,
+         "medium": 302
+        },
+        "found_other": {
+         "high": 26,
+         "medium": 294
+        }
+       },
+       "plain_normalised": {
+        "found": {
+         "high": 32,
+         "medium": 303
+        },
+        "found_other": {
+         "high": 27,
+         "medium": 295
+        }
+       },
+       "unread": 0
+      },
+      "trailofbits": {
+       "changed": 4,
+       "disguised_as_written": {
+        "found": {
+         "high": 0,
+         "medium": 3
+        },
+        "found_other": {
+         "high": 0,
+         "medium": 3
+        }
+       },
+       "disguised_normalised": {
+        "found": {
+         "high": 0,
+         "medium": 3
+        },
+        "found_other": {
+         "high": 0,
+         "medium": 3
+        }
+       },
+       "plain_as_written": {
+        "found": {
+         "high": 0,
+         "medium": 3
+        },
+        "found_other": {
+         "high": 0,
+         "medium": 3
+        }
+       },
+       "plain_normalised": {
+        "found": {
+         "high": 0,
+         "medium": 3
+        },
+        "found_other": {
+         "high": 0,
+         "medium": 3
+        }
+       },
+       "unread": 0
+      },
+      "tuning": {
+       "changed": 61,
+       "disguised_as_written": {
+        "found": {
+         "high": 13,
+         "medium": 29
+        },
+        "found_other": {
+         "high": 13,
+         "medium": 28
+        }
+       },
+       "disguised_normalised": {
+        "found": {
+         "high": 13,
+         "medium": 29
+        },
+        "found_other": {
+         "high": 13,
+         "medium": 28
+        }
+       },
+       "plain_as_written": {
+        "found": {
+         "high": 14,
+         "medium": 29
+        },
+        "found_other": {
+         "high": 14,
+         "medium": 28
+        }
+       },
+       "plain_normalised": {
+        "found": {
+         "high": 14,
+         "medium": 29
+        },
+        "found_other": {
+         "high": 14,
+         "medium": 28
+        }
+       },
+       "unread": 0
+      }
+     },
+     "zero-width": {
+      "held-out": {
+       "changed": 53,
+       "disguised_as_written": {
+        "found": {
+         "high": 53,
+         "medium": 53
+        },
+        "found_other": {
+         "high": 19,
+         "medium": 28
+        }
+       },
+       "disguised_normalised": {
+        "found": {
+         "high": 53,
+         "medium": 53
+        },
+        "found_other": {
+         "high": 19,
+         "medium": 28
+        }
+       },
+       "plain_as_written": {
+        "found": {
+         "high": 20,
+         "medium": 29
+        },
+        "found_other": {
+         "high": 20,
+         "medium": 29
+        }
+       },
+       "plain_normalised": {
+        "found": {
+         "high": 20,
+         "medium": 29
+        },
+        "found_other": {
+         "high": 20,
+         "medium": 29
+        }
+       },
+       "unread": 0
+      },
+      "msb-test": {
+       "changed": 839,
+       "disguised_as_written": {
+        "found": {
+         "high": 839,
+         "medium": 839
+        },
+        "found_other": {
+         "high": 20,
+         "medium": 287
+        }
+       },
+       "disguised_normalised": {
+        "found": {
+         "high": 839,
+         "medium": 839
+        },
+        "found_other": {
+         "high": 27,
+         "medium": 295
+        }
+       },
+       "plain_as_written": {
+        "found": {
+         "high": 31,
+         "medium": 302
+        },
+        "found_other": {
+         "high": 26,
+         "medium": 294
+        }
+       },
+       "plain_normalised": {
+        "found": {
+         "high": 32,
+         "medium": 303
+        },
+        "found_other": {
+         "high": 27,
+         "medium": 295
+        }
+       },
+       "unread": 0
+      },
+      "trailofbits": {
+       "changed": 4,
+       "disguised_as_written": {
+        "found": {
+         "high": 4,
+         "medium": 4
+        },
+        "found_other": {
+         "high": 0,
+         "medium": 3
+        }
+       },
+       "disguised_normalised": {
+        "found": {
+         "high": 4,
+         "medium": 4
+        },
+        "found_other": {
+         "high": 0,
+         "medium": 3
+        }
+       },
+       "plain_as_written": {
+        "found": {
+         "high": 0,
+         "medium": 3
+        },
+        "found_other": {
+         "high": 0,
+         "medium": 3
+        }
+       },
+       "plain_normalised": {
+        "found": {
+         "high": 0,
+         "medium": 3
+        },
+        "found_other": {
+         "high": 0,
+         "medium": 3
+        }
+       },
+       "unread": 0
+      },
+      "tuning": {
+       "changed": 61,
+       "disguised_as_written": {
+        "found": {
+         "high": 61,
+         "medium": 61
+        },
+        "found_other": {
+         "high": 12,
+         "medium": 27
+        }
+       },
+       "disguised_normalised": {
+        "found": {
+         "high": 61,
+         "medium": 61
+        },
+        "found_other": {
+         "high": 13,
+         "medium": 27
+        }
+       },
+       "plain_as_written": {
+        "found": {
+         "high": 14,
+         "medium": 29
+        },
+        "found_other": {
+         "high": 14,
+         "medium": 28
+        }
+       },
+       "plain_normalised": {
+        "found": {
+         "high": 14,
+         "medium": 29
+        },
+        "found_other": {
+         "high": 14,
+         "medium": 28
+        }
+       },
+       "unread": 0
+      }
+     }
+    }
+   },
+   "lines": [
+    "medium",
+    "high"
+   ],
+   "manifest_sha256": "bb9897926d4b6ea47bfc99c6052457de1f634931c0608c25a006e34ee322c5fa",
+   "note": "",
+   "released": "2026-11-25",
+   "rules_measured": {
+    "SW-SKL-001": "high",
+    "SW-SKL-002": "high",
+    "SW-SKL-003": "high",
+    "SW-SKL-004": "critical",
+    "SW-SKL-005": "high",
+    "SW-SKL-006": "medium",
+    "SW-SKL-007": "high",
+    "SW-SKL-008": "critical",
+    "SW-SKL-009": "medium",
+    "SW-SKL-010": "medium",
+    "SW-SKL-011": "critical",
+    "SW-SKL-012": "medium",
+    "SW-SKL-013": "medium",
+    "SW-SKL-014": "medium",
+    "SW-SKL-015": "low",
+    "SW-SKL-019": "medium",
+    "SW-SKL-031": "low",
+    "SW-SKL-032": "critical",
+    "SW-SKL-036": "medium",
+    "SW-SKL-037": "medium"
+   },
+   "rules_not_measured": [
+    "SW-A2A-001",
+    "SW-A2A-002",
+    "SW-A2A-003",
+    "SW-A2A-004",
+    "SW-A2A-005",
+    "SW-A2A-006",
+    "SW-A2A-007",
+    "SW-A2A-008",
+    "SW-A2A-009",
+    "SW-A2A-010",
+    "SW-A2A-011",
+    "SW-A2A-012",
+    "SW-A2A-013",
+    "SW-A2A-014",
+    "SW-A2A-015",
+    "SW-A2A-016",
+    "SW-A2A-017",
+    "SW-A2A-018",
+    "SW-A2A-019",
+    "SW-CFG-001",
+    "SW-CFG-002",
+    "SW-CFG-003",
+    "SW-CFG-004",
+    "SW-CFG-005",
+    "SW-CFG-006",
+    "SW-CFG-007",
+    "SW-CFG-008",
+    "SW-CFG-009",
+    "SW-CFG-010",
+    "SW-CFG-012",
+    "SW-CFG-013",
+    "SW-MCP-001",
+    "SW-MCP-002",
+    "SW-MCP-003",
+    "SW-MCP-004",
+    "SW-MCP-005",
+    "SW-MCP-006",
+    "SW-MCP-007",
+    "SW-MCP-008",
+    "SW-MCP-009",
+    "SW-MCP-010",
+    "SW-MCP-011",
+    "SW-MCP-012",
+    "SW-REG-001",
+    "SW-REG-002",
+    "SW-REG-003"
+   ],
+   "rules_version": "2026.11.9",
+   "sets": {
+    "held-out": {
+     "role": "test",
+     "strata": {
+      "benign-wild": {
+       "found": {
+        "high": 7,
+        "medium": 32
+       },
+       "items": 110,
+       "label": "benign",
+       "rules": {
+        "SW-SKL-001": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-002": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-003": {
+         "high": 1,
+         "medium": 1
+        },
+        "SW-SKL-004": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-005": {
+         "high": 1,
+         "medium": 1
+        },
+        "SW-SKL-006": {
+         "high": 0,
+         "medium": 4
+        },
+        "SW-SKL-007": {
+         "high": 1,
+         "medium": 1
+        },
+        "SW-SKL-008": {
+         "high": 1,
+         "medium": 1
+        },
+        "SW-SKL-009": {
+         "high": 0,
+         "medium": 18
+        },
+        "SW-SKL-010": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-011": {
+         "high": 3,
+         "medium": 3
+        },
+        "SW-SKL-012": {
+         "high": 0,
+         "medium": 2
+        },
+        "SW-SKL-013": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-014": {
+         "high": 0,
+         "medium": 1
+        },
+        "SW-SKL-015": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-019": {
+         "high": 0,
+         "medium": 11
+        },
+        "SW-SKL-031": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-032": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-036": {
+         "high": 0,
+         "medium": 6
+        },
+        "SW-SKL-037": {
+         "high": 0,
+         "medium": 0
+        }
+       },
+       "title": "Public skills listed as safe (Liu et al.)",
+       "unread": {}
+      },
+      "wild-liu": {
+       "found": {
+        "high": 16,
+        "medium": 22
+       },
+       "items": 38,
+       "label": "malicious",
+       "missed": {
+        "m-asb04-000790": "low",
+        "m-asb04-001380": "low",
+        "m-asb04-001651": "medium",
+        "m-asb04-002010": "low",
+        "m-asb04-002341": "medium",
+        "m-asb04-003615": "medium",
+        "m-asb04-003838": "low",
+        "m-asb04-004136": "low",
+        "m-asb04-004213": "low",
+        "m-asb04-004303": "low",
+        "m-asb04-004356": "medium",
+        "m-asb04-004922": "low",
+        "m-asb04-005680": "low",
+        "m-asb04-005876": "low",
+        "m-asb04-006140": "medium",
+        "m-asb04-006208": "low",
+        "m-asb04-006452": "low",
+        "m-asb04-006531": "low",
+        "m-asb04-006841": "medium",
+        "m-asb04-006882": "low",
+        "m-asb04-006885": "low",
+        "m-asb04-007422": "low"
+       },
+       "rules": {
+        "SW-SKL-001": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-002": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-003": {
+         "high": 2,
+         "medium": 2
+        },
+        "SW-SKL-004": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-005": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-006": {
+         "high": 0,
+         "medium": 1
+        },
+        "SW-SKL-007": {
+         "high": 10,
+         "medium": 10
+        },
+        "SW-SKL-008": {
+         "high": 1,
+         "medium": 1
+        },
+        "SW-SKL-009": {
+         "high": 0,
+         "medium": 7
+        },
+        "SW-SKL-010": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-011": {
+         "high": 4,
+         "medium": 4
+        },
+        "SW-SKL-012": {
+         "high": 0,
+         "medium": 1
+        },
+        "SW-SKL-013": {
+         "high": 0,
+         "medium": 1
+        },
+        "SW-SKL-014": {
+         "high": 0,
+         "medium": 2
+        },
+        "SW-SKL-015": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-019": {
+         "high": 0,
+         "medium": 9
+        },
+        "SW-SKL-031": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-032": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-036": {
+         "high": 0,
+         "medium": 5
+        },
+        "SW-SKL-037": {
+         "high": 0,
+         "medium": 0
+        }
+       },
+       "title": "Public skills a study labelled malicious (Liu et al.)",
+       "unread": {}
+      },
+      "wild-skillleak": {
+       "found": {
+        "high": 4,
+        "medium": 7
+       },
+       "items": 15,
+       "label": "malicious",
+       "missed": {
+        "m-asb04-000893": "low",
+        "m-asb04-001417": "low",
+        "m-asb04-003303": "medium",
+        "m-asb04-003427": "medium",
+        "m-asb04-003939": "low",
+        "m-asb04-004339": "low",
+        "m-asb04-006033": "low",
+        "m-asb04-006263": "medium",
+        "m-asb04-006358": "low",
+        "m-asb04-006380": "low",
+        "m-asb04-006555": "low"
+       },
+       "rules": {
+        "SW-SKL-001": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-002": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-003": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-004": {
+         "high": 1,
+         "medium": 1
+        },
+        "SW-SKL-005": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-006": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-007": {
+         "high": 3,
+         "medium": 3
+        },
+        "SW-SKL-008": {
+         "high": 1,
+         "medium": 1
+        },
+        "SW-SKL-009": {
+         "high": 0,
+         "medium": 1
+        },
+        "SW-SKL-010": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-011": {
+         "high": 1,
+         "medium": 1
+        },
+        "SW-SKL-012": {
+         "high": 0,
+         "medium": 1
+        },
+        "SW-SKL-013": {
+         "high": 0,
+         "medium": 1
+        },
+        "SW-SKL-014": {
+         "high": 0,
+         "medium": 1
+        },
+        "SW-SKL-015": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-019": {
+         "high": 0,
+         "medium": 5
+        },
+        "SW-SKL-031": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-032": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-036": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-037": {
+         "high": 0,
+         "medium": 2
+        }
+       },
+       "title": "Public skills that leak data (SkillLeakBench)",
+       "unread": {}
+      }
+     },
+     "title": "Held-out half of Spellwarden's labelled set"
+    },
+    "msb-test": {
+     "role": "test",
+     "strata": {
+      "atr-benign": {
+       "found": {
+        "high": 35,
+        "medium": 127
+       },
+       "items": 455,
+       "label": "benign",
+       "rules": {
+        "SW-SKL-001": {
+         "high": 3,
+         "medium": 3
+        },
+        "SW-SKL-002": {
+         "high": 1,
+         "medium": 1
+        },
+        "SW-SKL-003": {
+         "high": 4,
+         "medium": 4
+        },
+        "SW-SKL-004": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-005": {
+         "high": 1,
+         "medium": 1
+        },
+        "SW-SKL-006": {
+         "high": 0,
+         "medium": 4
+        },
+        "SW-SKL-007": {
+         "high": 18,
+         "medium": 18
+        },
+        "SW-SKL-008": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-009": {
+         "high": 0,
+         "medium": 83
+        },
+        "SW-SKL-010": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-011": {
+         "high": 8,
+         "medium": 8
+        },
+        "SW-SKL-012": {
+         "high": 0,
+         "medium": 4
+        },
+        "SW-SKL-013": {
+         "high": 0,
+         "medium": 1
+        },
+        "SW-SKL-014": {
+         "high": 0,
+         "medium": 1
+        },
+        "SW-SKL-015": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-019": {
+         "high": 0,
+         "medium": 14
+        },
+        "SW-SKL-031": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-032": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-036": {
+         "high": 0,
+         "medium": 22
+        },
+        "SW-SKL-037": {
+         "high": 0,
+         "medium": 1
+        }
+       },
+       "title": "Harmless skills (ATR)",
+       "unread": {}
+      },
+      "atr-malicious": {
+       "found": {
+        "high": 8,
+        "medium": 15
+       },
+       "items": 21,
+       "label": "malicious",
+       "missed": {
+        "m-asb04-000743": "low",
+        "m-asb04-001196": "low",
+        "m-asb04-001816": "low",
+        "m-asb04-001841": "medium",
+        "m-asb04-002571": "low",
+        "m-asb04-002820": "medium",
+        "m-asb04-002865": "low",
+        "m-asb04-003701": "medium",
+        "m-asb04-003887": "medium",
+        "m-asb04-004990": "medium",
+        "m-asb04-005036": "medium",
+        "m-asb04-005696": "low",
+        "m-asb04-006133": "medium"
+       },
+       "rules": {
+        "SW-SKL-001": {
+         "high": 1,
+         "medium": 1
+        },
+        "SW-SKL-002": {
+         "high": 1,
+         "medium": 1
+        },
+        "SW-SKL-003": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-004": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-005": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-006": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-007": {
+         "high": 3,
+         "medium": 3
+        },
+        "SW-SKL-008": {
+         "high": 1,
+         "medium": 1
+        },
+        "SW-SKL-009": {
+         "high": 0,
+         "medium": 2
+        },
+        "SW-SKL-010": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-011": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-012": {
+         "high": 0,
+         "medium": 5
+        },
+        "SW-SKL-013": {
+         "high": 0,
+         "medium": 4
+        },
+        "SW-SKL-014": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-015": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-019": {
+         "high": 0,
+         "medium": 1
+        },
+        "SW-SKL-031": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-032": {
+         "high": 5,
+         "medium": 5
+        },
+        "SW-SKL-036": {
+         "high": 0,
+         "medium": 1
+        },
+        "SW-SKL-037": {
+         "high": 0,
+         "medium": 0
+        }
+       },
+       "title": "Curated attacks (ATR)",
+       "unread": {}
+      },
+      "skillfortifybench-benign": {
+       "found": {
+        "high": 18,
+        "medium": 18
+       },
+       "items": 90,
+       "label": "benign",
+       "rules": {
+        "SW-SKL-001": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-002": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-003": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-004": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-005": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-006": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-007": {
+         "high": 18,
+         "medium": 18
+        },
+        "SW-SKL-008": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-009": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-010": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-011": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-012": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-013": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-014": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-015": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-019": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-031": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-032": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-036": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-037": {
+         "high": 0,
+         "medium": 0
+        }
+       },
+       "title": "Harmless skills (SkillFortifyBench)",
+       "unread": {}
+      },
+      "skillfortifybench-malicious": {
+       "found": {
+        "high": 10,
+        "medium": 26
+       },
+       "items": 90,
+       "label": "malicious",
+       "missed": {
+        "m-asb04-000031": "medium",
+        "m-asb04-000077": "medium",
+        "m-asb04-000214": "low",
+        "m-asb04-000303": "medium",
+        "m-asb04-000314": "low",
+        "m-asb04-000440": "low",
+        "m-asb04-000458": "low",
+        "m-asb04-000471": "low",
+        "m-asb04-000629": "low",
+        "m-asb04-000721": "low",
+        "m-asb04-000982": "low",
+        "m-asb04-001008": "medium",
+        "m-asb04-001078": "low",
+        "m-asb04-001096": "medium",
+        "m-asb04-001241": "low",
+        "m-asb04-001244": "low",
+        "m-asb04-001254": "low",
+        "m-asb04-001367": "low",
+        "m-asb04-001427": "medium",
+        "m-asb04-001436": "low",
+        "m-asb04-001494": "low",
+        "m-asb04-001593": "medium",
+        "m-asb04-001698": "low",
+        "m-asb04-001762": "low",
+        "m-asb04-001799": "low",
+        "m-asb04-001981": "low",
+        "m-asb04-002033": "low",
+        "m-asb04-002055": "low",
+        "m-asb04-002108": "medium",
+        "m-asb04-002196": "low",
+        "m-asb04-002323": "low",
+        "m-asb04-002648": "medium",
+        "m-asb04-002691": "low",
+        "m-asb04-002711": "medium",
+        "m-asb04-002802": "low",
+        "m-asb04-002823": "low",
+        "m-asb04-002879": "low",
+        "m-asb04-002916": "low",
+        "m-asb04-003011": "medium",
+        "m-asb04-003017": "low",
+        "m-asb04-003123": "low",
+        "m-asb04-003159": "low",
+        "m-asb04-003224": "low",
+        "m-asb04-003426": "low",
+        "m-asb04-003474": "low",
+        "m-asb04-003534": "low",
+        "m-asb04-003619": "low",
+        "m-asb04-003627": "low",
+        "m-asb04-003636": "low",
+        "m-asb04-003689": "low",
+        "m-asb04-003713": "medium",
+        "m-asb04-003851": "low",
+        "m-asb04-003955": "low",
+        "m-asb04-003957": "low",
+        "m-asb04-004000": "low",
+        "m-asb04-004012": "low",
+        "m-asb04-004014": "low",
+        "m-asb04-004530": "low",
+        "m-asb04-004592": "low",
+        "m-asb04-004693": "low",
+        "m-asb04-004816": "medium",
+        "m-asb04-004962": "low",
+        "m-asb04-005014": "low",
+        "m-asb04-005030": "low",
+        "m-asb04-005087": "low",
+        "m-asb04-005105": "low",
+        "m-asb04-005347": "low",
+        "m-asb04-005402": "low",
+        "m-asb04-005595": "low",
+        "m-asb04-005702": "low",
+        "m-asb04-005722": "low",
+        "m-asb04-005737": "medium",
+        "m-asb04-006246": "low",
+        "m-asb04-006342": "medium",
+        "m-asb04-006561": "medium",
+        "m-asb04-006576": "low",
+        "m-asb04-006662": "low",
+        "m-asb04-006750": "low",
+        "m-asb04-006788": "low",
+        "m-asb04-007373": "low"
+       },
+       "rules": {
+        "SW-SKL-001": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-002": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-003": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-004": {
+         "high": 3,
+         "medium": 3
+        },
+        "SW-SKL-005": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-006": {
+         "high": 0,
+         "medium": 6
+        },
+        "SW-SKL-007": {
+         "high": 7,
+         "medium": 7
+        },
+        "SW-SKL-008": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-009": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-010": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-011": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-012": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-013": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-014": {
+         "high": 0,
+         "medium": 7
+        },
+        "SW-SKL-015": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-019": {
+         "high": 0,
+         "medium": 13
+        },
+        "SW-SKL-031": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-032": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-036": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-037": {
+         "high": 0,
+         "medium": 0
+        }
+       },
+       "title": "Constructed attacks (SkillFortifyBench)",
+       "unread": {}
+      },
+      "skillharm": {
+       "found": {
+        "high": 14,
+        "medium": 262
+       },
+       "items": 728,
+       "label": "malicious",
+       "missed": {
+        "m-asb04-000018": "low",
+        "m-asb04-000025": "medium",
+        "m-asb04-000038": "medium",
+        "m-asb04-000047": "low",
+        "m-asb04-000049": "low",
+        "m-asb04-000067": "medium",
+        "m-asb04-000084": "low",
+        "m-asb04-000087": "medium",
+        "m-asb04-000091": "low",
+        "m-asb04-000105": "low",
+        "m-asb04-000110": "medium",
+        "m-asb04-000133": "low",
+        "m-asb04-000140": "low",
+        "m-asb04-000144": "low",
+        "m-asb04-000146": "medium",
+        "m-asb04-000167": "low",
+        "m-asb04-000169": "low",
+        "m-asb04-000188": "low",
+        "m-asb04-000192": "low",
+        "m-asb04-000196": "low",
+        "m-asb04-000204": "medium",
+        "m-asb04-000226": "medium",
+        "m-asb04-000238": "low",
+        "m-asb04-000246": "low",
+        "m-asb04-000263": "low",
+        "m-asb04-000275": "medium",
+        "m-asb04-000291": "medium",
+        "m-asb04-000307": "low",
+        "m-asb04-000310": "low",
+        "m-asb04-000321": "medium",
+        "m-asb04-000322": "medium",
+        "m-asb04-000323": "medium",
+        "m-asb04-000326": "medium",
+        "m-asb04-000347": "medium",
+        "m-asb04-000348": "low",
+        "m-asb04-000349": "medium",
+        "m-asb04-000362": "low",
+        "m-asb04-000375": "low",
+        "m-asb04-000377": "low",
+        "m-asb04-000391": "medium",
+        "m-asb04-000409": "low",
+        "m-asb04-000427": "medium",
+        "m-asb04-000437": "low",
+        "m-asb04-000468": "low",
+        "m-asb04-000476": "low",
+        "m-asb04-000487": "low",
+        "m-asb04-000498": "low",
+        "m-asb04-000499": "low",
+        "m-asb04-000523": "medium",
+        "m-asb04-000540": "low",
+        "m-asb04-000542": "medium",
+        "m-asb04-000545": "low",
+        "m-asb04-000557": "medium",
+        "m-asb04-000559": "low",
+        "m-asb04-000583": "low",
+        "m-asb04-000604": "low",
+        "m-asb04-000618": "medium",
+        "m-asb04-000622": "low",
+        "m-asb04-000630": "medium",
+        "m-asb04-000641": "low",
+        "m-asb04-000646": "low",
+        "m-asb04-000647": "medium",
+        "m-asb04-000676": "low",
+        "m-asb04-000688": "low",
+        "m-asb04-000692": "low",
+        "m-asb04-000719": "low",
+        "m-asb04-000751": "low",
+        "m-asb04-000752": "medium",
+        "m-asb04-000761": "medium",
+        "m-asb04-000762": "low",
+        "m-asb04-000764": "medium",
+        "m-asb04-000767": "low",
+        "m-asb04-000789": "low",
+        "m-asb04-000791": "low",
+        "m-asb04-000806": "medium",
+        "m-asb04-000820": "medium",
+        "m-asb04-000827": "low",
+        "m-asb04-000834": "low",
+        "m-asb04-000839": "low",
+        "m-asb04-000849": "medium",
+        "m-asb04-000854": "medium",
+        "m-asb04-000865": "low",
+        "m-asb04-000881": "low",
+        "m-asb04-000885": "low",
+        "m-asb04-000887": "low",
+        "m-asb04-000888": "low",
+        "m-asb04-000896": "low",
+        "m-asb04-000900": "medium",
+        "m-asb04-000901": "medium",
+        "m-asb04-000904": "low",
+        "m-asb04-000921": "low",
+        "m-asb04-000922": "low",
+        "m-asb04-000942": "medium",
+        "m-asb04-000949": "medium",
+        "m-asb04-000969": "medium",
+        "m-asb04-000976": "medium",
+        "m-asb04-001010": "medium",
+        "m-asb04-001014": "low",
+        "m-asb04-001019": "low",
+        "m-asb04-001028": "medium",
+        "m-asb04-001035": "low",
+        "m-asb04-001047": "medium",
+        "m-asb04-001056": "low",
+        "m-asb04-001061": "low",
+        "m-asb04-001063": "medium",
+        "m-asb04-001074": "low",
+        "m-asb04-001094": "low",
+        "m-asb04-001100": "low",
+        "m-asb04-001107": "low",
+        "m-asb04-001119": "low",
+        "m-asb04-001127": "low",
+        "m-asb04-001138": "low",
+        "m-asb04-001139": "low",
+        "m-asb04-001141": "medium",
+        "m-asb04-001153": "low",
+        "m-asb04-001158": "low",
+        "m-asb04-001188": "medium",
+        "m-asb04-001198": "medium",
+        "m-asb04-001202": "low",
+        "m-asb04-001206": "low",
+        "m-asb04-001207": "low",
+        "m-asb04-001212": "low",
+        "m-asb04-001213": "medium",
+        "m-asb04-001220": "low",
+        "m-asb04-001236": "low",
+        "m-asb04-001240": "medium",
+        "m-asb04-001253": "medium",
+        "m-asb04-001256": "medium",
+        "m-asb04-001273": "low",
+        "m-asb04-001281": "low",
+        "m-asb04-001290": "medium",
+        "m-asb04-001295": "low",
+        "m-asb04-001297": "medium",
+        "m-asb04-001309": "medium",
+        "m-asb04-001339": "low",
+        "m-asb04-001359": "low",
+        "m-asb04-001366": "medium",
+        "m-asb04-001374": "low",
+        "m-asb04-001394": "low",
+        "m-asb04-001404": "low",
+        "m-asb04-001405": "low",
+        "m-asb04-001410": "medium",
+        "m-asb04-001418": "medium",
+        "m-asb04-001420": "low",
+        "m-asb04-001444": "medium",
+        "m-asb04-001458": "low",
+        "m-asb04-001461": "low",
+        "m-asb04-001484": "low",
+        "m-asb04-001490": "low",
+        "m-asb04-001498": "medium",
+        "m-asb04-001517": "medium",
+        "m-asb04-001522": "low",
+        "m-asb04-001528": "low",
+        "m-asb04-001532": "medium",
+        "m-asb04-001569": "low",
+        "m-asb04-001574": "low",
+        "m-asb04-001583": "medium",
+        "m-asb04-001584": "medium",
+        "m-asb04-001585": "medium",
+        "m-asb04-001597": "low",
+        "m-asb04-001610": "medium",
+        "m-asb04-001611": "low",
+        "m-asb04-001613": "low",
+        "m-asb04-001616": "low",
+        "m-asb04-001631": "low",
+        "m-asb04-001641": "medium",
+        "m-asb04-001647": "medium",
+        "m-asb04-001650": "medium",
+        "m-asb04-001652": "low",
+        "m-asb04-001664": "low",
+        "m-asb04-001674": "medium",
+        "m-asb04-001677": "low",
+        "m-asb04-001681": "medium",
+        "m-asb04-001703": "medium",
+        "m-asb04-001715": "low",
+        "m-asb04-001719": "low",
+        "m-asb04-001728": "low",
+        "m-asb04-001744": "low",
+        "m-asb04-001747": "low",
+        "m-asb04-001748": "low",
+        "m-asb04-001755": "low",
+        "m-asb04-001769": "medium",
+        "m-asb04-001776": "low",
+        "m-asb04-001778": "low",
+        "m-asb04-001779": "low",
+        "m-asb04-001826": "medium",
+        "m-asb04-001835": "low",
+        "m-asb04-001838": "low",
+        "m-asb04-001850": "medium",
+        "m-asb04-001852": "medium",
+        "m-asb04-001894": "medium",
+        "m-asb04-001897": "medium",
+        "m-asb04-001903": "low",
+        "m-asb04-001924": "low",
+        "m-asb04-001932": "low",
+        "m-asb04-001934": "low",
+        "m-asb04-001940": "low",
+        "m-asb04-001951": "low",
+        "m-asb04-001954": "low",
+        "m-asb04-001962": "low",
+        "m-asb04-001963": "low",
+        "m-asb04-001974": "low",
+        "m-asb04-002008": "low",
+        "m-asb04-002018": "medium",
+        "m-asb04-002021": "low",
+        "m-asb04-002030": "low",
+        "m-asb04-002034": "low",
+        "m-asb04-002041": "medium",
+        "m-asb04-002062": "low",
+        "m-asb04-002066": "low",
+        "m-asb04-002078": "low",
+        "m-asb04-002085": "medium",
+        "m-asb04-002096": "low",
+        "m-asb04-002107": "low",
+        "m-asb04-002124": "medium",
+        "m-asb04-002144": "low",
+        "m-asb04-002145": "low",
+        "m-asb04-002154": "medium",
+        "m-asb04-002155": "low",
+        "m-asb04-002204": "low",
+        "m-asb04-002205": "medium",
+        "m-asb04-002206": "low",
+        "m-asb04-002211": "medium",
+        "m-asb04-002220": "low",
+        "m-asb04-002228": "low",
+        "m-asb04-002231": "low",
+        "m-asb04-002233": "low",
+        "m-asb04-002235": "medium",
+        "m-asb04-002238": "low",
+        "m-asb04-002291": "medium",
+        "m-asb04-002292": "low",
+        "m-asb04-002310": "low",
+        "m-asb04-002311": "medium",
+        "m-asb04-002313": "low",
+        "m-asb04-002316": "low",
+        "m-asb04-002319": "medium",
+        "m-asb04-002324": "low",
+        "m-asb04-002325": "medium",
+        "m-asb04-002330": "low",
+        "m-asb04-002331": "low",
+        "m-asb04-002332": "medium",
+        "m-asb04-002342": "low",
+        "m-asb04-002343": "medium",
+        "m-asb04-002345": "low",
+        "m-asb04-002356": "low",
+        "m-asb04-002359": "medium",
+        "m-asb04-002381": "low",
+        "m-asb04-002383": "low",
+        "m-asb04-002386": "low",
+        "m-asb04-002389": "low",
+        "m-asb04-002391": "low",
+        "m-asb04-002397": "medium",
+        "m-asb04-002411": "medium",
+        "m-asb04-002412": "low",
+        "m-asb04-002419": "low",
+        "m-asb04-002424": "low",
+        "m-asb04-002431": "low",
+        "m-asb04-002437": "low",
+        "m-asb04-002449": "medium",
+        "m-asb04-002454": "medium",
+        "m-asb04-002469": "medium",
+        "m-asb04-002484": "medium",
+        "m-asb04-002489": "low",
+        "m-asb04-002499": "low",
+        "m-asb04-002506": "medium",
+        "m-asb04-002525": "low",
+        "m-asb04-002547": "low",
+        "m-asb04-002550": "low",
+        "m-asb04-002562": "low",
+        "m-asb04-002572": "low",
+        "m-asb04-002577": "medium",
+        "m-asb04-002586": "medium",
+        "m-asb04-002593": "low",
+        "m-asb04-002595": "low",
+        "m-asb04-002605": "medium",
+        "m-asb04-002608": "low",
+        "m-asb04-002619": "low",
+        "m-asb04-002628": "low",
+        "m-asb04-002640": "medium",
+        "m-asb04-002680": "low",
+        "m-asb04-002683": "medium",
+        "m-asb04-002687": "medium",
+        "m-asb04-002712": "low",
+        "m-asb04-002719": "medium",
+        "m-asb04-002734": "low",
+        "m-asb04-002753": "medium",
+        "m-asb04-002762": "low",
+        "m-asb04-002777": "low",
+        "m-asb04-002784": "low",
+        "m-asb04-002810": "medium",
+        "m-asb04-002817": "medium",
+        "m-asb04-002822": "low",
+        "m-asb04-002837": "medium",
+        "m-asb04-002850": "low",
+        "m-asb04-002853": "low",
+        "m-asb04-002860": "low",
+        "m-asb04-002878": "low",
+        "m-asb04-002899": "medium",
+        "m-asb04-002903": "medium",
+        "m-asb04-002905": "low",
+        "m-asb04-002911": "low",
+        "m-asb04-002945": "medium",
+        "m-asb04-002947": "medium",
+        "m-asb04-002951": "low",
+        "m-asb04-002971": "medium",
+        "m-asb04-002972": "medium",
+        "m-asb04-002978": "medium",
+        "m-asb04-002984": "low",
+        "m-asb04-002999": "medium",
+        "m-asb04-003005": "medium",
+        "m-asb04-003006": "medium",
+        "m-asb04-003023": "low",
+        "m-asb04-003049": "low",
+        "m-asb04-003052": "low",
+        "m-asb04-003058": "low",
+        "m-asb04-003061": "low",
+        "m-asb04-003064": "low",
+        "m-asb04-003070": "medium",
+        "m-asb04-003086": "medium",
+        "m-asb04-003091": "low",
+        "m-asb04-003094": "low",
+        "m-asb04-003095": "low",
+        "m-asb04-003102": "low",
+        "m-asb04-003105": "low",
+        "m-asb04-003110": "medium",
+        "m-asb04-003119": "medium",
+        "m-asb04-003120": "medium",
+        "m-asb04-003134": "medium",
+        "m-asb04-003139": "medium",
+        "m-asb04-003142": "low",
+        "m-asb04-003147": "low",
+        "m-asb04-003148": "medium",
+        "m-asb04-003170": "low",
+        "m-asb04-003183": "low",
+        "m-asb04-003190": "low",
+        "m-asb04-003195": "medium",
+        "m-asb04-003209": "medium",
+        "m-asb04-003237": "medium",
+        "m-asb04-003240": "low",
+        "m-asb04-003257": "low",
+        "m-asb04-003265": "low",
+        "m-asb04-003270": "low",
+        "m-asb04-003281": "medium",
+        "m-asb04-003289": "medium",
+        "m-asb04-003293": "low",
+        "m-asb04-003298": "medium",
+        "m-asb04-003306": "low",
+        "m-asb04-003312": "medium",
+        "m-asb04-003322": "low",
+        "m-asb04-003338": "low",
+        "m-asb04-003339": "medium",
+        "m-asb04-003344": "low",
+        "m-asb04-003345": "low",
+        "m-asb04-003350": "low",
+        "m-asb04-003365": "low",
+        "m-asb04-003372": "low",
+        "m-asb04-003406": "low",
+        "m-asb04-003428": "low",
+        "m-asb04-003435": "medium",
+        "m-asb04-003459": "low",
+        "m-asb04-003465": "medium",
+        "m-asb04-003480": "low",
+        "m-asb04-003495": "low",
+        "m-asb04-003510": "low",
+        "m-asb04-003516": "medium",
+        "m-asb04-003566": "low",
+        "m-asb04-003571": "low",
+        "m-asb04-003578": "low",
+        "m-asb04-003586": "low",
+        "m-asb04-003611": "low",
+        "m-asb04-003623": "low",
+        "m-asb04-003624": "medium",
+        "m-asb04-003634": "low",
+        "m-asb04-003638": "low",
+        "m-asb04-003649": "low",
+        "m-asb04-003671": "low",
+        "m-asb04-003694": "medium",
+        "m-asb04-003709": "medium",
+        "m-asb04-003710": "medium",
+        "m-asb04-003732": "low",
+        "m-asb04-003746": "low",
+        "m-asb04-003761": "low",
+        "m-asb04-003779": "low",
+        "m-asb04-003783": "low",
+        "m-asb04-003790": "low",
+        "m-asb04-003791": "low",
+        "m-asb04-003798": "low",
+        "m-asb04-003801": "low",
+        "m-asb04-003812": "low",
+        "m-asb04-003814": "low",
+        "m-asb04-003815": "low",
+        "m-asb04-003835": "low",
+        "m-asb04-003841": "low",
+        "m-asb04-003844": "medium",
+        "m-asb04-003849": "low",
+        "m-asb04-003854": "medium",
+        "m-asb04-003894": "low",
+        "m-asb04-003895": "low",
+        "m-asb04-003898": "low",
+        "m-asb04-003903": "low",
+        "m-asb04-003910": "medium",
+        "m-asb04-003913": "low",
+        "m-asb04-003921": "low",
+        "m-asb04-003924": "low",
+        "m-asb04-003931": "low",
+        "m-asb04-003933": "medium",
+        "m-asb04-003941": "low",
+        "m-asb04-003958": "low",
+        "m-asb04-004004": "medium",
+        "m-asb04-004011": "low",
+        "m-asb04-004051": "medium",
+        "m-asb04-004052": "medium",
+        "m-asb04-004070": "low",
+        "m-asb04-004072": "low",
+        "m-asb04-004081": "low",
+        "m-asb04-004109": "medium",
+        "m-asb04-004110": "low",
+        "m-asb04-004114": "low",
+        "m-asb04-004132": "low",
+        "m-asb04-004135": "low",
+        "m-asb04-004140": "low",
+        "m-asb04-004174": "low",
+        "m-asb04-004205": "low",
+        "m-asb04-004209": "low",
+        "m-asb04-004221": "low",
+        "m-asb04-004245": "medium",
+        "m-asb04-004258": "low",
+        "m-asb04-004270": "low",
+        "m-asb04-004272": "low",
+        "m-asb04-004274": "low",
+        "m-asb04-004286": "low",
+        "m-asb04-004291": "low",
+        "m-asb04-004298": "medium",
+        "m-asb04-004310": "medium",
+        "m-asb04-004352": "medium",
+        "m-asb04-004353": "medium",
+        "m-asb04-004357": "low",
+        "m-asb04-004362": "medium",
+        "m-asb04-004366": "medium",
+        "m-asb04-004367": "low",
+        "m-asb04-004368": "low",
+        "m-asb04-004373": "low",
+        "m-asb04-004393": "low",
+        "m-asb04-004394": "low",
+        "m-asb04-004401": "low",
+        "m-asb04-004419": "medium",
+        "m-asb04-004424": "low",
+        "m-asb04-004447": "low",
+        "m-asb04-004448": "medium",
+        "m-asb04-004458": "low",
+        "m-asb04-004461": "low",
+        "m-asb04-004470": "low",
+        "m-asb04-004476": "low",
+        "m-asb04-004481": "low",
+        "m-asb04-004488": "low",
+        "m-asb04-004493": "low",
+        "m-asb04-004507": "medium",
+        "m-asb04-004514": "low",
+        "m-asb04-004531": "low",
+        "m-asb04-004552": "medium",
+        "m-asb04-004557": "low",
+        "m-asb04-004558": "low",
+        "m-asb04-004578": "medium",
+        "m-asb04-004595": "low",
+        "m-asb04-004604": "low",
+        "m-asb04-004622": "medium",
+        "m-asb04-004649": "low",
+        "m-asb04-004652": "low",
+        "m-asb04-004687": "low",
+        "m-asb04-004690": "low",
+        "m-asb04-004702": "medium",
+        "m-asb04-004705": "medium",
+        "m-asb04-004708": "medium",
+        "m-asb04-004712": "medium",
+        "m-asb04-004720": "low",
+        "m-asb04-004726": "low",
+        "m-asb04-004738": "medium",
+        "m-asb04-004741": "low",
+        "m-asb04-004742": "low",
+        "m-asb04-004749": "low",
+        "m-asb04-004761": "low",
+        "m-asb04-004769": "low",
+        "m-asb04-004770": "medium",
+        "m-asb04-004795": "low",
+        "m-asb04-004797": "medium",
+        "m-asb04-004805": "low",
+        "m-asb04-004827": "medium",
+        "m-asb04-004847": "low",
+        "m-asb04-004860": "low",
+        "m-asb04-004862": "medium",
+        "m-asb04-004866": "low",
+        "m-asb04-004872": "low",
+        "m-asb04-004891": "low",
+        "m-asb04-004899": "low",
+        "m-asb04-004902": "medium",
+        "m-asb04-004906": "low",
+        "m-asb04-004959": "low",
+        "m-asb04-004978": "medium",
+        "m-asb04-004984": "low",
+        "m-asb04-004992": "low",
+        "m-asb04-004996": "medium",
+        "m-asb04-005019": "low",
+        "m-asb04-005031": "low",
+        "m-asb04-005054": "low",
+        "m-asb04-005068": "low",
+        "m-asb04-005084": "medium",
+        "m-asb04-005096": "medium",
+        "m-asb04-005104": "low",
+        "m-asb04-005107": "medium",
+        "m-asb04-005109": "medium",
+        "m-asb04-005126": "low",
+        "m-asb04-005130": "medium",
+        "m-asb04-005166": "medium",
+        "m-asb04-005168": "medium",
+        "m-asb04-005172": "low",
+        "m-asb04-005183": "low",
+        "m-asb04-005226": "low",
+        "m-asb04-005253": "low",
+        "m-asb04-005299": "low",
+        "m-asb04-005309": "low",
+        "m-asb04-005315": "low",
+        "m-asb04-005322": "low",
+        "m-asb04-005327": "low",
+        "m-asb04-005338": "low",
+        "m-asb04-005339": "medium",
+        "m-asb04-005354": "low",
+        "m-asb04-005360": "medium",
+        "m-asb04-005394": "medium",
+        "m-asb04-005396": "medium",
+        "m-asb04-005398": "low",
+        "m-asb04-005403": "low",
+        "m-asb04-005405": "low",
+        "m-asb04-005416": "medium",
+        "m-asb04-005428": "low",
+        "m-asb04-005449": "medium",
+        "m-asb04-005468": "low",
+        "m-asb04-005470": "low",
+        "m-asb04-005475": "medium",
+        "m-asb04-005483": "low",
+        "m-asb04-005506": "low",
+        "m-asb04-005507": "low",
+        "m-asb04-005514": "low",
+        "m-asb04-005516": "low",
+        "m-asb04-005551": "low",
+        "m-asb04-005555": "medium",
+        "m-asb04-005597": "low",
+        "m-asb04-005600": "low",
+        "m-asb04-005611": "medium",
+        "m-asb04-005625": "low",
+        "m-asb04-005646": "low",
+        "m-asb04-005652": "low",
+        "m-asb04-005671": "low",
+        "m-asb04-005672": "low",
+        "m-asb04-005683": "medium",
+        "m-asb04-005716": "low",
+        "m-asb04-005745": "low",
+        "m-asb04-005753": "medium",
+        "m-asb04-005759": "low",
+        "m-asb04-005761": "low",
+        "m-asb04-005765": "low",
+        "m-asb04-005768": "medium",
+        "m-asb04-005769": "low",
+        "m-asb04-005793": "low",
+        "m-asb04-005798": "medium",
+        "m-asb04-005808": "low",
+        "m-asb04-005813": "low",
+        "m-asb04-005818": "low",
+        "m-asb04-005828": "medium",
+        "m-asb04-005831": "low",
+        "m-asb04-005878": "low",
+        "m-asb04-005889": "medium",
+        "m-asb04-005893": "low",
+        "m-asb04-005897": "medium",
+        "m-asb04-005900": "medium",
+        "m-asb04-005901": "medium",
+        "m-asb04-005902": "low",
+        "m-asb04-005913": "medium",
+        "m-asb04-005930": "low",
+        "m-asb04-005953": "medium",
+        "m-asb04-005961": "medium",
+        "m-asb04-005970": "low",
+        "m-asb04-005971": "low",
+        "m-asb04-005986": "medium",
+        "m-asb04-005992": "low",
+        "m-asb04-006004": "medium",
+        "m-asb04-006015": "medium",
+        "m-asb04-006016": "medium",
+        "m-asb04-006025": "medium",
+        "m-asb04-006030": "medium",
+        "m-asb04-006044": "low",
+        "m-asb04-006050": "low",
+        "m-asb04-006052": "medium",
+        "m-asb04-006080": "medium",
+        "m-asb04-006086": "medium",
+        "m-asb04-006094": "medium",
+        "m-asb04-006097": "low",
+        "m-asb04-006101": "low",
+        "m-asb04-006105": "low",
+        "m-asb04-006114": "low",
+        "m-asb04-006116": "medium",
+        "m-asb04-006128": "low",
+        "m-asb04-006136": "low",
+        "m-asb04-006150": "low",
+        "m-asb04-006157": "medium",
+        "m-asb04-006226": "medium",
+        "m-asb04-006231": "medium",
+        "m-asb04-006234": "low",
+        "m-asb04-006260": "low",
+        "m-asb04-006268": "low",
+        "m-asb04-006312": "low",
+        "m-asb04-006319": "low",
+        "m-asb04-006331": "medium",
+        "m-asb04-006333": "low",
+        "m-asb04-006360": "low",
+        "m-asb04-006364": "low",
+        "m-asb04-006378": "medium",
+        "m-asb04-006382": "low",
+        "m-asb04-006385": "low",
+        "m-asb04-006414": "low",
+        "m-asb04-006420": "low",
+        "m-asb04-006422": "medium",
+        "m-asb04-006430": "medium",
+        "m-asb04-006440": "low",
+        "m-asb04-006447": "medium",
+        "m-asb04-006448": "medium",
+        "m-asb04-006451": "low",
+        "m-asb04-006473": "medium",
+        "m-asb04-006476": "low",
+        "m-asb04-006483": "low",
+        "m-asb04-006494": "low",
+        "m-asb04-006506": "low",
+        "m-asb04-006516": "medium",
+        "m-asb04-006519": "low",
+        "m-asb04-006521": "low",
+        "m-asb04-006526": "medium",
+        "m-asb04-006527": "medium",
+        "m-asb04-006534": "low",
+        "m-asb04-006538": "low",
+        "m-asb04-006545": "low",
+        "m-asb04-006547": "medium",
+        "m-asb04-006559": "low",
+        "m-asb04-006579": "low",
+        "m-asb04-006589": "medium",
+        "m-asb04-006597": "low",
+        "m-asb04-006601": "low",
+        "m-asb04-006609": "low",
+        "m-asb04-006616": "medium",
+        "m-asb04-006621": "low",
+        "m-asb04-006624": "low",
+        "m-asb04-006629": "low",
+        "m-asb04-006630": "low",
+        "m-asb04-006631": "low",
+        "m-asb04-006645": "medium",
+        "m-asb04-006654": "medium",
+        "m-asb04-006676": "low",
+        "m-asb04-006688": "low",
+        "m-asb04-006695": "low",
+        "m-asb04-006703": "low",
+        "m-asb04-006753": "low",
+        "m-asb04-006809": "low",
+        "m-asb04-006845": "low",
+        "m-asb04-006847": "medium",
+        "m-asb04-006861": "medium",
+        "m-asb04-006878": "low",
+        "m-asb04-006887": "medium",
+        "m-asb04-006891": "medium",
+        "m-asb04-006892": "low",
+        "m-asb04-006900": "low",
+        "m-asb04-006940": "low",
+        "m-asb04-006944": "low",
+        "m-asb04-006952": "low",
+        "m-asb04-006954": "medium",
+        "m-asb04-006997": "low",
+        "m-asb04-007008": "low",
+        "m-asb04-007009": "medium",
+        "m-asb04-007027": "low",
+        "m-asb04-007036": "low",
+        "m-asb04-007042": "low",
+        "m-asb04-007047": "medium",
+        "m-asb04-007058": "low",
+        "m-asb04-007070": "low",
+        "m-asb04-007107": "low",
+        "m-asb04-007114": "low",
+        "m-asb04-007123": "low",
+        "m-asb04-007126": "low",
+        "m-asb04-007139": "low",
+        "m-asb04-007153": "low",
+        "m-asb04-007162": "low",
+        "m-asb04-007185": "medium",
+        "m-asb04-007236": "low",
+        "m-asb04-007241": "low",
+        "m-asb04-007247": "low",
+        "m-asb04-007261": "medium",
+        "m-asb04-007264": "low",
+        "m-asb04-007286": "low",
+        "m-asb04-007291": "low",
+        "m-asb04-007295": "low",
+        "m-asb04-007307": "medium",
+        "m-asb04-007331": "medium",
+        "m-asb04-007358": "medium",
+        "m-asb04-007359": "medium",
+        "m-asb04-007392": "low",
+        "m-asb04-007401": "low",
+        "m-asb04-007411": "medium",
+        "m-asb04-007415": "low",
+        "m-asb04-007417": "medium",
+        "m-asb04-007418": "medium",
+        "m-asb04-007426": "low",
+        "m-asb04-007431": "low",
+        "m-asb04-007478": "low",
+        "m-asb04-007481": "low",
+        "m-asb04-007482": "medium",
+        "m-asb04-007488": "medium",
+        "m-asb04-007505": "low"
+       },
+       "rules": {
+        "SW-SKL-001": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-002": {
+         "high": 1,
+         "medium": 1
+        },
+        "SW-SKL-003": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-004": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-005": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-006": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-007": {
+         "high": 1,
+         "medium": 1
+        },
+        "SW-SKL-008": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-009": {
+         "high": 0,
+         "medium": 215
+        },
+        "SW-SKL-010": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-011": {
+         "high": 12,
+         "medium": 12
+        },
+        "SW-SKL-012": {
+         "high": 0,
+         "medium": 2
+        },
+        "SW-SKL-013": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-014": {
+         "high": 0,
+         "medium": 6
+        },
+        "SW-SKL-015": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-019": {
+         "high": 0,
+         "medium": 49
+        },
+        "SW-SKL-031": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-032": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-036": {
+         "high": 0,
+         "medium": 2
+        },
+        "SW-SKL-037": {
+         "high": 0,
+         "medium": 2
+        }
+       },
+       "title": "Constructed attacks (SkillHarm)",
+       "unread": {}
+      }
+     },
+     "title": "MaliciousSkillBench test split (source-disjoint)"
+    },
+    "trailofbits": {
+     "report": "per-item",
+     "role": "test",
+     "strata": {
+      "tob": {
+       "found": {
+        "high": 0,
+        "medium": 3
+       },
+       "items": 4,
+       "label": "malicious",
+       "missed": {
+        "m-tob-context-loader": "low",
+        "m-tob-csv-summarizer": "medium",
+        "m-tob-dev-env-setup": "medium",
+        "m-tob-simple-formatter": "medium"
+       },
+       "outcomes": {
+        "m-tob-context-loader": "low",
+        "m-tob-csv-summarizer": "medium",
+        "m-tob-dev-env-setup": "medium",
+        "m-tob-simple-formatter": "medium"
+       },
+       "rules": {
+        "SW-SKL-001": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-002": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-003": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-004": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-005": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-006": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-007": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-008": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-009": {
+         "high": 0,
+         "medium": 1
+        },
+        "SW-SKL-010": {
+         "high": 0,
+         "medium": 1
+        },
+        "SW-SKL-011": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-012": {
+         "high": 0,
+         "medium": 1
+        },
+        "SW-SKL-013": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-014": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-015": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-019": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-031": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-032": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-036": {
+         "high": 0,
+         "medium": 2
+        },
+        "SW-SKL-037": {
+         "high": 0,
+         "medium": 0
+        }
+       },
+       "title": "Scanner-bypass skills (Trail of Bits)",
+       "unread": {}
+      }
+     },
+     "title": "Trail of Bits scanner-bypass skills"
+    },
+    "tuning": {
+     "role": "tuning",
+     "strata": {
+      "benign-wild": {
+       "found": {
+        "high": 7,
+        "medium": 38
+       },
+       "items": 109,
+       "label": "benign",
+       "rules": {
+        "SW-SKL-001": {
+         "high": 1,
+         "medium": 1
+        },
+        "SW-SKL-002": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-003": {
+         "high": 1,
+         "medium": 1
+        },
+        "SW-SKL-004": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-005": {
+         "high": 1,
+         "medium": 1
+        },
+        "SW-SKL-006": {
+         "high": 0,
+         "medium": 6
+        },
+        "SW-SKL-007": {
+         "high": 2,
+         "medium": 2
+        },
+        "SW-SKL-008": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-009": {
+         "high": 0,
+         "medium": 13
+        },
+        "SW-SKL-010": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-011": {
+         "high": 2,
+         "medium": 2
+        },
+        "SW-SKL-012": {
+         "high": 0,
+         "medium": 3
+        },
+        "SW-SKL-013": {
+         "high": 0,
+         "medium": 1
+        },
+        "SW-SKL-014": {
+         "high": 0,
+         "medium": 1
+        },
+        "SW-SKL-015": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-019": {
+         "high": 0,
+         "medium": 9
+        },
+        "SW-SKL-031": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-032": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-036": {
+         "high": 0,
+         "medium": 15
+        },
+        "SW-SKL-037": {
+         "high": 0,
+         "medium": 0
+        }
+       },
+       "title": "Public skills listed as safe (Liu et al.)",
+       "unread": {}
+      },
+      "wild-amos": {
+       "found": {
+        "high": 1,
+        "medium": 3
+       },
+       "items": 7,
+       "label": "malicious",
+       "missed": {
+        "m-asb04-001098": "medium",
+        "m-asb04-001245": "low",
+        "m-asb04-002219": "low",
+        "m-asb04-004256": "low",
+        "m-asb04-004559": "low",
+        "m-asb04-004734": "medium"
+       },
+       "rules": {
+        "SW-SKL-001": {
+         "high": 1,
+         "medium": 1
+        },
+        "SW-SKL-002": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-003": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-004": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-005": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-006": {
+         "high": 0,
+         "medium": 1
+        },
+        "SW-SKL-007": {
+         "high": 1,
+         "medium": 1
+        },
+        "SW-SKL-008": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-009": {
+         "high": 0,
+         "medium": 1
+        },
+        "SW-SKL-010": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-011": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-012": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-013": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-014": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-015": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-019": {
+         "high": 0,
+         "medium": 1
+        },
+        "SW-SKL-031": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-032": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-036": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-037": {
+         "high": 0,
+         "medium": 1
+        }
+       },
+       "title": "A malware campaign (Agent Skill Malware)",
+       "unread": {}
+      },
+      "wild-liu": {
+       "found": {
+        "high": 10,
+        "medium": 16
+       },
+       "items": 38,
+       "label": "malicious",
+       "missed": {
+        "m-asb04-000086": "low",
+        "m-asb04-000439": "low",
+        "m-asb04-000511": "low",
+        "m-asb04-000536": "low",
+        "m-asb04-001441": "low",
+        "m-asb04-001880": "low",
+        "m-asb04-002518": "medium",
+        "m-asb04-002582": "low",
+        "m-asb04-002647": "low",
+        "m-asb04-002790": "low",
+        "m-asb04-003000": "medium",
+        "m-asb04-003205": "medium",
+        "m-asb04-003321": "medium",
+        "m-asb04-003374": "low",
+        "m-asb04-003376": "low",
+        "m-asb04-003947": "low",
+        "m-asb04-004252": "low",
+        "m-asb04-004314": "low",
+        "m-asb04-004520": "low",
+        "m-asb04-004539": "low",
+        "m-asb04-004548": "low",
+        "m-asb04-004586": "low",
+        "m-asb04-004620": "low",
+        "m-asb04-005135": "medium",
+        "m-asb04-005641": "low",
+        "m-asb04-006027": "medium",
+        "m-asb04-006373": "low",
+        "m-asb04-007152": "low"
+       },
+       "rules": {
+        "SW-SKL-001": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-002": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-003": {
+         "high": 1,
+         "medium": 1
+        },
+        "SW-SKL-004": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-005": {
+         "high": 3,
+         "medium": 3
+        },
+        "SW-SKL-006": {
+         "high": 0,
+         "medium": 3
+        },
+        "SW-SKL-007": {
+         "high": 4,
+         "medium": 4
+        },
+        "SW-SKL-008": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-009": {
+         "high": 0,
+         "medium": 7
+        },
+        "SW-SKL-010": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-011": {
+         "high": 3,
+         "medium": 3
+        },
+        "SW-SKL-012": {
+         "high": 0,
+         "medium": 1
+        },
+        "SW-SKL-013": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-014": {
+         "high": 0,
+         "medium": 1
+        },
+        "SW-SKL-015": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-019": {
+         "high": 0,
+         "medium": 1
+        },
+        "SW-SKL-031": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-032": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-036": {
+         "high": 0,
+         "medium": 1
+        },
+        "SW-SKL-037": {
+         "high": 0,
+         "medium": 0
+        }
+       },
+       "title": "Public skills a study labelled malicious (Liu et al.)",
+       "unread": {}
+      },
+      "wild-skillleak": {
+       "found": {
+        "high": 3,
+        "medium": 10
+       },
+       "items": 16,
+       "label": "malicious",
+       "missed": {
+        "m-asb04-000952": "low",
+        "m-asb04-001195": "medium",
+        "m-asb04-003128": "low",
+        "m-asb04-003288": "low",
+        "m-asb04-003548": "low",
+        "m-asb04-003932": "medium",
+        "m-asb04-004884": "medium",
+        "m-asb04-004950": "medium",
+        "m-asb04-005298": "low",
+        "m-asb04-005622": "medium",
+        "m-asb04-005884": "medium",
+        "m-asb04-006438": "low",
+        "m-asb04-006923": "medium"
+       },
+       "rules": {
+        "SW-SKL-001": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-002": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-003": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-004": {
+         "high": 1,
+         "medium": 1
+        },
+        "SW-SKL-005": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-006": {
+         "high": 0,
+         "medium": 2
+        },
+        "SW-SKL-007": {
+         "high": 2,
+         "medium": 2
+        },
+        "SW-SKL-008": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-009": {
+         "high": 0,
+         "medium": 6
+        },
+        "SW-SKL-010": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-011": {
+         "high": 1,
+         "medium": 1
+        },
+        "SW-SKL-012": {
+         "high": 0,
+         "medium": 1
+        },
+        "SW-SKL-013": {
+         "high": 0,
+         "medium": 1
+        },
+        "SW-SKL-014": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-015": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-019": {
+         "high": 0,
+         "medium": 3
+        },
+        "SW-SKL-031": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-032": {
+         "high": 1,
+         "medium": 1
+        },
+        "SW-SKL-036": {
+         "high": 0,
+         "medium": 0
+        },
+        "SW-SKL-037": {
+         "high": 0,
+         "medium": 2
+        }
+       },
+       "title": "Public skills that leak data (SkillLeakBench)",
+       "unread": {}
+      }
+     },
+     "title": "Tuning half of Spellwarden's labelled set"
+    }
+   },
+   "version": "1.24.0"
   }
  ],
  "results": 1
