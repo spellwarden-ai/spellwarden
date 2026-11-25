@@ -16,7 +16,9 @@ command at a time (`skill.logical_commands`: a line that ends in a backslash is 
   add a command", "Whenever you change the API, update `AGENTS.md`") is not among them.
 
 It is quiet when the sentence has a prohibition before the verb ("Never edit `AGENTS.md`"); when the same text file has
-approval language anywhere ("ask the user", "approval", "confirm", "with the user's permission", "--dry-run", ...); and in a
+approval language anywhere ("ask the user", "approval", "confirm", "with the user's permission", "--dry-run", ...), read outside
+the words the file's writes put into the memory file and not counting a negated one ("without asking the user", "never ask for
+permission", "skip confirmation", "auto-approve"; two negations cancel); and in a
 file written for people (README, INSTALL, CONTRIBUTING, CHANGELOG and anything below `docs/`), which tells a person what to add
 to their own file and which an agent does not load as instructions. A heredoc or fenced block longer than `_BODY_LINES` lines
 is not read to its end: the sentence that opens it fires, and its evidence says so first, before the line it quotes, so a long
@@ -66,6 +68,12 @@ _APPROVAL = re.compile(
     r"\bwith (?:the user's|your|their) permission\b|\bpropos(?:e|es|ed|al)\b|\bsuggest\w*\b[^.\n]{0,60}\bchanges?\b|"
     r"\bshow(?:s|ing)? the user\b|\bshow the diff\b|\bonly if the user\b|\bon request\b|"
     r"\bif the user (?:asks|wants|requests)\b|--dry-run", _I)
+# A word that turns the approval language after it into its opposite: "without asking the user", "never ask for permission",
+# "skip confirmation", "auto-approve". Two of them cancel ("never write without approval" is a gate), so the approval words
+# count when an even number of these stand before them in the same clause.
+_NEGATOR = re.compile(r"\b(?:never|without|not|no|cannot|skip\w*|bypass\w*|avoid\w*)\b|n['\u2019]t\b|\bauto-", _I)
+_CLAUSE_END = ".!?;:,\n"
+_CLAUSE_REACH = 80
 _HUMAN_FACING = re.compile(r"(?:^|/)(?:readme|install|installation|contributing|changelog)[^/]*$|(?:^|/)docs/", _I)
 
 
@@ -102,6 +110,27 @@ def _content(sentence: str, outside: str, verb_at: int) -> str:
     if echo is not None:
         parts.append(sentence[echo.start(1):echo.end(1)])
     return " ".join(parts)
+
+
+def _without_content(sentence: str, outside: str, verb_at: int) -> str:
+    """The sentence without the words it puts into the file (those `_content` reads): the text after the introducer, the quoted
+    texts and the body of `echo` or `printf`. What is left can still hold a step that asks a person."""
+    introducer = _INTRODUCER.search(outside, verb_at)
+    text = sentence if introducer is None else sentence[:introducer.end()]
+    text = _QUOTED.sub(" ", text)
+    return _ECHO.sub(lambda match: match.group(0)[:match.start(1) - match.start()], text)
+
+
+def _asks_a_person(text: str) -> bool:
+    """Whether the text holds approval language that is not negated (`_NEGATOR`): "ask the user" counts, "without asking the user"
+    and "never ask for permission" do not, and "never write without approval" does. Only the 80 characters of the clause before a
+    match are read, so a long line without a clause end is read in linear time."""
+    for match in _APPROVAL.finditer(text):
+        start = max(0, match.start() - _CLAUSE_REACH)
+        cut = max(text.rfind(char, start, match.start()) for char in _CLAUSE_END)
+        if len(_NEGATOR.findall(text, max(cut + 1, start), match.start())) % 2 == 0:
+            return True
+    return False
 
 
 def _opens_body(sentence: str) -> tuple[str, str | None] | None:
@@ -153,11 +182,12 @@ class _Following:
 
 
 def _body_has_directive(lines: tuple[str, ...], following: _Following, start: int, kind: str,
-                        delimiter: str | None) -> tuple[bool, bool]:
-    """`(directive found, cut)` for the lines after index `start` that are the body of a heredoc (up to its delimiter line) or of
+                        delimiter: str | None) -> tuple[bool, bool, int]:
+    """`(directive found, cut, end)` for the lines after index `start` that are the body of a heredoc (up to its delimiter line) or of
     a fenced block (the next non-blank line must open a fence; the body runs to its closing fence). At most `_BODY_LINES` lines
-    are read; `cut` is true when that stopped the read before the end of the body. The body's lines are not read here:
-    `following` knows where the next directive and the end of the body are."""
+    are read; `cut` is true when that stopped the read before the end of the body; `end` is the index where the body, as far as it was
+    read, ends (`start` when no body follows). The body's lines are not read here: `following` knows where the next directive and
+    the end of the body are."""
     index = start
     fence = None
     if kind == "fence":
@@ -165,17 +195,17 @@ def _body_has_directive(lines: tuple[str, ...], following: _Following, start: in
             index += 1
         opener = _FENCE.match(lines[index]) if index < len(lines) else None
         if opener is None:
-            return False, False
+            return False, False, start
         fence = opener.group(1)
         index += 1
     stop = min(index + _BODY_LINES, following.count)
     end = (following.next_stripped(delimiter, index) if kind == "heredoc"
            else following.next_fence(fence[0], len(fence), index, stop))
     if following.directive[index] < min(end, stop):
-        return True, False
+        return True, False, min(end, stop)
     if end < stop:
-        return False, False
-    return False, index + _BODY_LINES <= following.count
+        return False, False, end
+    return False, index + _BODY_LINES <= following.count, stop
 
 
 def detect(package: Package) -> Iterator[Finding]:
@@ -185,15 +215,20 @@ def detect(package: Package) -> Iterator[Finding]:
     for unit in package.text_files:
         if _HUMAN_FACING.search(unit.path):
             continue
-        approved: bool | None = None
         following: _Following | None = None
         items = list(logical_commands(unit))
         lines = unit.lines
+        findings: list[Finding] = []
+        rewritten: dict[int, str] = {}  # line index -> the command that starts there, without the content its writes put in the file
+        covered: list[tuple[int, int]] = []  # line index ranges that are the content of a write, or the rest of a command
         for index, (path, number, command) in enumerate(items):
             if P.AGENT_MEMORY_PATHS.search(command) is None:
                 continue
             after = (items[index + 1][1] if index + 1 < len(items) else len(lines) + 1) - 1  # the index of the next line
-            for sentence in _SENTENCE.split(command):
+            sentences = _SENTENCE.split(command)
+            parts = list(sentences)
+            fired = False
+            for position, sentence in enumerate(sentences):
                 if P.AGENT_MEMORY_PATHS.search(sentence) is None:
                     continue
                 outside = _blanked(sentence)
@@ -205,21 +240,43 @@ def detect(package: Package) -> Iterator[Finding]:
                     continue
                 fires = _DIRECTIVE.search(_content(sentence, outside, verb_at)) is not None
                 shown = command
-                if not fires:
-                    opens = _opens_body(sentence)
-                    if opens is not None:
-                        if following is None:
-                            following = _Following(lines)
-                        fires, cut = _body_has_directive(lines, following, after, *opens)
+                body_end = after
+                opens = _opens_body(sentence)
+                if opens is not None:
+                    if following is None:
+                        following = _Following(lines)
+                    found, cut, body_end = _body_has_directive(lines, following, after, *opens)
+                    if not fires:
+                        fires = found
                         if cut:
                             fires = True
                             shown = f"[the text it writes is longer than {_BODY_LINES} lines and was not read to its end] {command}"
                 if not fires:
                     continue
-                if approved is None:
-                    approved = _APPROVAL.search(unit.text) is not None
-                if approved:
-                    break
-                yield Finding(RULE_ID, SEVERITY, TITLE, Location(path, number), bounded_evidence(shown),
-                              fingerprint(RULE_ID, path, command), MALICIOUS)
-                break
+                parts[position] = _without_content(sentence, outside, verb_at)
+                covered.append((after, body_end))
+                if not fired:
+                    findings.append(Finding(RULE_ID, SEVERITY, TITLE, Location(path, number), bounded_evidence(shown),
+                                            fingerprint(RULE_ID, path, command), MALICIOUS))
+                    fired = True
+            if fired:
+                rewritten[number - 1] = " ".join(parts)
+                covered.append((number, after))
+        if not findings:
+            continue
+        # The approval gate reads the file as it is, less the words the writes put into the file: an instruction to push "without
+        # asking the user" is the directive the rule is after, and it must not silence the rule.
+        texts = list(lines)
+        for line, text in rewritten.items():
+            texts[line] = text
+        depth = [0] * (len(texts) + 1)
+        for first, last in covered:
+            depth[first] += 1
+            depth[min(last, len(texts))] -= 1
+        running = 0
+        for line in range(len(texts)):
+            running += depth[line]
+            if running > 0:
+                texts[line] = ""
+        if not _asks_a_person("\n".join(texts)):
+            yield from findings
