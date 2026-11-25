@@ -1,4 +1,6 @@
-"""The current release is 1.23.0, which reads an archive's links inside the scanned tree, measures the path bound on the path
+"""The current release is 1.24.0, which makes the normalised scan faster and ends a scan that reaches a time limit incomplete
+(`--time-limit`, `Deadline`, `TimeLimit`), without changing a rule (rules version 2026.11.9, unchanged); 1.23.0 reads an archive's
+links inside the scanned tree, measures the path bound on the path
 in the repository, bounds an archive's entries and makes the command's link out of the scan root an error, without changing a
 rule (rules version 2026.11.9, unchanged); 1.22.0 made skill rules also read a normalised copy of the text and the rules read text
 up to 10 MiB (rules version 2026.11.9); 1.21.0 gives every finding its rule's fix sentence and page without changing a rule; 1.20.0 reads more of the agent files the vendors document and makes SW-CFG-012 and SW-CFG-013 judge
@@ -29,7 +31,7 @@ PYPROJECT = Path(__file__).resolve().parents[1] / "pyproject.toml"
 
 
 def test_the_versions():
-    assert __version__ == "1.23.0"
+    assert __version__ == "1.24.0"
     assert tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))["project"]["version"] == __version__
     assert RULES_VERSION == "2026.11.9"
     assert len(RuleSet.baseline()) == 66
