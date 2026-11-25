@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import functools
 import html
 import re
 import unicodedata
@@ -107,34 +108,51 @@ def _word_char(char: str) -> bool:
     return char.isalnum() or unicodedata.category(char) in ("Mn", "Mc", "Me")
 
 
+# 1.24.0 (speed and deadline spec 6.2, F2): `_lookalike` no longer classifies every character in Python. A line with no table
+# character is returned as it is. A line whose only letters are ASCII letters and table characters is folded whole, in C: each of
+# its words that holds a table character either holds an ASCII letter or has no letter outside the table, so each is folded. Any
+# other line is cut into words by one compiled pattern. Every table character is a letter (a test holds it).
+_TABLE = re.compile("[" + "".join(sorted(LOOKALIKES)) + "]")
+_ASCII_LETTER = re.compile("[A-Za-z]")
+_UNFOLDED = {ord(char): None for char in LOOKALIKES}
+_NOT_OTHER = {**_UNFOLDED, **{code: None for code in range(128)}}  # what is left of a line is its non-ASCII non-table characters
+_FOLDED = {ord(char): folded for char, folded in LOOKALIKES.items()}
+
+
+@functools.cache
+def _words() -> re.Pattern:
+    """The runs of characters `_word_char` accepts, as one character class: built on first use (about 0.15 s, in a scan that holds
+    a table character in a non-ASCII line), never at import, from `_word_char` itself, so the two cannot differ."""
+    ranges: list[str] = []
+    start = None
+    for code in range(0x110000):
+        if _word_char(chr(code)):
+            if start is None:
+                start = code
+        elif start is not None:
+            ranges.append(f"\\U{start:08x}-\\U{code - 1:08x}" if code - 1 > start else f"\\U{start:08x}")
+            start = None
+    if start is not None:
+        ranges.append(f"\\U{start:08x}-\\U0010ffff")
+    return re.compile("[" + "".join(ranges) + "]+")
+
+
 def _fold_word(word: str) -> str:
     """A word (letters, digits and combining marks) with its table characters folded when it holds an ASCII letter or when
     every letter in it is a table character; a real Russian or Greek word holds a letter outside the table and is kept."""
-    letters = [char for char in word if char.isalpha()]
-    if not any(char in LOOKALIKES for char in letters):
+    if _TABLE.search(word) is None:
         return word
-    if any(char.isascii() for char in letters) or all(char in LOOKALIKES for char in letters):
-        return "".join(LOOKALIKES.get(char, char) for char in word)
-    return word
+    if _ASCII_LETTER.search(word) is None and any(map(str.isalpha, word.translate(_UNFOLDED))):
+        return word
+    return word.translate(_FOLDED)
 
 
 def _lookalike(line: str) -> str:
-    if line.isascii():
+    if line.isascii() or _TABLE.search(line) is None:
         return line
-    out: list[str] = []
-    start = None
-    for index, char in enumerate(line):
-        if _word_char(char):
-            if start is None:
-                start = index
-            continue
-        if start is not None:
-            out.append(_fold_word(line[start:index]))
-            start = None
-        out.append(char)
-    if start is not None:
-        out.append(_fold_word(line[start:]))
-    return "".join(out)
+    if not any(map(str.isalpha, line.translate(_NOT_OTHER))):
+        return line.translate(_FOLDED)
+    return _words().sub(lambda word: _fold_word(word.group(0)), line)
 
 
 _INDENT = re.compile(r"[ \t]*")
