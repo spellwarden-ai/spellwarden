@@ -50,8 +50,9 @@ for that package. A package is judged whole or not at all, so a package that was
   Code Quality report carries no error, so there the exit code 2 says it, as for `unreadable`; CycloneDX says `complete` is false.
 - Granularity. The scan looks at the clock before each file, each view and each rule, and once for every 64 KiB of line text, so it
   stops within about the time one rule needs for one line of 10 MiB after the limit: at most 1.79 s past the limit on this machine
-  in the five cases of `benchmarks/speed_profile.py overshoot`. The hosted step is about three times slower, so a limit set on it
-  should leave that much room before the function's own timeout. Looking at the clock adds 2.0 per cent to a scan on (a) (1.9 to
+  in the five cases of `benchmarks/speed_profile.py overshoot`. The hosted step measured about twice this machine's time on a skill
+  like (c) (257 s on 24 November against 126.82 s here before this release), so a limit set on it should leave about twice that
+  room before the function's own timeout. Looking at the clock adds 2.0 per cent to a scan on (a) (1.9 to
   2.1 per cent in three runs of `benchmarks/speed_profile.py cost` at 10 MiB) and nothing measurable on (b) (-0.8 to 0.4 per
   cent), within the 3 per cent the build asked for.
 

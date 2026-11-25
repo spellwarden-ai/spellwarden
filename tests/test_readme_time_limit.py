@@ -61,7 +61,7 @@ def test_limits_says_what_the_time_limit_covers_what_it_does_not_and_the_way_out
                    "The packages judged before the limit keep their findings", "the scan is incomplete (exit 2)",
                    "split the content, leave a file out with `exclude` in `.spellwarden/config.yml`, or raise the limit",
                    "once for every 64 KiB of line text", "about the time one rule needs for one line of 10 MiB",
-                   "the hosted step is about three times slower", "`scan --user` takes no limit",
+                   "the hosted step measured about twice this machine's time", "`scan --user` takes no limit",
                    "**content the scanner leaves unread never looks like a pass.**"):
         assert needle in text, needle
     _plain(text)
