@@ -23,6 +23,8 @@ LEVEL = {"critical": "error", "high": "error", "medium": "warning", "low": "note
 _WORD = re.compile(r"[A-Za-z0-9]+")
 # Phase 3 batch 2c spec 11.2 (F1): a report holding one of these errors names every error of the run in the invocation.
 UPLOAD_ERRORS = ("workstation_upload_failed", "workstation_upload_too_large")
+# 1.24.0 (speed and deadline spec 11.3): the error of a scan that reached `--time-limit` is named in the invocation as well
+INVOCATION_ERRORS = (*UPLOAD_ERRORS, "time_limit")
 
 
 def _uri(report: Report, path: str) -> str:
@@ -200,6 +202,6 @@ def render(report: Report) -> str:
         first = len(run["tool"]["driver"]["rules"])
         run["tool"]["driver"]["rules"].extend(_analyzer_rule(category) for category in analyzer.CATEGORIES)
         run["results"].extend(_analysis_results(report, first))
-    if any(error.code in UPLOAD_ERRORS for error in report.errors):  # absent otherwise, so every other SARIF file is unchanged
+    if any(error.code in INVOCATION_ERRORS for error in report.errors):  # absent otherwise: every other SARIF file is unchanged
         document["runs"][0]["invocations"] = [_invocation(report)]
     return json.dumps(document, indent=2, sort_keys=True, ensure_ascii=True) + "\n"

@@ -129,7 +129,9 @@ def test_notice_and_error_codes_are_todays_plus_the_closed_lists_of_spec_6_9():
         # 1.17.0: spec:Q4, written when `analysis.incomplete_analysis_is_scan_error` says so
         "analysis_incomplete",
         # 1.19.0: `scan --staged` outside a git repository, or the index could not be read
-        "staged_unavailable")
+        "staged_unavailable",
+        # 1.24.0: a scan that reached `--time-limit`; the package was not judged
+        "time_limit")
     assert len(set(NOTICE_CODES)) == len(NOTICE_CODES) and len(set(ERROR_CODES)) == len(ERROR_CODES)
 
 
