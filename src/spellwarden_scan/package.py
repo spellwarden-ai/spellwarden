@@ -136,7 +136,7 @@ class Package:
 
     def __init__(self, root: str, text_files: tuple[TextFile, ...], binary_files: tuple[BinaryFile, ...],
                  code_blocks: tuple[CodeBlock, ...], metadata: Metadata, executable_paths: frozenset[str],
-                 markdown_paths: frozenset[str] = frozenset()) -> None:
+                 markdown_paths: frozenset[str] = frozenset(), shared: dict | None = None) -> None:
         self.root = root
         self.text_files = text_files
         self.binary_files = binary_files
@@ -144,6 +144,9 @@ class Package:
         self.metadata = metadata
         self.executable_paths = executable_paths
         self.markdown_paths = markdown_paths
+        # 1.24.0 (speed and deadline spec 6.2, F1): what rules compute once for this subject, a package or one of its views and
+        # never two of them, and read again; the rule that needs a value fills it in the first time
+        self.shared: dict = {} if shared is None else shared
 
     @classmethod
     def build(cls, files: Mapping[str, bytes], *, root: str = "", executable_paths: Collection[str] = (),
