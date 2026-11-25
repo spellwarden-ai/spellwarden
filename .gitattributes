@@ -4,3 +4,4 @@ tests/fixtures/homes/** -text
 tests/fixtures/cyclonedx/** -text
 tests/fixtures/gateways/** -text
 fixtures/fix-guidance/** -text
+fixtures/community/** -text
