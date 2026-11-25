@@ -15,7 +15,7 @@ from spellwarden_scan.rules.growth_cfg_015 import ATLAS, MALICIOUS, NIST, OWASP,
 
 SPEED_FACTOR = float(os.environ.get("SPELLWARDEN_SPEED_FACTOR", "1"))
 HOMES = ("~", "~/", "$HOME", "${HOME}", "$HOME/", "%USERPROFILE%", "$USERPROFILE", "/home/x", "/home/x/", "/Users/x", "/Users/x/",
-         "C:\\Users\\x", "C:\\Users\\x\\", "c:/users/x")
+         "C:\\Users\\x", "C:\\Users\\x\\", "c:/users/x", "${userHome}", "${USERHOME}", "$env:USERPROFILE", "$ENV:userprofile")
 ROOTS = ("/", "C:\\", "C:/", "C:", "/home", "/Users", "/root", "/Users/")
 DEEPER = ("/Users/x/Documents", "~/projects", "$HOME/work/app", "C:\\Users\\x\\Desktop", ".", "./", "${workspaceFolder}", "${PWD}",
           "${workspaceRoot}", "src", "../x", "/srv/data", "/home/x/y", "/opt", "/Users/x/Desktop/", "")
@@ -197,3 +197,8 @@ def test_the_value_of_a_flag_that_is_not_a_path_flag_is_quiet():
     assert run({"files": {"command": "uvx", "args": ["some-files-mcp", "--log-dir", "/"]}}) == []
     assert len(run({"files": {"command": "uvx", "args": ["some-files-mcp", "--root", "/"]}})) == 1
 
+
+def test_the_vs_code_home_variable_fires_in_a_vscode_document():
+    servers = {"filesystem": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", "${userHome}"]}}
+    (finding,) = run(servers, ".vscode/mcp.json", "servers")
+    assert finding.evidence == "filesystem: args[2] is the whole home directory"

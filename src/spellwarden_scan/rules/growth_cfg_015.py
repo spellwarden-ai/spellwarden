@@ -15,7 +15,7 @@ server's line, when it is the whole home directory or the filesystem root and it
 * the host side of a bind mount of `docker` or `podman`: the value of `-v` or `--volume` up to the first colon that ends the
   host path, or the `src=` or `source=` part of the value of `--mount`.
 
-The whole home directory is `~`, `$HOME`, `${HOME}`, `$USERPROFILE`, `%USERPROFILE%`, `/home/<name>`, `/Users/<name>` or
+The whole home directory is `~`, `$HOME`, `${HOME}`, `$USERPROFILE`, `$env:USERPROFILE`, `${userHome}`, `%USERPROFILE%`, `/home/<name>`, `/Users/<name>` or
 `C:\\Users\\<name>`; the root is `/`, a drive root such as `C:\\`, `/home`, `/Users` or `/root`; a trailing separator is
 allowed. A deeper path, `.`, a project variable such as `${workspaceFolder}` and a relative path are quiet, and so is the
 container side of a mount. Matching is textual and the same on every platform. The evidence names the form, never the path
@@ -42,7 +42,7 @@ MALICIOUS = False
 _PER_SERVER = 20
 _I = re.IGNORECASE
 _HOME = re.compile(
-    r"^(?:~|\$HOME|\$\{HOME\}|\$USERPROFILE|%USERPROFILE%|/home/[^/\\]+|/Users/[^/\\]+|[A-Za-z]:[\\/]Users[\\/][^/\\]+)[/\\]?$", _I)
+    r"^(?:~|\$HOME|\$\{HOME\}|\$USERPROFILE|\$env:USERPROFILE|\$\{userHome\}|%USERPROFILE%|/home/[^/\\]+|/Users/[^/\\]+|[A-Za-z]:[\\/]Users[\\/][^/\\]+)[/\\]?$", _I)
 _ROOT = re.compile(r"^(?:[/\\]|[A-Za-z]:[\\/]?|/(?:home|Users|root)[/\\]?)$", _I)
 _FLAGS = frozenset({"--allowed-directories", "--allowed-dir", "--allowed-dirs", "--root", "--roots", "--workspace", "--directory",
                     "--dir", "--base-dir", "--path"})
