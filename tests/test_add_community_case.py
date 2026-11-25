@@ -217,6 +217,18 @@ def test_the_other_files_are_split_with_crlf_bodies_and_a_longer_fence_is_read_w
     assert b"\r" not in b"".join(tree.values())
 
 
+def test_a_three_backtick_outer_fence_around_a_sample_with_its_own_block_and_heading_is_read_whole(run):
+    """GitHub fences a `render: text` answer with exactly three backticks, so a sample's own block and `### ` heading must not
+    cut the answer short or hide the `more` field."""
+    sample = PIP_SKILL + "\n### Notes\n\nKeep it short.\n"
+    more = "=== scripts/run.sh ===\necho hello\n"
+    code, _out, err = run(issue_body(sample=sample, more=more, fence="```"))
+    assert (code, err) == (0, "")
+    tree = _tree(run.root)
+    assert tree["COM-0001/files/SKILL.md"] == sample.encode()
+    assert tree["COM-0001/files/scripts/run.sh"] == b"echo hello\n"
+
+
 def test_a_path_given_twice_or_text_before_the_first_marker_is_refused(run):
     assert "the path is also the file of the sample" in run(issue_body(more="=== SKILL.md ===\nx\n"))[2]
     assert "start with text before the first line" in run(issue_body(more="stray\n=== a.md ===\nx\n"))[2]

@@ -82,7 +82,7 @@ def rule_areas() -> dict[str, str]:
 
 def read_form(text: str) -> tuple[str, dict[str, str]]:
     """The form that `text` answers and its answers by field id. Raises `Refused` when a required field is missing."""
-    answers = corpus.parse_issue_body(text)
+    answers = corpus.parse_issue_body(text, {label for labels in FORM_LABELS.values() for label in labels.values()})
     forms = [form for form, labels in FORM_LABELS.items() if labels["sample"] in answers]
     if len(forms) != 1:
         raise Refused(["the body is not the answer of one of the three issue forms (no field with the label of a form's sample)"])

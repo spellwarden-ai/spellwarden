@@ -456,18 +456,26 @@ def _answer(lines: list[str]) -> str:
     return "\n".join(lines)
 
 
-def parse_issue_body(text: str) -> dict[str, str]:
+def parse_issue_body(text: str, labels: frozenset[str] | set[str] | None = None) -> dict[str, str]:
     """The answers of an issue made from a form, by the label of each field: GitHub renders `### <label>` and the answer under
     it. A `render: text` answer is the content of its fenced block, taken line by line between the first fence line and its close
     (the fence may be longer than three characters); `_No response_` is an empty answer; line endings are read as LF. A heading
     inside a fenced block is text. A label that appears twice keeps its last answer (the form's last field, the consent box,
-    cannot be spoofed by text above it)."""
+    cannot be spoofed by text above it). With `labels` (the labels of a form's fields) only a `### <label>` line of that set
+    starts a field and fences are not tracked: GitHub fences an answer with exactly three backticks, so a sample's own block or
+    `### ` heading must not end the answer early; the answer is still the text between its first and its last line."""
     lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
     sections: dict[str, list[str]] = {}
     current: str | None = None
     fence: str | None = None
     for line in lines:
-        if fence is None:
+        if labels is not None:
+            heading = _HEADING.match(line)
+            if heading and heading.group(1) in labels:
+                current = heading.group(1)
+                sections[current] = []
+                continue
+        elif fence is None:
             heading = _HEADING.match(line)
             if heading:
                 current = heading.group(1)
