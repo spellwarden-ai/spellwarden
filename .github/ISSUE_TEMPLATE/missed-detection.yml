@@ -5,16 +5,20 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thank you. An issue is public: make a malicious sample harmless first, and take out every secret, address and private name.
-        If the sample is a working attack, or publishing the method would help someone hide content from the scanner before a fix is released, do not open an issue: send it to security@spellwarden.ai.
-  - type: input
-    id: versions
-    attributes:
-      label: Scanner version and rules version
-      description: Every report carries both, and `spellwarden version` prints them.
-      placeholder: spellwarden 1.21.0 (rules 2026.11.8)
-    validations:
-      required: true
+        Reports are unpaid. A reporter is credited by name only if they write one below; there is no payment, bounty or plan credit.
+
+        An issue is public. Do not post a working attack, or a method that would help someone hide content from the scanner before a fix is released: use [private reporting](https://github.com/spellwarden-ai/spellwarden/security/advisories/new) instead.
+
+        To make a sample safe to publish:
+
+        - Replace every real host with `example.com`, `evil.example` or another name under `.example`, `.invalid` or `.test`, and every address with one of `192.0.2.0/24`.
+        - Replace every secret and token with a placeholder such as `REDACTED`, never a real or a realistic one.
+        - Keep the shape of the line that matters: a command that downloads and runs something stays a command that downloads and runs something, from `example.com`.
+        - Do not paste anything that runs by itself when opened.
+
+        Samples from a benchmark or its test sets (MaliciousSkillBench, its held-out half, the Trail of Bits skills) are not accepted into the corpus, so that the test sets stay clean. Describe the technique in words instead.
+
+        You get a first answer within five working days. A first answer is an acceptance, a request for more, or a written reason; it is not a promise of a fix date.
   - type: textarea
     id: expected
     attributes:
@@ -22,16 +26,68 @@ body:
       description: The rule id if you know it, or what the content does.
     validations:
       required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Scanner version and rules version
+      description: Every report carries both, and `spellwarden version` prints them.
+      placeholder: spellwarden 1.23.0 (rules 2026.11.9)
+    validations:
+      required: true
+  - type: input
+    id: command
+    attributes:
+      label: The command and settings that gave this result
+      description: The command you ran, and any `.spellwarden/config.yml`, preset or flag that matters.
+      placeholder: spellwarden scan . --fail-on medium
+    validations:
+      required: true
+  - type: input
+    id: file
+    attributes:
+      label: File name of the sample, inside the project
+      description: The path the sample has in your project, for example `SKILL.md`, `.mcp.json` or `.claude/settings.json`.
+      placeholder: SKILL.md
+    validations:
+      required: true
   - type: textarea
     id: sample
     attributes:
       label: The smallest harmless sample that shows it
-      description: Name the file it comes from (for example SKILL.md, a hook or an MCP configuration).
+      description: Safe to publish, as the first block says. The file name goes in the field above.
       render: text
     validations:
       required: true
   - type: textarea
+    id: more
+    attributes:
+      label: More files, if the sample needs them
+      description: Each file starts with a line `=== path ===`, for example `=== scripts/run.sh ===`. Leave it empty when one file is enough.
+      render: text
+  - type: dropdown
+    id: origin
+    attributes:
+      label: Where the sample comes from
+      options:
+        - I wrote it
+        - Adapted from public content (give the link below)
+        - From a benchmark or test set
+    validations:
+      required: true
+  - type: input
     id: source
     attributes:
-      label: Where you saw it
-      description: A public link if there is one. No private repositories and no customer content.
+      label: Public link, if there is one
+      description: No private repositories and no customer content.
+  - type: input
+    id: credit
+    attributes:
+      label: Name to credit (optional)
+      description: Reports are unpaid. If you want a credit, write the name as you want it printed. It is then named in the CHANGELOG and in the corpus record, both public. If you later ask, a maintainer removes it from both on the main branch; released packages and the repository's history still hold it. Leave it empty and you are not named.
+  - type: checkboxes
+    id: consent
+    attributes:
+      label: Publishing
+      options:
+        - label: I wrote this sample, or I am allowed to publish it, and I agree that it is published in this repository under the Apache License 2.0, the licence of the repository.
+          required: true
