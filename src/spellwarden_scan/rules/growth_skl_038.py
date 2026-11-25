@@ -74,7 +74,9 @@ _APPROVAL = re.compile(
 _NEGATOR = re.compile(r"\b(?:never|without|not|no|cannot|skip\w*|bypass\w*|avoid\w*)\b|n['\u2019]t\b|\bauto-", _I)
 _CLAUSE_END = ".!?;:,\n"
 _CLAUSE_REACH = 80
-_HUMAN_FACING = re.compile(r"(?:^|/)(?:readme|install|installation|contributing|changelog)[^/]*$|(?:^|/)docs/", _I)
+# Prose only: a file named like these with no extension or a prose one. A script (install.sh, install.py) is never exempt.
+_HUMAN_FACING = re.compile(
+    r"(?:^|/)(?:readme|install|installation|contributing|changelog)(?:[^/.]*|[^/]*\.(?:md|markdown|mdx|txt|rst))$|(?:^|/)docs/", _I)
 
 
 @functools.cache
