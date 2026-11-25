@@ -92,7 +92,8 @@ def test_a_name_that_says_file_system_or_fs_makes_the_server_filesystem_class():
         servers = {name: {"command": "node", "args": ["server.js", "~"]}}
         assert len(run(servers)) == 1, name
     assert run({"filesystem": {"command": "uvx", "args": ["mcp-server-fs", "/"]}}) != []
-    assert run({"box": {"command": "docker", "args": ["run", "-i", "mcp/filesystem", "/"]}}) != []
+    # Arguments after a container image are the container's, so only a mount's host side is judged there (r0:F4).
+    assert run({"box": {"command": "docker", "args": ["run", "-i", "mcp/filesystem", "/"]}}) == []
 
 
 def _holding(kind: str, path: str, servers: dict):
@@ -182,3 +183,17 @@ def test_a_long_argument_is_read_in_linear_time():
         started = time.perf_counter()
         run({"filesystem": {"command": "docker", "args": ["run", "-v", argument, "--mount", argument, "--root", argument, argument]}})
         assert time.perf_counter() - started < 3.0 * SPEED_FACTOR, token
+
+
+def test_a_container_side_path_after_the_image_is_quiet_and_the_host_side_still_fires():
+    quiet = {"filesystem": {"command": "docker", "args": ["run", "-i", "--rm", "-v", "/Users/me/work:/home/work", "mcp/filesystem", "/home"]}}
+    assert run(quiet) == []
+    loud = {"filesystem": {"command": "podman", "args": ["run", "-i", "-v", "/Users/me:/home/work", "mcp/filesystem", "/home"]}}
+    (finding,) = run(loud)
+    assert finding.evidence == "filesystem: args[3] is a bind mount of the home directory"
+
+
+def test_the_value_of_a_flag_that_is_not_a_path_flag_is_quiet():
+    assert run({"files": {"command": "uvx", "args": ["some-files-mcp", "--log-dir", "/"]}}) == []
+    assert len(run({"files": {"command": "uvx", "args": ["some-files-mcp", "--root", "/"]}})) == 1
+

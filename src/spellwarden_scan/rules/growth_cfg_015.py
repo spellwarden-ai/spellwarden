@@ -6,7 +6,8 @@ documents, at any depth), of plugin manifests and of settings documents (Codex's
 parser keeps whole (`options` is not read, so no cut mark applies). An argument fires, once per server and argument and at the
 server's line, when it is the whole home directory or the filesystem root and it is
 
-* a path after the package of a filesystem-class server: a server whose name, command or an argument that is not a path holds
+* a path after the package of a filesystem-class server (not of `docker` or `podman`, whose arguments after the image are the
+  container's, and not the value of a flag other than the flags below): a server whose name, command or an argument that is not a path holds
   the name token `filesystem`, `fs` or `files`, or the adjacent tokens `file` and `system` (the arguments after the package, or
   every argument when no argument names it);
 * the value of `--allowed-directories`, `--allowed-dir`, `--allowed-dirs`, `--root`, `--roots`, `--workspace`, `--directory`,
@@ -48,7 +49,7 @@ _FLAGS = frozenset({"--allowed-directories", "--allowed-dir", "--allowed-dirs", 
 _LAUNCHERS = frozenset({"docker", "podman"})
 _FILESYSTEM_TOKENS = frozenset({"filesystem", "fs", "files"})
 _DRIVE_PATH = re.compile(r"^[A-Za-z]:[\\/]")
-_HOST_OF_MOUNT = re.compile(r"^(?:[A-Za-z]:[\\/][^:]*|[^:]*)")
+_HOST_OF_MOUNT = re.compile(r"^(?:[A-Za-z]:[\\/][^:]*|\$env:[^:]*|[^:]*)", _I)
 _MOUNT_SOURCE = re.compile(r"(?:^|,)(?:src|source)=([^,]*)", _I)
 
 
@@ -95,10 +96,13 @@ def _grants(entry: McpServerEntry) -> dict[int, str]:
     """`{argument index: form}` of the arguments that give the server the whole home directory or the root."""
     args = tuple(entry.args)
     found: dict[int, str] = {}
-    if _filesystem_named(entry.name) or _filesystem_named(entry.command or "") or any(
-            _filesystem_named(argument) for argument in args if not _looks_like_a_path(argument)):
+    if _program(entry) not in _LAUNCHERS and (_filesystem_named(entry.name) or _filesystem_named(entry.command or "") or any(
+            _filesystem_named(argument) for argument in args if not _looks_like_a_path(argument))):
         package = next((i for i, argument in enumerate(args) if not _looks_like_a_path(argument) and _filesystem_named(argument)), -1)
         for index in range(package + 1, len(args)):
+            before = args[index - 1] if index else ""
+            if before.startswith("-") and "=" not in before and before not in _FLAGS:
+                continue  # the value of a flag that is not a path flag (`--log-dir /`)
             form = _form_of(args[index])
             if form is not None:
                 found[index] = form
