@@ -1636,8 +1636,48 @@ def render_text(entry: dict, *, ids_at: str) -> str:
             out.append(f"  missed malicious skills: {at_medium} at medium or above, {at_high} at high or above; their ids are in "
                        f"{ids_at}")
         out.append("")
+    out += _community_text(entry)
     out.append(not_measured_text(entry))
     return "\n".join(out) + "\n"
+
+
+COMMUNITY_TITLE = "Community corpus (reported by people outside the project)"
+COMMUNITY_NOT_A_SET = ("This is not a test set and not a tuning set: it holds the samples that people reported, and the rules "
+                       "were changed for them, so a count here shows that those fixes hold, never how well the rules work. It "
+                       "has no rate and no interval.")
+COMMUNITY_READ = ("It is measured from the files of this repository's `fixtures/community/`, which the benchmark only reads in "
+                  "memory.")
+COMMUNITY_SETS_UNCHANGED = "The fixed sets above are unchanged by it."
+COMMUNITY_WORDS = (("holds", "holds"), ("fails", "fails"), ("not_read_whole", "not read whole"), ("open", "open"),
+                   ("not_measured", "not measured here"))
+
+
+def _community_text(entry: dict) -> list[str]:
+    """The four lines of the terminal table for the corpus (8.3): none when the entry has no `community` member."""
+    block = entry.get("community")
+    if block is None:
+        return []
+    counts = community_counts(block)
+    failing = sorted(case_id for case_id, case in block["cases"].items() if case["result"] == "fails")
+    return [COMMUNITY_TITLE, "  not a test set and not a tuning set: no rate and no interval",
+            f"  {len(block['cases'])} cases: " + ", ".join(f"{counts[result]} {word}" for result, word in COMMUNITY_WORDS),
+            "  failing cases: " + (", ".join(failing) if failing else "none"), ""]
+
+
+def _community_markdown(entry: dict) -> list[str]:
+    """The section of RESULTS.md for the corpus (8.4): counts, a table of cases and the three standing sentences."""
+    block = entry.get("community")
+    if block is None:
+        return []
+    counts = community_counts(block)
+    shown = ". ".join(f"{word.capitalize()}: {counts[result]}" for result, word in COMMUNITY_WORDS)
+    out = ["", f"### {COMMUNITY_TITLE}", "", f"Cases: {len(block['cases'])}. {shown}.",
+           "", "| Case | Kind | Rule | Outcome | Fixed in | Result |", "|---|---|---|---|---|---|"]
+    for case_id, case in sorted(block["cases"].items()):
+        kind = "miss" if case["kind"] == "miss" else "false positive"
+        out.append(f"| `{case_id}` | {kind} | `{case['rule']}` | {case['outcome']} | {case['fixed_in'] or 'not yet'} | "
+                   f"{dict(COMMUNITY_WORDS)[case['result']]} |")
+    return out + ["", COMMUNITY_NOT_A_SET, "", COMMUNITY_READ, "", COMMUNITY_SETS_UNCHANGED]
 
 
 def _disguise_text(entry: dict, set_id: str) -> list[str]:
@@ -1721,6 +1761,7 @@ def _entry_markdown(entry: dict) -> list[str]:
         out += ["", "Skills not read whole: " + (", ".join(f"`{item_id}` ({reason})" for item_id, reason in unread)
                                                  if unread else "none") + "."]
         out += _disguise_markdown(entry, set_id, block)
+    out += _community_markdown(entry)
     out += ["", f"{not_measured_text(entry)}."]
     return out
 

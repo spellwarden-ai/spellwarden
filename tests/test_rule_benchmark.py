@@ -1805,3 +1805,43 @@ def test_b8_a_corrupt_record_stops_the_measurement_with_community_invalid_and_ex
     captured = capsys.readouterr()
     assert captured.out == "" and captured.err.startswith("community_invalid: COM-0002") and "pip install" not in captured.err
     assert "source objects" not in captured.err  # the run stopped before it fetched anything
+
+
+def test_b7_results_md_has_a_section_for_the_corpus_with_the_standing_sentences_and_the_text_has_four_lines():
+    markdown = rb.render_markdown(history(entry("1.21.0"), community_entry("1.22.0")))
+    block = _section(markdown, "### Community corpus (reported by people outside the project)")
+    assert "Cases: 2. Holds: 1. Fails: 0. Not read whole: 0. Open: 1. Not measured here: 0." in block
+    assert "| `COM-0001` | miss | `SW-SKL-009` | fixed | 1.22.0 | holds |" in block
+    assert "| `COM-0002` | false positive | `SW-SKL-014` | open | not yet | open |" in block
+    flat = " ".join(block.split())
+    for sentence in (rb.COMMUNITY_NOT_A_SET, rb.COMMUNITY_READ, rb.COMMUNITY_SETS_UNCHANGED):
+        assert sentence in flat
+    assert "It has no rate and no interval." in flat and "which the benchmark only reads in memory." in flat
+    assert "Community corpus" not in rb.render_markdown(history(entry("1.21.0"), disguise_entry("1.22.0")))
+    assert "!" not in block and "—" not in block and "–" not in block
+    text = rb.render_text(community_entry("1.22.0"), ids_at="x")
+    lines = text[text.index("Community corpus"):].splitlines()[:4]
+    assert lines == ["Community corpus (reported by people outside the project)",
+                     "  not a test set and not a tuning set: no rate and no interval",
+                     "  2 cases: 1 holds, 0 fails, 0 not read whole, 1 open, 0 not measured here", "  failing cases: none"]
+    assert "Community corpus" not in rb.render_text(disguise_entry("1.22.0"), ids_at="x")
+    failing = community_entry("1.22.0")
+    failing["community"]["cases"]["COM-0001"]["result"] = "fails"
+    assert "  failing cases: COM-0001" in rb.render_text(failing, ids_at="x")
+
+
+def test_b7_the_text_and_the_markdown_name_ids_and_never_a_sample(tmp_path):
+    block = rb.measure_community(rb.RuleSet.baseline(), _corpus(tmp_path / "corpus"))
+    value = community_entry("1.22.0", **block)
+    printed = rb.render_text(value, ids_at="x") + rb.render_markdown(history(entry("1.21.0"), value))
+    assert "pip install" not in printed and "Ignore all previous" not in printed and "CLAUDE.md" not in printed
+
+
+def test_a_run_with_a_good_corpus_prints_its_four_lines_and_records_the_member(prepared, capsys, monkeypatch):
+    monkeypatch.setattr(rb, "COMMUNITY_DIR", _corpus(prepared / "corpus"))
+    entry_out = prepared / "entry.json"
+    assert rb.main(_run_args(prepared, "--offline", "--entry-out", str(entry_out)), environ={}) == 0
+    out = capsys.readouterr().out
+    assert "  7 cases: 2 holds, 1 fails, 1 not read whole, 1 open, 2 not measured here" in out and "  failing cases: COM-0003" in out
+    recorded = json.loads(entry_out.read_text(encoding="utf-8"))
+    assert set(recorded["community"]["cases"]) == set(RESULTS) and "pip install" not in entry_out.read_text(encoding="utf-8")
