@@ -78,7 +78,11 @@ def test_w1_the_graphql_call_passes_the_body_as_a_variable_and_searches_for_the_
     run = step("Post the thread")["run"]
     assert "createDiscussion" in run and '-F body=@"$RUNNER_TEMP/body.md"' in run and "$body: String!" in run
     assert "body: $body" in run and "$RUNNER_TEMP/body.md" not in run.split("mutation(")[1]
-    assert run.index("search(type: DISCUSSION") < run.index("createDiscussion")
+    # r0:F3: the existing thread is found by listing the category's threads, every page, and comparing titles exactly; a ranked
+    # search could leave it out once many threads share the title's words, and a second thread would be created
+    assert "search(" not in run and "--paginate" in run
+    assert "discussions(categoryId: $category, first: 100, after: $endCursor)" in run and "pageInfo { hasNextPage endCursor }" in run
+    assert run.index("discussions(categoryId") < run.index("createDiscussion") and "jq -r -s --arg title" in run
     assert 'select(.name == "Announcements")' in run and "select(.title == $title)" in run
     assert "hasDiscussionsEnabled" in run
     # CI's actionlint job runs shellcheck on every `run:` script and fails on any finding, info included (release.yml:616
@@ -125,7 +129,7 @@ for argument in "$@"; do
 done
 case "$*" in
   *createDiscussion*) printf '%s\\n' "https://example.test/discussions/7" ;;
-  *"search(type"*) cat "$FAKE_DIR/search.json" ;;
+  *"discussions(categoryId"*) case "$*" in *--paginate*) cat "$FAKE_DIR/pages.json" ;; *) exit 1 ;; esac ;;
   *discussionCategories*) cat "$FAKE_DIR/repository.json" ;;
   *) echo "unexpected call" >&2; exit 1 ;;
 esac
@@ -140,7 +144,13 @@ def post(tmp_path: Path, *, enabled: bool = True, categories=CATEGORIES, found=(
     (fake_dir / "calls.log").write_text("", encoding="utf-8")
     (fake_dir / "repository.json").write_text(json.dumps({"data": {"repository": {
         "id": "R_1", "hasDiscussionsEnabled": enabled, "discussionCategories": {"nodes": categories}}}}), encoding="utf-8")
-    (fake_dir / "search.json").write_text(json.dumps({"data": {"search": {"nodes": list(found)}}}), encoding="utf-8")
+    # gh --paginate prints one JSON document per page; the first page holds only the first thread, so a title on a later page is
+    # found only when every page is read (r0:F3)
+    found = list(found)
+    pages = [found[:1], found[1:]] if found else [[]]
+    (fake_dir / "pages.json").write_text("".join(json.dumps({"data": {"repository": {"discussions": {
+        "nodes": page, "pageInfo": {"hasNextPage": index + 1 < len(pages), "endCursor": f"c{index}"}}}}}) + "\n"
+        for index, page in enumerate(pages)), encoding="utf-8")
     gh = bin_dir / "gh"
     gh.write_text(FAKE_GH, encoding="utf-8")
     gh.chmod(gh.stat().st_mode | stat.S_IEXEC)
@@ -184,7 +194,7 @@ def test_a_thread_of_that_exact_title_is_left_alone(tmp_path):
 def test_a_missing_category_or_discussions_turned_off_is_a_named_error_and_posts_nothing(tmp_path):
     code, out, calls, _fake = post(tmp_path / "a", categories=[{"id": "C_1", "name": "General"}])
     assert code == 1 and "the discussion category Announcements does not exist" in out
-    assert not [call for call in calls if "createDiscussion" in call or "search(type" in call]
+    assert not [call for call in calls if "createDiscussion" in call or "discussions(categoryId" in call]
     code, out, calls, _fake = post(tmp_path / "b", enabled=False)
     assert code == 1 and "Discussions is not turned on for spellwarden-ai/spellwarden" in out
     assert not [call for call in calls if "createDiscussion" in call]
