@@ -87,7 +87,9 @@ def test_w1_the_graphql_call_passes_the_body_as_a_variable_and_searches_for_the_
     assert "hasDiscussionsEnabled" in run
     # CI's actionlint job runs shellcheck on every `run:` script and fails on any finding, info included (release.yml:616
     # disables SC2016 for the same reason): the GraphQL text is single-quoted on purpose.
-    assert run.splitlines()[0].startswith("# shellcheck disable=SC2016")
+    lines = run.splitlines()
+    graphql = [index for index, line in enumerate(lines) if "gh api graphql" in line]
+    assert len(graphql) == 3 and all(lines[index - 1].strip().startswith("# shellcheck disable=SC2016") for index in graphql)
 
 
 # --- W-2: the version step ------------------------------------------------------------------------------------------------------

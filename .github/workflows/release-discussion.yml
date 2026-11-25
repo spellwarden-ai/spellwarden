@@ -84,11 +84,14 @@ jobs:
       - name: Post the thread unless it exists
         if: steps.version.outputs.skip == 'false'
         run: |
-          # shellcheck disable=SC2016  # $owner, $name, $endCursor, $repo, $category, $title and $body are GraphQL variables
+          # the single-quoted GraphQL text holds GraphQL variables ($owner, $name, $endCursor, $repo, $category, $title, $body), so
+          # each call carries its own shellcheck directive, as release.yml does: actionlint's shellcheck reads a directive for the
+          # command under it
           set -euo pipefail
           owner="${REPOSITORY%%/*}"
           name="${REPOSITORY##*/}"
           title="$(cat "$RUNNER_TEMP/title.txt")"
+          # shellcheck disable=SC2016  # GraphQL variables, not shell expansions
           details="$(gh api graphql -f owner="$owner" -f name="$name" -f query='
             query($owner: String!, $name: String!) {
               repository(owner: $owner, name: $name) {
@@ -107,6 +110,7 @@ jobs:
             exit 1
           fi
           # every thread of the category, page by page, compared by exact title: a search is ranked and could leave it out
+          # shellcheck disable=SC2016  # GraphQL variables, not shell expansions
           found="$(gh api graphql --paginate -f owner="$owner" -f name="$name" -f category="$category" -f query='
             query($owner: String!, $name: String!, $category: ID!, $endCursor: String) {
               repository(owner: $owner, name: $name) {
@@ -120,6 +124,7 @@ jobs:
             echo "the thread exists: $found"
             exit 0
           fi
+          # shellcheck disable=SC2016  # GraphQL variables, not shell expansions
           gh api graphql -f repo="$(jq -r '.data.repository.id' <<<"$details")" -f category="$category" -f title="$title" \
             -F body=@"$RUNNER_TEMP/body.md" -f query='
             mutation($repo: ID!, $category: ID!, $title: String!, $body: String!) {
