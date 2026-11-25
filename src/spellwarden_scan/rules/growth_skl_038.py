@@ -15,12 +15,20 @@ command at a time (`skill.logical_commands`: a line that ends in a backslash is 
   follows a sentence ending in a colon. A directive word that says when the write happens ("Always update `CLAUDE.md` when you
   add a command", "Whenever you change the API, update `AGENTS.md`") is not among them.
 
-It is quiet when the sentence has a prohibition before the verb ("Never edit `AGENTS.md`"); when the same text file has
-approval language anywhere ("ask the user", "approval", "confirm", "with the user's permission", "--dry-run", ...), read outside
-the words the file's writes put into the memory file and not counting a negated one ("without asking the user", "never ask for
-permission", "skip confirmation", "auto-approve"; two negations cancel); and in a
-file written for people (README, INSTALL, CONTRIBUTING, CHANGELOG and anything below `docs/`), which tells a person what to add
-to their own file and which an agent does not load as instructions. A heredoc or fenced block longer than `_BODY_LINES` lines
+The write verb is looked for outside quoted text and `echo` bodies, which are content; `open(..., "a")` is looked for in the
+sentence as it is, its mode being quoted. A quoted text that names the memory file and, read as a sentence of its own, writes a
+directive is a command string (`os.system("echo 'Always ...' >> CLAUDE.md")`, `bash -c "..."`, `python3 -c "..."`) and fires too.
+
+It is quiet when a prohibition before the verb governs it ("Never edit `AGENTS.md`"; an idiom such as "don't forget to" or
+"never fail to" is not one); when the same text file has approval language anywhere ("ask the user", "approval", "confirm",
+"with the user's permission", "--dry-run", ...), read outside the words the file's writes put into the memory file and not
+counting a negated one ("without asking the user", "never ask for permission", "skip confirmation", "auto-approve"; two
+negations cancel; a negation before `until`, `unless`, `before` and the like governs the action, so "do not write until the
+user approves" is an approval step); and in a prose file written for people (README, INSTALL, CONTRIBUTING, CHANGELOG with no
+extension or a prose one, and a prose file below `docs/`; never a script, never a file that starts with `#!`), which tells a
+person what to add to their own file and which an agent does not load as instructions. The approval gate is per file, not per
+write, by the spec's choice (claim 5): a file can silence the rule by holding approval words, which the measurement of the
+rule's precision and the release gate weigh. A heredoc or fenced block longer than `_BODY_LINES` lines
 is not read to its end: the sentence that opens it fires, and its evidence says so first, before the line it quotes, so a long
 line cannot cut the notice off (the limits rule: content left unread never looks like a pass). The bodies are judged from one
 pass over the file's lines (`_Following`), never by reading them again for each write. The rule has no cap of its own: `run_rules` keeps at most `max_per_rule` findings and counts the rest.
@@ -56,6 +64,11 @@ _QUOTED = re.compile("\"[^\"\\n]*\"|\u201c[^\u201d\\n]*\u201d|(?<!\\w)'[^'\\n]*'
 _EXTRA_VERBS = re.compile(r"\b(?:save|store|persist|insert|record|remember|add|append|write|put)\b", _I)
 _PROHIBITION = re.compile(
     r"\b(?:never|do not|don['\u2019]t|must not|mustn['\u2019]t|should not|shouldn['\u2019]t|cannot|can['\u2019]t|not to|avoid|refuse to)\b", _I)
+# A prohibition word followed by one of these is an idiom that asks for the action ("don't forget to append", "never fail to
+# write"), not a prohibition of it.
+_IDIOM = re.compile(r"\s+(?:to\s+)?(?:forget|fail|hesitate|neglect|omit)\b", _I)
+# The mode of `open(...)` is always quoted, so this write verb is searched on the sentence as it is.
+_OPEN_MODE = P.Within(r"open\(", r"[\"'][wa]\+?[\"']", ")")
 _DIRECTIVE = re.compile(
     r"\b(?:always|never|from now on|going forward|in every (?:future |later |new )?(?:session|conversation|task)s?|permanent(?:ly)?|"
     r"every time|whenever|(?:do not|don['\u2019]t) (?:tell|mention|ask)|without (?:asking|telling)|silently)\b", _I)
@@ -74,9 +87,14 @@ _APPROVAL = re.compile(
 _NEGATOR = re.compile(r"\b(?:never|without|not|no|cannot|skip\w*|bypass\w*|avoid\w*)\b|n['\u2019]t\b|\bauto-", _I)
 _CLAUSE_END = ".!?;:,\n"
 _CLAUSE_REACH = 80
-# Prose only: a file named like these with no extension or a prose one. A script (install.sh, install.py) is never exempt.
+# A subordinator between a negation and the approval words makes the negation govern the action, not the approval: "do not
+# write anything until the user approves it" is an approval step.
+_SUBORDINATOR = re.compile(r"\b(?:until|till|unless|before|after|once|if|when)\b", _I)
+# Prose only: a README, INSTALL, CONTRIBUTING or CHANGELOG with no extension or a prose one, and a prose file below `docs/`. A
+# script (install.sh, an extensionless `installer`, docs/setup.sh) is never exempt, and neither is a file that starts with `#!`.
+_PROSE = r"\.(?:md|markdown|mdx|txt|rst)"
 _HUMAN_FACING = re.compile(
-    r"(?:^|/)(?:readme|install|installation|contributing|changelog)(?:[^/.]*|[^/]*\.(?:md|markdown|mdx|txt|rst))$|(?:^|/)docs/", _I)
+    rf"(?:^|/)(?:readme|install|installation|contributing|changelog)(?:{_PROSE})?$|(?:^|/)docs/(?:[^/]+/)*[^/]+{_PROSE}$", _I)
 
 
 @functools.cache
@@ -92,6 +110,44 @@ def _verb_at(sentence: str) -> int | None:
     """The offset of the first persisting write in the sentence, or None."""
     starts = [match.start() for matcher in _verb_matchers() if (match := matcher.search(sentence)) is not None]
     return min(starts) if starts else None
+
+
+def _write_at(sentence: str, outside: str) -> int | None:
+    """The offset of the write: a verb outside quoted text and `echo` bodies (`outside`, the blanked sentence), or else an
+    `open(..., "a")`, whose mode is always quoted."""
+    verb_at = _verb_at(outside)
+    if verb_at is None and (mode := _OPEN_MODE.search(sentence)) is not None:
+        verb_at = mode.start()
+    return verb_at
+
+
+def _prohibited(outside: str, verb_at: int) -> bool:
+    """Whether a prohibition before the verb governs it: "never edit `AGENTS.md`" does, "don't forget to append" does not."""
+    return any(_IDIOM.match(outside, match.end()) is None for match in _PROHIBITION.finditer(outside, 0, verb_at))
+
+
+def _writes_directive(text: str) -> bool:
+    """Whether a text, read on its own as one sentence, writes a standing directive: a write verb, no prohibition of it, and a
+    directive in the words it writes. No body on the following lines is read."""
+    outside = _blanked(text)
+    verb_at = _write_at(text, outside)
+    if verb_at is None or _prohibited(outside, verb_at):
+        return False
+    return _DIRECTIVE.search(_content(text, outside, verb_at)) is not None
+
+
+def _runs_a_write(sentence: str, outside: str) -> bool:
+    """Whether a quoted text of the sentence is a command that writes a directive to a memory file (`os.system("echo 'Always
+    ...' >> CLAUDE.md")`, `bash -c "..."`, `python3 -c "..."`): the quoted text names the file and, read as a sentence of its own,
+    writes the directive. Quoted text that only mentions the file ("the line \"Always write to CLAUDE.md\"") holds no
+    directive in the words it writes, so it stays quiet, and so does a command that a prohibition before it governs ("never run
+    `bash -c ...`")."""
+    for match in _QUOTED.finditer(sentence):
+        inner = match.group(0)[1:-1]
+        if (P.AGENT_MEMORY_PATHS.search(inner) is not None and not _prohibited(outside, match.start())
+                and _writes_directive(inner)):
+            return True
+    return False
 
 
 def _blanked(sentence: str) -> str:
@@ -129,8 +185,10 @@ def _asks_a_person(text: str) -> bool:
     match are read, so a long line without a clause end is read in linear time."""
     for match in _APPROVAL.finditer(text):
         start = max(0, match.start() - _CLAUSE_REACH)
-        cut = max(text.rfind(char, start, match.start()) for char in _CLAUSE_END)
-        if len(_NEGATOR.findall(text, max(cut + 1, start), match.start())) % 2 == 0:
+        start = max(start, max(text.rfind(char, start, match.start()) for char in _CLAUSE_END) + 1)
+        for subordinator in _SUBORDINATOR.finditer(text, start, match.start()):
+            start = subordinator.end()
+        if len(_NEGATOR.findall(text, start, match.start())) % 2 == 0:
             return True
     return False
 
@@ -215,7 +273,7 @@ def detect(package: Package) -> Iterator[Finding]:
     from spellwarden_scan.rules.skill import logical_commands
 
     for unit in package.text_files:
-        if _HUMAN_FACING.search(unit.path):
+        if _HUMAN_FACING.search(unit.path) and not unit.text.startswith("#!"):
             continue
         following: _Following | None = None
         items = list(logical_commands(unit))
@@ -234,16 +292,13 @@ def detect(package: Package) -> Iterator[Finding]:
                 if P.AGENT_MEMORY_PATHS.search(sentence) is None:
                     continue
                 outside = _blanked(sentence)
-                verb_at = _verb_at(outside)  # quoted text and echo bodies are content, never a verb
-                if verb_at is None:
+                verb_at = _write_at(sentence, outside)  # quoted text and echo bodies are content, never a verb
+                if verb_at is not None and _prohibited(outside, verb_at):
                     continue
-                prohibition = _PROHIBITION.search(outside)
-                if prohibition is not None and prohibition.start() < verb_at:
-                    continue
-                fires = _DIRECTIVE.search(_content(sentence, outside, verb_at)) is not None
+                fires = verb_at is not None and _DIRECTIVE.search(_content(sentence, outside, verb_at)) is not None
                 shown = command
                 body_end = after
-                opens = _opens_body(sentence)
+                opens = None if verb_at is None else _opens_body(sentence)
                 if opens is not None:
                     if following is None:
                         following = _Following(lines)
@@ -254,8 +309,11 @@ def detect(package: Package) -> Iterator[Finding]:
                             fires = True
                             shown = f"[the text it writes is longer than {_BODY_LINES} lines and was not read to its end] {command}"
                 if not fires:
+                    fires = _runs_a_write(sentence, outside)  # a command string that writes, inside quotes (r1:F1)
+                if not fires:
                     continue
-                parts[position] = _without_content(sentence, outside, verb_at)
+                parts[position] = (_QUOTED.sub(" ", sentence) if verb_at is None
+                                   else _without_content(sentence, outside, verb_at))
                 covered.append((after, body_end))
                 if not fired:
                     findings.append(Finding(RULE_ID, SEVERITY, TITLE, Location(path, number), bounded_evidence(shown),
