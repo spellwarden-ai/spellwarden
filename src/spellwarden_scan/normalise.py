@@ -41,7 +41,10 @@ def visible(text: str) -> str:
     text = _INVISIBLE.sub("", text)
     if text.isascii():
         return text
-    return "".join(char for char in text if unicodedata.category(char) != "Cf")
+    # 1.24.0 (speed and deadline spec 6.2, F3): one category lookup for each distinct character of the line, not one for each
+    # character, and the line is rewritten, in C, only when it holds a format character
+    format_characters = {ord(char): None for char in set(text) if unicodedata.category(char) == "Cf"}
+    return text.translate(format_characters) if format_characters else text
 
 
 # --- the fold steps --------------------------------------------------------------------------------------------------------

@@ -106,3 +106,43 @@ def test_a_line_of_ascii_and_table_letters_is_folded_whole_and_a_line_with_anoth
     assert normalise._lookalike("pa\u0443pal \u0441onfig \u043e\u043e") == "paypal config oo"  # no other letter: the whole line
     # `\u0436` is a letter outside the table: the word `\u0441\u0436` is a real word and stays, `\u0441at` is folded
     assert normalise._lookalike("\u0441\u0436 \u0441at") == "\u0441\u0436 cat"
+
+
+# --- F3: `visible` (spec 6.2) -------------------------------------------------------------------------------------------------
+
+def test_every_single_character_is_as_visible_as_before():
+    for char in ALL_CODE_POINTS:
+        assert normalise.visible(char) == old.visible(char), hex(ord(char))
+        line = f"a{char}b {char}{char} x_{char}"
+        assert normalise.visible(line) == old.visible(line), hex(ord(char))
+
+
+def test_generated_lines_are_as_visible_as_before():
+    for line in generated_lines():
+        assert normalise.visible(line) == old.visible(line), repr(line)
+
+
+def fold_as_1_23_0(line: str) -> str:
+    """`normalise.fold(line, FOLD_STEPS)` with the two functions of 1.23.0 in place of the two that 1.24.0 changed."""
+    line = normalise._entities(line)
+    line = old.visible(line)
+    line = normalise._compat(line)
+    line = old._lookalike(line)
+    return normalise._spaces(line)
+
+
+def test_the_lines_of_the_fixtures_and_generated_lines_fold_as_before_through_every_step():
+    count = 0
+    for line in fixture_lines():
+        assert normalise.visible(line) == old.visible(line), repr(line)
+        assert normalise.fold(line, normalise.FOLD_STEPS) == fold_as_1_23_0(line), repr(line)
+        count += 1
+    assert count > 100
+    for line in generated_lines(5_000):
+        assert normalise.fold(line, normalise.FOLD_STEPS) == fold_as_1_23_0(line), repr(line)
+
+
+def test_visible_rewrites_only_a_line_that_holds_a_format_character():
+    plain = "caf\u00e9 \u0436\u0441"
+    assert normalise.visible(plain) is plain
+    assert normalise.visible("a\u061cb\u00e9") == "ab\u00e9" == old.visible("a\u061cb\u00e9")
