@@ -38,8 +38,9 @@ RESERVED_SUFFIXES = (".example", ".invalid", ".test", ".localhost")
 RESERVED_DOMAINS = ("example.com", "example.net", "example.org")
 RESERVED_NETWORKS = tuple(ipaddress.ip_network(text) for text in (
     "192.0.2.0/24", "198.51.100.0/24", "203.0.113.0/24", "127.0.0.0/8", "::1/128", "2001:db8::/32"))
-# What a host looks like in a URL (`scheme://[user@]host`) and after the `@` of an e-mail address.
-_URL_HOST = re.compile(r"\b[A-Za-z][A-Za-z0-9+.\-]{1,19}://(?:[^/\s?#@'\"<>]*@)?(\[[0-9A-Fa-f:.]+\]|[^/\s?#:'\"<>)\]]+)")
+# What a host looks like in a URL (`scheme://[user@]host`) and after the `@` of an e-mail address. The host is the longest run of
+# host characters, so that a closing backtick, a pipe or a brace after it does not hide it; a placeholder such as `${HOST}` has none.
+_URL_HOST = re.compile(r"\b[A-Za-z][A-Za-z0-9+.\-]{1,19}://(?:[A-Za-z0-9._~%!$+,=:\-]*@)?(\[[0-9A-Fa-f:.]+\]|[A-Za-z0-9.\-]+)")
 _MAIL_HOST = re.compile(r"(?<![A-Za-z0-9._%+\-])[A-Za-z0-9._%+\-]+@([A-Za-z0-9\-]+(?:\.[A-Za-z0-9\-]+)+)")
 # The credential shapes of tests/conftest.py `credential()`, apart from its `password = "..."` shape. Every open-ended length is
 # bounded, so that a 64 KiB file of one repeated prefix cannot make a search quadratic.

