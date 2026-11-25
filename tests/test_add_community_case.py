@@ -28,8 +28,9 @@ def issue_body(form: str = "missed-detection", *, sample: str = PIP_SKILL, file:
                tick: str = "x") -> str:
     """The body GitHub gives an issue made from a form: `### <label>`, a blank line, the answer; a `render: text` answer inside a
     fenced block whose fence is one backtick longer than the longest run in the text (at least three; `fence` forces one);
-    `_No response_` for an empty optional field; a checkbox as `- [x] <option>`."""
-    labels = add.FORM_LABELS[form]
+    `_No response_` for an empty optional field; a checkbox as `- [x] <option>`. Every field of the form is rendered, in the
+    form's order, the fields the record does not keep included (r1:F1), as GitHub renders them."""
+    labels = add.ALL_LABELS[form]
 
     def block(label: str, text: str) -> str:
         return f"### {label}\n\n{text}\n"
@@ -39,10 +40,15 @@ def issue_body(form: str = "missed-detection", *, sample: str = PIP_SKILL, file:
         ticks = fence or "`" * max(3, longest + 1)
         return block(label, f"{ticks}text\n{text.rstrip(chr(10))}\n{ticks}") if text else block(label, "_No response_")
 
-    parts = [block(labels["versions"], versions), block(labels["command"], "spellwarden scan ."), block(labels["file"], file),
-             fenced(labels["sample"], sample), fenced(labels["more"], more), block(labels["origin"], origin),
-             block(labels["source"], "_No response_"), block(labels["credit"], credit or "_No response_"),
-             block(labels["consent"], consent if consent is not None else f"- [{tick}] {add.CONSENT_TEXT}")]
+    answers = {"versions": versions, "command": "spellwarden scan .", "file": file, "origin": origin, "source": "_No response_",
+               "credit": credit or "_No response_",
+               "consent": consent if consent is not None else f"- [{tick}] {add.CONSENT_TEXT}",
+               # the fields of one form only: answered as a reporter would, a multi-line answer included
+               "rule": "SW-SKL-009", "why": "It only greets the user.\n\nNothing runs.", "expected": "SW-SKL-009 at high",
+               "detects": "A download piped into a shell.", "content": "A skill (SKILL.md and its files)",
+               "gap": "SW-SKL-009 reads only one form of it.", "harmless": "A README that quotes the command."}
+    parts = [fenced(labels[field], sample if field == "sample" else more) if field in ("sample", "more")
+             else block(labels[field], answers[field]) for field in add.FIELD_ORDER[form]]
     return "\n".join(parts).replace("\n", newline)
 
 
@@ -235,6 +241,18 @@ def test_a_path_given_twice_or_text_before_the_first_marker_is_refused(run):
     assert "the path is given twice" in run(issue_body(more="=== a.md ===\nx\n=== a.md ===\ny\n"))[2]
 
 
+@pytest.mark.parametrize("form", ["false-positive", "missed-detection", "new-rule"])
+def test_a_sample_that_repeats_a_heading_of_the_form_is_refused_by_name_never_cut_short(run, form):
+    """r1:F2: a sample line `### Publishing` (a skill about publishing a package) is a heading GitHub's body cannot tell apart
+    from the form's own field; the case was committed cut short. It is refused, naming the heading."""
+    sample = PIP_SKILL + "\n### Publishing\n\nRun twine upload when the tests pass.\n"
+    code, _out, err = run(issue_body(form, sample=sample))
+    assert code == 2 and "the body holds the heading ### Publishing more than once" in err
+    assert not (run.root / "COM-0001").exists()
+    sample = PIP_SKILL + "\n### Usage\n\nRun it.\n"   # a heading that is no label of the form is the sample's own text
+    assert run(issue_body(form, sample=sample))[0] == 0
+
+
 # --- A-5: the credit ---------------------------------------------------------------------------------------------------------
 
 def test_an_empty_credit_is_null_and_a_name_is_trimmed(run):
@@ -248,6 +266,13 @@ def test_a_credit_with_a_line_break_or_over_80_characters_is_refused(run):
     assert "the credit holds a line break" in run(issue_body(credit="Ada\nExample"))[2]
     assert "longer than 80 characters" in run(issue_body(credit="A" * 81))[2]
     assert run(issue_body(credit="A" * 80))[0] == 0
+
+
+def test_a_credit_with_a_mention_a_link_or_markup_is_refused_and_a_plain_name_in_any_script_is_kept(run):
+    """r0:F4: the credit is printed in the CHANGELOG and the release thread, so a mention, a link, a URL or markup is refused."""
+    for credit in ("[Ada](https://evil.com)", "@octocat", "Ada https://evil.com", "<b>Ada</b>", "`Ada`", "Ada_Example"):
+        assert "no mention, link or markup" in run(issue_body(credit=credit))[2], credit
+    assert run(issue_body(credit="José O'Brien-Łukasz Jr.,  3rd"))[0] == 0
 
 
 def test_the_script_never_imports_a_network_module():

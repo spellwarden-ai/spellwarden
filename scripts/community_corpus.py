@@ -26,6 +26,14 @@ MAX_FILE_BYTES = 64 * 1024
 MAX_TOTAL_BYTES = 256 * 1024
 MAX_PATH = 200
 MAX_CREDIT = 80
+# r0:F4: a credit is printed in the CHANGELOG and the release thread, so it holds letters, digits, spaces and . , ' - only:
+# no mention, link, URL, markup or HTML can reach either
+CREDIT_CHARACTERS = frozenset(" .,'-")
+
+
+def credit_is_plain(value: str) -> bool:
+    return bool(value) and all((character.isalnum() and character != "_") or character in CREDIT_CHARACTERS
+                               for character in value)
 TEST_SET_MIN_BYTES = 200
 _SCANNER_VERSION = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
 _RULES_VERSION = re.compile(r"^[0-9]{4}\.[0-9]{2}\.[0-9]+$")
@@ -39,9 +47,14 @@ RESERVED_DOMAINS = ("example.com", "example.net", "example.org")
 RESERVED_NETWORKS = tuple(ipaddress.ip_network(text) for text in (
     "192.0.2.0/24", "198.51.100.0/24", "203.0.113.0/24", "127.0.0.0/8", "::1/128", "2001:db8::/32"))
 # What a host looks like in a URL (`scheme://[user@]host`) and after the `@` of an e-mail address. The host is the longest run of
-# host characters, so that a closing backtick, a pipe or a brace after it does not hide it; a placeholder such as `${HOST}` has none.
-_URL_HOST = re.compile(r"\b[A-Za-z][A-Za-z0-9+.\-]{1,19}://(?:[A-Za-z0-9._~%!$+,=:\-]*@)?(\[[0-9A-Fa-f:.]+\]|[A-Za-z0-9.\-]+)")
-_MAIL_HOST = re.compile(r"(?<![A-Za-z0-9._%+\-])[A-Za-z0-9._%+\-]+@([A-Za-z0-9\-]+(?:\.[A-Za-z0-9\-]+)+)")
+# host characters, so that a closing backtick, a pipe or a brace after it does not hide it; a placeholder such as `${HOST}` has
+# none.
+# r1:F3: a host may hold letters of any script (`ébay.com`); the search text has JSON's `\/` read as `/` first (`live_hosts`)
+_URL_HOST = re.compile(r"\b[A-Za-z][A-Za-z0-9+.\-]{1,19}://(?:[A-Za-z0-9._~%!$+,=:\-]*@)?"
+                       r"(\[[0-9A-Fa-f:.]+\]|(?:[^\W_]|[.\-])+)")
+_MAIL_HOST = re.compile(r"(?<![A-Za-z0-9._%+\-])[A-Za-z0-9._%+\-]+@((?:[^\W_]|-)+(?:\.(?:[^\W_]|-)+)+)")
+# a host name with a letter outside ASCII: a live host unless reserved, where `_HOST` (ASCII) would read it as no host at all
+_UNICODE_HOST = re.compile(r"^[^\W_](?:(?:[^\W_]|[.-])*[^\W_])?$")
 # The credential shapes of tests/conftest.py `credential()`, apart from its `password = "..."` shape. Every open-ended length is
 # bounded, so that a 64 KiB file of one repeated prefix cannot make a search quadratic.
 CREDENTIAL_SHAPES = (
@@ -262,6 +275,8 @@ def record_problems(record: object, *, directory_name: str | None = None, rule_a
         if not isinstance(credit, str) or not credit or credit != credit.strip() or len(credit) > MAX_CREDIT \
                 or re.search(r"[\x00-\x1f\x7f]", credit):
             problems.append(f"{where}: credit must be null or one trimmed line of at most {MAX_CREDIT} characters")
+        elif not credit_is_plain(credit):
+            problems.append(f"{where}: credit must hold only letters, digits, spaces and . , ' -")
     day = record["date"]
     try:
         valid = isinstance(day, str) and _DATE.match(day) is not None and date.fromisoformat(day).isoformat() == day
@@ -349,13 +364,14 @@ def live_hosts(text: str, kept_hosts: tuple[str, ...] | list[str] = ()) -> list[
     A host that is not a name or an address (a placeholder such as `${HOST}`) is not a host."""
     kept = {host.lower() for host in kept_hosts}
     found = set()
+    text = text.replace("\\/", "/")   # r1:F3: JSON may write `https:\/\/host\/path`
     for match in [*_URL_HOST.finditer(text), *_MAIL_HOST.finditer(text)]:
         host = match.group(1).rstrip(".,;:").lower()
         bare = host.strip("[]")
         try:
             ipaddress.ip_address(bare)
         except ValueError:
-            if _HOST.match(host) is None:
+            if _HOST.match(host) is None and (host.isascii() or _UNICODE_HOST.match(host) is None):
                 continue
         if host not in kept and not _host_is_reserved(host):
             found.add(host)
@@ -456,26 +472,18 @@ def _answer(lines: list[str]) -> str:
     return "\n".join(lines)
 
 
-def parse_issue_body(text: str, labels: frozenset[str] | set[str] | None = None) -> dict[str, str]:
+def parse_issue_body(text: str) -> dict[str, str]:
     """The answers of an issue made from a form, by the label of each field: GitHub renders `### <label>` and the answer under
     it. A `render: text` answer is the content of its fenced block, taken line by line between the first fence line and its close
     (the fence may be longer than three characters); `_No response_` is an empty answer; line endings are read as LF. A heading
-    inside a fenced block is text. A label that appears twice keeps its last answer (the form's last field, the consent box,
-    cannot be spoofed by text above it). With `labels` (the labels of a form's fields) only a `### <label>` line of that set
-    starts a field and fences are not tracked: GitHub fences an answer with exactly three backticks, so a sample's own block or
-    `### ` heading must not end the answer early; the answer is still the text between its first and its last line."""
+    inside a fenced block is text. A label that appears twice keeps its last answer. `parse_form_body` is the strict reading the
+    add script uses, with the labels of one form."""
     lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
     sections: dict[str, list[str]] = {}
     current: str | None = None
     fence: str | None = None
     for line in lines:
-        if labels is not None:
-            heading = _HEADING.match(line)
-            if heading and heading.group(1) in labels:
-                current = heading.group(1)
-                sections[current] = []
-                continue
-        elif fence is None:
+        if fence is None:
             heading = _HEADING.match(line)
             if heading:
                 current = heading.group(1)
@@ -489,6 +497,33 @@ def parse_issue_body(text: str, labels: frozenset[str] | set[str] | None = None)
         if current is not None:
             sections[current].append(line)
     return {label: _answer(body) for label, body in sections.items()}
+
+
+def form_headings(text: str) -> list[str]:
+    """The text of every `### ` heading line of `text`, in order."""
+    return [heading.group(1) for line in text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+            if (heading := _HEADING.match(line))]
+
+
+def parse_form_body(text: str, labels: list[str] | tuple[str, ...]) -> dict[str, str]:
+    """The answers of an issue made from one form whose fields have `labels`, in the form's order (r1:F1, r1:F2). Only a
+    `### <label>` line of that list starts a field, so a sample's own blocks and other headings are its text; the answer is the
+    text between its first and its last line (`_answer`). Raises `CorpusError` when one of the labels heads more than one line,
+    since the sample then holds a line that GitHub's rendering cannot be told apart from (it would cut the sample short), or when
+    the fields are out of the form's order."""
+    lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    starts = [(index, heading.group(1)) for index, line in enumerate(lines)
+              if (heading := _HEADING.match(line)) and heading.group(1) in labels]
+    found = [label for _index, label in starts]
+    for label in labels:
+        if found.count(label) > 1:
+            raise CorpusError(f"the body holds the heading ### {label} more than once; ask the reporter to rename that heading "
+                              f"in the sample")
+    positions = [labels.index(label) for label in found]
+    if positions != sorted(positions):
+        raise CorpusError("the fields of the body are not in the order of the form")
+    ends = [index for index, _label in starts[1:]] + [len(lines)]
+    return {label: _answer(lines[index + 1:end]) for (index, label), end in zip(starts, ends, strict=True)}
 
 
 def file_bytes(content: str) -> bytes:

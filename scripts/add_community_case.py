@@ -56,6 +56,21 @@ SAMPLE_LABELS = {
     "new-rule": "A harmless sample that shows the problem",
 }
 FORM_LABELS = {form: {**COMMON_LABELS, "sample": label} for form, label in SAMPLE_LABELS.items()}
+# r1:F1: the fields each form adds, which the record does not keep but the parser must know, since GitHub renders every field
+EXTRA_LABELS = {
+    "false-positive": {"rule": "Rule id", "why": "Why it is not a problem"},
+    "missed-detection": {"expected": "What you expected to be found"},
+    "new-rule": {"detects": "What the rule detects", "content": "Which kind of content it reads",
+                 "gap": "Why no rule finds it today", "harmless": "Which harmless content the pattern would also match"},
+}
+ALL_LABELS = {form: {**FORM_LABELS[form], **EXTRA_LABELS[form]} for form in FORM_LABELS}
+# Every field of each form in the form's order; tests/test_community_forms.py keeps this and ALL_LABELS equal to the YAML
+FIELD_ORDER = {
+    "false-positive": ("rule", "versions", "command", "file", "sample", "more", "why", "origin", "source", "credit", "consent"),
+    "missed-detection": ("expected", "versions", "command", "file", "sample", "more", "origin", "source", "credit", "consent"),
+    "new-rule": ("detects", "content", "versions", "command", "file", "sample", "more", "gap", "harmless", "origin", "source",
+                 "credit", "consent"),
+}
 KINDS = {"miss": "miss", "false-positive": "false_positive"}
 _VERSIONS = re.compile(r"^(?:spellwarden\s+)?([0-9]+\.[0-9]+\.[0-9]+)\s*(?:\(\s*rules\s+([0-9]{4}\.[0-9]{2}\.[0-9]+)\s*\)"
                        r"|[,;\s]\s*(?:rules\s+)?([0-9]{4}\.[0-9]{2}\.[0-9]+))$")
@@ -82,10 +97,14 @@ def rule_areas() -> dict[str, str]:
 
 def read_form(text: str) -> tuple[str, dict[str, str]]:
     """The form that `text` answers and its answers by field id. Raises `Refused` when a required field is missing."""
-    answers = corpus.parse_issue_body(text, {label for labels in FORM_LABELS.values() for label in labels.values()})
-    forms = [form for form, labels in FORM_LABELS.items() if labels["sample"] in answers]
+    headings = set(corpus.form_headings(text))
+    forms = [form for form, labels in FORM_LABELS.items() if labels["sample"] in headings]
     if len(forms) != 1:
         raise Refused(["the body is not the answer of one of the three issue forms (no field with the label of a form's sample)"])
+    try:
+        answers = corpus.parse_form_body(text, [ALL_LABELS[forms[0]][field] for field in FIELD_ORDER[forms[0]]])
+    except corpus.CorpusError as exc:
+        raise Refused([str(exc)]) from None
     labels = FORM_LABELS[forms[0]]
     missing = [labels[field] for field in ("versions", "file", "sample", "origin", "consent") if not answers.get(labels[field])]
     if missing:
@@ -107,7 +126,8 @@ def consent_given(text: str) -> bool:
 
 
 def credit_of(text: str) -> tuple[str | None, list[str]]:
-    """The credit as the record holds it, and the problems with it: trimmed, one line, at most 80 characters."""
+    """The credit as the record holds it, and the problems with it: trimmed, one line, at most 80 characters, letters, digits,
+    spaces and . , ' - only (r0:F4)."""
     if not text.strip():
         return None, []
     if "\n" in text.strip() or "\r" in text.strip():
@@ -115,6 +135,8 @@ def credit_of(text: str) -> tuple[str | None, list[str]]:
     value = text.strip()
     if len(value) > corpus.MAX_CREDIT or re.search(r"[\x00-\x1f\x7f]", value):
         return None, [f"the credit is longer than {corpus.MAX_CREDIT} characters or holds a control character"]
+    if not corpus.credit_is_plain(value):
+        return None, ["the credit holds a character other than letters, digits, spaces and . , ' - (no mention, link or markup)"]
     return value, []
 
 

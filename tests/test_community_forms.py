@@ -129,6 +129,17 @@ def test_f9_the_label_table_of_the_script_equals_the_labels_of_the_three_forms()
     assert add.CONSENT_TEXT == CONSENT and list(add.ORIGIN_OPTIONS) == ORIGINS
 
 
+@pytest.mark.parametrize("name", FORMS)
+def test_f9_every_field_of_each_form_is_known_to_the_script_with_its_label_and_in_the_forms_order(name):
+    """r1:F1: the parser reads every field GitHub renders, the ones the record does not keep included, in the form's order."""
+    order = [element["id"] for element in load_form(name)["body"] if "id" in element]
+    assert list(add.FIELD_ORDER[name]) == order
+    body = fields(name)
+    assert set(add.ALL_LABELS[name]) == set(order)
+    for field_id, label in add.ALL_LABELS[name].items():
+        assert body[field_id]["attributes"]["label"] == label, (name, field_id)
+
+
 # --- F-7: plain text, campaign tags, the command that prints the version --------------------------------------------------------
 
 TEXT_FILES = [".github/ISSUE_TEMPLATE/config.yml", ".github/ISSUE_TEMPLATE/false-positive.yml",
