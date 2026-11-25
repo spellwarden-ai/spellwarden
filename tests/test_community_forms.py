@@ -156,3 +156,67 @@ def test_f7_every_link_to_the_site_carries_the_three_campaign_tags(name):
     for link in links:
         for tag in ("utm_source=", "utm_medium=", "utm_campaign="):
             assert tag in link, (name, link)
+
+
+# --- F-4 to F-6: the documents ----------------------------------------------------------------------------------------------------
+
+CORPUS_SENTENCE = ("The community corpus in `fixtures/community/` is not a test set: it holds samples that people reported and rule "
+                   "changes were made for, so it is never used for a claim about rates, and a sample of a test set is not accepted "
+                   "into it.")
+
+
+def read(name: str) -> str:
+    path = ROOT / name
+    if not path.exists():
+        pytest.skip(f"{name} is not in an sdist")
+    return path.read_text(encoding="utf-8").replace("\r\n", "\n")
+
+
+def section(text: str, heading: str, following: str) -> str:
+    return flat(text[text.index(heading):text.index(following)])
+
+
+def test_f4_the_security_policy_names_private_reporting_and_keeps_the_address_and_the_answer_time():
+    text = flat(read("SECURITY.md"))
+    assert "GitHub's private vulnerability reporting for this repository" in text and "\"Report a vulnerability\"" in text
+    assert "Both reach the maintainers, and both get a first answer within five working days." in text
+    assert "Send an email to `security@spellwarden.ai`. Do not open a public issue for a security problem." in text
+    assert "You get a first answer within five working days." in text
+    assert "Use private reporting or send it to `security@spellwarden.ai` instead when the sample is a working attack" in text
+    assert "a bypass can join the public corpus of accepted samples in `fixtures/community/`, and only with your agreement in writing" in text
+    assert "a public issue with a harmless sample is the right place for it: see [CONTRIBUTING.md](CONTRIBUTING.md)" in text
+
+
+def test_f5_contributing_tells_a_reporter_what_the_forms_ask_and_what_happens_next():
+    text = read("CONTRIBUTING.md")
+    assert "## Report a false positive or a missed detection" not in text and "## Report a miss, a false alarm or a new pattern" in text
+    report = section(text, "## Report a miss, a false alarm or a new pattern", "## Propose a rule")
+    for needle in ("**False positive**", "**Missed detection**", "**New rule proposal**", "https://github.com/spellwarden-ai/spellwarden/issues/new/choose",
+                   "`spellwarden version` prints both", "the Apache License 2.0, the licence of this repository", "Reports are unpaid.",
+                   "only if you write a name in the form", "released packages and the history of the repository still hold it",
+                   "goes to private reporting and not to an issue: see [SECURITY.md](SECURITY.md)", "within five working days",
+                   "it is not a promise of a fix date", "`fixtures/community/`", "a written reason that names the rule",
+                   "[Discussions](https://github.com/spellwarden-ai/spellwarden/discussions)",
+                   "[how to handle false positives](https://spellwarden.ai/docs/false-positives?utm_source=github&utm_medium=readme&utm_campaign=contributing)",
+                   "A sample that comes from a benchmark's test sets is not accepted"):
+        assert needle in report, needle
+    assert "[Propose a rule](#propose-a-rule)" in report and "## Propose a rule" in text
+
+
+def test_f5_the_tuning_paragraph_ends_with_the_corpus_sentence_and_keeps_what_other_tests_read():
+    text = read("CONTRIBUTING.md")
+    paragraph = next(line for line in text.splitlines() if line.startswith("Keep the benchmark's test sets out of rule work."))
+    assert paragraph.endswith(" " + CORPUS_SENTENCE)
+    assert "does not cite, quote or add as a fixture any sample of a test set" in paragraph
+    assert "samples people report. The same holds for the normalisation steps" in paragraph
+
+
+def test_f6_the_roadmap_no_longer_lists_the_report_channel_as_next_and_lists_it_as_shipped():
+    text = read("ROADMAP.md")
+    assert "A way to report misses and false alarms" not in text
+    shipped = section(text, "## Shipped\n", "## Being built now")
+    assert "Anyone can report a miss, a false alarm or a new pattern with an issue form" in shipped
+    assert "a working bypass goes to private reporting" in shipped and "`fixtures/community/`" in shipped
+    assert "a thread per release in GitHub Discussions lists the rules that changed" in shipped
+    assert "Since" not in shipped[shipped.index("Anyone can report"):]
+    assert "A way to report" not in section(text, "## Next\n", "## Being considered")

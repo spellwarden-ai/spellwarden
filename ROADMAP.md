@@ -22,6 +22,8 @@ Since 1.22.0 the skill rules also read a normalised copy of the text, so that co
 
 Since 1.24.0 a scan can be given a time limit: `spellwarden scan --time-limit SECONDS` ends a scan that reaches it incomplete, naming every skill and instruction file it did not read and judging none of them in part, and the normalised scan is faster ([Limits](README.md#limits)).
 
+Anyone can report a miss, a false alarm or a new pattern with an issue form, and a working bypass goes to private reporting ([CONTRIBUTING.md](CONTRIBUTING.md#report-a-miss-a-false-alarm-or-a-new-pattern)). Each accepted sample is a test in [`fixtures/community/`](fixtures/community/README.md) and a row of the rule benchmark's own marked set, which is never mixed into its fixed sets, and a thread per release in GitHub Discussions lists the rules that changed.
+
 ## Being built now
 
 Nothing at the moment: the next item comes from the list below.
@@ -36,7 +38,6 @@ In no fixed order.
 - **Repositories the scan cannot read whole, in the hosted product.** The scanner's part shipped in 1.23.0. Next the hosted scan reads a repository's archive up to 50 MiB zipped and lists a marketplace without unpacking it, and the first catalog round is measured again. The rule does not change: content left unread never looks like a pass.
 - **More export targets for policy packs.** AWS AgentCore Policy and Cloudflare's sandbox egress proxy are named in the code as planned targets.
 - **Signed attestations** for skills and servers that were scanned and admitted.
-- **A way to report misses and false alarms** with issue forms, and a public corpus of the accepted samples, each one a test.
 
 ## Being considered
 

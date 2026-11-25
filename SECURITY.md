@@ -2,6 +2,8 @@
 
 ## Reporting a security problem
 
+Report it through GitHub's private vulnerability reporting for this repository (the button "Report a vulnerability" under the Security tab), or by email. Both reach the maintainers, and both get a first answer within five working days.
+
 Send an email to `security@spellwarden.ai`. Do not open a public issue for a security problem.
 
 This covers the scanner and the engine in this repository, the GitHub Action (`spellwarden-ai/scan` on GitHub), the GitLab CI component (`spellwarden-ai/scan` on GitLab), the Infra Pack and the hosted product at spellwarden.ai.
@@ -16,7 +18,7 @@ You get a first answer within five working days. The address is for security rep
 
 A rule that misses something is usually not a security problem, and a public issue with a harmless sample is the right place for it: see [CONTRIBUTING.md](CONTRIBUTING.md).
 
-Send it to `security@spellwarden.ai` instead when the sample is a working attack, or when publishing the method would help someone hide malicious content from the scanner before a fix is released.
+Use private reporting or send it to `security@spellwarden.ai` instead when the sample is a working attack, or when publishing the method would help someone hide malicious content from the scanner before a fix is released. After the fix is released, a bypass can join the public corpus of accepted samples in `fixtures/community/`, and only with your agreement in writing.
 
 ## Which versions get fixes
 
