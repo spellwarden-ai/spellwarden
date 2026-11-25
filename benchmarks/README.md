@@ -292,6 +292,58 @@ The release preparation records the entry before the tag, because a workflow sta
    the release unless it gets the same numbers. It also checks that the earlier entries are those the last release published,
    then attaches `rule-benchmark.json` and `rule-benchmark.md` to the GitHub release.
 
+## Rules measured on a set of their own
+
+The 21 skill rules above are measured on skills. A rule that reads something else (the tool list of a probed server, an MCP
+client configuration), or that asks a question the labels "malicious" and "benign skill" do not answer, is measured on a set of
+its own before it is released. The sets hold third-party text, so they are never published. This repository holds only the
+record of each set, `measured_sets.json`: counts, hashes and dates, and never a sample, a host, a path, a tool name or a quote.
+`measured_sets.py` checks that record, works out the severity it gives and writes the table that the README shows between its
+`measured-sets:start` and `measured-sets:end` markers.
+
+How a set is made, in words:
+
+- A frame of public units is collected once. It is split by owner or namespace into a tuning half and a held-out half, by a rule
+  fixed before any count. Files already named in `manifest.json` as held-out, test-split or Trail of Bits items are left out.
+- The rule is tuned on the tuning half only, in at most three rounds, and frozen at a signed commit.
+- A count gate comes before any labelling: the frozen rule must flag at least 60 distinct units from at least 20 owners or
+  namespaces in the whole frame. A rule that does not is withdrawn, and the count is told to the owner.
+- Every unit the frozen rule flags in the held-out half is labelled by two language models with different batching, and a third
+  settles their disagreements. The owner audits a sample of 150 items. Planted synthetic positives show how many positives the
+  labellers miss. The held-out half is scored once.
+
+The bar. Precision is the true positives over the flagged units labelled positive or benign, with its 95% Wilson interval; a unit
+labelled ambiguous or error is left out and shown in two lines that count it each way. Medium needs a precision of at least 0.60
+and a lower end of the interval of at least 0.45. High needs 0.80 and 0.65. Fewer than 20 labelled units cannot be assessed. No
+new rule is released at critical or at low. A rule that misses the medium bar is not released, and its OWASP entry says what
+answers the entry instead. Recall is never a condition of release and is always published, with its interval, next to the
+catch rate of the planted positives.
+
+What the numbers do not show. The labellers are language models of one family, so their agreement can overstate validity. The
+planted positives may be easier than real ones. The sets are public files and remote servers, not every customer's content.
+
+Commands:
+
+- `python benchmarks/rule_benchmark.py check-measured` checks that every record is valid and that every registered rule of
+  `PENDING_RULES` has one. `make check` runs it through `tests/test_measured_sets.py`, so a `pending` record does not stop
+  development.
+- `python benchmarks/rule_benchmark.py check-measured --release` exits 1 unless every rule of `PENDING_RULES` is `measured` at the
+  severity it is registered at, and every `withdrawn` rule is out of the rule set. The release workflow runs it before the build.
+  Exit codes are those of the rest of the harness: 0 passed, 1 a difference, 2 a file that cannot be read.
+- `python benchmarks/measured_sets.py render` writes the README table from the record, and `render --check` compares it.
+
+After the measurement, one signed commit for each rule, on the branch of the work and after it is rebased onto `origin/main`:
+
+- A rule that met the bar: set its `SEVERITY` constant to the severity of the record, set the severity in its row of
+  `src/spellwarden_cli/presets.py` (`strict` one level above, never above high, and `low-noise` equal to the rule's own), run
+  `python benchmarks/measured_sets.py render`, regenerate the README tables with `spellwarden rules --format markdown` and
+  `presets.table_markdown`, and write its precision and recall with their intervals into the CHANGELOG entry.
+- A rule that failed the count gate, missed the bar or could not be assessed: set its record to `withdrawn` with the reason
+  (`g0_failed`, `precision_below_bar` or `not_assessable`), take its module, registration, fixtures, preset row, README row,
+  row of `tests/data/released_rule_ids.json`, tags and tests out in the same commit, and keep its id reserved.
+- The branch is not merged before these commits: with a `pending` record, `check-measured --release` refuses every release of
+  `main`.
+
 ## Files
 
 - `manifest.json`: the sets, their sources, pins, files and hashes. It holds no sample text. It is written once by
@@ -300,6 +352,8 @@ The release preparation records the entry before the tag, because a workflow sta
 - `RESULTS.md`: the full table, generated from `results.json` by `rule_benchmark.py render`.
 - `requirements.txt`: `pyarrow`, hash-pinned, to read the parquet table.
 - `rule_benchmark.py`: the one command (`fetch`, `run`, `render`, `changelog-lines`, `check-changelog`, `check-history`, `steps`).
+- `measured_sets.json`: the record of each rule that is measured on a set of its own, counts, hashes and dates only; `measured_sets.py` checks it,
+  works out the severity it gives and writes the README table. `rule_benchmark.py check-measured` is the release gate that reads it.
 - `disguise.py`: the generator of the disguised samples, loaded by `rule_benchmark.py`. It is seeded, works in memory and
   writes, prints and runs nothing.
 - `build_manifest.py`: turns the frozen measurement manifests into `manifest.json`; run once, never by `make check` or CI.

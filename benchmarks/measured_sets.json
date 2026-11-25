@@ -1,0 +1,26 @@
+{
+  "measured_sets": 1,
+  "rules": {
+    "SW-CFG-015": {
+      "limits": [
+        "It does not see what a server does with the folder it is given, a grant made outside the arguments a client file holds, or every environment variable."
+      ],
+      "set": "sw-cfg-015-v1",
+      "status": "pending"
+    },
+    "SW-MCP-013": {
+      "limits": [
+        "It does not see injection through an argument of a tool that runs a fixed program, whether a server filters the command, servers that run as local processes, or code interpreters whose parameter is code."
+      ],
+      "set": "sw-mcp-013-v1",
+      "status": "pending"
+    },
+    "SW-SKL-038": {
+      "limits": [
+        "It does not see memory poisoned while an agent runs, memory a product keeps outside files, memory that is already poisoned, or a write made by code the text does not describe."
+      ],
+      "set": "sw-skl-038-v1",
+      "status": "pending"
+    }
+  }
+}
