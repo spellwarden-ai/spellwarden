@@ -12,6 +12,7 @@ from spellwarden_scan import lint
 from spellwarden_scan.a2a import AgentCardDocument
 from spellwarden_scan.a2a_checklist import a2a_checklist
 from spellwarden_scan.canonical import canonical_sha256
+from spellwarden_scan.deadline import Deadline, Meter
 from spellwarden_scan.evidence import bounded_evidence, fingerprint
 from spellwarden_scan.identity import package_files, package_sha256
 from spellwarden_scan.model import (
@@ -34,13 +35,16 @@ def _sort_key(finding: Finding) -> tuple:
 
 
 def run_rules(rules, subject, *, max_findings: int, max_per_rule: int,
-              meter: BudgetMeter | None = None) -> tuple[list[Finding], int]:
+              meter: BudgetMeter | None = None, time_meter: Meter | None = None) -> tuple[list[Finding], int]:
     """Shared by the skill and the probe scans: lazily consumes each rule's
     findings, keeps at most the caps, counts the rest. With a `meter`, an org rule
-    (Phase C spec 5.2.2) reads its units through it; baseline rules never do."""
+    (Phase C spec 5.2.2) reads its units through it; baseline rules never do. With a `time_meter` (1.24.0, only
+    `scan_skill_package` passes one) the clock is read before each rule, and the subject's lines tick it as rules read them."""
     retained = _retained_list()
     truncated = 0
     for rule in rules:
+        if time_meter is not None:
+            time_meter.check()
         kept_for_rule = 0
         budgeted = meter is not None and is_org_rule(rule)
         for finding in (rule.detect.evaluate(subject, meter) if budgeted else rule.detect(subject)):
@@ -68,10 +72,11 @@ def normalisation_steps(normalise: bool | Collection[str]) -> tuple[str, ...]:
     return tuple(step for step in CANDIDATE_STEPS if step in normalise)
 
 
-def read_through(rule: Rule, package: Package, views: Sequence[View]) -> Rule:
+def read_through(rule: Rule, package: Package, views: Sequence[View], time_meter: Meter | None = None) -> Rule:
     """`rule` with a detector that yields its findings on `package` unchanged, then (spec 6.5.6) its findings on each view at a
     line where it has none yet, each moved to the original line it stands for and rewritten to quote that line as written:
-    evidence `EVIDENCE_PREFIX` and the line, fingerprint from the line. A finding without a line is dropped."""
+    evidence `EVIDENCE_PREFIX` and the line, fingerprint from the line. A finding without a line is dropped. With a `time_meter`
+    (1.24.0) the clock is read before the rule's pass over each view."""
     texts = {unit.path: unit.lines for unit in package.text_files}
 
     def detect(subject: Package) -> Iterator[Finding]:
@@ -80,6 +85,8 @@ def read_through(rule: Rule, package: Package, views: Sequence[View]) -> Rule:
             seen.add((finding.location.path, finding.location.line))
             yield finding
         for view in views:
+            if time_meter is not None:
+                time_meter.check()
             for finding in rule.detect(view):
                 path, line = finding.location.path, finding.location.line
                 original = view.original_line(path, line) if line is not None else None
@@ -105,7 +112,7 @@ def scan_skill_package(files: Mapping[str, bytes], rules: RuleSet, *, root: str 
                        max_per_rule: int = 100, org_rule_budget: OrgRuleBudget | None = None,
                        nested_roots: Iterable[str] = (), kind: str = "skill",
                        markdown_paths: Collection[str] = frozenset(),
-                       normalise: bool | Collection[str] = True) -> SkillScanResult:
+                       normalise: bool | Collection[str] = True, deadline: Deadline | None = None) -> SkillScanResult:
     """`kind` is `"skill"` (the default) or `"instructions"`; any other value is a `ValueError`. With `"instructions"`
     the package is an instruction file such as AGENTS.md, so SW-SKL-015 and SW-SKL-031 (`INSTRUCTION_SKIPPED_RULES`)
     are not run and every other skill rule is. `org_rule_budget` bounds the time org rules may take (Phase C spec 5.2.2);
@@ -117,20 +124,30 @@ def scan_skill_package(files: Mapping[str, bytes], rules: RuleSet, *, root: str 
     over `package.TEXT_MAX`: content left unread is the caller's error to report. `normalise` (1.22.0, P6-4 spec 6.5.8): True
     (the default) also reads the rules of `normalise.RULES` through the normalised views with `normalise.STEPS`, False reads the
     text as written only (the reading of 1.21.0), a collection of step ids reads with those steps; a normalised reading only adds
-    findings, each quoting the line as written."""
+    findings, each quoting the line as written. `deadline` (1.24.0) is a `deadline.Deadline`, one for every package of a scan:
+    when its clock reaches it the call raises `deadline.TimeLimit` (naming the file and the stage) and returns nothing for the
+    package, the fourth exception it can raise beside the two above and `ValueError`. The clock is read before each file, view
+    and rule and once for every 64 KiB of line text read; without `deadline` nothing changes."""
     if kind not in SCAN_KINDS:
         raise ValueError(f"kind must be one of {', '.join(SCAN_KINDS)}, not {kind!r}")
     steps = normalisation_steps(normalise)
-    package = Package.build(files, root=root, executable_paths=executable_paths, markdown_paths=markdown_paths)
+    time_meter = Meter(deadline) if deadline is not None else None
+    if time_meter is not None:
+        time_meter.check()  # stage `before`: a deadline that has passed raises before any file is read
+    package = Package.build(files, root=root, executable_paths=executable_paths, markdown_paths=markdown_paths,
+                            meter=time_meter)
     meter = BudgetMeter(org_rule_budget)
     ordered = rules.ordered_for_scan("skill")
     if kind == "instructions":
         ordered = tuple(rule for rule in ordered if rule.id not in INSTRUCTION_SKIPPED_RULES)
     views = package.views(steps) if steps else ()
     if views:
-        ordered = tuple(read_through(rule, package, views) if rule.id in NORMALISED_RULES else rule for rule in ordered)
+        ordered = tuple(read_through(rule, package, views, time_meter) if rule.id in NORMALISED_RULES else rule
+                        for rule in ordered)
+    if time_meter is not None:
+        time_meter.stage = "judging"
     retained, truncated = run_rules(ordered, package, max_findings=max_findings,
-                                    max_per_rule=max_per_rule, meter=meter)
+                                    max_per_rule=max_per_rule, meter=meter, time_meter=time_meter)
     identified = package_files(files, root, nested_roots)
     # Phase 4 batch B spec 11.4: the single-skill notes of the description lint; an instruction file has no description to lint
     notes = (tuple(lint.single(SkillMeta(root.strip("/"), package.metadata.name, package.metadata.description)))
