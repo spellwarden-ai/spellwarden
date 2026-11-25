@@ -58,6 +58,9 @@ _SHAPES = {
 }
 _TOP = {"status", "set", "frozen_sha256", "frozen_at", "measured_on", "candidate_commit", "severity", "kinds", "limits", "reason",
         *_SHAPES}
+_MAY_BE_NULL = {"recall", "planted_catch"}
+KINDS = ("skill", "command_agent", "instruction", "tool", "mcp", "plugin", "settings")  # the kinds of unit the sets are built from
+TUNING_ROUNDS = (1, 2, 3)  # at most three rounds (spec 8.8)
 _PENDING = {"status", "set", "limits"}
 _MEASURED = _TOP - {"reason", "recall", "planted_catch"}  # recall and the planted catch may be null
 
@@ -123,11 +126,13 @@ def _fraction(value: object) -> bool:
 
 def _shape_problems(rule_id: str, record: Mapping) -> list[str]:
     problems = []
+    measured = record.get("status") == "measured"
     for name, keys in _SHAPES.items():
         block = record.get(name)
-        if block is None:
+        if block is None and not (measured and name not in _MAY_BE_NULL):
             continue
-        if not isinstance(block, Mapping) or set(block) - keys:
+        # A measured record is read by the consistency check and the README block: each block it holds is whole.
+        if not isinstance(block, Mapping) or (set(block) != keys if measured else bool(set(block) - keys)):
             problems.append(f"{rule_id}: {name} is not an object with the members {sorted(keys)}")
             continue
         for key, value in block.items():
@@ -174,6 +179,13 @@ def check_record(rule_id: str, record: object) -> list[str]:
         if key in record and (not isinstance(record[key], str) or _DATE.fullmatch(record[key]) is None):
             problems.append(f"{rule_id}: {key} is not a date")
     problems += _shape_problems(rule_id, record)
+    if "kinds" in record:
+        kinds = record["kinds"]
+        if not isinstance(kinds, list) or not kinds or not all(isinstance(kind, str) and kind in KINDS for kind in kinds):
+            problems.append(f"{rule_id}: kinds is not a non-empty list of kinds, from {', '.join(KINDS)}")
+    tuning = record.get("tuning")
+    if isinstance(tuning, Mapping) and "rounds" in tuning and tuning["rounds"] not in TUNING_ROUNDS:
+        problems.append(f"{rule_id}: tuning.rounds is not one of {', '.join(map(str, TUNING_ROUNDS))}")
     holdout, precision = record.get("holdout"), record.get("precision")
     if status == "measured" and isinstance(holdout, Mapping) and isinstance(precision, Mapping) and not problems:
         problems += _consistency_problems(rule_id, record, holdout, precision)

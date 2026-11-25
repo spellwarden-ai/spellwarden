@@ -286,3 +286,41 @@ def test_the_release_workflow_runs_the_gate_in_the_build_job_before_the_checks()
     assert runs.count(gate) == 1 and runs.index(gate) < runs.index("make check")
     step = next(step for step in workflow["jobs"]["build"]["steps"] if step.get("run") == gate)
     assert re.fullmatch(r"[A-Za-z][^`$]*", step["name"])
+
+
+# --- a measured record with a missing, null or out-of-range member is a problem line, never a traceback (r0:F5) ---------------------
+
+def _without(record: dict, *names: str) -> dict:
+    return {key: value for key, value in record.items() if key not in names}
+
+
+def _holdout_without(name: str) -> dict:
+    record = measured()
+    record["holdout"] = _without(record["holdout"], name)
+    return record
+
+
+@pytest.mark.parametrize("record", [
+    _holdout_without("flagged"), _holdout_without("positive"),
+    measured(g0=None), measured(g0={}), measured(g0={"flagged_units": 80}),
+    measured(precision=None), measured(precision={"value": 0.75}),
+    measured(frame=None), measured(frame={}), measured(split=None), measured(tuning=None), measured(owner_audit={}),
+    measured(holdout=None), measured(holdout={}),
+    measured(kinds=7), measured(kinds=[]), measured(kinds=["nonsense"]), measured(kinds=[3]),
+    measured(tuning={"rounds": 99, "flagged": 40, "positive": 30, "benign": 10}),
+    measured(tuning={"rounds": 0, "flagged": 40, "positive": 30, "benign": 10}),
+])
+def test_a_measured_record_with_a_missing_null_or_out_of_range_member_is_a_problem_not_a_traceback(record):
+    problems = ms.check_record("SW-MCP-013", record)
+    assert problems and all(isinstance(line, str) and "\n" not in line for line in problems)
+    assert ms.check_document(document(SW_MCP_013=record)) == problems
+
+
+def test_a_null_frame_makes_the_release_check_exit_1_and_nothing_renders(tmp_path):
+    code, _, _ = _run(tmp_path, document(SW_MCP_013=measured(frame=None)), "--release")
+    assert code == 1
+
+
+def test_the_rounds_of_tuning_may_be_one_to_three():
+    for rounds in (1, 2, 3):
+        assert ms.check_record("SW-MCP-013", measured(tuning={"rounds": rounds, "flagged": 40, "positive": 30, "benign": 10})) == []
