@@ -10,10 +10,12 @@ from dataclasses import dataclass, field
 from datetime import date
 import os
 import re
+import time
 from typing import TYPE_CHECKING
 
 from spellwarden_scan import (RULES_VERSION, Finding, OrgRuleBudget, RuleSet, __version__, lint, scan_agent_config,
                               scan_skill_package)
+from spellwarden_scan.deadline import Deadline, TimeLimit
 from spellwarden_scan.frontmatter import FrontmatterLimit, metadata_of
 from spellwarden_scan.model import SkillMeta
 from spellwarden_scan.package import TextLimit
@@ -30,6 +32,10 @@ if TYPE_CHECKING:
     from spellwarden_cli.analysis import AnalyzeOptions
     from spellwarden_cli.ci import CiContext, RevisionSource
 
+
+# 1.24.0 (speed and deadline spec 10.2): the clock of `--time-limit`, as `connected.CLOCK` is that of the org-rule budget; tests
+# replace it
+CLOCK: Callable[[], float] = time.monotonic
 
 # O3 spec 6.2: the shape of a pipeline key. A connector token (`swc_`) or a CI token (`swt_`) does not match.
 KEY_RE = re.compile(r"swk_[A-Za-z0-9_-]{40}")
@@ -61,6 +67,8 @@ class ScanOptions:
     staged: files.StagedIndex | None = None
     # Engine 1.20.0 (scan selection, 7.20.1): `--follow-links`, a linked directory in an instruction folder is followed
     follow_links: bool = False
+    # 1.24.0 (speed and deadline spec 10.1): `--time-limit`, seconds from the start of the scan; None: no limit
+    time_limit: float | None = None
 
 
 def connected_config_problem(options: ScanOptions) -> Notice | None:
@@ -103,6 +111,8 @@ def _stopped(options: ScanOptions, notices: list[Notice], problem: Notice) -> Re
 def scan(options: ScanOptions) -> Report:
     from spellwarden_cli import ci, connected
 
+    # 1.24.0 (spec 10.2): the limit counts from here, so listing files, discovery and, in connected mode, the session count
+    deadline = Deadline.after(options.time_limit, CLOCK) if options.time_limit is not None else None
     rules = RuleSet.baseline()
     early: list[Notice] = [*(options.revision.notices if options.revision else ())]
     if options.api_url is not None:
@@ -147,8 +157,9 @@ def scan(options: ScanOptions) -> Report:
         org_budget = connected.org_rule_budget if state.compiled else None
     refused: dict[str, str] = {}  # the skills and instruction files whose front matter the engine refused, and the file
     text_limited: set[str] = set()  # the keys of `refused` refused for a text file over the read limit, not a front matter
+    time_limited: set[str] = set()  # 1.24.0: the keys of `refused` for a package the time limit stopped
     findings = engine_findings(found, rules, notices, errors, org_budget=org_budget, refused=refused,
-                               text_limited=text_limited)
+                               text_limited=text_limited, deadline=deadline, time_limited=time_limited)
     remote = agents_module.RemotePhase(trust=agents_module.load_trust(a2a, notices, errors))
     probes = run_probes(options, found, rules, findings, notices, org_budget=org_budget, remote=remote)
     for probe in probes:
@@ -176,7 +187,7 @@ def scan(options: ScanOptions) -> Report:
         from spellwarden_cli import analysis  # here: a scan without --analyze imports neither it nor the model client
 
         analysed = analysis.analyse(found, findings, options.analyze, notices, errors, refused=refused,
-                                    text_limited=text_limited)
+                                    text_limited=text_limited, time_limited=time_limited)
     report = Report(
         scanner_version=__version__, rules_version=RULES_VERSION, as_of=options.as_of.isoformat(),
         fail_on=options.settings.fail_on, items=found.items, findings=tuple(findings), probes=tuple(probes), lock=lock,
@@ -232,16 +243,43 @@ def text_refused(error: TextLimit, path: str) -> Notice:
     return Notice("unreadable", path, f"{error}; not read, so the scan is incomplete: {TEXT_WAY_OUT}")
 
 
+# 1.24.0 (speed and deadline spec 10.4): the way out of a scan that reached `--time-limit`; the clause names a file or `a file`
+TIME_WAY_OUT = "split the content, leave {} out with `exclude` in .spellwarden/config.yml, or raise --time-limit"
+
+
+def time_refused(error: TimeLimit, path: str, *, kind: str = "skill", file: str | None = None) -> Notice:
+    """1.24.0 (speed and deadline spec 10.4): the error `time_limit` of a package the engine did not finish (`TimeLimit`): the
+    skill or instruction file (`path`, `kind` `skill` or `instructions`), the file being read when the limit was reached (`file`,
+    as written in the repository; `error.path` when not given) and the way out. Nothing of the package was judged, so the scan is
+    incomplete (exit 2); an unread package is never a finding. Three forms: a file named, the limit reached before the package
+    was read, and the limit reached between two steps of judging it."""
+    what = "this instruction file" if kind == "instructions" else "this skill"
+    named = file if file is not None else error.path
+    lead = "the scan's time limit was reached"
+    if named is not None:
+        return Notice("time_limit", path, f"{lead} while reading {named}; {what} was not judged, so the scan is incomplete: "
+                                          + TIME_WAY_OUT.format("the file"))
+    when = "before this skill was read" if error.stage == "before" else "while judging this skill"
+    if kind == "instructions":
+        when = when.replace("this skill", "this instruction file")
+    return Notice("time_limit", path,
+                  f"{lead} {when}; it was not judged, so the scan is incomplete: " + TIME_WAY_OUT.format("a file"))
+
+
 def engine_findings(found: Discovery, rules: RuleSet, notices: list[Notice], errors: list[Notice] | None = None, *,
                     org_budget: Callable[[], OrgRuleBudget] | None = None,
                     way_out: str = FRONTMATTER_WAY_OUT, refused: dict[str, str] | None = None,
-                    text_limited: set[str] | None = None) -> list[ReportFinding]:
+                    text_limited: set[str] | None = None, deadline: Deadline | None = None,
+                    time_limited: set[str] | None = None) -> list[ReportFinding]:
     """The engine once per skill (only that package's files, under scan-root keys, so finding paths are scan-root
     paths), once per instruction file and once for every configuration document that parsed or was truncated (spec 5.5, 6.5).
     In connected mode `org_budget` gives each package a time budget for the org rules; a rule that did not finish is the error
     `org_rules_incomplete` (O3 spec 6.5). A package with a front matter past one of the engine's limits is not judged: the
     error `unreadable` names the file and `way_out`, the caller's way out (1.19.0, `frontmatter_refused`), and `refused`, when
-    given, maps the path of each package so refused (a skill or an instruction file) to the scan-root path of the file named."""
+    given, maps the path of each package so refused (a skill or an instruction file) to the scan-root path of the file named.
+    `deadline` (1.24.0) is the scan's `deadline.Deadline`, passed to every package: one the engine could not finish in time is the
+    error `time_limit` (`time_refused`), is not judged, and is added to `refused` and, when given, `time_limited`; every package
+    after it is named too, since the deadline has passed when its turn comes."""
     from spellwarden_cli import connected
 
     findings: list[ReportFinding] = []
@@ -253,7 +291,8 @@ def engine_findings(found: Discovery, rules: RuleSet, notices: list[Notice], err
             result = scan_skill_package(skill.engine_files(), rules, root="" if skill.path == "." else skill.path,
                                         executable_paths=skill.engine_executable(), nested_roots=skill.nested,
                                         markdown_paths=skill.markdown,
-                                        **({"org_rule_budget": org_budget()} if org_budget is not None else {}))
+                                        **({"org_rule_budget": org_budget()} if org_budget is not None else {}),
+                                        **({"deadline": deadline} if deadline is not None else {}))
         except FrontmatterLimit as exc:
             refused[skill.path] = skill.as_written(exc.path) if exc.path else skill.path
             refused_to.append(frontmatter_refused(exc, refused[skill.path], way_out))
@@ -263,6 +302,12 @@ def engine_findings(found: Discovery, rules: RuleSet, notices: list[Notice], err
             if text_limited is not None:  # review r0:F1: the analyzer names the read limit, not a front matter
                 text_limited.add(skill.path)
             refused_to.append(text_refused(exc, refused[skill.path]))
+            continue
+        except TimeLimit as exc:
+            refused[skill.path] = skill.as_written(exc.path if exc.path else skill.engine_key())
+            if time_limited is not None:
+                time_limited.add(skill.path)
+            refused_to.append(time_refused(exc, skill.path, file=skill.as_written(exc.path) if exc.path else None))
             continue
         if result.org_rules_incomplete and errors is not None:
             errors.append(connected.org_rules_incomplete_error(result.org_rules_incomplete, skill.path))
@@ -275,7 +320,8 @@ def engine_findings(found: Discovery, rules: RuleSet, notices: list[Notice], err
         try:
             result = scan_skill_package({instruction.path: instruction.content}, rules, root="", kind="instructions",
                                         markdown_paths=frozenset({instruction.path}),
-                                        **({"org_rule_budget": org_budget()} if org_budget is not None else {}))
+                                        **({"org_rule_budget": org_budget()} if org_budget is not None else {}),
+                                        **({"deadline": deadline} if deadline is not None else {}))
         except FrontmatterLimit as exc:
             refused[instruction.path] = exc.path or instruction.path
             refused_to.append(frontmatter_refused(exc, refused[instruction.path], way_out))
@@ -285,6 +331,12 @@ def engine_findings(found: Discovery, rules: RuleSet, notices: list[Notice], err
             if text_limited is not None:
                 text_limited.add(instruction.path)
             refused_to.append(text_refused(exc, refused[instruction.path]))
+            continue
+        except TimeLimit as exc:
+            refused[instruction.path] = exc.path or instruction.path
+            if time_limited is not None:
+                time_limited.add(instruction.path)
+            refused_to.append(time_refused(exc, instruction.path, kind="instructions"))
             continue
         if result.org_rules_incomplete and errors is not None:
             errors.append(connected.org_rules_incomplete_error(result.org_rules_incomplete, instruction.path))
