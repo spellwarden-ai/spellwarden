@@ -175,3 +175,11 @@ MORE_SECRET_PATHS = re.compile(r"(~?/?\.gnupg/|~?/?\.password-store|\.pem\b|\.p1
 AGENT_CONFIG_PATHS = re.compile(
     r"(\.claude/settings(\.local)?\.json|~?/?\.claude\.json|\.claude/hooks|\.mcp\.json|\.cursor/mcp\.json|\.vscode/mcp\.json|"
     r"\.codex/config\.toml|\.gemini/settings\.json|claude_desktop_config\.json)", _I)
+
+# SW-SKL-038: the files an agent loads as instructions or keeps as memory (P6-9 spec 8.2). Disjoint from AGENT_CONFIG_PATHS, which
+# holds settings, MCP and hook files: a test holds that no string matches both.
+AGENT_MEMORY_PATHS = re.compile(
+    r"(?<![\w-])(?:CLAUDE(?:\.local)?\.md|AGENTS(?:\.override|\.local)?\.md|AGENT\.md|GEMINI\.md|MEMORY\.md|global_rules\.md|"
+    r"\.cursorrules|\.windsurfrules)(?![\w-])|"
+    r"\.(?:cursor|claude|windsurf|devin)/rules/|\.github/copilot-instructions\.md|\.github/instructions/|"
+    r"\.claude/projects/[^\s/`'\"]+/memory(?![\w-])", _I)
