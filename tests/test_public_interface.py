@@ -30,6 +30,8 @@ NAMES_1_3_0 = (
 NAMES_1_13_0 = ("PromptArgument", "PromptInfo", "ResourceInfo", "ResourceTemplateInfo")
 # P6-10 spec 7.4.2 and 7.5
 NAMES_1_23_0 = ("REPOSITORY_LIMITS", "list_zip")
+# speed and deadline spec 7.1
+NAMES_1_24_0 = ("Deadline", "TimeLimit")
 # O3 spec 5.4: the names that live in a submodule of the engine, which the package imports so that they are reachable.
 IDENTITY_NAMES = (
     "package_files", "PackageFiles", "package_sha256", "nested_skill_roots", "is_skill_file", "fold_skill_name",
@@ -52,7 +54,7 @@ def test_1_1_0_adds_exactly_the_names_of_spec_5_8():
     for name in NAMES_1_1_0:
         assert name in spellwarden_scan.__all__ and hasattr(spellwarden_scan, name), name
     assert sorted(spellwarden_scan.__all__) == sorted(NAMES_1_0_0 + NAMES_1_1_0 + NAMES_1_2_0 + NAMES_1_3_0 + NAMES_1_13_0
-                                                      + NAMES_1_23_0)
+                                                      + NAMES_1_23_0 + NAMES_1_24_0)
     assert len(spellwarden_scan.__all__) == len(set(spellwarden_scan.__all__))
 
 
@@ -200,3 +202,11 @@ def test_1_23_0_adds_the_repository_bound_and_the_names_only_listing():
         assert name in spellwarden_scan.__all__ and hasattr(spellwarden_scan, name), name
     assert spellwarden_scan.REPOSITORY_LIMITS is archive.REPOSITORY_LIMITS and spellwarden_scan.list_zip is archive.list_zip
     assert spellwarden_scan.ArchiveLimits().max_entries == 100_000
+
+
+def test_1_24_0_adds_the_deadline_and_the_time_limit():
+    from spellwarden_scan import deadline
+
+    for name in NAMES_1_24_0:
+        assert name in spellwarden_scan.__all__ and hasattr(spellwarden_scan, name), name
+    assert spellwarden_scan.Deadline is deadline.Deadline and spellwarden_scan.TimeLimit is deadline.TimeLimit
