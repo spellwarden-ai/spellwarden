@@ -31,9 +31,14 @@ MAX_CREDIT = 80
 CREDIT_CHARACTERS = frozenset(" .,'-")
 
 
+# a name shaped like a host (`www.evil.com`, `evil.com`): GitHub's Markdown turns it into a link, so it is refused too; initials
+# (`J.R.R. Tolkien`, `A.B. Smith`) have no last part of two letters or more after a dot and pass
+_CREDIT_HOST = re.compile(r"(?i)(?:\bwww\.|[^\W_]\.[^\W\d_]{2,}\b)")
+
+
 def credit_is_plain(value: str) -> bool:
     return bool(value) and all((character.isalnum() and character != "_") or character in CREDIT_CHARACTERS
-                               for character in value)
+                               for character in value) and _CREDIT_HOST.search(value) is None
 TEST_SET_MIN_BYTES = 200
 _SCANNER_VERSION = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
 _RULES_VERSION = re.compile(r"^[0-9]{4}\.[0-9]{2}\.[0-9]+$")
@@ -276,7 +281,7 @@ def record_problems(record: object, *, directory_name: str | None = None, rule_a
                 or re.search(r"[\x00-\x1f\x7f]", credit):
             problems.append(f"{where}: credit must be null or one trimmed line of at most {MAX_CREDIT} characters")
         elif not credit_is_plain(credit):
-            problems.append(f"{where}: credit must hold only letters, digits, spaces and . , ' -")
+            problems.append(f"{where}: credit must hold only letters, digits, spaces and . , ' -, and no host name")
     day = record["date"]
     try:
         valid = isinstance(day, str) and _DATE.match(day) is not None and date.fromisoformat(day).isoformat() == day

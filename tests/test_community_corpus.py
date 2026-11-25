@@ -171,6 +171,7 @@ def test_a_good_record_has_no_problem_and_so_does_a_fixed_one():
     ({"credit": "A" * 81}, "credit must be null or one trimmed line"),
     ({"credit": "[Ada](https://evil.com) @octocat"}, "credit must hold only letters, digits, spaces"),
     ({"credit": "<Ada>"}, "credit must hold only letters, digits, spaces"),
+    ({"credit": "www.evil.com"}, "credit must hold only letters, digits, spaces"),
     ({"date": "2026-13-01"}, "date must be YYYY-MM-DD"),
     ({"date": "26-11-25"}, "date must be YYYY-MM-DD"),
     ({"issue": 0}, "issue must be null"),

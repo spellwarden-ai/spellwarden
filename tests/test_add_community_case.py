@@ -270,9 +270,11 @@ def test_a_credit_with_a_line_break_or_over_80_characters_is_refused(run):
 
 def test_a_credit_with_a_mention_a_link_or_markup_is_refused_and_a_plain_name_in_any_script_is_kept(run):
     """r0:F4: the credit is printed in the CHANGELOG and the release thread, so a mention, a link, a URL or markup is refused."""
-    for credit in ("[Ada](https://evil.com)", "@octocat", "Ada https://evil.com", "<b>Ada</b>", "`Ada`", "Ada_Example"):
+    for credit in ("[Ada](https://evil.com)", "@octocat", "Ada https://evil.com", "<b>Ada</b>", "`Ada`", "Ada_Example",
+                   "www.evil.com", "Ada evil.com", "Ada of Evil.Co.Uk"):   # a host shape is autolinked by GitHub
         assert "no mention, link or markup" in run(issue_body(credit=credit))[2], credit
     assert run(issue_body(credit="José O'Brien-Łukasz Jr.,  3rd"))[0] == 0
+    assert run(issue_body(sample=CLEAN_SKILL, credit="J.R.R. Tolkien, A.B. Smith"))[0] == 0
 
 
 def test_the_script_never_imports_a_network_module():

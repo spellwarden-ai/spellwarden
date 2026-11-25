@@ -136,7 +136,7 @@ def credit_of(text: str) -> tuple[str | None, list[str]]:
     if len(value) > corpus.MAX_CREDIT or re.search(r"[\x00-\x1f\x7f]", value):
         return None, [f"the credit is longer than {corpus.MAX_CREDIT} characters or holds a control character"]
     if not corpus.credit_is_plain(value):
-        return None, ["the credit holds a character other than letters, digits, spaces and . , ' - (no mention, link or markup)"]
+        return None, ["the credit holds a character other than letters, digits, spaces and . , ' -, or a host name (no mention, link or markup)"]
     return value, []
 
 
