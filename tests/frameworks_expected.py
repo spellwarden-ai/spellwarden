@@ -37,6 +37,7 @@ EXPECTED: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
     "SW-CFG-010": (("AML.T0083",), ()),
     "SW-CFG-012": (("AML.T0053",), ()),
     "SW-CFG-013": (("AML.T0053",), ()),
+    "SW-CFG-015": (("AML.T0053",), ()),
     "SW-MCP-001": (("AML.T0084.001", "AML.T0132"), ()),
     "SW-MCP-002": ((), ()),
     "SW-MCP-003": ((), ()),
@@ -49,6 +50,7 @@ EXPECTED: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
     "SW-MCP-010": ((), ()),
     "SW-MCP-011": (("AML.T0110.000", "AML.T0051.001"), ()),
     "SW-MCP-012": (("AML.T0109", "AML.T0110.000"), ()),
+    "SW-MCP-013": (("AML.T0053",), ()),
     "SW-REG-001": (("AML.T0010.005",), ("AST09",)),
     "SW-REG-002": (("AML.T0010.005",), ("AST09",)),
     "SW-REG-003": (("AML.T0010.005",), ("AST09",)),
@@ -72,4 +74,5 @@ EXPECTED: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
     "SW-SKL-032": (("AML.T0011",), ("AST01",)),
     "SW-SKL-036": (("AML.T0053",), ("AST03",)),
     "SW-SKL-037": (("AML.T0010.005", "AML.T0109"), ("AST02", "AST07")),
+    "SW-SKL-038": (("AML.T0080.000",), ("AST03",)),
 }

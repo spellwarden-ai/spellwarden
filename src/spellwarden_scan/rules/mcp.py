@@ -18,7 +18,9 @@ from spellwarden_scan.model import Finding, Location, ProbeResult, ToolInfo
 from spellwarden_scan.probe import LOCATION_CUT, _address, probe_texts, text_of
 from spellwarden_scan.probe import auth_mode_of, classify, deprecated_capabilities, initialize_only, spec_version_of, transport_of
 from spellwarden_scan.rules import Rule, make_rule
+from spellwarden_scan.rules import growth_mcp_013
 from spellwarden_scan.rules import patterns as P
+from spellwarden_scan.rules.growth_mcp_013 import detect as _mcp_013
 from spellwarden_scan.rules.fix_lines import MCP_CIMD
 from spellwarden_scan.rules.skill import visible
 
@@ -1125,6 +1127,7 @@ TITLES = {
     "SW-MCP-010": "No protected resource metadata, or issuer not validated",
     "SW-MCP-011": "MCP server text contains instruction-like text",
     "SW-MCP-012": "MCP server's tools changed since they were approved",
+    "SW-MCP-013": growth_mcp_013.TITLE,
 }
 # 1.21.0 (P6-15 spec 5, 6.2): each rule's fix sentence, beside its title, the table the owner approved on 2026-11-23
 FIXES = {
@@ -1140,6 +1143,7 @@ FIXES = {
     "SW-MCP-010": "Publish protected resource metadata at the address the 401 answer names, list your authorization server in it, and make that server's issuer match its address.",
     "SW-MCP-011": "Rewrite the description so it says only what the tool does and what its arguments mean, or stop using the server if you do not run it.",
     "SW-MCP-012": "Read each changed tool, then approve the new tool list if you expected the change, or remove the server from your agents if you did not.",
+    "SW-MCP-013": "Replace the free-text command with named operations that take typed arguments, or run the tool in a sandbox that allows a short list of programs and no network.",
 }
 
 RULES: tuple[Rule, ...] = (
@@ -1155,6 +1159,7 @@ RULES: tuple[Rule, ...] = (
     make_rule("SW-MCP-010", TITLES["SW-MCP-010"], "medium", "mcp", owasp=("MCP07",), nist=("IA-5",), atlas=(), detect=_mcp_010, targets=("registry",), fix=FIXES["SW-MCP-010"]),
     make_rule("SW-MCP-011", TITLES["SW-MCP-011"], "high", "mcp", owasp=("ASI01", "MCP03"), nist=("SI-10",), atlas=("AML.T0110.000", "AML.T0051.001"), detect=_mcp_011, targets=("kong",), fix=FIXES["SW-MCP-011"]),
     make_rule("SW-MCP-012", TITLES["SW-MCP-012"], "high", "mcp", owasp=("ASI04", "MCP03"), nist=("SI-7",), atlas=("AML.T0109", "AML.T0110.000"), detect=_mcp_012, fix=FIXES["SW-MCP-012"]),
+    make_rule("SW-MCP-013", TITLES["SW-MCP-013"], growth_mcp_013.SEVERITY, "mcp", owasp=growth_mcp_013.OWASP, nist=growth_mcp_013.NIST, atlas=growth_mcp_013.ATLAS, detect=_mcp_013, fix=FIXES["SW-MCP-013"]),
 )
 
 __all__ = ["RULES", "TITLES", "TOOL_CHANGE_RULE", "classify", "tool_change_findings"]

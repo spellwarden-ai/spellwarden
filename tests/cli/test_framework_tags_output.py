@@ -70,7 +70,7 @@ def test_the_rules_listing_carries_the_two_new_kinds_and_the_markdown_table_two_
     assert "| SW-SKL-007 | Remote script piped to a shell | high | ASI04, MCP04 | SR-3 | AML.T0010.005 | AST02 |" in lines
     assert "| SW-CFG-001 | Remote MCP server over plain HTTP | high |  | SC-7 |  |  |" in lines
     code, text, _ = run_cli(["rules"])
-    assert len(text.splitlines()) == 66  # the plain listing, one line per rule
+    assert len(text.splitlines()) == 69  # the plain listing, one line per rule
 
 
 def test_an_organisation_rule_lists_its_own_tags_and_no_atlas_or_ast_id():

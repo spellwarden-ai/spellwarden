@@ -21,8 +21,8 @@ BASELINE = RuleSet.baseline()
 REG_IDS = ("SW-REG-001", "SW-REG-002", "SW-REG-003")
 
 
-def test_baseline_has_66_rules_three_in_area_registry_severity_high():
-    assert len(BASELINE) == 66
+def test_baseline_has_69_rules_three_in_area_registry_severity_high():
+    assert len(BASELINE) == 69
     rules = BASELINE.by_area("registry")
     assert tuple(rule.id for rule in rules) == REG_IDS
     assert {rule.severity_default for rule in rules} == {"high"}

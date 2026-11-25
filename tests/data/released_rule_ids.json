@@ -134,6 +134,10 @@
       "first_released": "1.8.0",
       "title": "Database or cluster MCP server with write access although a read-only mode exists"
     },
+    "SW-CFG-015": {
+      "first_released": "1.25.0",
+      "title": "MCP server given the whole home directory or the filesystem root"
+    },
     "SW-MCP-001": {
       "first_released": "1.0.0",
       "title": "Server lists tools without authentication"
@@ -181,6 +185,10 @@
     "SW-MCP-012": {
       "first_released": "1.15.0",
       "title": "MCP server's tools changed since they were approved"
+    },
+    "SW-MCP-013": {
+      "first_released": "1.25.0",
+      "title": "Tool takes a command line to run as an argument"
     },
     "SW-REG-001": {
       "first_released": "1.2.0",
@@ -273,6 +281,10 @@
     "SW-SKL-037": {
       "first_released": "1.8.0",
       "title": "Executable downloaded from a moving reference and run without an integrity check"
+    },
+    "SW-SKL-038": {
+      "first_released": "1.25.0",
+      "title": "Writes to an agent's memory or instruction files"
     }
   }
 }

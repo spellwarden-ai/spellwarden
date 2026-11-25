@@ -21,7 +21,9 @@ RELEASE_TAG = "v1.20.0"
 RECORDED_VERSION = "1.20.0"
 # Fixture roots added after 1.20.0: not in the record. None so far: fixtures/fix-guidance (1.21.0) is not a root of
 # `record_1_17_0.ROOT_GLOBS`, so these digests cover the same roots as the tree's.
-ADDED_AFTER_1_20_0: tuple[str, ...] = ()
+# 1.25.0 adds the fixtures of SW-SKL-038 and SW-CFG-015.
+ADDED_AFTER_1_20_0: tuple[str, ...] = ("fixtures/skills/SW-SKL-038/positive", "fixtures/skills/SW-SKL-038/negative",
+                                       "fixtures/config/SW-CFG-015/positive", "fixtures/config/SW-CFG-015/negative")
 
 
 def _module(name: str, path: Path):

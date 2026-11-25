@@ -23,7 +23,10 @@ GOLDEN = HERE / "1.18.0"
 RELEASE_TAG = "v1.18.0"
 RECORDED_VERSION = "1.18.0"
 # Fixture roots added after 1.18.0: not in the record. 1.20.0 adds `fixtures/selection` (Engine 1.20.0: scan selection, D33).
-ADDED_AFTER_1_18_0: tuple[str, ...] = ("fixtures/selection", "fixtures/repos/follow-links/repo")
+# 1.25.0 adds the fixtures of SW-SKL-038 and SW-CFG-015.
+ADDED_AFTER_1_18_0: tuple[str, ...] = ("fixtures/selection", "fixtures/repos/follow-links/repo", "fixtures/skills/SW-SKL-038/positive",
+                                       "fixtures/skills/SW-SKL-038/negative", "fixtures/config/SW-CFG-015/positive",
+                                       "fixtures/config/SW-CFG-015/negative")
 
 
 def _module(name: str, path: Path):

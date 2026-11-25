@@ -12,7 +12,7 @@ release workflow runs it again for every release, on Linux and Windows, against 
 ## What it measures
 
 - Rules only. No model is called: the model-assisted analyzer (`--analyze`) is not part of this table.
-- The 20 skill rules (SW-SKL) on skill packages. A skill scan cannot fire the other 46 rules (SW-MCP, SW-CFG, SW-REG, SW-A2A),
+- The 21 skill rules (SW-SKL) on skill packages. A skill scan cannot fire the other 48 rules (SW-MCP, SW-CFG, SW-REG, SW-A2A),
   which judge MCP servers, configuration, the registry gate and A2A agent cards, so the table lists them as not measured here
   and never shows them as 0%.
 - Each rule at its own severity, the scanner's behaviour without a preset (`balanced`).

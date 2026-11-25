@@ -66,7 +66,8 @@ def test_every_1_0_0_probe_fixture_still_loads_and_round_trips():
     for path in paths:
         document = json.loads(path.read_text(encoding="utf-8"))
         probe = model.ProbeResult.from_dict(document["probe"])
-        assert all(tool.input_schema is None for tool in probe.tools), path.name
+        if not path.name.startswith("SW-MCP-013-"):  # 1.25.0: the one rule that reads `input_schema`, so its fixtures carry one
+            assert all(tool.input_schema is None for tool in probe.tools), path.name
         assert model.ProbeResult.from_dict(json.loads(json.dumps(probe.to_dict()))) == probe, path.name
 
 

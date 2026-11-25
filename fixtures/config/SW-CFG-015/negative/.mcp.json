@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem@2026.1.14", "/Users/example/Desktop", "${workspaceFolder}"]
+    },
+    "workspace": {
+      "command": "node",
+      "args": ["/opt/servers/workspace/server.js", "--root", "."]
+    },
+    "sandbox": {
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "--mount", "type=bind,src=/Users/example/projects,dst=/home/example", "example/sandbox@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"]
+    }
+  }
+}

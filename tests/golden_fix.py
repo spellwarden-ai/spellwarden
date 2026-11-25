@@ -13,6 +13,8 @@ from __future__ import annotations
 import json
 import re
 
+from golden_new_rules import without_new_rules
+
 HELP_URI = "https://github.com/spellwarden-ai/spellwarden#the-rules"  # what every SARIF rule linked up to 1.20.0
 RULE_PAGE = "https://spellwarden.ai/docs/rules/"
 TEXT_HEADING = "How to fix"
@@ -115,8 +117,9 @@ def without_fix_guidance(name: str, text: str) -> str:
 
 
 def before_fix_guidance(fmt: str, data: bytes) -> bytes:
-    """`without_fix_guidance` for a format name of `fixture_reports` and the bytes of its report."""
-    return without_fix_guidance(NAMES[fmt], data.decode("utf-8")).encode("utf-8")
+    """`without_fix_guidance` for a format name of `fixture_reports` and the bytes of its report, and (1.25.0) without the SARIF
+    descriptors of the rules that release added (`golden_new_rules`)."""
+    return without_new_rules(NAMES[fmt], without_fix_guidance(NAMES[fmt], data.decode("utf-8"))).encode("utf-8")
 
 
 __all__ = ["before_fix_guidance", "without_fix_guidance"]

@@ -83,7 +83,7 @@ CATEGORY_RULES: dict[str, tuple[str, ...]] = {
     "remote_code": ("SW-SKL-007", "SW-SKL-009", "SW-SKL-019", "SW-SKL-032", "SW-SKL-037"),
     "obfuscation": ("SW-SKL-002", "SW-SKL-004", "SW-SKL-010", "SW-SKL-014"),
     "deceptive_description": (),
-    "excessive_permission": ("SW-SKL-005", "SW-SKL-036"),
+    "excessive_permission": ("SW-SKL-005", "SW-SKL-036", "SW-SKL-038"),
 }
 # Spec 11.2 and 11.6: the models the published rates were measured on, filled by the measurement before a release, keyed by
 # canonical name: {"name": display name, "aliases": [names a gateway may use], "detection_rate", "false_positive_rate",

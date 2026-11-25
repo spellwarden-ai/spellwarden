@@ -76,6 +76,7 @@ ROWS: tuple[Row, ...] = (
     Row("SW-CFG-010", "high", "high", "high"),
     Row("SW-CFG-012", "high", "high", "high"),
     Row("SW-CFG-013", "high", "high", "high"),
+    Row("SW-CFG-015", "high", "medium", "an access grant the user may intend: strict raises"),
     Row("SW-MCP-001", "high", "high", "high: never lowered, although it fires on 16,546 census hosts, most of them public "
         "read-only servers by design; the largest remaining source of MCP noise"),
     Row("SW-MCP-002", "high", "medium", "authentication: strict raises"),
@@ -90,6 +91,7 @@ ROWS: tuple[Row, ...] = (
     Row("SW-MCP-011", "high", "high", "precision tuned on its own record (87 holdout false alarms in 1.12.0); a preset does not "
         "override it"),
     Row("SW-MCP-012", "high", "high", "high"),
+    Row("SW-MCP-013", "high", "medium", "a command primitive the user may intend (a shell server): strict raises"),
     Row("SW-REG-001", "high", "high", "the organisation's policy: no preset touches it"),
     Row("SW-REG-002", "high", "high", "as above"),
     Row("SW-REG-003", "high", "high", "as above"),
@@ -115,6 +117,7 @@ ROWS: tuple[Row, ...] = (
     Row("SW-SKL-032", "critical", "critical", "malicious indicator"),
     Row("SW-SKL-036", "high", "low", "many benign skills pre-approve `Bash`; strict treats unscoped execution as a direct risk"),
     Row("SW-SKL-037", "high", "low", "the same pattern as SW-SKL-009 for executables; strict raises"),
+    Row("SW-SKL-038", "high", "medium", "a standing instruction that outlives the session: strict raises"),
 )
 _BY_ID = {row.rule_id: row for row in ROWS}
 

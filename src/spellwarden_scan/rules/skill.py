@@ -19,7 +19,9 @@ from spellwarden_scan.rules import Rule, make_rule
 from spellwarden_scan.rules import patterns as P
 from spellwarden_scan.rules.growth_skl_032 import detect as _skl_032
 from spellwarden_scan.rules.growth_skl_036 import detect as _skl_036
+from spellwarden_scan.rules import growth_skl_038
 from spellwarden_scan.rules.growth_skl_037 import detect as _skl_037
+from spellwarden_scan.rules.growth_skl_038 import detect as _skl_038
 
 _I = re.IGNORECASE
 
@@ -700,6 +702,7 @@ TITLES = {
     "SW-SKL-032": "Instructions lure the user into running a password-protected download or a pasted script",
     "SW-SKL-036": "Frontmatter pre-approves an unscoped shell or interpreter",
     "SW-SKL-037": "Executable downloaded from a moving reference and run without an integrity check",
+    "SW-SKL-038": growth_skl_038.TITLE,
 }
 # 1.21.0 (P6-15 spec 5, 6.2): each rule's fix sentence, beside its title, the table the owner approved on 2026-11-23
 FIXES = {
@@ -723,6 +726,7 @@ FIXES = {
     "SW-SKL-032": "Remove the download and the pasted script, and name the tool by its package so the user installs it from a package manager or the vendor's site.",
     "SW-SKL-036": "Scope each pre-approved shell entry to the named program the skill runs, or drop the entry if the skill needs no shell.",
     "SW-SKL-037": "Download a release with a version in its address and compare its published checksum or signature before you make the file executable.",
+    "SW-SKL-038": "Take the write to the agent's memory or instruction file out of the skill, and describe the text to add so the project's owner adds it by hand in a reviewed change.",
 }
 
 RULES: tuple[Rule, ...] = (
@@ -746,4 +750,5 @@ RULES: tuple[Rule, ...] = (
     make_rule("SW-SKL-032", TITLES["SW-SKL-032"], "critical", "skill", owasp=("ASI04", "ASI09"), nist=("SR-3", "SI-3"), atlas=("AML.T0011",), owasp_ast=("AST01",), detect=_skl_032, malicious=True, fix=FIXES["SW-SKL-032"]),
     make_rule("SW-SKL-036", TITLES["SW-SKL-036"], "medium", "skill", owasp=("ASI02", "ASI03"), nist=("AC-6", "CM-7"), atlas=("AML.T0053",), owasp_ast=("AST03",), detect=_skl_036, fix=FIXES["SW-SKL-036"]),
     make_rule("SW-SKL-037", TITLES["SW-SKL-037"], "medium", "skill", owasp=("ASI04", "ASI05", "MCP04"), nist=("SR-3", "SI-7"), atlas=("AML.T0010.005", "AML.T0109"), owasp_ast=("AST02", "AST07"), detect=_skl_037, fix=FIXES["SW-SKL-037"]),
+    make_rule("SW-SKL-038", TITLES["SW-SKL-038"], growth_skl_038.SEVERITY, "skill", owasp=growth_skl_038.OWASP, nist=growth_skl_038.NIST, atlas=growth_skl_038.ATLAS, owasp_ast=growth_skl_038.OWASP_AST, detect=_skl_038, fix=FIXES["SW-SKL-038"]),
 )

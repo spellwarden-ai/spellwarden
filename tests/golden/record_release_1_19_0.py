@@ -26,7 +26,10 @@ RELEASE_TAG = "v1.19.0"
 RECORDED_VERSION = "1.19.0"
 # Fixture roots added after 1.19.0: not in the record, which was taken from 1.20.0's fixture trees at its release.
 # `fixtures/repos/follow-links/repo` is the wrappers' case for their `follow-links` input, added with their 1.20.0 release.
-ADDED_AFTER_1_19_0: tuple[str, ...] = ("fixtures/repos/follow-links/repo",)
+# 1.25.0 adds the fixtures of SW-SKL-038 and SW-CFG-015.
+ADDED_AFTER_1_19_0: tuple[str, ...] = ("fixtures/repos/follow-links/repo", "fixtures/skills/SW-SKL-038/positive",
+                                       "fixtures/skills/SW-SKL-038/negative", "fixtures/config/SW-CFG-015/positive",
+                                       "fixtures/config/SW-CFG-015/negative")
 HOME_AS_OF = "2026-11-23"
 PLATFORMS = {"linux": "linux", "macos": "darwin", "windows": "win32"}
 # The released `scan --user`, run with the released source first on the path; argv: the home, the platform and the date.
