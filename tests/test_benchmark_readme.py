@@ -101,3 +101,38 @@ def test_the_documents_are_plain_english():
     for text in (_text(), (ROOT / "CONTRIBUTING.md").read_text(encoding="utf-8")):
         for character in ("\u2014", "\u2013", "!"):
             assert character not in text
+
+
+# --- the community corpus (community reports spec 8.5, claim B-9) ---------------------------------------------------------------
+
+def test_it_describes_the_community_corpus_as_its_own_count_and_not_a_test_set():
+    text = _text()
+    section = _flat(text[text.index("## The community corpus\n"):text.index("## Tuning and test\n")])
+    assert text.index("## Disguised samples\n") < text.index("## The community corpus\n") < text.index("## Tuning and test\n")
+    for needle in ("a separate count of the samples that people outside the project reported and that a maintainer accepted",
+                   "The benchmark reads those files in memory", "while the corpus holds no case it is absent, and an entry without it is what it was",
+                   "A case holds when a scan of its files has a finding of the reported rule (a miss) or has none of it (a false positive)",
+                   "never as found or as clean", "an open case is not counted",
+                   "The benchmark measures the skill rules only, so a case of another rule",
+                   "is listed as not measured here", "Every case is still a test of `spellwarden scan` in `make check`",
+                   "The corpus is not a test set and not a tuning set.",
+                   "a count here shows that those fixes hold, never how well the rules work. It has no rate and no interval",
+                   "it is not a set of `manifest.json`, and it is never used for a claim about rates",
+                   "A sample that is in a test set is not accepted into the corpus",
+                   "It holds no credit, no path and no sample text",
+                   '"Community corpus (reported by people outside the project)"',
+                   "This does not break the rule that no sample is written to disk as a file tree. The benchmark writes no sample anywhere.",
+                   "defanged samples that are committed to this repository, and the benchmark only reads them where they are"):
+        assert needle in section, needle
+
+
+def test_the_readme_lists_the_corpus_under_what_it_measures_tuning_and_test_and_files():
+    text = _text()
+    assert "A separate count of the community corpus, never mixed into the sets ([The community corpus](#the-community-corpus))." in \
+        _flat(text[text.index("## What it measures\n"):text.index("## Run it yourself\n")])
+    tuning = _flat(text[text.index("## Tuning and test\n"):text.index("## Retiring a sample\n")])
+    assert ("The community corpus is not a test set. Samples that people report may be used for rule work as before, but a sample "
+            "that is in a test set is not accepted into it.") in tuning
+    files = _flat(text[text.index("## Files\n"):])
+    assert "`../fixtures/community/`: the community corpus. `rule_benchmark.py` reads it in memory and writes nothing to it" in files
+    assert "No sample is ever written to disk as a file tree, printed or logged." in _flat(text)

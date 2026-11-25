@@ -4,13 +4,21 @@ Thank you for reading this before you open an issue or a pull request. The scann
 
 A security problem does not belong in a public issue: see [SECURITY.md](SECURITY.md). Everyone who takes part follows the [code of conduct](CODE_OF_CONDUCT.md).
 
-## Report a false positive or a missed detection
+## Report a miss, a false alarm or a new pattern
 
-Open an issue and give:
+Open an issue with one of the three forms ([choose one](https://github.com/spellwarden-ai/spellwarden/issues/new/choose)):
 
-- the rule id, for a false positive, or what you expected to be found, for a miss;
-- the scanner version and the rules version. Every report carries both, and `spellwarden version` prints them;
-- the smallest sample that shows it, made safe to publish: take out every secret, address and private name, and make a malicious sample harmless first. An issue is public.
+- **False positive**: a rule reported content that is not a problem. The form asks for the rule id, why it is not a problem and the sample.
+- **Missed detection**: nothing was reported on content that a rule should read. The form asks for what you expected to be found and the sample.
+- **New rule proposal**: a pattern that no rule reads today. [Propose a rule](#propose-a-rule) says what the form asks.
+
+Every form asks for the scanner version and the rules version (`spellwarden version` prints both), the command and the settings you used, the name of the file, the smallest sample that shows it, where the sample comes from, a name to credit if you want one, and a box that says you may publish the sample under the Apache License 2.0, the licence of this repository. An issue is public, so the form says how to make a sample safe to publish. A sample that comes from a benchmark's test sets is not accepted, so that the test sets stay clean: describe the technique in words instead.
+
+Reports are unpaid. You are named, in the CHANGELOG and in the corpus record, only if you write a name in the form. If you later ask, a maintainer removes it from the main branch; released packages and the history of the repository still hold it.
+
+A working way past a rule, or a method that would help someone hide content from the scanner before a fix is released, goes to private reporting and not to an issue: see [SECURITY.md](SECURITY.md). You get a first answer within five working days, whichever way the report comes in. A first answer is an acceptance, a request for more, or a written reason; it is not a promise of a fix date.
+
+An accepted report becomes a test: its sample goes into `fixtures/community/` ([how a case works](fixtures/community/README.md)), and when a rule is wrong the rule changes in a pull request of its own, with a line in the CHANGELOG. A report that is not accepted gets a written reason that names the rule and what it does, in plain English. Questions that are not a bug go to [Discussions](https://github.com/spellwarden-ai/spellwarden/discussions), where every release has a thread that lists the rules that changed.
 
 Until a rule changes, a false positive can be accepted in the baseline file with a reason and an end date: [how to handle false positives](https://spellwarden.ai/docs/false-positives?utm_source=github&utm_medium=readme&utm_campaign=contributing).
 
@@ -33,7 +41,7 @@ A rule that is merged has:
 
 A change to what a rule detects raises the rules version and the scanner's minor version. The maintainers make the release.
 
-Keep the benchmark's test sets out of rule work. A rule may be worked on with the tuning half of the rule benchmark, the repository's fixtures and samples people report. The same holds for the normalisation steps the skill rules read through and for the choice of which rules read through them. The held-out half, the MaliciousSkillBench test split and the Trail of Bits skills are test sets: a pull request that changes a rule does not cite, quote or add as a fixture any sample of a test set, and does not give a test-set result as its reason. Maintainers do not open test-set samples when working on a rule. [benchmarks/README.md](benchmarks/README.md) describes the sets, and the published history shows every release's test-set rates beside its tuning-set rates.
+Keep the benchmark's test sets out of rule work. A rule may be worked on with the tuning half of the rule benchmark, the repository's fixtures and samples people report. The same holds for the normalisation steps the skill rules read through and for the choice of which rules read through them. The held-out half, the MaliciousSkillBench test split and the Trail of Bits skills are test sets: a pull request that changes a rule does not cite, quote or add as a fixture any sample of a test set, and does not give a test-set result as its reason. Maintainers do not open test-set samples when working on a rule. [benchmarks/README.md](benchmarks/README.md) describes the sets, and the published history shows every release's test-set rates beside its tuning-set rates. The community corpus in `fixtures/community/` is not a test set: it holds samples that people reported and rule changes were made for, so it is never used for a claim about rates, and a sample of a test set is not accepted into it.
 
 ## Work on the code
 

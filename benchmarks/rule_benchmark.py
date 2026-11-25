@@ -37,7 +37,7 @@ from typing import NamedTuple
 from spellwarden_scan import RULES_VERSION, SEVERITY_RANK, RuleSet, scan_skill_package
 from spellwarden_scan import __version__ as SCANNER_VERSION
 from spellwarden_scan.frontmatter import FrontmatterLimit
-from spellwarden_scan.identity import nested_skill_roots, package_files, package_sha256
+from spellwarden_scan.identity import is_skill_file, nested_skill_roots, package_files, package_sha256
 
 try:
     from spellwarden_scan import normalise as NORMALISE
@@ -62,6 +62,20 @@ def _load_disguise():
 
 
 DISGUISE = _load_disguise()
+
+
+def _load_community():
+    """`scripts/community_corpus.py`, the one reader of `fixtures/community/`, loaded by its path (community reports spec 8.3):
+    the tests load this script by its path too, so a plain import would fail."""
+    spec = importlib.util.spec_from_file_location("spellwarden_community_corpus", REPOSITORY / "scripts" / "community_corpus.py")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["spellwarden_community_corpus"] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+COMMUNITY = _load_community()
+COMMUNITY_DIR = REPOSITORY / "fixtures" / "community"
 USER_AGENT = "spellwarden-rule-benchmark/1 (+https://github.com/spellwarden-ai/spellwarden)"
 TIMEOUT_SECONDS = 60
 PARALLEL_REQUESTS = 8
@@ -906,10 +920,72 @@ def count_added(added: dict[str, dict[str, int]], plain: BothReadings) -> None:
         entry["skills"] += 1
 
 
-def measure(manifest: Manifest, cache: Cache, *, progress: Callable[[str], None] | None = None) -> dict:
+# --- the community corpus (community reports spec 8) -------------------------------------------------------------------------
+
+COMMUNITY_RESULTS = ("holds", "fails", "not_read_whole", "open", "not_measured")
+
+
+def one_skill_package(files: Mapping[str, bytes]) -> bool:
+    """Whether the files of a case are one skill package the benchmark reads as one root: `SKILL.md` at the root and no other file
+    that `identity.is_skill_file` takes for a skill file (a nested skill, a case variant under `skills/<name>/`)."""
+    return "SKILL.md" in files and not [path for path in files if path != "SKILL.md" and is_skill_file(path)]
+
+
+def community_cases(directory: Path, rules: RuleSet) -> list:
+    """The cases of the corpus in `directory`, every record checked. A corpus that cannot be read stops the run with
+    `community_invalid` and exit 2: a skipped case would look like a pass. The message names the case and the problem, never a
+    sample."""
+    try:
+        cases = COMMUNITY.load_cases(directory)
+    except COMMUNITY.CorpusError as error:
+        raise BenchmarkError("community_invalid", str(error)) from None
+    areas = {rule.id: rule.area for rule in rules}
+    problems = [problem for case in cases
+                for problem in COMMUNITY.record_problems(case.record, directory_name=case.id, rule_areas=areas)]
+    if problems:
+        raise BenchmarkError("community_invalid", "; ".join(problems[:10]))
+    return cases
+
+
+def community_result(case: object, rules: RuleSet, skill_rules: frozenset[str]) -> str:
+    """The `result` of one case (8.2): `open` while the rule change is not released; `not_measured` for a rule that is not a skill
+    rule or files that are not one skill package; `not_read_whole` when the scanner could not read the skill whole; else `holds`
+    when a miss's rule is among the findings or a false positive's is not, and `fails` otherwise. The scan is `read_root` of the
+    files as the root, the scanner's default reading."""
+    record = case.record
+    if record["outcome"] == "open":
+        return "open"
+    if record["rule"] not in skill_rules or not one_skill_package(case.files):
+        return "not_measured"
+    reading = read_root(case.files, rules)
+    if reading.unread is not None:
+        return "not_read_whole"
+    return "holds" if (record["rule"] in reading.rules) == (record["kind"] == "miss") else "fails"
+
+
+def measure_community(rules: RuleSet, directory: Path) -> dict | None:
+    """The member `community` of an entry (8.2), or None when the corpus holds no case (the member is then absent and the entry is
+    what it was before the corpus existed). The files are only read, in memory."""
+    cases = community_cases(directory, rules)
+    if not cases:
+        return None
+    skill_rules = frozenset(rule.id for rule in rules.by_area("skill"))
+    return {"corpus": COMMUNITY.CORPUS_FORMAT, "corpus_sha256": COMMUNITY.corpus_sha256(cases),
+            "cases": {case.id: {"kind": case.record["kind"], "rule": case.record["rule"], "outcome": case.record["outcome"],
+                                "fixed_in": case.record["fixed_in"], "result": community_result(case, rules, skill_rules)}
+                      for case in cases}}
+
+
+def community_counts(block: dict) -> dict[str, int]:
+    """How many cases of a `community` member have each result (8.4)."""
+    return {result: sum(1 for case in block["cases"].values() if case["result"] == result) for result in COMMUNITY_RESULTS}
+
+
+def measure(manifest: Manifest, cache: Cache, *, progress: Callable[[str], None] | None = None,
+            community: Path | None = None) -> dict:
     """The measured part of the entry (10.6, 10.7): every item rebuilt, verified and scanned as written and normalised, and
     every changed variant of a malicious item read whole both ways scanned both ways (P6-4 spec 6.2), or an error that stops the
-    run."""
+    run. `community` is the directory of the community corpus (default `COMMUNITY_DIR`), measured into the member `community`."""
     rules = RuleSet.baseline()
     skill_rules = sorted(rules.by_area("skill"), key=lambda rule: rule.id)
     rule_ids = [rule.id for rule in skill_rules]
@@ -957,10 +1033,14 @@ def measure(manifest: Manifest, cache: Cache, *, progress: Callable[[str], None]
                 "steps": list(NORMALISE.STEPS) if normalising else [],
                 "rules_normalised": sorted(NORMALISE.RULES) if normalising else [],
                 "plain_as_written": plain_as_written, "techniques": techniques, "added_on_harmless": added}
-    return {"version": SCANNER_VERSION, "rules_version": RULES_VERSION, "manifest_sha256": manifest.sha256,
-            "lines": list(LINES), "rules_measured": {rule.id: rule.severity_default for rule in skill_rules},
-            "rules_not_measured": sorted(rule.id for rule in rules if rule.area != "skill"), "sets": sets,
-            "disguise": disguise}
+    entry = {"version": SCANNER_VERSION, "rules_version": RULES_VERSION, "manifest_sha256": manifest.sha256,
+             "lines": list(LINES), "rules_measured": {rule.id: rule.severity_default for rule in skill_rules},
+             "rules_not_measured": sorted(rule.id for rule in rules if rule.area != "skill"), "sets": sets,
+             "disguise": disguise}
+    block = measure_community(rules, COMMUNITY_DIR if community is None else community)
+    if block is not None:
+        entry["community"] = block  # absent for an empty corpus, so an earlier release's entry is what it was
+    return entry
 
 
 # --- rates (10.6) ------------------------------------------------------------------------------------------------------------
@@ -1086,18 +1166,67 @@ def check_disguise(value: object, version: str) -> None:
             raise BenchmarkError("results_invalid", f"{where}: every count of {name} must be a whole number of 0 or more")
 
 
+COMMUNITY_MEMBERS = {"corpus", "corpus_sha256", "cases"}
+COMMUNITY_CASE_MEMBERS = {"kind", "rule", "outcome", "fixed_in", "result"}
+_CASE_ID = re.compile(r"COM-[0-9]{4}")
+_RULE_ID = re.compile(r"SW-(?:SKL|MCP|CFG|REG|A2A)-[0-9]{3}")
+_HEX64 = re.compile(r"[0-9a-f]{64}")
+
+
+def check_community(value: object, version: str) -> None:
+    """The member `community` of one entry (community reports spec 8.3): exactly `corpus` (the format, a whole number),
+    `corpus_sha256` (64 hex) and `cases` (at least one case by id); each case exactly `kind`, `rule`, `outcome`, `fixed_in` and
+    `result`, with the enums of the corpus, `fixed_in` a version exactly when the outcome is `fixed`, and the result `open`
+    exactly when the outcome is. Raises `BenchmarkError` `results_invalid`."""
+    where = f"the community member of the entry for {version}"
+    if not isinstance(value, dict) or set(value) != COMMUNITY_MEMBERS:
+        raise BenchmarkError("results_invalid", f"{where} must have exactly the members {', '.join(sorted(COMMUNITY_MEMBERS))}")
+    if not _count(value["corpus"]) or value["corpus"] < 1:
+        raise BenchmarkError("results_invalid", f"{where}: corpus must be a whole number of 1 or more")
+    if not isinstance(value["corpus_sha256"], str) or not _HEX64.fullmatch(value["corpus_sha256"]):
+        raise BenchmarkError("results_invalid", f"{where}: corpus_sha256 must be 64 lower-case hex digits")
+    cases = value["cases"]
+    if not isinstance(cases, dict) or not cases:
+        raise BenchmarkError("results_invalid", f"{where}: cases must be an object with at least one case")
+    for case_id, case in cases.items():
+        if not isinstance(case_id, str) or not _CASE_ID.fullmatch(case_id):
+            raise BenchmarkError("results_invalid", f"{where}: a case id must be COM- and four digits")
+        if not isinstance(case, dict) or set(case) != COMMUNITY_CASE_MEMBERS:
+            raise BenchmarkError("results_invalid", f"{where}: {case_id} must have exactly the members "
+                                                    f"{', '.join(sorted(COMMUNITY_CASE_MEMBERS))}")
+        problems = []
+        if case["kind"] not in COMMUNITY.KINDS:
+            problems.append("kind must be miss or false_positive")
+        if not isinstance(case["rule"], str) or not _RULE_ID.fullmatch(case["rule"]):
+            problems.append("rule must be a rule id")
+        if case["outcome"] not in COMMUNITY.OUTCOMES:
+            problems.append("outcome must be open or fixed")
+        elif case["outcome"] == "open" and case["fixed_in"] is not None:
+            problems.append("fixed_in must be null while the outcome is open")
+        elif case["outcome"] == "fixed" and (not isinstance(case["fixed_in"], str) or not _VERSION.fullmatch(case["fixed_in"])):
+            problems.append("fixed_in must be X.Y.Z when the outcome is fixed")
+        if case["result"] not in COMMUNITY_RESULTS:
+            problems.append(f"result must be one of {', '.join(COMMUNITY_RESULTS)}")
+        elif (case["result"] == "open") != (case["outcome"] == "open"):
+            problems.append("the result is open exactly when the outcome is")
+        if problems:
+            raise BenchmarkError("results_invalid", f"{where}: {case_id}: {'; '.join(problems)}")
+
+
 def check_results(document: object) -> dict:
     """The history document, checked: `{"results": 1, "about": text, "entries": [...]}`, entries ascending by version, at most one
-    per version, each with the members of 10.7, and from 1.22.0 on also `disguise` (P6-4 spec 6.4.1). Raises `BenchmarkError`
+    per version, each with the members of 10.7, from 1.22.0 on also `disguise` (P6-4 spec 6.4.1), and `community` when the corpus
+    held a case (community reports spec 8.2, optional, so every earlier entry stays valid). Raises `BenchmarkError`
     `results_invalid` naming the first problem."""
     if not isinstance(document, dict) or document.get("results") != 1 or not isinstance(document.get("entries"), list) \
             or not isinstance(document.get("about"), str) or set(document) != {"results", "about", "entries"}:
         raise BenchmarkError("results_invalid", 'the history must be {"results": 1, "about": "...", "entries": [...]}')
     previous: str | None = None
     for entry in document["entries"]:
-        if not isinstance(entry, dict) or not ENTRY_MEMBERS <= set(entry) or set(entry) - ENTRY_MEMBERS - {"disguise"}:
-            raise BenchmarkError("results_invalid", f"an entry must have exactly the members {', '.join(sorted(ENTRY_MEMBERS))}"
-                                                    f", and disguise from {DISGUISE_FROM} on")
+        if not isinstance(entry, dict) or not ENTRY_MEMBERS <= set(entry) \
+                or set(entry) - ENTRY_MEMBERS - {"disguise", "community"}:
+            raise BenchmarkError("results_invalid", f"an entry must have exactly the members {', '.join(sorted(ENTRY_MEMBERS))}, "
+                                                    f"disguise from {DISGUISE_FROM} on, and community when the corpus has a case")
         version = entry["version"]
         if not isinstance(version, str) or not _VERSION.fullmatch(version):
             raise BenchmarkError("results_invalid", "an entry's version must be X.Y.Z")
@@ -1105,6 +1234,8 @@ def check_results(document: object) -> dict:
             check_disguise(entry["disguise"], version)
         elif version_key(version) >= version_key(DISGUISE_FROM):
             raise BenchmarkError("results_invalid", f"the entry for {version} lacks the member disguise")
+        if "community" in entry:
+            check_community(entry["community"], version)
         if previous is not None and version_key(version) <= version_key(previous):
             raise BenchmarkError("results_invalid", f"the entry for {version} comes after {previous}: entries ascend by version")
         if not isinstance(entry["released"], str) or not _DATE.fullmatch(entry["released"]):
@@ -1505,8 +1636,48 @@ def render_text(entry: dict, *, ids_at: str) -> str:
             out.append(f"  missed malicious skills: {at_medium} at medium or above, {at_high} at high or above; their ids are in "
                        f"{ids_at}")
         out.append("")
+    out += _community_text(entry)
     out.append(not_measured_text(entry))
     return "\n".join(out) + "\n"
+
+
+COMMUNITY_TITLE = "Community corpus (reported by people outside the project)"
+COMMUNITY_NOT_A_SET = ("This is not a test set and not a tuning set: it holds the samples that people reported, and the rules "
+                       "were changed for them, so a count here shows that those fixes hold, never how well the rules work. It "
+                       "has no rate and no interval.")
+COMMUNITY_READ = ("It is measured from the files of this repository's `fixtures/community/`, which the benchmark only reads in "
+                  "memory.")
+COMMUNITY_SETS_UNCHANGED = "The fixed sets above are unchanged by it."
+COMMUNITY_WORDS = (("holds", "holds"), ("fails", "fails"), ("not_read_whole", "not read whole"), ("open", "open"),
+                   ("not_measured", "not measured here"))
+
+
+def _community_text(entry: dict) -> list[str]:
+    """The four lines of the terminal table for the corpus (8.3): none when the entry has no `community` member."""
+    block = entry.get("community")
+    if block is None:
+        return []
+    counts = community_counts(block)
+    failing = sorted(case_id for case_id, case in block["cases"].items() if case["result"] == "fails")
+    return [COMMUNITY_TITLE, "  not a test set and not a tuning set: no rate and no interval",
+            f"  {len(block['cases'])} cases: " + ", ".join(f"{counts[result]} {word}" for result, word in COMMUNITY_WORDS),
+            "  failing cases: " + (", ".join(failing) if failing else "none"), ""]
+
+
+def _community_markdown(entry: dict) -> list[str]:
+    """The section of RESULTS.md for the corpus (8.4): counts, a table of cases and the three standing sentences."""
+    block = entry.get("community")
+    if block is None:
+        return []
+    counts = community_counts(block)
+    shown = ". ".join(f"{word.capitalize()}: {counts[result]}" for result, word in COMMUNITY_WORDS)
+    out = ["", f"### {COMMUNITY_TITLE}", "", f"Cases: {len(block['cases'])}. {shown}.",
+           "", "| Case | Kind | Rule | Outcome | Fixed in | Result |", "|---|---|---|---|---|---|"]
+    for case_id, case in sorted(block["cases"].items()):
+        kind = "miss" if case["kind"] == "miss" else "false positive"
+        out.append(f"| `{case_id}` | {kind} | `{case['rule']}` | {case['outcome']} | {case['fixed_in'] or 'not yet'} | "
+                   f"{dict(COMMUNITY_WORDS)[case['result']]} |")
+    return out + ["", COMMUNITY_NOT_A_SET, "", COMMUNITY_READ, "", COMMUNITY_SETS_UNCHANGED]
 
 
 def _disguise_text(entry: dict, set_id: str) -> list[str]:
@@ -1590,6 +1761,7 @@ def _entry_markdown(entry: dict) -> list[str]:
         out += ["", "Skills not read whole: " + (", ".join(f"`{item_id}` ({reason})" for item_id, reason in unread)
                                                  if unread else "none") + "."]
         out += _disguise_markdown(entry, set_id, block)
+    out += _community_markdown(entry)
     out += ["", f"{not_measured_text(entry)}."]
     return out
 
@@ -1822,6 +1994,7 @@ def command_run(args: argparse.Namespace, environ: Mapping[str, str]) -> int:
         if history["entries"] and version_key(SCANNER_VERSION) < version_key(history["entries"][-1]["version"]):
             raise BenchmarkError("usage", f"the installed scanner {SCANNER_VERSION} is lower than the newest entry "
                                           f"{history['entries'][-1]['version']}")
+    community_cases(COMMUNITY_DIR, RuleSet.baseline())  # an unreadable corpus stops the run before anything is fetched
     manifest, cache = _measure_from_sources(args, environ)
     measured = measure(manifest, cache, progress=lambda text: print(text, file=sys.stderr))
     entry = {**measured, "released": released, "note": args.note}

@@ -26,6 +26,7 @@ release workflow runs it again for every release, on Linux and Windows, against 
 - The ids of the malicious skills the rules missed, at each line. Harmless skills the rules flagged are counted, not named.
 - Since 1.22.0, disguised versions of each malicious skill, one per technique, with the rules on the text as written and after
   normalisation ([Disguised samples](#disguised-samples)).
+- A separate count of the community corpus, never mixed into the sets ([The community corpus](#the-community-corpus)).
 
 The benchmark measures the scanner's library (`spellwarden_scan.scan_skill_package`) on each skill in memory. It does not run
 `spellwarden scan` on a directory, so it measures the skill rules on skill packages and nothing about how the command finds
@@ -212,6 +213,30 @@ The CHANGELOG of a release with the disguised samples also says, the first time,
 line per set and rule, `- <set>, <rule>: N findings in M skills`, with the reason each is what its rule describes. A detection of
 a disguised sample that went down is a worse rate like any other.
 
+## The community corpus
+
+An entry of the history can hold one more member, `community`: a separate count of the samples that people outside the project
+reported and that a maintainer accepted. `fixtures/community/` holds them, one directory per case, each with a record and the
+defanged sample ([how a case works](../fixtures/community/README.md)). The benchmark reads those files in memory and counts, for
+each case, whether the fix holds. The member exists from the first release after the first accepted case; while the corpus holds no
+case it is absent, and an entry without it is what it was.
+
+- A case holds when a scan of its files has a finding of the reported rule (a miss) or has none of it (a false positive), and fails
+  when it does not. It is "not read whole" when the scanner could not read the skill whole, and it is counted apart, never as found
+  or as clean. It is open while the rule change for it is not released, and an open case is not counted.
+- The benchmark measures the skill rules only, so a case of another rule, or a case whose files are not one skill package with
+  `SKILL.md` at the root, is listed as not measured here. Every case is still a test of `spellwarden scan` in `make check`,
+  whatever its rule.
+- The corpus is not a test set and not a tuning set. It holds the samples that people reported, and the rules were changed for
+  them, so a count here shows that those fixes hold, never how well the rules work. It has no rate and no interval, it is not a set
+  of `manifest.json`, and it is never used for a claim about rates.
+- A sample that is in a test set is not accepted into the corpus, so that the test sets stay clean ([Tuning and test](#tuning-and-test)).
+- The member holds case ids, rules and results. It holds no credit, no path and no sample text. `RESULTS.md` shows it in its own
+  section, "Community corpus (reported by people outside the project)", below the sets.
+
+This does not break the rule that no sample is written to disk as a file tree. The benchmark writes no sample anywhere. The files
+of the corpus are defanged samples that are committed to this repository, and the benchmark only reads them where they are.
+
 ## Tuning and test
 
 - A rule may be worked on with the tuning half, the repository's fixtures and samples people report. The precision pass P5-24
@@ -219,6 +244,8 @@ a disguised sample that went down is a worse rate like any other.
 - The held-out half, the MaliciousSkillBench test split and the Trail of Bits skills are test sets. A pull request that changes
   a rule does not cite, quote or add as a fixture any sample of a test set, and does not give a test-set result as its reason.
   Maintainers do not open test-set samples when working on a rule.
+- The community corpus is not a test set. Samples that people report may be used for rule work as before, but a sample that is in a
+  test set is not accepted into it.
 - The published history shows every release's test-set rates beside its tuning-set rates, so a change that moved only test-set
   numbers is visible to everyone.
 
@@ -276,3 +303,5 @@ The release preparation records the entry before the tag, because a workflow sta
 - `disguise.py`: the generator of the disguised samples, loaded by `rule_benchmark.py`. It is seeded, works in memory and
   writes, prints and runs nothing.
 - `build_manifest.py`: turns the frozen measurement manifests into `manifest.json`; run once, never by `make check` or CI.
+- `../fixtures/community/`: the community corpus. `rule_benchmark.py` reads it in memory and writes nothing to it; the format is read by
+  `../scripts/community_corpus.py`.
