@@ -5,9 +5,10 @@ from __future__ import annotations
 
 import re
 from collections.abc import Collection, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from spellwarden_scan import normalise
+from spellwarden_scan.deadline import Lines, Meter
 from spellwarden_scan.frontmatter import metadata_of
 from spellwarden_scan.model import Metadata
 
@@ -67,10 +68,13 @@ class CodeBlock:
     language: str
     text: str
     first_line: int
+    # 1.24.0 (speed and deadline spec 7.3): the scan's time meter; with one, `lines` ticks it as it is iterated
+    meter: Meter | None = field(default=None, compare=False, repr=False)
 
     @property
     def lines(self) -> tuple[str, ...]:
-        return split_lines(self.text)
+        lines = split_lines(self.text)
+        return lines if self.meter is None else Lines(lines, self.meter, self.path)
 
 
 class TextLimit(Exception):
@@ -92,7 +96,7 @@ def _decode(content: bytes) -> str | None:
     return text
 
 
-def _code_blocks(path: str, lines: tuple[str, ...]) -> list[CodeBlock]:
+def _code_blocks(path: str, lines: tuple[str, ...], meter: Meter | None = None) -> list[CodeBlock]:
     blocks: list[CodeBlock] = []
     fence: str | None = None
     width = 0
@@ -106,7 +110,7 @@ def _code_blocks(path: str, lines: tuple[str, ...]) -> list[CodeBlock]:
             first = next((b for b in body if b.strip()), "")
             if first.strip().startswith(_SHELL_STARTS):
                 language = "sh"
-        blocks.append(CodeBlock(path, language, "\n".join(body), start))
+        blocks.append(CodeBlock(path, language, "\n".join(body), start, meter))
 
     indent = 0
     for number, line in enumerate(lines, start=1):
@@ -136,7 +140,7 @@ class Package:
 
     def __init__(self, root: str, text_files: tuple[TextFile, ...], binary_files: tuple[BinaryFile, ...],
                  code_blocks: tuple[CodeBlock, ...], metadata: Metadata, executable_paths: frozenset[str],
-                 markdown_paths: frozenset[str] = frozenset(), shared: dict | None = None) -> None:
+                 markdown_paths: frozenset[str] = frozenset(), shared: dict | None = None, meter: Meter | None = None) -> None:
         self.root = root
         self.text_files = text_files
         self.binary_files = binary_files
@@ -147,13 +151,19 @@ class Package:
         # 1.24.0 (speed and deadline spec 6.2, F1): what rules compute once for this subject, a package or one of its views and
         # never two of them, and read again; the rule that needs a value fills it in the first time
         self.shared: dict = {} if shared is None else shared
+        # 1.24.0 (spec 7.3): the scan's time meter, or None; with one, the lines of every file and code block tick it
+        self.meter = meter
 
     @classmethod
     def build(cls, files: Mapping[str, bytes], *, root: str = "", executable_paths: Collection[str] = (),
-              markdown_paths: Collection[str] = frozenset()) -> Package:
+              markdown_paths: Collection[str] = frozenset(), meter: Meter | None = None) -> Package:
         """`markdown_paths` (1.13.0, Phase 3 batch 1 spec 10.3) are paths read as Markdown whatever their suffix: a Cursor `.mdc`
         rule, `.cursorrules` and `.windsurfrules` hold instructions but do not end in `.md`, so without this no injection or
-        concealment check and no code block would reach them. The default leaves every existing call as it was."""
+        concealment check and no code block would reach them. The default leaves every existing call as it was.
+        `meter` (1.24.0) is the scan's time meter: the build looks at the clock before each file, and the lines of every file and
+        code block tick it."""
+        if meter is not None:
+            meter.stage = "reading"
         root = root.strip("/")
         markdown = frozenset(markdown_paths)
         prefix = f"{root}/" if root else ""
@@ -163,6 +173,8 @@ class Package:
         for path in sorted(files):
             if prefix and not path.startswith(prefix):
                 continue
+            if meter is not None:
+                meter.check(path)
             content = files[path]
             if len(content) > TEXT_MAX:
                 if _decode(content[:TEXT_HEAD]) is not None:
@@ -174,12 +186,14 @@ class Package:
                 binaries.append(BinaryFile(path, content[:8], len(content)))
                 continue
             lines = split_lines(text)
+            if meter is not None:
+                lines = Lines(lines, meter, path)
             texts.append(TextFile(path, text, lines, content[:8]))
             if path.lower().endswith(".md") or path in markdown:
-                blocks.extend(_code_blocks(path, lines))
+                blocks.extend(_code_blocks(path, lines, meter))
         # Only the executable entries under `root` belong to this package: a sibling directory's binaries are not its finding.
         kept = frozenset(path for path in executable_paths if not prefix or path.startswith(prefix))
-        return cls(root, tuple(texts), tuple(binaries), tuple(blocks), metadata_of(files, root), kept, markdown)
+        return cls(root, tuple(texts), tuple(binaries), tuple(blocks), metadata_of(files, root), kept, markdown, meter=meter)
 
     def instructions(self) -> tuple[TextFile, ...]:
         return tuple(f for f in self.text_files if f.path.lower().endswith(".md") or f.path in self.markdown_paths)
@@ -202,7 +216,11 @@ class Package:
 
     def views(self, steps: Collection[str]) -> tuple[View, ...]:
         """1.22.0 (P6-4 spec 6.5.4, 6.5.5): the folded view, then the decoded view, each only when it holds a file; none for a
-        package whose text the steps leave unchanged, the common case."""
+        package whose text the steps leave unchanged, the common case. With a time meter (1.24.0) the build looks at the clock
+        before each file and every loop over a file's lines ticks it."""
+        meter = self.meter
+        if meter is not None:
+            meter.stage = "normalising"
         blocks: dict[str, list[CodeBlock]] = {}
         for block in self.code_blocks:
             blocks.setdefault(block.path, []).append(block)
@@ -212,21 +230,25 @@ class Package:
         decoded_blocks: list[CodeBlock] = []
         decoded_lines: dict[str, tuple[int, ...]] = {}
         for unit in self.text_files:
-            lines = tuple(normalise.fold(line, steps) for line in unit.lines)
+            if meter is not None:
+                meter.check(unit.path)
+            folded = tuple(normalise.fold(line, steps) for line in unit.lines)
             own = blocks.get(unit.path, [])
-            if lines != unit.lines:
-                folded_files.append(TextFile(unit.path, "\n".join(lines), lines, unit.head))
+            lines = unit.lines  # a line that no step changed is the line as built; `folded` equals it
+            if folded != unit.lines:
+                lines = folded if meter is None else Lines(folded, meter, unit.path)
+                folded_files.append(TextFile(unit.path, "\n".join(folded), lines, unit.head))
                 for block in own:  # the original boundaries, never recomputed from folded text
                     start = block.first_line - 1
-                    body = lines[start:start + len(block.lines)]
-                    folded_blocks.append(CodeBlock(block.path, block.language, "\n".join(body), block.first_line))
-            shadow = _shadow(unit, lines, own, steps, markdown=self._is_markdown(unit.path))
+                    body = folded[start:start + len(block.lines)]
+                    folded_blocks.append(CodeBlock(block.path, block.language, "\n".join(body), block.first_line, meter))
+            shadow = _shadow(unit, lines, own, steps, markdown=self._is_markdown(unit.path), meter=meter)
             if shadow is not None:
                 text_file, origin = shadow
                 decoded_files.append(text_file)
                 decoded_lines[unit.path] = origin
                 if self._is_markdown(unit.path):
-                    decoded_blocks.extend(_code_blocks(unit.path, text_file.lines))
+                    decoded_blocks.extend(_code_blocks(unit.path, text_file.lines, meter))
         found: list[View] = []
         if folded_files:
             found.append(View(self, tuple(folded_files), tuple(folded_blocks), {}))
@@ -262,7 +284,7 @@ def _open_fence(lines: list[str]) -> str | None:
 
 
 def _shadow(unit: TextFile, folded: tuple[str, ...], blocks: list[CodeBlock], steps: Collection[str], *,
-            markdown: bool) -> tuple[TextFile, tuple[int, ...]] | None:
+            markdown: bool, meter: Meter | None = None) -> tuple[TextFile, tuple[int, ...]] | None:
     """The decoded view's file for `unit` (spec 6.5.5): the payloads of its lines in line order, each followed by
     `SEPARATOR_LINES` empty lines, and for every line of it the line of `unit` whose token held the payload laid out there.
     None when no line of `unit` holds a payload."""
@@ -286,7 +308,8 @@ def _shadow(unit: TextFile, folded: tuple[str, ...], blocks: list[CodeBlock], st
     if not out:
         return None
     lines = tuple(out)
-    return TextFile(unit.path, "\n".join(lines), lines, unit.head), tuple(origin)
+    text = "\n".join(lines)
+    return TextFile(unit.path, text, lines if meter is None else Lines(lines, meter, unit.path), unit.head), tuple(origin)
 
 
 class View(Package):
@@ -298,7 +321,7 @@ class View(Package):
     def __init__(self, origin: Package, text_files: tuple[TextFile, ...], code_blocks: tuple[CodeBlock, ...],
                  lines: Mapping[str, tuple[int, ...]]) -> None:
         super().__init__(origin.root, text_files, origin.binary_files, code_blocks, origin.metadata, origin.executable_paths,
-                         origin.markdown_paths)
+                         origin.markdown_paths, meter=origin.meter)
         self.origin = origin
         self._lines = dict(lines)
 
