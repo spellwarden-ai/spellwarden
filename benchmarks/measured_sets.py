@@ -59,7 +59,7 @@ _SHAPES = {
 _TOP = {"status", "set", "frozen_sha256", "frozen_at", "measured_on", "candidate_commit", "severity", "kinds", "limits", "reason",
         *_SHAPES}
 _MAY_BE_NULL = {"recall", "planted_catch"}
-KINDS = ("skill", "command_agent", "instruction", "tool", "mcp", "plugin", "settings")  # the kinds of unit the sets are built from
+KINDS = ("skill", "command_agent", "instruction", "tool", "mcp", "plugin", "settings")  # the kinds of unit a set holds
 TUNING_ROUNDS = (1, 2, 3)  # at most three rounds (spec 8.8)
 _PENDING = {"status", "set", "limits"}
 _MEASURED = _TOP - {"reason", "recall", "planted_catch"}  # recall and the planted catch may be null
