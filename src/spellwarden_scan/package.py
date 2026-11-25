@@ -6,6 +6,7 @@ from __future__ import annotations
 import re
 from collections.abc import Collection, Mapping
 from dataclasses import dataclass, field
+from functools import cached_property
 
 from spellwarden_scan import normalise
 from spellwarden_scan.deadline import Lines, Meter
@@ -70,12 +71,19 @@ class CodeBlock:
     first_line: int
     # 1.24.0 (speed and deadline spec 7.3): the scan's time meter; with one, `lines` ticks it as it is iterated
     meter: Meter | None = field(default=None, compare=False, repr=False)
-    # built once, when the block is made: every rule reads it several times, and a `Lines` costs its cuts each time it is built
-    lines: tuple[str, ...] = field(init=False, compare=False, repr=False)
 
-    def __post_init__(self) -> None:
+    # built on each read and dropped after it, never kept: a package of many small blocks held for its whole life cost 63 per cent
+    # more peak memory with a deadline (r1:F1); a small `Lines` is cheap to build (one tick, no cuts, deadline.py)
+    @property
+    def lines(self) -> tuple[str, ...]:
         lines = split_lines(self.text)
-        object.__setattr__(self, "lines", lines if self.meter is None else Lines(lines, self.meter, self.path))
+        return lines if self.meter is None else Lines(lines, self.meter, self.path)
+
+    @cached_property
+    def line_count(self) -> int:
+        """The number of `lines`, worked out once and kept as one number: the readers that only count a block's lines (the fenced
+        line sets, a folded block's slice) build no `Lines` for it."""
+        return len(split_lines(self.text))
 
 
 class TextLimit(Exception):
@@ -241,7 +249,7 @@ class Package:
                 folded_files.append(TextFile(unit.path, "\n".join(folded), lines, unit.head))
                 for block in own:  # the original boundaries, never recomputed from folded text
                     start = block.first_line - 1
-                    body = folded[start:start + len(block.lines)]
+                    body = folded[start:start + block.line_count]
                     folded_blocks.append(CodeBlock(block.path, block.language, "\n".join(body), block.first_line, meter))
             shadow = _shadow(unit, lines, own, steps, markdown=self._is_markdown(unit.path), meter=meter)
             if shadow is not None:
@@ -289,7 +297,7 @@ def _shadow(unit: TextFile, folded: tuple[str, ...], blocks: list[CodeBlock], st
     """The decoded view's file for `unit` (spec 6.5.5): the payloads of its lines in line order, each followed by
     `SEPARATOR_LINES` empty lines, and for every line of it the line of `unit` whose token held the payload laid out there.
     None when no line of `unit` holds a payload."""
-    fenced = {block.first_line + offset: block for block in blocks for offset in range(len(block.lines))}
+    fenced = {block.first_line + offset: block for block in blocks for offset in range(block.line_count)}
     out: list[str] = []
     origin: list[int] = []
     for number, line in enumerate(folded, start=1):

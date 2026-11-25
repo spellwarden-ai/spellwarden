@@ -52,9 +52,9 @@ for that package. A package is judged whole or not at all, so a package that was
   stops within about the time one rule needs for one line of 10 MiB after the limit: at most 1.79 s past the limit on this machine
   in the five cases of `benchmarks/speed_profile.py overshoot`. The hosted step measured about twice this machine's time on a skill
   like (c) (257 s on 24 November against 126.82 s here before this release), so a limit set on it should leave about twice that
-  room before the function's own timeout. Looking at the clock adds 2.0 per cent to a scan on (a) (1.9 to
-  2.1 per cent in three runs of `benchmarks/speed_profile.py cost` at 10 MiB) and nothing measurable on (b) (-0.8 to 0.4 per
-  cent), within the 3 per cent the build asked for.
+  room before the function's own timeout. Looking at the clock adds 2.1 per cent to a scan on (a) (1.9 and
+  2.3 per cent in two runs of `benchmarks/speed_profile.py cost` at 10 MiB, their mean) and nothing measurable on (b) (-0.8 and -0.4 per
+  cent), within the 3 per cent the build asked for, and keeps no copy of a code block's lines.
 
 ## 1.23.0 (2026-11-24)
 

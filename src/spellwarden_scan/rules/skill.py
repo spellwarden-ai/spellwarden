@@ -284,7 +284,7 @@ def _skl_007(package: Package) -> Iterator[Finding]:
     # A fenced block is read as a script (joined at `|`, `&&` and `||`); the prose of its Markdown file skips the
     # block's lines, so a command is reported once, at its first line, by whichever view holds it.
     fenced: set[tuple[str, int]] = {(block.path, block.first_line + offset)
-                                    for block in package.code_blocks for offset in range(len(block.lines))}
+                                    for block in package.code_blocks for offset in range(block.line_count)}
     for unit in (*package.text_files, *package.code_blocks):
         prose = not isinstance(unit, CodeBlock)
         # `curl ... |` then `sh` on the next line is one pipe

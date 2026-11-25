@@ -165,16 +165,27 @@ def test_the_rules_that_read_no_line_are_still_those_that_read_none():
         list(RuleSet.baseline().get(rule_id).detect(package))
 
 
-def test_a_code_blocks_lines_are_built_once_and_shared_by_every_read():
-    """r0:F1 (spec 7.5): `CodeBlock.lines` was a property that split the text and built a new `Lines` with its cuts at every read, about
-    seven times a block; the clock reads then cost more than the build's 3 per cent. The counted work is one build for each block."""
+def test_a_code_blocks_lines_are_built_on_each_read_and_never_kept_on_the_block():
+    """r1:F1: `CodeBlock.lines` is built on each read (a tuple without a meter, a `Lines` with one) and is not a field the block
+    keeps, so a package of many small blocks holds no split copy of each for its whole life."""
     for meter in (None, meter_with(Clock())):
         block = CodeBlock("a.md", "sh", "echo 1\necho 2", 3, meter)
-        assert block.lines is block.lines
         assert tuple(block.lines) == ("echo 1", "echo 2") and len(block.lines) == 2
+        assert "lines" not in vars(block) and block.lines is not block.lines
     assert type(CodeBlock("a.md", "sh", "x", 1).lines) is tuple
     assert type(CodeBlock("a.md", "sh", "x", 1, meter_with(Clock())).lines) is Lines
     assert CodeBlock("a.md", "sh", "x", 1, meter_with(Clock())) == CodeBlock("a.md", "sh", "x", 1)
+
+
+def test_a_code_blocks_line_count_is_the_number_of_its_lines_and_is_kept_as_one_number():
+    """r1:F1 follow-up: the readers that only count a block's lines read `line_count`, one number kept on the block, so the clock
+    reads of a deadline cost no `Lines` build for them; it always equals `len(block.lines)`."""
+    for text in ("", "x", "a\nb", "a\r\nb\r\n", "a\n\n", "\u2028a\x0bb"):
+        for meter in (None, meter_with(Clock())):
+            block = CodeBlock("a.md", "sh", text, 1, meter)
+            assert block.line_count == len(block.lines)
+            assert isinstance(vars(block)["line_count"], int) and "lines" not in vars(block)
+    assert CodeBlock("a.md", "sh", "a\nb", 1) == CodeBlock("a.md", "sh", "a\nb", 1, meter_with(Clock()))
 
 
 def test_a_small_lines_ticks_once_for_each_iteration_and_raises_at_the_deadline():
