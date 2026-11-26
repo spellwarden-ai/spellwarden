@@ -388,7 +388,7 @@ def test_a_whole_frame_record_measured_or_withdrawn_is_valid():  # claim 31
     assert ms.check_record("SW-CFG-015", below) == []
     short = not_assessable()
     assert ms.check_record("SW-CFG-015", short) == []
-    assert ms.check_record("SW-CFG-015", {k: v for k, v in short.items() if k != "precision"}) == []
+    assert any("precision" in p for p in ms.check_record("SW-CFG-015", _without(short, "precision")))  # both withdrawals keep it
 
 
 def test_a_whole_frame_record_holds_no_split_tuning_or_holdout():  # claim 31
@@ -401,7 +401,8 @@ def test_a_whole_frame_record_holds_no_split_tuning_or_holdout():  # claim 31
 
 def test_a_whole_frame_g0_must_have_passed_and_lie_in_the_band():  # claim 31
     def problems(**g0):
-        return ms.check_record("SW-CFG-015", whole_frame(g0={"flagged_units": 22, "components": 16, "passed": True, **g0}))
+        units = g0.get("flagged_units", 22)  # the scored units are the flagged units of the frame
+        return ms.check_record("SW-CFG-015", whole_frame(units, g0={"flagged_units": units, "components": 16, "passed": True, **g0}))
     assert problems() == []
     assert problems(flagged_units=20, components=10) == []
     for g0 in ({"passed": False}, {"flagged_units": 19}, {"components": 9}, {"flagged_units": 60, "components": 20}):
@@ -420,6 +421,33 @@ def test_a_whole_frame_record_is_never_withdrawn_by_g0_and_a_withdrawal_agrees_w
     assert any("precision_below_bar" in p for p in ms.check_record("SW-CFG-015", whole_withdrawn("precision_below_bar", 5, 5)))  # too few
     assert any("precision" in p for p in ms.check_record("SW-CFG-015", whole_withdrawn(
         "precision_below_bar", 10, 15, precision={"value": 0.9, "low": 0.8, "high": 0.95})))
+
+
+@pytest.mark.parametrize("name", ["frozen_sha256", "frozen_at", "measured_on", "candidate_commit", "frame", "owner_audit", "kinds"])
+@pytest.mark.parametrize("make", [lambda: whole_withdrawn("precision_below_bar", 10, 15), not_assessable, whole_frame])
+def test_a_whole_frame_record_holds_every_member_of_the_spec_for_both_statuses(make, name):  # claim 31
+    assert ms.check_record("SW-CFG-015", make()) == []
+    assert any(name in p for p in ms.check_record("SW-CFG-015", _without(make(), name))), name
+
+
+def test_a_whole_frame_record_holds_a_severity_only_when_measured_and_a_reason_only_when_withdrawn():  # claim 31
+    assert any("severity" in p for p in ms.check_record("SW-CFG-015", whole_withdrawn("precision_below_bar", 10, 15, severity="high")))
+    assert any("severity" in p for p in ms.check_record("SW-CFG-015", not_assessable(severity="medium")))
+    assert any("reason" in p for p in ms.check_record("SW-MCP-013", whole_frame(36, 18, set="sw-mcp-013-v2", reason="precision_below_bar")))
+    assert any("severity" in p for p in ms.check_record("SW-CFG-015", _without(whole_frame(), "severity")))
+
+
+def test_a_whole_frame_withdrawal_keeps_its_precision_for_either_reason():  # claim 31
+    assert any("precision" in p for p in ms.check_record("SW-CFG-015", _without(whole_withdrawn("precision_below_bar", 10, 15), "precision")))
+    assert any("precision" in p for p in ms.check_record("SW-CFG-015", _without(not_assessable(), "precision")))
+
+
+def test_the_flagged_units_of_g0_are_the_flagged_units_scored_of_a_whole_frame_set():  # claim 31
+    record = whole_frame(36, 18, set="sw-mcp-013-v2")
+    assert any("flagged_units" in p for p in ms.check_record("SW-MCP-013", {**record, "g0": {**record["g0"], "flagged_units": 20}}))
+    withdrawn = whole_withdrawn("precision_below_bar", 10, 15)
+    assert any("flagged_units" in p for p in ms.check_record("SW-CFG-015", {**withdrawn, "g0": {**withdrawn["g0"], "flagged_units": 30}}))
+    assert any("flagged_units" in p for p in ms.check_record("SW-CFG-015", not_assessable() | {"g0": {"flagged_units": 21, "components": 16, "passed": True}}))
 
 
 def test_a_whole_frame_precision_and_severity_are_recomputed_from_scored():  # claim 31
@@ -478,6 +506,14 @@ def test_the_superseded_records_are_in_set_order():  # claim 33
     rules = {"SW-CFG-015": whole_frame(set="sw-cfg-015-v3")}
     assert ms.check_document(document2(rules, {"SW-CFG-015": [older, newer]})) == []
     assert any("set order" in p for p in ms.check_document(document2(rules, {"SW-CFG-015": [newer, older]})))
+
+
+def test_the_current_record_is_of_a_later_set_than_each_superseded_one():  # claim 33
+    older = whole_withdrawn("precision_below_bar", 10, 15, set="sw-mcp-013-v2")
+    assert ms.check_document(document2({"SW-MCP-013": whole_frame(36, 18, set="sw-mcp-013-v3")}, {"SW-MCP-013": [older]})) == []
+    for current in ("sw-mcp-013-v0", "sw-mcp-013-v1"):
+        problems = ms.check_document(document2({"SW-MCP-013": whole_frame(36, 18, set=current)}, {"SW-MCP-013": [older]}))
+        assert any("later set" in p for p in problems), current
 
 
 def test_the_gate_reads_a_version_2_document(tmp_path):  # claim 33

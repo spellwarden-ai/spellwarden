@@ -79,6 +79,7 @@ _MEASURED = {  # by design; recall and the planted catch may be null
     "split": _TOP - {"reason", "recall", "planted_catch", "design", *_WHOLE_ONLY},
     "whole_frame": _TOP - {"reason", "recall", "planted_catch", *_SPLIT_ONLY},
 }
+_WHOLE_WITHDRAWN = (_MEASURED["whole_frame"] - {"severity"}) | {"reason"}  # a withdrawal keeps its precision (8.6)
 
 
 def wilson(found: int, total: int) -> tuple[float, float]:
@@ -199,8 +200,15 @@ def check_record(rule_id: str, record: object) -> list[str]:
                         f"one of {', '.join(WHOLE_FRAME_REASONS)}")
     elif status == "withdrawn" and not whole and (record.get("reason") not in REASONS or not ({"g0", "holdout"} & set(record))):
         problems.append(f"{rule_id}: a withdrawn record holds g0 or holdout and a reason, one of {', '.join(REASONS)}")
-    if status == "withdrawn" and whole and record.get("reason") == "precision_below_bar" and "precision" not in record:
-        problems.append(f"{rule_id}: a record withdrawn for precision_below_bar keeps its precision")
+    if whole and status == "withdrawn":
+        # Spec 8.6: every member of a measured record but severity, and a reason; the precision stays for both reasons.
+        absent = sorted(_WHOLE_WITHDRAWN - set(record))
+        if absent:
+            problems.append(f"{rule_id}: a whole-frame withdrawn record lacks {absent[0]}")
+        if "severity" in record:
+            problems.append(f"{rule_id}: a withdrawn record holds no severity, only a measured one does")
+    if whole and status == "measured" and "reason" in record:
+        problems.append(f"{rule_id}: a measured record holds no reason, only a withdrawn one does")
     if not isinstance(record.get("set"), str) or _SET_NAME.fullmatch(record["set"]) is None:
         problems.append(f"{rule_id}: set is not a set name")
     if any(len(text) > MAX_STRING for text in _strings(record)):
@@ -256,6 +264,9 @@ def _consistency_problems(rule_id: str, record: Mapping, name: str, counts: Mapp
     g0 = record["g0"]
     if whole:
         units, components = g0["flagged_units"], g0["components"]
+        if units != counts["flagged"]:
+            problems.append(f"{rule_id}: g0.flagged_units is {units} and scored.flagged is {counts['flagged']}, but the scored "
+                            "units of a whole-frame set are its flagged units")
         in_band = (units >= WHOLE_FRAME_G0[0] and components >= WHOLE_FRAME_G0[1]
                    and not (units >= G0_UNITS and components >= G0_COMPONENTS))
         if not g0["passed"] or not in_band:
@@ -286,6 +297,7 @@ def _superseded_problems(rules: Mapping, superseded: Mapping) -> list[str]:
             problems.append(f"{rule_id}: superseded is not a non-empty list of records")
             continue
         current = rules[rule_id].get("set") if isinstance(rules[rule_id], Mapping) else None
+        newest = _set_number(current)
         sets, numbers = [], []
         for number, record in enumerate(earlier, start=1):
             found = check_record(rule_id, record)
@@ -299,6 +311,8 @@ def _superseded_problems(rules: Mapping, superseded: Mapping) -> list[str]:
                 problems.append(f"{rule_id}: superseded record {number} names the same set as another record of the rule")
             sets.append(name)
             numbers.append(_set_number(name))
+            if newest is not None and numbers[-1] is not None and numbers[-1] >= newest:
+                problems.append(f"{rule_id}: the current record is not of a later set than superseded record {number}")
         if None not in numbers and numbers != sorted(set(numbers)):
             problems.append(f"{rule_id}: the superseded records are not in set order")
     return problems
