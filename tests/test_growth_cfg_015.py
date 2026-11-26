@@ -38,7 +38,7 @@ def files(*args: str, command: str = "npx") -> dict:
 
 
 def test_module_constants():
-    assert (RULE_ID, TITLE, SEVERITY) == ("SW-CFG-015", "MCP server given the whole home directory or the filesystem root", "medium")
+    assert (RULE_ID, TITLE, SEVERITY) == ("SW-CFG-015", "MCP server given the whole home directory or the filesystem root", "high")
     assert OWASP == ("MCP02", "ASI03") and NIST == ("AC-6",) and ATLAS == ("AML.T0053",) and MALICIOUS is False
     assert _PER_SERVER == 20
 
@@ -56,7 +56,7 @@ def test_an_argument_after_a_filesystem_servers_package_fires(path):
     findings = run(files(path))
     assert [(f.location.path, f.location.line) for f in findings] == [(".mcp.json", 3)]
     first = findings[0]
-    assert (first.rule_id, first.severity, first.title, first.malicious_indicator) == (RULE_ID, "medium", TITLE, False)
+    assert (first.rule_id, first.severity, first.title, first.malicious_indicator) == (RULE_ID, "high", TITLE, False)
     assert first.evidence in ("filesystem: args[2] is the whole home directory", "filesystem: args[2] is the filesystem root")
     assert len(first.fingerprint) == 64
 

@@ -36,7 +36,7 @@ def test_each_new_rule_has_exactly_the_title_area_severity_and_tags_of_the_spec(
                        ("AML.T0080.000",), ("AST03",), False, ()),
         "SW-MCP-013": ("Tool takes a command line to run as an argument", "mcp", "medium", ("ASI05",), ("MCP05",), ("SI-10",),
                        ("AML.T0053",), (), False, ()),
-        "SW-CFG-015": ("MCP server given the whole home directory or the filesystem root", "config", "medium", ("ASI03",),
+        "SW-CFG-015": ("MCP server given the whole home directory or the filesystem root", "config", "high", ("ASI03",),
                        ("MCP02",), ("AC-6",), ("AML.T0053",), (), False, ()),
     }
     for rule in BASELINE:
@@ -114,15 +114,19 @@ def test_a_config_scan_reports_the_whole_home_grant():
     document = parse_mcp_config(".mcp.json", json.dumps({"mcpServers": servers}, indent=2).encode())
     result = scan_agent_config([document], BASELINE)
     assert [(f.rule_id, f.severity, f.location.path, f.location.line) for f in result.findings] == [
-        ("SW-CFG-015", "medium", ".mcp.json", 3)]
+        ("SW-CFG-015", "high", ".mcp.json", 3)]
 
 
 # --- claims 23 and 24: presets and the analyzer ----------------------------------------------------------------------------------
 
-def test_each_new_rule_has_a_preset_row_that_raises_under_strict_and_keeps_its_severity_under_low_noise():
+def test_each_new_rule_has_a_preset_row_that_follows_its_measured_severity():
     by_id = {rule.id: rule for rule in BASELINE}
     for rule_id in NEW:
         rule = by_id[rule_id]
+        if rule_id == "SW-CFG-015":  # measured at high: no preset lowers it
+            assert rule.severity_default == "high", rule_id
+            assert [presets.severity_of(rule, name) for name in (presets.STRICT, presets.BALANCED, presets.LOW_NOISE)] == ["high"] * 3
+            continue
         assert presets.severity_of(rule, presets.STRICT) == "high", rule_id
         assert presets.severity_of(rule, presets.LOW_NOISE) == rule.severity_default == "medium", rule_id
         assert presets.severity_of(rule, presets.BALANCED) == "medium", rule_id

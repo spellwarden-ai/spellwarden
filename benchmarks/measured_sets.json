@@ -1,12 +1,62 @@
 {
-  "measured_sets": 1,
+  "measured_sets": 2,
   "rules": {
     "SW-CFG-015": {
-      "limits": [
-        "It does not see what a server does with the folder it is given, a grant made outside the arguments a client file holds, or every environment variable."
+      "candidate_commit": "9a4bfa4b442932c97f7118809c9e2d55a1cbcdde",
+      "design": "whole_frame",
+      "frame": {
+        "collected": "2026-11-25",
+        "components": 8786,
+        "kind": "server entry",
+        "units": 9859
+      },
+      "frozen_at": "2026-11-26",
+      "frozen_sha256": "0009c5a7f789d4b8eb22dde3a48436a79d3c2afff4a5ad4b09458e2d4f54992d",
+      "g0": {
+        "components": 16,
+        "flagged_units": 22,
+        "passed": true
+      },
+      "kinds": [
+        "mcp-config",
+        "settings"
       ],
-      "set": "sw-cfg-015-v1",
-      "status": "pending"
+      "limits": [
+        "It does not see what a server does with the folder it is given, a grant made outside the arguments a client file holds, or every environment variable.",
+        "The set was scored whole: no part of it was held out, and the rule was not tuned on it.",
+        "The two labellers' agreement was reported and not used as a gate at stage 1, because fewer than 30 units carried both labellers' labels there.",
+        "The set is a random sample of the public files that GitHub code search lists under these file names."
+      ],
+      "measured_on": "2026-11-26",
+      "owner_audit": {
+        "agreement": 0.753333,
+        "items": 150
+      },
+      "planted_catch": {
+        "caught": 99,
+        "planted": 100
+      },
+      "precision": {
+        "high": 1.0,
+        "low": 0.851345,
+        "value": 1.0
+      },
+      "recall": {
+        "high": 0.84819,
+        "low": 0.470141,
+        "method": "posterior median and 95% interval from the labelled residual sample, Jeffreys prior on the positive share, 20,000 draws",
+        "value": 0.661271
+      },
+      "scored": {
+        "ambiguous": 0,
+        "benign": 0,
+        "error": 0,
+        "flagged": 22,
+        "positive": 22
+      },
+      "set": "sw-cfg-015-v2",
+      "severity": "high",
+      "status": "measured"
     },
     "SW-MCP-013": {
       "limits": [
@@ -22,5 +72,32 @@
       "set": "sw-skl-038-v1",
       "status": "pending"
     }
+  },
+  "superseded": {
+    "SW-CFG-015": [
+      {
+        "frame": {
+          "collected": "2026-11-25",
+          "components": 8786,
+          "kind": "server entry",
+          "units": 9859
+        },
+        "g0": {
+          "components": 16,
+          "flagged_units": 22,
+          "passed": false
+        },
+        "limits": [
+          "It does not see what a server does with the folder it is given, a grant made outside the arguments a client file holds, or every environment variable."
+        ],
+        "reason": "g0_failed",
+        "set": "sw-cfg-015-v1",
+        "split": {
+          "holdout_units": 5035,
+          "tuning_units": 4824
+        },
+        "status": "withdrawn"
+      }
+    ]
   }
 }

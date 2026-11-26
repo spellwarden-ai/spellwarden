@@ -147,7 +147,7 @@ Ids are `SW-SKL-NNN` (skill packages), `SW-MCP-NNN` (probed MCP servers), `SW-CF
 | SW-CFG-010 | Literal value under a secret name in an MCP server configuration | high | MCP01, MCP07 | IA-5 | AML.T0083 |  |
 | SW-CFG-012 | MCP server configured to approve every tool call automatically | high | ASI02 | AC-6, CM-7 | AML.T0053 |  |
 | SW-CFG-013 | Database or cluster MCP server with write access although a read-only mode exists | high | ASI03, MCP02 | AC-3, AC-6 | AML.T0053 |  |
-| SW-CFG-015 | MCP server given the whole home directory or the filesystem root | medium | ASI03, MCP02 | AC-6 | AML.T0053 |  |
+| SW-CFG-015 | MCP server given the whole home directory or the filesystem root | high | ASI03, MCP02 | AC-6 | AML.T0053 |  |
 | SW-REG-001 | Skill package not admitted in the organisation's private registry | high | ASI04 | SR-3 | AML.T0010.005 | AST09 |
 | SW-REG-002 | MCP server not admitted in the organisation's private registry | high | MCP09 | SR-3 | AML.T0010.005 | AST09 |
 | SW-REG-003 | Agent content the private registry cannot judge | high | ASI04 | SR-3 | AML.T0010.005 | AST09 |
@@ -185,7 +185,11 @@ The numbers SW-SKL-016 to 018, SW-SKL-020 to 030, SW-SKL-033 to 035, SW-CFG-011 
 A rule that is not a skill rule, or whose question the labels "malicious" and "benign skill" do not answer, is measured on a set of its own before it is released, by the method in [benchmarks/README.md](benchmarks/README.md#rules-measured-on-a-set-of-their-own). The set is never published, because it holds third-party text; this table is the record of what it gave: the size of the set, the units the frozen rule flagged that were scored (the half kept back for scoring, or the whole frame when too few units were flagged to split it), its precision with the 95% Wilson interval, its recall with its interval, the severity the precision gives and what the rule does not see. A rule whose precision does not reach the medium bar is not released.
 
 <!-- measured-sets:start -->
-No rule is measured on a set of its own in this version.
+| Rule | Set | Flagged units scored | Precision | Recall | Severity | Measured | What it does not see |
+|---|---|---|---|---|---|---|---|
+| SW-CFG-015 | 9,859 units of public MCP client configuration files | 22 (whole frame) | 100.0% (85.1% to 100.0%) | 66.1% (47.0% to 84.8%) | high | 2026-11-26 | It does not see what a server does with the folder it is given, a grant made outside the arguments a client file holds, or every environment variable. The set was scored whole: no part of it was held out, and the rule was not tuned on it. The two labellers' agreement was reported and not used as a gate at stage 1, because fewer than 30 units carried both labellers' labels there. The set is a random sample of the public files that GitHub code search lists under these file names. |
+
+SW-CFG-015 was first measured on a split design and withdrawn by the count gate: 22 flagged units from 16 components, where 60 and 20 were needed.
 <!-- measured-sets:end -->
 
 ## Measured rates
@@ -756,7 +760,7 @@ A rule a later release adds is `balanced` in every preset until a release gives 
 | `SW-CFG-010` | Literal value under a secret name in an MCP server configuration | high | high | high | high |
 | `SW-CFG-012` | MCP server configured to approve every tool call automatically | high | high | high | high |
 | `SW-CFG-013` | Database or cluster MCP server with write access although a read-only mode exists | high | high | high | high |
-| `SW-CFG-015` | MCP server given the whole home directory or the filesystem root | medium | high | medium | an access grant the user may intend: strict raises |
+| `SW-CFG-015` | MCP server given the whole home directory or the filesystem root | high | high | high | measured at high on its whole frame: never lowered |
 | `SW-MCP-001` | Server lists tools without authentication | high | high | high | high: never lowered, although it fires on 16,546 census hosts, most of them public read-only servers by design; the largest remaining source of MCP noise |
 | `SW-MCP-002` | Static key authentication instead of OAuth | medium | high | medium | authentication: strict raises |
 | `SW-MCP-003` | OAuth dynamic client registration (deprecated; use Client ID Metadata Documents) | medium | medium | low | protocol migration; 5,366 census hosts (63% of OAuth servers) |

@@ -22,6 +22,8 @@ def test_no_rule_row_sits_outside_the_marked_section():
     # GitHub and PyPI end the table at the HTML comment, so a stray `| SW-` row renders as raw pipes.
     text = README.read_text(encoding="utf-8").replace("\r\n", "\n")
     outside = text[:text.index(START)] + text[text.index(END) + len(END):]
+    # The record of the rules measured on a set of their own is a table of its own (tests/test_measured_sets.py), one row per rule.
+    outside = outside[:outside.index("<!-- measured-sets:start -->")] + outside[outside.index("<!-- measured-sets:end -->"):]
     stray = [line for line in outside.splitlines() if line.startswith("| SW-")]
     assert stray == [], f"rule rows outside the generated section: {stray[:3]}"
 

@@ -864,7 +864,7 @@
             },
             {
               "defaultConfiguration": {
-                "level": "warning"
+                "level": "error"
               },
               "help": {
                 "markdown": "Give the server only the project folder it needs, for example the path of the repository, and keep the home directory and the credentials in it out of its reach.\n\n[How to fix SW-CFG-015](https://spellwarden.ai/docs/rules/sw-cfg-015?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
@@ -874,7 +874,7 @@
               "id": "SW-CFG-015",
               "name": "MCPServerGivenTheWholeHomeDirectoryOrTheFilesystemRoot",
               "properties": {
-                "security-severity": "5.5",
+                "security-severity": "8.0",
                 "tags": [
                   "security",
                   "ASI03",

@@ -33,7 +33,7 @@ from spellwarden_scan.rules.patterns import name_tokens
 
 RULE_ID = "SW-CFG-015"
 TITLE = "MCP server given the whole home directory or the filesystem root"
-SEVERITY = "medium"
+SEVERITY = "high"
 OWASP = ("MCP02", "ASI03")
 NIST = ("AC-6",)
 ATLAS = ("AML.T0053",)

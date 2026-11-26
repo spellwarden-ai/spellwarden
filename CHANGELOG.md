@@ -4,9 +4,9 @@
 
 Rules version 2026.11.10 (69 rules): three rules are new and no rule changed, so every finding 1.24.0 reports keeps its rule,
 location, evidence and fingerprint. The new rules read content that no rule read before, so a project can get a new finding at
-medium that it did not have on 1.24.0, and `--fail-on medium` or the `balanced` preset can fail a build that passed. The preset
-`strict` raises each of the three to high, and `low-noise` keeps them at medium. The baseline and accepted findings record them
-like any other finding.
+medium, or at high for `SW-CFG-015`, that it did not have on 1.24.0, and `--fail-on medium` or the `balanced` preset can fail a
+build that passed. `SW-CFG-015` is high under every preset; the preset `strict` raises the other two to high, and `low-noise`
+keeps them at medium. The baseline and accepted findings record them like any other finding.
 
 1.25.0: rules for OWASP entries that had none. The documentation listed five entries with no rule: ASI06 Memory & Context
 Poisoning, ASI08 Cascading Failures, MCP05 Command Injection & Execution, MCP08 Lack of Audit and Telemetry and MCP10 Context
@@ -29,12 +29,15 @@ and each gets a rule; a third rule is added under MCP02 because the roadmap name
   names `tools` in `lists_cut`. It does not see injection through an argument of a tool that runs a fixed program, whether a
   server filters the command, servers that run as local processes (the probe reaches remote servers only) or code
   interpreters whose parameter is `code`.
-- `SW-CFG-015` "MCP server given the whole home directory or the filesystem root" (config, medium, MCP02 and ASI03): an
+- `SW-CFG-015` "MCP server given the whole home directory or the filesystem root" (config, high, MCP02 and ASI03): an
   argument that is the home directory itself (`~`, `$HOME`, `/Users/<name>`, `C:\Users\<name>`) or the root (`/`, `C:\`),
   after the package of a filesystem server, as the value of `--root`, `--allowed-directories` and the other flags that name a
   directory, or as the host side of a bind mount of `docker` or `podman`. A deeper path and a project variable are quiet. The
   evidence names the form and never the path. "Every environment variable" is not checked: the fields the scanner reads
-  cannot express it. `SW-CFG-014` stays reserved.
+  cannot express it. `SW-CFG-014` stays reserved. Measured on its whole frame of 9,859 server entries, because the frozen rule
+  flagged 22 of them, fewer than the 60 a split needs: every flagged unit was labelled, no part was held out, the rule was not
+  tuned and the set was scored once. Precision 100.0% (85.1% to 100.0%) on 22 labelled units, so the severity is high; recall
+  66.1% (47.0% to 84.8%).
 
 Measurement. Each rule is released only at the severity its own measurement gives, and a rule that does not reach the bar is
 taken out before the release. The measurement is on a set of public files of its own, never published because it holds

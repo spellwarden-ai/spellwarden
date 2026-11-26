@@ -31,7 +31,8 @@ def test_the_changelog_has_the_1_25_0_entry_above_1_24_0():
     for rule_id in NEW:
         assert f'`{rule_id}` "{titles[rule_id]}"' in entry, rule_id
     for needle in ("ASI06", "ASI08", "MCP05", "MCP08", "MCP10", "`SW-OB-008`", "`SW-CFG-014` stays reserved", "medium",
-                   "`strict` raises each of the three to high", "`low-noise` keeps them at medium", "`--fail-on medium`",
+                   "`SW-CFG-015` is high under every preset", "`strict` raises the other two to high", "`low-noise` keeps them at medium",
+                   "`--fail-on medium`",
                    f"`normalise.RULES` lists {len(normalise.RULES)} rules", "never silences it", "`lists_cut`",
                    "never the path", "benchmarks/measured_sets.json", "`python benchmarks/rule_benchmark.py check-measured --release`",
                    "at least 0.60 and a lower end of at least 0.45", "0.80 and 0.65", "fewer than 20 labelled units cannot be assessed",
@@ -41,6 +42,22 @@ def test_the_changelog_has_the_1_25_0_entry_above_1_24_0():
     for character in ("—", "–", "!"):
         assert character not in raw
     assert not re.search(r"<(?:precision|recall|interval|figure|number|date)>", raw), "a figure is still a slot"
+
+
+# rule: (its bullet's head, the figures the measurement gave, the frame it was measured on).
+CHANGELOG_MEASURED = {
+    "SW-CFG-015": ('(config, high, MCP02 and ASI03)', ("100.0% (85.1% to 100.0%)", "66.1% (47.0% to 84.8%)"), "9,859 server entries"),
+}
+
+
+def test_the_changelog_gives_each_measured_rule_its_severity_precision_recall_and_whole_frame():
+    _raw, entry = _entry()
+    for rule_id, (head, figures, frame) in CHANGELOG_MEASURED.items():
+        start = entry.index(f"- `{rule_id}` ")
+        bullet = re.split(r" - `SW-| Measurement\. ", entry[start + 1:], maxsplit=1)[0]
+        for needle in (head, *figures, f"Measured on its whole frame of {frame}", "every flagged unit was labelled", "no part was held out",
+                       "was not tuned", "scored once", "Precision", "recall"):
+            assert needle in bullet, (rule_id, needle)
 
 
 def test_contributing_says_a_rule_that_is_not_a_skill_rule_is_measured_on_a_set_of_its_own():

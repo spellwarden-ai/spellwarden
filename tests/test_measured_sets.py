@@ -540,3 +540,32 @@ def test_the_five_records_of_the_code_tooling_make_a_valid_version_2_document():
 def text_is_file_form(built: dict) -> bool:
     text = ms.dump(built)
     return json.loads(text) == built and text.isascii() and text.endswith("\n")
+
+
+# --- the records of the rules that are measured (1.25.0) ----------------------------------------------------------------------------
+
+# rule: (severity, precision value, precision low, precision high, recall value, scored flagged, scored positive, scored benign).
+MEASURED_1_25_0 = {
+    "SW-CFG-015": ("high", 1.0, 0.851345, 1.0, 0.661271, 22, 22, 0),
+}
+
+
+def committed() -> dict:
+    return json.loads((ROOT / "benchmarks" / "measured_sets.json").read_text(encoding="utf-8"))
+
+
+@pytest.mark.parametrize("rule_id", sorted(MEASURED_1_25_0))
+def test_a_measured_rule_holds_its_whole_frame_record_and_keeps_the_withdrawn_split_record(rule_id):
+    severity, value, low, high, recall, flagged, positive, benign = MEASURED_1_25_0[rule_id]
+    loaded = committed()
+    record = loaded["rules"][rule_id]
+    assert loaded["measured_sets"] == 2 and record["status"] == "measured" and record["design"] == "whole_frame"
+    assert record["severity"] == severity == ms.severity_for(positive, benign)
+    assert record["precision"] == {"value": value, "low": low, "high": high} and record["recall"]["value"] == recall
+    assert record["scored"] == {"flagged": flagged, "positive": positive, "benign": benign, "ambiguous": 0, "error": 0}
+    assert record["frame"]["collected"] == "2026-11-25" and record["measured_on"] == "2026-11-26"
+    assert [(old["status"], old["reason"], old["set"]) for old in loaded["superseded"][rule_id]] == [
+        ("withdrawn", "g0_failed", rule_id.lower() + "-v1")]
+    assert "whole frame" in ms.block(loaded)
+    registered = {rule.id: rule.severity_default for rule in RuleSet.baseline()}
+    assert registered[rule_id] == record["severity"]
