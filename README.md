@@ -189,7 +189,7 @@ A rule that is not a skill rule, or whose question the labels "malicious" and "b
 | SW-CFG-015 | 9,859 units of public MCP client configuration files | 22 (whole frame) | 100.0% (85.1% to 100.0%) | 66.1% (47.0% to 84.8%) | high | 2026-11-26 | It does not see what a server does with the folder it is given, a grant made outside the arguments a client file holds, or every environment variable. The set was scored whole: no part of it was held out, and the rule was not tuned on it. The two labellers' agreement was reported and not used as a gate at stage 1, because fewer than 30 units carried both labellers' labels there. The set is a random sample of the public files that GitHub code search lists under these file names. |
 | SW-MCP-013 | 210,994 units of public tool lists of remote MCP servers | 54 (whole frame) | 66.7% (53.4% to 77.8%) | 13.1% (7.2% to 20.8%) | medium | 2026-11-26 | It does not see injection through an argument of a tool that runs a fixed program, whether a server filters the command, servers that run as local processes, or code interpreters whose parameter is code. The set was scored whole: no part of it was held out, and the rule was not tuned on it. |
 
-SW-SKL-038 was measured and withdrawn before release (g0 failed); its id stays reserved.
+SW-SKL-038 was withdrawn by the count gate before release: 2 flagged units from 2 components, where 60 and 20 were needed; its id stays reserved.
 
 SW-CFG-015 was first measured on a split design and withdrawn by the count gate: 22 flagged units from 16 components, where 60 and 20 were needed.
 

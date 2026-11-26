@@ -259,7 +259,8 @@ def test_the_block_has_a_row_for_a_measured_rule_and_a_line_for_a_withdrawn_one_
     lines = text.splitlines()
     assert lines[0].startswith("| Rule | Set |") and lines[2].startswith("| SW-MCP-013 | 35,000 units of public tool lists of remote MCP servers | 42 (holdout half) |")
     assert "75.0% (59.8% to 85.8%)" in lines[2] and "10.0% (0.0% to 20.0%) " in lines[2] and "| medium | 2026-12-02 |" in lines[2]
-    assert "SW-SKL-038" not in text.split("\n\n")[0] and lines[-1] == "SW-CFG-015 was measured and withdrawn before release (g0 failed); its id stays reserved."
+    assert "SW-SKL-038" not in text.split("\n\n")[0] and lines[-1] == ("SW-CFG-015 was withdrawn by the count gate before release: 12 flagged units from 5 components, "
+                                                                                           "where 60 and 20 were needed; its id stays reserved.")
     assert "It does not see local servers." in lines[2]
 
 
@@ -533,7 +534,7 @@ def test_the_five_records_of_the_code_tooling_make_a_valid_version_2_document():
     text = ms.block(built)
     assert "SW-CFG-015 was first measured on a split design and withdrawn by the count gate: 22 flagged units from 16 components" in text
     assert "SW-MCP-013 was first measured on a split design and withdrawn by the count gate: 54 flagged units from 47 components" in text
-    assert "SW-SKL-038 was measured and withdrawn before release (g0 failed); its id stays reserved." in text
+    assert "SW-SKL-038 was withdrawn by the count gate before release: 2 flagged units from 2 components, where 60 and 20 were needed; its id stays reserved." in text
     assert "| 22 (whole frame) |" in text and "| 54 (whole frame) |" in text
 
 
@@ -579,5 +580,5 @@ def test_the_memory_rule_is_withdrawn_by_the_count_gate_its_id_stays_reserved_an
     assert record["g0"] == {"flagged_units": 2, "components": 2, "passed": False} and record["frame"]["units"] == 18789
     assert "SW-SKL-038" not in loaded["superseded"] and ms.check_record("SW-SKL-038", record) == []
     assert "SW-SKL-038" not in {rule.id for rule in RuleSet.baseline()}
-    assert "SW-SKL-038 was measured and withdrawn before release (g0 failed); its id stays reserved." in ms.block(loaded)
+    assert "SW-SKL-038 was withdrawn by the count gate before release: 2 flagged units from 2 components, where 60 and 20 were needed; its id stays reserved." in ms.block(loaded)
     assert rb.main(["check-measured", "--release"]) == 0

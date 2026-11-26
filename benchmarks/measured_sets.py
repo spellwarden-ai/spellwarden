@@ -368,6 +368,10 @@ def _counts(record: Mapping) -> Mapping:
 
 
 def _withdrawn_line(rule_id: str, record: Mapping) -> str:
+    if record["reason"] == "g0_failed" and "g0" in record:
+        g0 = record["g0"]
+        return (f"{rule_id} was withdrawn by the count gate before release: {g0['flagged_units']} flagged units from "
+                f"{g0['components']} components, where {G0_UNITS} and {G0_COMPONENTS} were needed; its id stays reserved.")
     reason = record["reason"].replace("_", " ")
     line = f"{rule_id} was measured and withdrawn before release ({reason})"
     counts = record.get("scored", record.get("holdout"))
