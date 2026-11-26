@@ -182,7 +182,7 @@ The numbers SW-SKL-016 to 018, SW-SKL-020 to 030, SW-SKL-033 to 035, SW-CFG-011 
 
 ### Rules measured on a set of their own
 
-A rule that is not a skill rule, or whose question the labels "malicious" and "benign skill" do not answer, is measured on a set of its own before it is released, by the method in [benchmarks/README.md](benchmarks/README.md#rules-measured-on-a-set-of-their-own). The set is never published, because it holds third-party text; this table is the record of what it gave: the size of the set, the units the frozen rule flagged in the half kept back for scoring, its precision with the 95% Wilson interval, its recall with its interval, the severity the precision gives and what the rule does not see. A rule whose precision does not reach the medium bar is not released.
+A rule that is not a skill rule, or whose question the labels "malicious" and "benign skill" do not answer, is measured on a set of its own before it is released, by the method in [benchmarks/README.md](benchmarks/README.md#rules-measured-on-a-set-of-their-own). The set is never published, because it holds third-party text; this table is the record of what it gave: the size of the set, the units the frozen rule flagged that were scored (the half kept back for scoring, or the whole frame when too few units were flagged to split it), its precision with the 95% Wilson interval, its recall with its interval, the severity the precision gives and what the rule does not see. A rule whose precision does not reach the medium bar is not released.
 
 <!-- measured-sets:start -->
 No rule is measured on a set of its own in this version.

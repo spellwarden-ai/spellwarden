@@ -307,10 +307,29 @@ How a set is made, in words:
   fixed before any count. Files already named in `manifest.json` as held-out, test-split or Trail of Bits items are left out.
 - The rule is tuned on the tuning half only, in at most three rounds, and frozen at a signed commit.
 - A count gate comes before any labelling: the frozen rule must flag at least 60 distinct units from at least 20 owners or
-  namespaces in the whole frame. A rule that does not is withdrawn, and the count is told to the owner.
+  namespaces in the whole frame to be scored on a held-out half. A rule that flags fewer is scored whole or withdrawn (see the two
+  designs below), and the count is told to the owner.
 - Every unit the frozen rule flags in the held-out half is labelled by two language models with different batching, and a third
   settles their disagreements. The owner audits a sample of 150 items. Planted synthetic positives show how many positives the
   labellers miss. The held-out half is scored once.
+
+Two designs. The count gate also chooses how the set is scored, by a rule fixed before any count is read:
+
+| Flagged units in the whole frame | Design |
+|---|---|
+| at least 60, from at least 20 owners or namespaces | split: tuned on one half, scored on the held-out half |
+| 20 to 59 from at least 10 owners or namespaces, or 60 or more from 10 to 19 | whole frame: not tuned, not split, every flagged unit labelled, scored once |
+| anything else | withdrawn before any labelling |
+
+A whole-frame set keeps the frame, the rule and the frozen commit of the split set it comes from, so nothing is collected again and
+the rule is not changed. It is scored once over all of its flagged units, with the same bar. A rule below the bar is withdrawn and
+its measured precision is published; a rule with fewer than 20 labelled units is withdrawn with its counts. When an agreement
+check covers fewer than 30 units it is reported and does not stop the run, and the record says so. The record of a whole-frame set
+says `"design": "whole_frame"` and holds `scored`, the counts of its flagged units, where a split record holds `split`, `tuning` and
+`holdout`; a record without `design` is a split record. Its limits say that the set was scored whole.
+
+A rule that is measured again keeps its earlier records. `measured_sets.json` is then version 2, with the rule's current record
+under `rules` and the earlier ones under `superseded`, in the order of their sets and unchanged; the README shows a line for each.
 
 The bar. Precision is the true positives over the flagged units labelled positive or benign, with its 95% Wilson interval; a unit
 labelled ambiguous or error is left out and shown in two lines that count it each way. Medium needs a precision of at least 0.60
@@ -324,7 +343,7 @@ planted positives may be easier than real ones. The sets are public files and re
 
 Commands:
 
-- `python benchmarks/rule_benchmark.py check-measured` checks that every record is valid and that every registered rule of
+- `python benchmarks/rule_benchmark.py check-measured` checks that every record, superseded ones included, is valid by the rules of its own design, and that every registered rule of
   `PENDING_RULES` has one. `make check` runs it through `tests/test_measured_sets.py`, so a `pending` record does not stop
   development.
 - `python benchmarks/rule_benchmark.py check-measured --release` exits 1 unless every rule of `PENDING_RULES` is `measured` at the

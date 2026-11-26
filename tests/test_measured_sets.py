@@ -1,9 +1,10 @@
-"""The record of a rule's own measurement (P6-9 spec 8.6, claims 26 to 30): `benchmarks/measured_sets.py`, its JSON file and the
+"""The record of a rule's own measurement (P6-9 spec 8.6, claims 26 to 35): `benchmarks/measured_sets.py`, its JSON file and the
 release gate `rule_benchmark.py check-measured`. `benchmarks/` is not in an sdist, so this file skips there."""
 from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -256,7 +257,7 @@ def test_the_block_has_a_row_for_a_measured_rule_and_a_line_for_a_withdrawn_one_
                  "g0": {"flagged_units": 12, "components": 5, "passed": False}}
     text = ms.block(document(SW_SKL_038=pending("SW-SKL-038"), SW_MCP_013=measured(), SW_CFG_015=withdrawn))
     lines = text.splitlines()
-    assert lines[0].startswith("| Rule | Set |") and lines[2].startswith("| SW-MCP-013 | 35,000 units of public tool lists of remote MCP servers | 42 |")
+    assert lines[0].startswith("| Rule | Set |") and lines[2].startswith("| SW-MCP-013 | 35,000 units of public tool lists of remote MCP servers | 42 (holdout half) |")
     assert "75.0% (59.8% to 85.8%)" in lines[2] and "10.0% (0.0% to 20.0%) " in lines[2] and "| medium | 2026-12-02 |" in lines[2]
     assert "SW-SKL-038" not in text.split("\n\n")[0] and lines[-1] == "SW-CFG-015 was measured and withdrawn before release (g0 failed); its id stays reserved."
     assert "It does not see local servers." in lines[2]
@@ -324,3 +325,218 @@ def test_a_null_frame_makes_the_release_check_exit_1_and_nothing_renders(tmp_pat
 def test_the_rounds_of_tuning_may_be_one_to_three():
     for rounds in (1, 2, 3):
         assert ms.check_record("SW-MCP-013", measured(tuning={"rounds": rounds, "flagged": 40, "positive": 30, "benign": 10})) == []
+
+
+# --- whole-frame records and version 2 (spec 8.6 and 8.1a, claims 31 to 35) --------------------------------------------------------
+
+LIMIT_WHOLE = "The set was scored whole: no part of it was held out, and the rule was not tuned on it."
+SETS = Path(__file__).resolve().parents[2] / "code-p6-9-sets" / "data" / "rule-sets"  # the `code` tooling's records, beside this checkout
+SETS = Path(os.environ.get("SPELLWARDEN_RULE_SETS", SETS))
+
+
+def whole_frame(positive: int = 22, benign: int = 0, **more) -> dict:
+    """A valid whole-frame `measured` record (spec 8.6): no split, tuning or holdout; `scored` holds the flagged units of the frame."""
+    record = measured(positive, benign, set="sw-cfg-015-v2", design="whole_frame")
+    for name in ("split", "tuning", "holdout"):
+        del record[name]
+    record["g0"] = {"flagged_units": positive + benign, "components": 16, "passed": True}
+    record["scored"] = {"flagged": positive + benign, "positive": positive, "benign": benign, "ambiguous": 0, "error": 0}
+    record["limits"] = ["It does not see local servers.", LIMIT_WHOLE]
+    record.update(more)
+    return record
+
+
+def whole_withdrawn(reason: str, positive: int, benign: int, **more) -> dict:
+    record = whole_frame(positive, benign, status="withdrawn", reason=reason)
+    del record["severity"]
+    record.update(more)
+    return record
+
+
+def not_assessable(**more) -> dict:
+    """22 flagged units of which only 10 are labelled positive or benign: fewer than 20, so the set cannot be assessed."""
+    low, high = ms.wilson(5, 10)
+    return whole_withdrawn("not_assessable", 5, 5, g0={"flagged_units": 22, "components": 16, "passed": True},
+                           scored={"flagged": 22, "positive": 5, "benign": 5, "ambiguous": 10, "error": 2},
+                           precision={"value": 0.5, "low": round(low, 3), "high": round(high, 3)}, **more)
+
+
+def document2(rules: dict, superseded: dict) -> dict:
+    return {"measured_sets": 2, "rules": rules, "superseded": superseded}
+
+
+def real_record(name: str) -> dict:
+    path = SETS / name / "record.json"
+    if not path.is_file():
+        pytest.skip(f"the `code` tooling's record {name} is not at {SETS}; set SPELLWARDEN_RULE_SETS to the rule-sets directory")
+    loaded = json.loads(path.read_text(encoding="utf-8"))
+    assert set(loaded) == {"rule", "record"}
+    return loaded["record"]
+
+
+def test_the_designs_and_the_band_of_a_whole_frame_set_are_the_specs():  # claim 32
+    assert ms.DESIGNS == ("split", "whole_frame") and ms.WHOLE_FRAME_G0 == (20, 10)
+
+
+def test_a_whole_frame_record_measured_or_withdrawn_is_valid():  # claim 31
+    assert ms.check_record("SW-CFG-015", whole_frame()) == []
+    assert ms.check_record("SW-CFG-015", whole_frame(recall=None, planted_catch=None)) == []
+    assert ms.check_record("SW-MCP-013", whole_frame(36, 18, set="sw-mcp-013-v2")) == []  # 0.667: medium
+    assert whole_frame(36, 18)["severity"] == "medium" and whole_frame()["severity"] == "high"
+    below = whole_withdrawn("precision_below_bar", 10, 15)
+    assert ms.check_record("SW-CFG-015", below) == []
+    short = not_assessable()
+    assert ms.check_record("SW-CFG-015", short) == []
+    assert ms.check_record("SW-CFG-015", {k: v for k, v in short.items() if k != "precision"}) == []
+
+
+def test_a_whole_frame_record_holds_no_split_tuning_or_holdout():  # claim 31
+    for name, block in (("split", {"tuning_units": 1, "holdout_units": 1}), ("tuning", {"rounds": 1, "flagged": 1, "positive": 1, "benign": 0}),
+                        ("holdout", {"flagged": 1, "positive": 1, "benign": 0, "ambiguous": 0, "error": 0})):
+        assert any(name in p for p in ms.check_record("SW-CFG-015", whole_frame(**{name: block}))), name
+    assert any("scored" in p for p in ms.check_record("SW-CFG-015", _without(whole_frame(), "scored")))
+    assert any("scored" in p for p in ms.check_record("SW-CFG-015", whole_frame(scored={"flagged": 22})))
+
+
+def test_a_whole_frame_g0_must_have_passed_and_lie_in_the_band():  # claim 31
+    def problems(**g0):
+        return ms.check_record("SW-CFG-015", whole_frame(g0={"flagged_units": 22, "components": 16, "passed": True, **g0}))
+    assert problems() == []
+    assert problems(flagged_units=20, components=10) == []
+    for g0 in ({"passed": False}, {"flagged_units": 19}, {"components": 9}, {"flagged_units": 60, "components": 20}):
+        assert any("count gate" in p for p in problems(**g0)), g0
+    assert problems(flagged_units=60, components=19) == [] and problems(flagged_units=59, components=20) == []
+    assert any("count gate" in p for p in ms.check_record("SW-CFG-015", whole_withdrawn(
+        "precision_below_bar", 10, 15, g0={"flagged_units": 25, "components": 16, "passed": False})))
+
+
+def test_a_whole_frame_record_is_never_withdrawn_by_g0_and_a_withdrawal_agrees_with_its_counts():  # claim 31
+    assert any("reason" in p for p in ms.check_record("SW-CFG-015", whole_withdrawn("g0_failed", 10, 15)))
+    assert any("reason" in p for p in ms.check_record("SW-CFG-015", whole_withdrawn("because", 10, 15)))
+    assert any("scored" in p or "g0" in p for p in ms.check_record("SW-CFG-015", _without(whole_withdrawn("precision_below_bar", 10, 15), "scored")))
+    assert any("precision_below_bar" in p for p in ms.check_record("SW-CFG-015", whole_withdrawn("precision_below_bar", 20, 2)))  # meets the bar
+    assert any("not_assessable" in p for p in ms.check_record("SW-CFG-015", whole_withdrawn("not_assessable", 10, 15)))  # 25 are enough
+    assert any("precision_below_bar" in p for p in ms.check_record("SW-CFG-015", whole_withdrawn("precision_below_bar", 5, 5)))  # too few
+    assert any("precision" in p for p in ms.check_record("SW-CFG-015", whole_withdrawn(
+        "precision_below_bar", 10, 15, precision={"value": 0.9, "low": 0.8, "high": 0.95})))
+
+
+def test_a_whole_frame_precision_and_severity_are_recomputed_from_scored():  # claim 31
+    record = whole_frame(36, 18, set="sw-mcp-013-v2")
+    assert any("precision.value" in p for p in ms.check_record("SW-MCP-013", {**record, "precision": {**record["precision"], "value": 0.7}}))
+    assert any("severity" in p for p in ms.check_record("SW-MCP-013", {**record, "severity": "high"}))
+    assert any("scored.flagged" in p for p in ms.check_record("SW-MCP-013", {**record, "scored": {**record["scored"], "flagged": 55}}))
+    assert any("does not meet the bar" in p for p in ms.check_record("SW-MCP-013", whole_frame(10, 10, severity="medium")))
+    assert any("planted_catch" in p for p in ms.check_record("SW-MCP-013", {**record, "planted_catch": {"caught": 101, "planted": 100}}))
+
+
+def test_a_design_that_is_unknown_and_a_split_record_with_scored_are_refused_and_a_record_without_design_is_a_split_record():  # claim 31
+    assert any("design" in p for p in ms.check_record("SW-CFG-015", whole_frame(design="halves")))
+    assert any("design" in p for p in ms.check_record("SW-CFG-015", whole_frame(design=None)))
+    split = measured()
+    assert "design" not in split and ms.check_record("SW-MCP-013", split) == []
+    assert ms.check_record("SW-MCP-013", {**split, "design": "split"}) == []
+    assert any("scored" in p for p in ms.check_record("SW-MCP-013", {**split, "scored": split["holdout"]}))
+    assert any("split" in p for p in ms.check_record("SW-CFG-015", _without(whole_frame(design="split"), "scored")))
+
+
+def test_a_version_2_document_checks_each_superseded_record_by_its_own_design():  # claim 33
+    split_withdrawn = {**pending("SW-CFG-015"), "status": "withdrawn", "reason": "g0_failed",
+                       "g0": {"flagged_units": 22, "components": 16, "passed": False}}
+    rules = {"SW-CFG-015": whole_frame(), "SW-MCP-013": measured(set="sw-mcp-013-v2")}
+    assert ms.check_document(document2(rules, {"SW-CFG-015": [split_withdrawn]})) == []
+    assert ms.check_document(document2(rules, {})) == []
+    second = whole_withdrawn("precision_below_bar", 10, 15, set="sw-cfg-015-v3")
+    assert ms.check_document(document2({**rules, "SW-CFG-015": second}, {"SW-CFG-015": [split_withdrawn, whole_frame()]})) == []
+
+
+@pytest.mark.parametrize("document_, needle", [
+    (lambda _w, r: {"measured_sets": 2, "rules": r}, "the file is not"),
+    (lambda _w, r: {**document2(r, {}), "extra": 1}, "the file is not"),
+    (lambda _w, _r: {**document(**{"SW_CFG_015": whole_frame()}), "superseded": {}}, "the file is not"),
+    (lambda _w, r: {"measured_sets": 3, "rules": r, "superseded": {}}, "the file is not"),
+    (lambda _w, r: document2(r, []), "superseded is not an object"),
+    (lambda w, r: document2(r, {"SW-CFG-015": w}), "list of records"),
+    (lambda w, r: document2(r, {"SW-SKL-038": [w]}), "not in rules"),
+    (lambda w, r: document2(r, {"SW-CFG-015": [{**w, "set": "sw-cfg-015-v2"}]}), "same set"),
+    (lambda w, r: document2(r, {"SW-CFG-015": [w, w]}), "same set"),
+    (lambda _w, r: document2(r, {"SW-CFG-015": [pending("SW-CFG-015")]}), "superseded"),
+    (lambda w, r: document2(r, {"SW-CFG-015": [{**w, "reason": "g0_failed"}]}), "reason"),
+    (lambda w, r: document2(r, {"SW-CFG-015": [{**w, "g0": {"flagged_units": 22, "components": 16}}]}), "superseded"),
+])
+def test_a_version_2_document_with_a_bad_superseded_member_is_refused(document_, needle):  # claim 33
+    withdrawn = whole_withdrawn("precision_below_bar", 10, 15, set="sw-cfg-015-v1")
+    rules = {"SW-CFG-015": whole_frame(), "SW-MCP-013": measured(set="sw-mcp-013-v2")}
+    problems = ms.check_document(document_(withdrawn, rules))
+    assert problems and any(needle in p for p in problems), problems
+
+
+def test_the_superseded_records_are_in_set_order():  # claim 33
+    older = whole_withdrawn("precision_below_bar", 10, 15, set="sw-cfg-015-v1")
+    newer = whole_withdrawn("precision_below_bar", 10, 15, set="sw-cfg-015-v2")
+    rules = {"SW-CFG-015": whole_frame(set="sw-cfg-015-v3")}
+    assert ms.check_document(document2(rules, {"SW-CFG-015": [older, newer]})) == []
+    assert any("set order" in p for p in ms.check_document(document2(rules, {"SW-CFG-015": [newer, older]})))
+
+
+def test_the_gate_reads_a_version_2_document(tmp_path):  # claim 33
+    rules = {rule_id: pending(rule_id) for rule_id in ms.PENDING_RULES}
+    code, _out, _err = _run(tmp_path, document2(rules, {}))
+    assert code == 0
+
+
+def test_the_block_says_flagged_units_scored_with_the_design_in_words():  # claim 34
+    text = ms.block(document2({"SW-CFG-015": whole_frame(), "SW-MCP-013": measured(set="sw-mcp-013-v2")}, {}))
+    lines = text.splitlines()
+    assert "| Flagged units scored |" in lines[0] and "Holdout flagged" not in text
+    assert "| 22 (whole frame) |" in lines[2] and "| 42 (holdout half) |" in lines[3]
+
+
+def test_the_block_shows_a_withdrawn_precision_or_counts_and_one_line_for_each_superseded_record():  # claim 34
+    below = whole_withdrawn("precision_below_bar", 10, 15)
+    short = not_assessable()
+    split_withdrawn = {**pending("SW-MCP-013"), "status": "withdrawn", "reason": "g0_failed",
+                       "g0": {"flagged_units": 54, "components": 47, "passed": False}}
+    text = ms.block(document2({"SW-CFG-015": below, "SW-MCP-013": short}, {"SW-MCP-013": [split_withdrawn]}))
+    lines = text.splitlines()
+    assert lines[0] == "No rule is measured on a set of its own in this version." and lines[1] == ""
+    assert lines[2] == "SW-CFG-015 was measured and withdrawn before release (precision below bar): precision 40.0% (23.4% to 59.3%) "\
+        "over 25 flagged units scored on the whole frame; its id stays reserved."
+    assert lines[4] == "SW-MCP-013 was measured and withdrawn before release (not assessable): 5 positive, 5 benign, 10 ambiguous and "\
+        "2 error among 22 flagged units scored on the whole frame; its id stays reserved."
+    assert lines[6] == "SW-MCP-013 was first measured on a split design and withdrawn by the count gate: 54 flagged units from 47 "\
+        "components, where 60 and 20 were needed."
+    assert len(lines) == 7 and not any(line.startswith("|") for line in lines)
+    only = ms.block(document2({"SW-MCP-013": whole_frame(36, 18, set="sw-mcp-013-v2")}, {"SW-MCP-013": [split_withdrawn]}))
+    assert only.splitlines()[-1] == lines[6] and only.splitlines()[-2] == ""
+
+
+def test_the_block_of_a_version_2_document_without_superseded_records_is_the_one_of_version_1():  # claim 34
+    assert ms.block(document2({rule_id: pending(rule_id) for rule_id in ms.PENDING_RULES}, {})) == ms.block(all_pending())
+
+
+def test_a_whole_frame_record_of_the_code_tooling_passes_unchanged():  # claim 35
+    for rule_id, name in (("SW-CFG-015", "sw-cfg-015-v2"), ("SW-MCP-013", "sw-mcp-013-v2")):
+        record = real_record(name)
+        assert record["design"] == "whole_frame" and record["set"] == name
+        assert ms.check_record(rule_id, record) == [], name
+
+
+def test_the_five_records_of_the_code_tooling_make_a_valid_version_2_document():  # claims 33 and 35
+    records = {name: real_record(name) for name in ("sw-cfg-015-v1", "sw-cfg-015-v2", "sw-mcp-013-v1", "sw-mcp-013-v2", "sw-skl-038-v1")}
+    for rule_id, name in (("SW-CFG-015", "sw-cfg-015-v1"), ("SW-MCP-013", "sw-mcp-013-v1"), ("SW-SKL-038", "sw-skl-038-v1")):
+        assert ms.check_record(rule_id, records[name]) == [], name  # the v1 records pass unchanged, each by its own design
+    built = document2({"SW-CFG-015": records["sw-cfg-015-v2"], "SW-MCP-013": records["sw-mcp-013-v2"], "SW-SKL-038": records["sw-skl-038-v1"]},
+                      {"SW-CFG-015": [records["sw-cfg-015-v1"]], "SW-MCP-013": [records["sw-mcp-013-v1"]]})
+    assert ms.check_document(built) == []
+    assert text_is_file_form(built)
+    text = ms.block(built)
+    assert "SW-CFG-015 was first measured on a split design and withdrawn by the count gate: 22 flagged units from 16 components" in text
+    assert "SW-MCP-013 was first measured on a split design and withdrawn by the count gate: 54 flagged units from 47 components" in text
+    assert "SW-SKL-038 was measured and withdrawn before release (g0 failed); its id stays reserved." in text
+    assert "| 22 (whole frame) |" in text and "| 54 (whole frame) |" in text
+
+
+def text_is_file_form(built: dict) -> bool:
+    text = ms.dump(built)
+    return json.loads(text) == built and text.isascii() and text.endswith("\n")
