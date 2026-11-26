@@ -64,6 +64,19 @@ def _load_disguise():
 DISGUISE = _load_disguise()
 
 
+def _load_measured_sets():
+    """`measured_sets.py` beside this file, loaded by its path as `disguise.py` is (P6-9 spec 8.6): the record of the rules that
+    are measured on a set of their own, its validator and the release check."""
+    path = Path(__file__).with_name("measured_sets.py")
+    spec = importlib.util.spec_from_file_location("spellwarden_benchmark_measured_sets", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+MEASURED_SETS = _load_measured_sets()
+
+
 def _load_community():
     """`scripts/community_corpus.py`, the one reader of `fixtures/community/`, loaded by its path (community reports spec 8.3):
     the tests load this script by its path too, so a plain import would fail."""
@@ -2195,6 +2208,21 @@ def command_check_history(args: argparse.Namespace, _environ: Mapping[str, str])
     return 1 if problems else 0
 
 
+def command_check_measured(args: argparse.Namespace, _environ: Mapping[str, str]) -> int:
+    """P6-9 spec 8.6: every record of `measured_sets.json` is valid and each registered rule that needs a measurement of its
+    own has one. With `--release`, each of them is `measured` at the severity it is registered at and a `withdrawn` one is not
+    registered. Exit 0 passed, 1 a problem (one line each), 2 a file that cannot be read."""
+    try:
+        document = MEASURED_SETS.load(args.records)
+    except ValueError as error:
+        raise BenchmarkError("measured_sets", str(error)) from None
+    registered = {rule.id: rule.severity_default for rule in RuleSet.baseline()}
+    problems = MEASURED_SETS.release_problems(document, registered, release=args.release)
+    for problem in problems:
+        print(problem)
+    return 1 if problems else 0
+
+
 class _Parser(argparse.ArgumentParser):
     def error(self, message: str) -> None:
         raise BenchmarkError("usage", message)
@@ -2237,11 +2265,15 @@ def parser() -> argparse.ArgumentParser:
     steps.add_argument("--manifest", type=Path, default=manifest)
     steps.add_argument("--cache", type=Path, default=None)
     steps.add_argument("--offline", action="store_true")
+    measured = commands.add_parser("check-measured")
+    measured.add_argument("--records", type=Path, default=BENCHMARKS / "measured_sets.json")
+    measured.add_argument("--release", action="store_true")
     return main_parser
 
 
 COMMANDS = {"fetch": command_fetch, "run": command_run, "render": command_render, "changelog-lines": command_changelog_lines,
-            "check-changelog": command_check_changelog, "check-history": command_check_history, "steps": command_steps}
+            "check-changelog": command_check_changelog, "check-history": command_check_history, "steps": command_steps,
+            "check-measured": command_check_measured}
 
 
 def main(argv: list[str] | None = None, environ: Mapping[str, str] | None = None) -> int:

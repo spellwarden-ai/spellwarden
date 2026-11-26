@@ -35,13 +35,13 @@ def hooks_doc(*commands, path="p/hooks/hooks.json", event="PreToolUse", matcher=
     return parse_hooks(path, json.dumps({"hooks": {event: [group]}}, indent=2).encode())
 
 
-def test_rule_table_has_the_twelve_config_rules_with_their_mappings():
+def test_rule_table_has_the_thirteen_config_rules_with_their_mappings():
     every = RULES.by_area("config")
-    assert [r.id for r in every] == [f"SW-CFG-{n:03d}" for n in (*range(1, 11), 12, 13)]  # SW-CFG-011 and 014 are reserved
-    assert len(RULES) == 66
+    assert [r.id for r in every] == [f"SW-CFG-{n:03d}" for n in (*range(1, 11), 12, 13, 15)]  # SW-CFG-011 and 014 are reserved
+    assert len(RULES) == 68
     rules = [r for r in every if r.id <= "SW-CFG-010"]
     assert {r.id: (r.title, r.severity_default, r.owasp_agentic + r.owasp_mcp, r.nist, r.malicious_indicator)
-            for r in every if r.id >= "SW-CFG-012"} == {
+            for r in every if "SW-CFG-012" <= r.id <= "SW-CFG-013"} == {
         "SW-CFG-012": ("MCP server configured to approve every tool call automatically", "high", ("ASI02",), ("AC-6", "CM-7"), False),
         "SW-CFG-013": ("Database or cluster MCP server with write access although a read-only mode exists", "high",
                        ("ASI03", "MCP02"), ("AC-3", "AC-6"), False),

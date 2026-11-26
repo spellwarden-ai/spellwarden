@@ -49,6 +49,7 @@ file has no deprecation marker, so "not deprecated" means "present in release 20
 | SW-CFG-010 | AML.T0083 Credentials from AI Agent Configuration | none |
 | SW-CFG-012 | AML.T0053 AI Agent Tool Invocation | none |
 | SW-CFG-013 | AML.T0053 AI Agent Tool Invocation | none |
+| SW-CFG-015 | AML.T0053 AI Agent Tool Invocation | none |
 | SW-MCP-001 | AML.T0084.001 Discover AI Agent Configuration: Tool Definitions; AML.T0132 Misconfigured or Publicly Exposed AI Services | none |
 | SW-MCP-002 | no technique (authentication method, transport and protocol-version hygiene) | none |
 | SW-MCP-003 | no technique (authentication method, transport and protocol-version hygiene) | none |
@@ -61,6 +62,7 @@ file has no deprecation marker, so "not deprecated" means "present in release 20
 | SW-MCP-010 | no technique (authentication method, transport and protocol-version hygiene) | none |
 | SW-MCP-011 | AML.T0110.000 AI Agent Tool Poisoning: Definition and Instructions; AML.T0051.001 LLM Prompt Injection: Indirect | none |
 | SW-MCP-012 | AML.T0109 AI Supply Chain Rug Pull; AML.T0110.000 AI Agent Tool Poisoning: Definition and Instructions | none |
+| SW-MCP-013 | AML.T0053 AI Agent Tool Invocation | none |
 | SW-REG-001 | AML.T0010.005 Supply Chain Compromise: AI Agent Tool | AST09 |
 | SW-REG-002 | AML.T0010.005 Supply Chain Compromise: AI Agent Tool | AST09 |
 | SW-REG-003 | AML.T0010.005 Supply Chain Compromise: AI Agent Tool | AST09 |

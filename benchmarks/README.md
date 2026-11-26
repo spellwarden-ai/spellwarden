@@ -12,7 +12,7 @@ release workflow runs it again for every release, on Linux and Windows, against 
 ## What it measures
 
 - Rules only. No model is called: the model-assisted analyzer (`--analyze`) is not part of this table.
-- The 20 skill rules (SW-SKL) on skill packages. A skill scan cannot fire the other 46 rules (SW-MCP, SW-CFG, SW-REG, SW-A2A),
+- The 20 skill rules (SW-SKL) on skill packages. A skill scan cannot fire the other 48 rules (SW-MCP, SW-CFG, SW-REG, SW-A2A),
   which judge MCP servers, configuration, the registry gate and A2A agent cards, so the table lists them as not measured here
   and never shows them as 0%.
 - Each rule at its own severity, the scanner's behaviour without a preset (`balanced`).
@@ -292,6 +292,77 @@ The release preparation records the entry before the tag, because a workflow sta
    the release unless it gets the same numbers. It also checks that the earlier entries are those the last release published,
    then attaches `rule-benchmark.json` and `rule-benchmark.md` to the GitHub release.
 
+## Rules measured on a set of their own
+
+The 20 skill rules above are measured on skills. A rule that reads something else (the tool list of a probed server, an MCP
+client configuration), or that asks a question the labels "malicious" and "benign skill" do not answer, is measured on a set of
+its own before it is released. The sets hold third-party text, so they are never published. This repository holds only the
+record of each set, `measured_sets.json`: counts, hashes and dates, and never a sample, a host, a path, a tool name or a quote.
+`measured_sets.py` checks that record, works out the severity it gives and writes the table that the README shows between its
+`measured-sets:start` and `measured-sets:end` markers.
+
+How a set is made, in words:
+
+- A frame of public units is collected once. It is split by owner or namespace into a tuning half and a held-out half, by a rule
+  fixed before any count. Files already named in `manifest.json` as held-out, test-split or Trail of Bits items are left out.
+- The rule is tuned on the tuning half only, in at most three rounds, and frozen at a signed commit.
+- A count gate comes before any labelling: the frozen rule must flag at least 60 distinct units from at least 20 owners or
+  namespaces in the whole frame to be scored on a held-out half. A rule that flags fewer is scored whole or withdrawn (see the two
+  designs below), and the count is told to the owner.
+- Every unit the frozen rule flags in the held-out half is labelled by two language models with different batching, and a third
+  settles their disagreements. The owner audits a sample of 150 items. Planted synthetic positives show how many positives the
+  labellers miss. The held-out half is scored once.
+
+Two designs. The count gate also chooses how the set is scored, by a rule fixed before any count is read:
+
+| Flagged units in the whole frame | Design |
+|---|---|
+| at least 60, from at least 20 owners or namespaces | split: tuned on one half, scored on the held-out half |
+| 20 to 59 from at least 10 owners or namespaces, or 60 or more from 10 to 19 | whole frame: not tuned, not split, every flagged unit labelled, scored once |
+| anything else | withdrawn before any labelling |
+
+A whole-frame set keeps the frame, the rule and the frozen commit of the split set it comes from, so nothing is collected again and
+the rule is not changed. It is scored once over all of its flagged units, with the same bar. A rule below the bar is withdrawn and
+its measured precision is published; a rule with fewer than 20 labelled units is withdrawn with its counts. When an agreement
+check covers fewer than 30 units it is reported and does not stop the run, and the record says so. The record of a whole-frame set
+says `"design": "whole_frame"` and holds `scored`, the counts of its flagged units, where a split record holds `split`, `tuning` and
+`holdout`; a record without `design` is a split record. Its limits say that the set was scored whole.
+
+A rule that is measured again keeps its earlier records. `measured_sets.json` is then version 2, with the rule's current record
+under `rules` and the earlier ones under `superseded`, in the order of their sets and unchanged; the README shows a line for each.
+
+The bar. Precision is the true positives over the flagged units labelled positive or benign, with its 95% Wilson interval; a unit
+labelled ambiguous or error is left out and shown in two lines that count it each way. Medium needs a precision of at least 0.60
+and a lower end of the interval of at least 0.45. High needs 0.80 and 0.65. Fewer than 20 labelled units cannot be assessed. No
+new rule is released at critical or at low. A rule that misses the medium bar is not released, and its OWASP entry says what
+answers the entry instead. Recall is never a condition of release and is always published, with its interval, next to the
+catch rate of the planted positives.
+
+What the numbers do not show. The labellers are language models of one family, so their agreement can overstate validity. The
+planted positives may be easier than real ones. The sets are public files and remote servers, not every customer's content.
+
+Commands:
+
+- `python benchmarks/rule_benchmark.py check-measured` checks that every record, superseded ones included, is valid by the rules of its own design, and that every registered rule of
+  `PENDING_RULES` has one. `make check` runs it through `tests/test_measured_sets.py`, so a `pending` record does not stop
+  development.
+- `python benchmarks/rule_benchmark.py check-measured --release` exits 1 unless every rule of `PENDING_RULES` is `measured` at the
+  severity it is registered at, and every `withdrawn` rule is out of the rule set. The release workflow runs it before the build.
+  Exit codes are those of the rest of the harness: 0 passed, 1 a difference, 2 a file that cannot be read.
+- `python benchmarks/measured_sets.py render` writes the README table from the record, and `render --check` compares it.
+
+After the measurement, one signed commit for each rule, on the branch of the work and after it is rebased onto `origin/main`:
+
+- A rule that met the bar: set its `SEVERITY` constant to the severity of the record, set the severity in its row of
+  `src/spellwarden_cli/presets.py` (`strict` one level above, never above high, and `low-noise` equal to the rule's own), run
+  `python benchmarks/measured_sets.py render`, regenerate the README tables with `spellwarden rules --format markdown` and
+  `presets.table_markdown`, and write its precision and recall with their intervals into the CHANGELOG entry.
+- A rule that failed the count gate, missed the bar or could not be assessed: set its record to `withdrawn` with the reason
+  (`g0_failed`, `precision_below_bar` or `not_assessable`), take its module, registration, fixtures, preset row, README row,
+  row of `tests/data/released_rule_ids.json`, tags and tests out in the same commit, and keep its id reserved.
+- The branch is not merged before these commits: with a `pending` record, `check-measured --release` refuses every release of
+  `main`.
+
 ## Files
 
 - `manifest.json`: the sets, their sources, pins, files and hashes. It holds no sample text. It is written once by
@@ -300,6 +371,8 @@ The release preparation records the entry before the tag, because a workflow sta
 - `RESULTS.md`: the full table, generated from `results.json` by `rule_benchmark.py render`.
 - `requirements.txt`: `pyarrow`, hash-pinned, to read the parquet table.
 - `rule_benchmark.py`: the one command (`fetch`, `run`, `render`, `changelog-lines`, `check-changelog`, `check-history`, `steps`).
+- `measured_sets.json`: the record of each rule that is measured on a set of its own, counts, hashes and dates only; `measured_sets.py` checks it,
+  works out the severity it gives and writes the README table. `rule_benchmark.py check-measured` is the release gate that reads it.
 - `disguise.py`: the generator of the disguised samples, loaded by `rule_benchmark.py`. It is seeded, works in memory and
   writes, prints and runs nothing.
 - `build_manifest.py`: turns the frozen measurement manifests into `manifest.json`; run once, never by `make check` or CI.

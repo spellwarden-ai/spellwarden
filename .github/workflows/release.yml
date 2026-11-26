@@ -31,6 +31,8 @@ jobs:
           version="$(uv run --locked python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
           test "${GITHUB_REF_NAME}" = "v${version}" || { echo "tag ${GITHUB_REF_NAME} is not v${version}"; exit 1; }
           echo "VERSION=${version}" >> "$GITHUB_ENV"
+      - name: Every rule that needs a measurement of its own has one, at the severity it is registered at
+        run: uv run --locked python benchmarks/rule_benchmark.py check-measured --release
       - run: make check
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
         with:

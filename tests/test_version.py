@@ -1,4 +1,4 @@
-"""The current release is 1.24.0, which makes the normalised scan faster and ends a scan that reaches a time limit incomplete
+"""The current release is 1.25.0, which adds two rules (rules version 2026.11.10; P6-9); 1.24.0 makes the normalised scan faster and ends a scan that reaches a time limit incomplete
 (`--time-limit`, `Deadline`, `TimeLimit`), without changing a rule (rules version 2026.11.9, unchanged); 1.23.0 reads an archive's
 links inside the scanned tree, measures the path bound on the path
 in the repository, bounds an archive's entries and makes the command's link out of the scan root an error, without changing a
@@ -31,10 +31,20 @@ PYPROJECT = Path(__file__).resolve().parents[1] / "pyproject.toml"
 
 
 def test_the_versions():
-    assert __version__ == "1.24.0"
+    assert __version__ == "1.25.0"
     assert tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))["project"]["version"] == __version__
-    assert RULES_VERSION == "2026.11.9"
-    assert len(RuleSet.baseline()) == 66
+    assert RULES_VERSION == "2026.11.10"
+    assert len(RuleSet.baseline()) == 68
+
+
+def test_the_rules_version_parses_as_three_integers_and_follows_2026_11_9_in_numeric_order():
+    """D11 (P6-9 spec 8.12): `2026.11.10` sorts before `2026.11.9` as text and after it as numbers. The one place the command
+    compares two rules versions is `connected._version`, which reads each part as an integer."""
+    from spellwarden_cli.connected import _version
+
+    parts = tuple(int(part) for part in RULES_VERSION.split("."))
+    assert len(parts) == 3 and parts > (2026, 11, 9)
+    assert _version(RULES_VERSION) > _version("2026.11.9") and RULES_VERSION < "2026.11.9"
 
 
 def test_the_changelog_has_the_1_16_0_entry_above_1_15_0():

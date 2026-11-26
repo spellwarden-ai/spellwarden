@@ -1,5 +1,64 @@
 # Changelog
 
+## 1.25.0 (2026-11-NN)
+
+Rules version 2026.11.10 (68 rules): two rules are new and no rule changed, so every finding 1.24.0 reports keeps its rule,
+location, evidence and fingerprint. The new rules read content that no rule read before, so a project can get a new finding at
+medium, or at high for `SW-CFG-015`, that it did not have on 1.24.0, and `--fail-on medium` or the `balanced` preset can fail a
+build that passed. `SW-CFG-015` is high under every preset; the preset `strict` raises `SW-MCP-013` to high, and `low-noise`
+keeps it at medium. The baseline and accepted findings record them like any other finding.
+
+1.25.0: rules for OWASP entries that had none. The documentation listed five entries with no rule: ASI06 Memory & Context
+Poisoning, ASI08 Cascading Failures, MCP05 Command Injection & Execution, MCP08 Lack of Audit and Telemetry and MCP10 Context
+Injection & Over-Sharing. For each, a check before install can see part of it or nothing. Two entries have a part it can see,
+and each was given a candidate rule; a third candidate was added under MCP02 because the roadmap named it. Two of the three are
+released, below. The third, `SW-SKL-038`, was withdrawn before the release.
+
+- `SW-MCP-013` "Tool takes a command line to run as an argument" (mcp, medium, MCP05 and ASI05): a probed tool whose input
+  schema has a free-text `command`, `cmd`, `commandLine`, `shell_command`, `bash_command`, `powershell_command`, `shell` or `bash` parameter with no
+  `enum` or `const`, and whose name or description says that it runs or executes. A claim by the server that the tool is
+  sandboxed or read-only never silences it. A tool whose schema the prober dropped for size is not judged, and the probe still
+  names `tools` in `lists_cut`. It does not see injection through an argument of a tool that runs a fixed program, whether a
+  server filters the command, servers that run as local processes (the probe reaches remote servers only) or code
+  interpreters whose parameter is `code`.
+  Measured on its whole frame of 210,994 tools, because the frozen rule flagged 54 of them, fewer than the 60 a split needs:
+  every flagged unit was labelled, no part was held out, the rule was not tuned and the set was scored once. Precision 66.7%
+  (53.4% to 77.8%) on 54 labelled units, so the severity is medium; recall 13.1% (7.2% to 20.8%).
+- `SW-CFG-015` "MCP server given the whole home directory or the filesystem root" (config, high, MCP02 and ASI03): an
+  argument that is the home directory itself (`~`, `$HOME`, `/Users/<name>`, `C:\Users\<name>`) or the root (`/`, `C:\`),
+  after the package of a filesystem server, as the value of `--root`, `--allowed-directories` and the other flags that name a
+  directory, or as the host side of a bind mount of `docker` or `podman`. A deeper path and a project variable are quiet. The
+  evidence names the form and never the path. "Every environment variable" is not checked: the fields the scanner reads
+  cannot express it. `SW-CFG-014` stays reserved. Measured on its whole frame of 9,859 server entries, because the frozen rule
+  flagged 22 of them, fewer than the 60 a split needs: every flagged unit was labelled, no part was held out, the rule was not
+  tuned and the set was scored once. Precision 100.0% (85.1% to 100.0%) on 22 labelled units, so the severity is high; recall
+  66.1% (47.0% to 84.8%).
+
+`SW-SKL-038` "Writes to an agent's memory or instruction files" was built and withdrawn by the count gate before the release: over
+18,789 public skill, command and instruction files it flagged 2 files from 2 components, too few to measure, so no scanner reports
+it and its id stays reserved.
+
+Measurement. Each rule is released only at the severity its own measurement gives, and a rule that does not reach the bar is
+taken out before the release. The measurement is on a set of public files of its own, never published because it holds
+third-party text; `benchmarks/measured_sets.json` holds its record (counts, hashes and dates) and `benchmarks/README.md` says
+how it is made. The bar is on precision on the units scored, with its 95% Wilson interval: the held-out half of a split set, or every flagged unit of a whole-frame set. Medium needs a precision of at least
+0.60 and a lower end of at least 0.45, high needs 0.80 and 0.65, and fewer than 20 labelled units cannot be assessed. Recall is
+never a condition and is always published with its interval. `python benchmarks/rule_benchmark.py check-measured --release`
+refuses a release in which a rule is not `measured` at the severity it is registered at, and the release workflow runs it before
+anything is built.
+
+Tags. MCP05 is now an allowed tag of the baseline. Organisation rules keep the tag lists of 1.2.x, so a pack that uses it is
+refused, and the pack schema is unchanged. ASI06 and ASI08 are not added: no rule carries them.
+
+Entries that stay without a detection rule. ASI06 Memory & Context Poisoning and MCP10 Context Injection & Over-Sharing: the check
+built for them was withdrawn by the count gate (above). A scan before install cannot see memory poisoned while an agent runs, memory
+kept outside files, or context shared across users, agents or sessions. Runtime traces list the sessions in which each skill, server
+and tool was used, and tool change alerts report a change to a tool after approval. ASI08 Cascading Failures is a fault that spreads between agents and tools while they
+run, so no file or tool list shows it before install; runtime traces show where a failure began and how far it went. MCP08 Lack
+of Audit and Telemetry cannot be seen in a file or a tool list either; the enforcement rule `SW-OB-008` asks for an audit
+record of every tool call, runtime traces keep the tool calls sent to Spellwarden, and the audit evidence pack carries the log
+of what people did in Spellwarden itself.
+
 ## 1.24.0 (2026-11-25)
 
 Rules version 2026.11.9, unchanged (66 rules): no rule detects anything new, and every finding 1.23.0 reports keeps its rule,

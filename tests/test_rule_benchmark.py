@@ -667,8 +667,9 @@ def test_measure_counts_read_items_only_and_lists_missed_malicious_items(tmp_pat
     entry = rb.measure(manifest, cache)
     assert entry["version"] == rb.SCANNER_VERSION and entry["rules_version"] == rb.RULES_VERSION
     assert entry["manifest_sha256"] == manifest.sha256 and entry["lines"] == ["medium", "high"]
-    assert len(entry["rules_measured"]) == 20 and entry["rules_measured"]["SW-SKL-015"] == "low"
-    assert len(entry["rules_not_measured"]) == 46 and entry["rules_not_measured"] == sorted(entry["rules_not_measured"])
+    skill_rules = len(rb.RuleSet.baseline().by_area("skill"))  # derived, so a rule added or withdrawn needs no edit here
+    assert len(entry["rules_measured"]) == skill_rules and entry["rules_measured"]["SW-SKL-015"] == "low"
+    assert len(entry["rules_not_measured"]) == len(rb.RuleSet.baseline()) - skill_rules and entry["rules_not_measured"] == sorted(entry["rules_not_measured"])
     malicious = entry["sets"]["alpha"]["strata"]["m"]
     assert malicious["items"] == 4 and malicious["unread"] == {"m-limit": "frontmatter_limit"}
     assert malicious["found"] == {"medium": 2, "high": 1}

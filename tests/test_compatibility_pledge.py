@@ -112,11 +112,12 @@ def test_the_scanner_keeps_the_pledge():
     assert pledge_problems(_baseline(), _rules(), __version__, _changelog()) == []
 
 
-def test_the_frozen_file_holds_the_66_rules_released_up_to_1_20_0():
+def test_the_frozen_file_holds_the_68_rules_released_up_to_1_25_0():
     baseline = _baseline()
     assert set(baseline) == {"how", "renamed", "retired", "rules"}
-    assert len(baseline["rules"]) == 66 and baseline["retired"] == []
-    assert {row["first_released"] for row in baseline["rules"].values()} == {"1.0.0", "1.2.0", "1.3.0", "1.4.0", "1.8.0", "1.15.0"}
+    assert len(baseline["rules"]) == 68 and baseline["retired"] == []
+    assert {row["first_released"] for row in baseline["rules"].values()} == {"1.0.0", "1.2.0", "1.3.0", "1.4.0", "1.8.0", "1.15.0",
+                                                                              "1.25.0"}
     assert baseline["rules"]["SW-MCP-011"] == {"first_released": "1.0.0", "title": "Tool description contains instruction-like text"}
     assert baseline["renamed"] == [{"from": "Tool description contains instruction-like text", "id": "SW-MCP-011",
                                     "release": "1.13.0", "to": "MCP server text contains instruction-like text"}]

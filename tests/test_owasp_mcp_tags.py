@@ -20,6 +20,8 @@ MCP_TAGS = {
     "SW-MCP-002": ("MCP01", "MCP07"),
     # MCP02 Privilege Escalation via Scope Creep: write access where a read-only mode exists.
     "SW-CFG-013": ("MCP02",),
+    # MCP02 also: a server given the whole home directory or the filesystem root is scope creep (SW-CFG-015, 1.25.0).
+    "SW-CFG-015": ("MCP02",),
     # MCP03 Tool Poisoning: instructions hidden in a tool's description (the entry's "Detection Indicators").
     "SW-MCP-011": ("MCP03",),
     # MCP03 also: a tool definition changed after it was approved (a rug pull), the entry's "tool definitions are modified".
@@ -34,6 +36,8 @@ MCP_TAGS = {
     # MCP06: instructions in content the agent retrieves into its context (here external content fetched without an
     # allowlist). Rules on a skill's own text or an agent card do not read MCP context and carry ASI01 only.
     "SW-SKL-019": ("MCP06",),
+    # MCP05 Command Injection & Execution: a tool that takes a free-text command line and runs it (SW-MCP-013, 1.25.0).
+    "SW-MCP-013": ("MCP05",),
     # MCP07 Insufficient Authentication & Authorization: no authentication, unprotected registration, unvalidated issuer.
     "SW-MCP-001": ("MCP07",),
     "SW-MCP-003": ("MCP07",),
@@ -51,7 +55,7 @@ ENFORCEMENT_MCP_TAGS = {
     "SW-OB-008": ("MCP08",),
 }
 
-NEW_MCP_TAGS = {"MCP03", "MCP04", "MCP06", "MCP07", "MCP08", "MCP09"}
+NEW_MCP_TAGS = {"MCP03", "MCP04", "MCP05", "MCP06", "MCP07", "MCP08", "MCP09"}
 BASELINE = tuple(RuleSet.baseline())
 
 

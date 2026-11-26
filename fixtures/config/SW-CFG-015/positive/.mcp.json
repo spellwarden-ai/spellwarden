@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem@2026.1.14", "~"]
+    },
+    "workspace": {
+      "command": "node",
+      "args": ["/opt/servers/workspace/server.js", "--root", "/"]
+    },
+    "sandbox": {
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "-v", "/Users/example:/data", "example/sandbox@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"]
+    }
+  }
+}

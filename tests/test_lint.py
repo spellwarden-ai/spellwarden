@@ -153,6 +153,6 @@ def test_lint_round_trips_and_an_older_dict_loads():
 
 def test_the_lint_ids_are_not_rules_and_the_rule_count_is_unchanged():
     rules = RuleSet.baseline()
-    assert len(rules) == 66
+    assert len(rules) == 68
     assert not any(rule.id.startswith("SW-LINT") for rule in rules)
     assert lint.LINT_IDS == ("SW-LINT-001", "SW-LINT-002", "SW-LINT-003", "SW-LINT-004") and set(lint.TITLES) == set(lint.LINT_IDS)

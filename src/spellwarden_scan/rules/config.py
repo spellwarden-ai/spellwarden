@@ -18,7 +18,9 @@ from spellwarden_scan.package import CodeBlock
 from spellwarden_scan.rules import Rule, make_rule
 from spellwarden_scan.rules import patterns as P
 from spellwarden_scan.rules.growth_cfg_012 import detect as _cfg_012
+from spellwarden_scan.rules import growth_cfg_015
 from spellwarden_scan.rules.growth_cfg_013 import detect as _cfg_013
+from spellwarden_scan.rules.growth_cfg_015 import detect as _cfg_015
 from spellwarden_scan.rules.patterns import name_tokens, secret_named
 from spellwarden_scan.rules.skill import (
     _host_of, _legacy_ipv4, decodes_and_runs, logical_commands, pipes_remote_to_shell,
@@ -38,6 +40,7 @@ TITLES = {
     "SW-CFG-010": "Literal value under a secret name in an MCP server configuration",
     "SW-CFG-012": "MCP server configured to approve every tool call automatically",
     "SW-CFG-013": "Database or cluster MCP server with write access although a read-only mode exists",
+    "SW-CFG-015": growth_cfg_015.TITLE,
 }
 # 1.21.0 (P6-15 spec 5, 6.2): each rule's fix sentence, beside its title, the table the owner approved on 2026-11-23
 FIXES = {
@@ -53,10 +56,12 @@ FIXES = {
     "SW-CFG-010": "Change the secret at its source, then replace the literal value with a reference such as ${NAME} that your client expands.",
     "SW-CFG-012": "Remove the setting that approves every tool call, or limit it to tools that only read, so the client asks before the others run.",
     "SW-CFG-013": "Add the server's read-only switch, and give write access to a separate entry that stays disabled until the work needs it.",
+    "SW-CFG-015": "Give the server only the project folder it needs, for example the path of the repository, and keep the home directory and the credentials in it out of its reach.",
 }
 _SEVERITY = {"SW-CFG-001": "high", "SW-CFG-002": "critical", "SW-CFG-003": "medium", "SW-CFG-004": "medium",
              "SW-CFG-005": "high", "SW-CFG-006": "critical", "SW-CFG-007": "critical", "SW-CFG-008": "high",
-             "SW-CFG-009": "medium", "SW-CFG-010": "high", "SW-CFG-012": "high", "SW-CFG-013": "high"}
+             "SW-CFG-009": "medium", "SW-CFG-010": "high", "SW-CFG-012": "high", "SW-CFG-013": "high",
+             "SW-CFG-015": growth_cfg_015.SEVERITY}
 _MALICIOUS = frozenset({"SW-CFG-006", "SW-CFG-007"})
 
 
@@ -954,4 +959,5 @@ RULES: tuple[Rule, ...] = (
     make_rule("SW-CFG-010", TITLES["SW-CFG-010"], "high", "config", owasp=("MCP01", "MCP07"), nist=("IA-5",), atlas=("AML.T0083",), detect=_cfg_010, fix=FIXES["SW-CFG-010"]),
     make_rule("SW-CFG-012", TITLES["SW-CFG-012"], "high", "config", owasp=("ASI02",), nist=("AC-6", "CM-7"), atlas=("AML.T0053",), detect=_cfg_012, fix=FIXES["SW-CFG-012"]),
     make_rule("SW-CFG-013", TITLES["SW-CFG-013"], "high", "config", owasp=("MCP02", "ASI03"), nist=("AC-3", "AC-6"), atlas=("AML.T0053",), detect=_cfg_013, fix=FIXES["SW-CFG-013"]),
+    make_rule("SW-CFG-015", TITLES["SW-CFG-015"], growth_cfg_015.SEVERITY, "config", owasp=growth_cfg_015.OWASP, nist=growth_cfg_015.NIST, atlas=growth_cfg_015.ATLAS, detect=_cfg_015, fix=FIXES["SW-CFG-015"]),
 )

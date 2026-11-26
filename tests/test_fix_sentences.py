@@ -47,6 +47,7 @@ SECTION_5 = {
     "SW-MCP-010": "Publish protected resource metadata at the address the 401 answer names, list your authorization server in it, and make that server's issuer match its address.",
     "SW-MCP-011": "Rewrite the description so it says only what the tool does and what its arguments mean, or stop using the server if you do not run it.",
     "SW-MCP-012": "Read each changed tool, then approve the new tool list if you expected the change, or remove the server from your agents if you did not.",
+    "SW-MCP-013": "Replace the free-text command with named operations that take typed arguments, or run the tool in a sandbox that allows a short list of programs and no network.",
     "SW-CFG-001": "Change the server address to https, or put a proxy you operate in front of a server that only offers http.",
     "SW-CFG-002": "Revoke the credential at its provider, then replace the value in the file with a reference such as ${NAME} that your client expands.",
     "SW-CFG-003": "Launch the server at an exact version, such as name@1.4.2 for npx, name==1.4.2 for uvx or an image digest, and update it through a reviewed change.",
@@ -59,6 +60,7 @@ SECTION_5 = {
     "SW-CFG-010": "Change the secret at its source, then replace the literal value with a reference such as ${NAME} that your client expands.",
     "SW-CFG-012": "Remove the setting that approves every tool call, or limit it to tools that only read, so the client asks before the others run.",
     "SW-CFG-013": "Add the server's read-only switch, and give write access to a separate entry that stays disabled until the work needs it.",
+    "SW-CFG-015": "Give the server only the project folder it needs, for example the path of the repository, and keep the home directory and the credentials in it out of its reach.",
     "SW-REG-001": "Request the skill's admission to your organisation's private registry with the link in the report, or take the skill out of the change.",
     "SW-REG-002": "Request the MCP server's admission to your organisation's private registry with the link in the report, or take the server out of the change.",
     "SW-REG-003": "Make the item identifiable, for example by pinning every package to an exact version and writing the launch out in full, then request its admission.",
@@ -143,6 +145,6 @@ def test_the_page_is_the_id_in_lower_case_and_an_organisation_rule_has_neither()
 
 def test_the_rules_listing_gives_each_rule_its_fix_and_page():
     listed = {entry["id"]: entry for entry in json.loads(rules_json(RuleSet.baseline()))}
-    assert len(listed) == 66
+    assert len(listed) == 68
     assert listed["SW-SKL-009"]["fix"] == SECTION_5["SW-SKL-009"]
     assert listed["SW-SKL-009"]["page"] == "https://spellwarden.ai/docs/rules/sw-skl-009"

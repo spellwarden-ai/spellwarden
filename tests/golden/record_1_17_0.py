@@ -33,8 +33,10 @@ ROOT_GLOBS = ("fixtures/skills/*/positive", "fixtures/skills/*/negative", "fixtu
               "tests/fixtures/homes/*", "tests/golden/1.0.0/repo", "tests/golden/1.13.0/repo")
 # Fixtures added after 1.17.0: not in the record. `fixtures/repos/preset/repo` is the wrappers' case for their `preset` input;
 # `fixtures/selection` holds every path 1.20.0 newly reads (Engine 1.20.0: scan selection, D33).
+# 1.25.0 adds the fixtures of SW-CFG-015.
 ADDED_AFTER_1_17_0 = ("fixtures/html-escape", "fixtures/presets", "fixtures/repos/preset/repo", "fixtures/selection",
-                      "fixtures/repos/follow-links/repo")
+                      "fixtures/repos/follow-links/repo",
+                      "fixtures/config/SW-CFG-015/positive", "fixtures/config/SW-CFG-015/negative")
 
 
 def _module(name: str, path: Path):

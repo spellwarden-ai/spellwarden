@@ -41,6 +41,8 @@ A rule that is merged has:
 
 A change to what a rule detects raises the rules version and the scanner's minor version. The maintainers make the release.
 
+A rule that is not a skill rule is measured on a set of its own before it is released, by the method in [benchmarks/README.md](benchmarks/README.md#rules-measured-on-a-set-of-their-own), and a rule whose precision does not meet the bar is not released.
+
 Keep the benchmark's test sets out of rule work. A rule may be worked on with the tuning half of the rule benchmark, the repository's fixtures and samples people report. The same holds for the normalisation steps the skill rules read through and for the choice of which rules read through them. The held-out half, the MaliciousSkillBench test split and the Trail of Bits skills are test sets: a pull request that changes a rule does not cite, quote or add as a fixture any sample of a test set, and does not give a test-set result as its reason. Maintainers do not open test-set samples when working on a rule. [benchmarks/README.md](benchmarks/README.md) describes the sets, and the published history shows every release's test-set rates beside its tuning-set rates. The community corpus in `fixtures/community/` is not a test set: it holds samples that people reported and rule changes were made for, so it is never used for a claim about rates, and a sample of a test set is not accepted into it.
 
 ## Work on the code

@@ -133,6 +133,7 @@ Ids are `SW-SKL-NNN` (skill packages), `SW-MCP-NNN` (probed MCP servers), `SW-CF
 | SW-MCP-010 | No protected resource metadata, or issuer not validated | medium | MCP07 | IA-5 |  |  |
 | SW-MCP-011 | MCP server text contains instruction-like text | high | ASI01, MCP03 | SI-10 | AML.T0110.000, AML.T0051.001 |  |
 | SW-MCP-012 | MCP server's tools changed since they were approved | high | ASI04, MCP03 | SI-7 | AML.T0109, AML.T0110.000 |  |
+| SW-MCP-013 | Tool takes a command line to run as an argument | medium | ASI05, MCP05 | SI-10 | AML.T0053 |  |
 | SW-CFG-001 | Remote MCP server over plain HTTP | high |  | SC-7 |  |  |
 | SW-CFG-002 | Credential written into an MCP server configuration | critical | MCP01, MCP07 | IA-5 | AML.T0055, AML.T0083 |  |
 | SW-CFG-003 | MCP server launched from an unpinned package | medium | ASI04, MCP04 | SR-3 | AML.T0010.005 | AST02, AST07 |
@@ -145,6 +146,7 @@ Ids are `SW-SKL-NNN` (skill packages), `SW-MCP-NNN` (probed MCP servers), `SW-CF
 | SW-CFG-010 | Literal value under a secret name in an MCP server configuration | high | MCP01, MCP07 | IA-5 | AML.T0083 |  |
 | SW-CFG-012 | MCP server configured to approve every tool call automatically | high | ASI02 | AC-6, CM-7 | AML.T0053 |  |
 | SW-CFG-013 | Database or cluster MCP server with write access although a read-only mode exists | high | ASI03, MCP02 | AC-3, AC-6 | AML.T0053 |  |
+| SW-CFG-015 | MCP server given the whole home directory or the filesystem root | high | ASI03, MCP02 | AC-6 | AML.T0053 |  |
 | SW-REG-001 | Skill package not admitted in the organisation's private registry | high | ASI04 | SR-3 | AML.T0010.005 | AST09 |
 | SW-REG-002 | MCP server not admitted in the organisation's private registry | high | MCP09 | SR-3 | AML.T0010.005 | AST09 |
 | SW-REG-003 | Agent content the private registry cannot judge | high | ASI04 | SR-3 | AML.T0010.005 | AST09 |
@@ -175,11 +177,28 @@ The severity in the table is each rule's worst case. Since 1.9.0 two MCP rules g
 
 Since 1.22.0 the skill rules SW-SKL-001, SW-SKL-003, SW-SKL-004, SW-SKL-005, SW-SKL-006, SW-SKL-007, SW-SKL-008, SW-SKL-009, SW-SKL-012, SW-SKL-013, SW-SKL-014, SW-SKL-019, SW-SKL-032 and SW-SKL-037 also read a normalised copy of the text, so that the same content written another way is still found. The steps, in this order: HTML character references such as `&#110;` are read as their character, a reference to a line break left as written; zero-width and other format characters are removed; compatibility forms such as full-width letters, ligatures and compatibility spaces are folded with Unicode NFKC; look-alike letters of the Cyrillic, Greek, Armenian and Latin extended blocks are folded to the ASCII letter they look like, in words that hold an ASCII letter or only such letters; each run of spaces and tabs inside a line, and each tab, becomes one space; base64 text of 16 characters or more is decoded, up to three layers, and the decoded text is read as part of the line it came from. The text as written is still matched first, exactly as 1.21.0 matched it, and a normalised reading only adds findings: a finding is added only at a line where the same rule found nothing in the text as written. The evidence of an added finding starts with "Matched after normalising:" and quotes the line as written, and its fingerprint is computed from the line as written, so a baseline written before keeps working and shows an added finding as new. Every other skill rule (SW-SKL-002, SW-SKL-010, SW-SKL-011, SW-SKL-015, SW-SKL-031 and SW-SKL-036) reads the text as written only. Normalisation follows the Unicode version of the Python that runs the scanner. A library caller passes `normalise=False` to `scan_skill_package` for the reading of 1.21.0. [Disguised content](#disguised-content) says what is measured and what stays out of reach.
 
-The numbers SW-SKL-016 to 018, SW-SKL-020 to 030, SW-SKL-033 to 035, SW-CFG-011 and SW-CFG-014 are reserved and unused. A rule id is never reused or renamed, and the id of a retired rule stays reserved as well (see [Schemas and compatibility](#schemas-and-compatibility)). Retired rules: none. `RuleSet.baseline()` returns these rules; `ruleset.with_rules(extra)` adds your own `Rule` objects built with `spellwarden_scan.rules.make_rule`.
+The numbers SW-SKL-016 to 018, SW-SKL-020 to 030, SW-SKL-033 to 035, SW-CFG-011 and SW-CFG-014 are reserved and unused, and so is SW-SKL-038: its rule was built and withdrawn by the count gate (2 flagged of 18,789 files, from 2 components) before it was released (see [Rules measured on a set of their own](#rules-measured-on-a-set-of-their-own)). A rule id is never reused or renamed, and the id of a retired rule stays reserved as well (see [Schemas and compatibility](#schemas-and-compatibility)). Retired rules: none. `RuleSet.baseline()` returns these rules; `ruleset.with_rules(extra)` adds your own `Rule` objects built with `spellwarden_scan.rules.make_rule`.
+
+### Rules measured on a set of their own
+
+A rule that is not a skill rule, or whose question the labels "malicious" and "benign skill" do not answer, is measured on a set of its own before it is released, by the method in [benchmarks/README.md](benchmarks/README.md#rules-measured-on-a-set-of-their-own). The set is never published, because it holds third-party text; this table is the record of what it gave: the size of the set, the units the frozen rule flagged that were scored (the half kept back for scoring, or the whole frame when too few units were flagged to split it), its precision with the 95% Wilson interval, its recall with its interval, the severity the precision gives and what the rule does not see. A rule whose precision does not reach the medium bar is not released.
+
+<!-- measured-sets:start -->
+| Rule | Set | Flagged units scored | Precision | Recall | Severity | Measured | What it does not see |
+|---|---|---|---|---|---|---|---|
+| SW-CFG-015 | 9,859 units of public MCP client configuration files | 22 (whole frame) | 100.0% (85.1% to 100.0%) | 66.1% (47.0% to 84.8%) | high | 2026-11-26 | It does not see what a server does with the folder it is given, a grant made outside the arguments a client file holds, or every environment variable. The set was scored whole: no part of it was held out, and the rule was not tuned on it. The two labellers' agreement was reported and not used as a gate at stage 1, because fewer than 30 units carried both labellers' labels there. The set is a random sample of the public files that GitHub code search lists under these file names. |
+| SW-MCP-013 | 210,994 units of public tool lists of remote MCP servers | 54 (whole frame) | 66.7% (53.4% to 77.8%) | 13.1% (7.2% to 20.8%) | medium | 2026-11-26 | It does not see injection through an argument of a tool that runs a fixed program, whether a server filters the command, servers that run as local processes, or code interpreters whose parameter is code. The set was scored whole: no part of it was held out, and the rule was not tuned on it. |
+
+SW-SKL-038 was withdrawn by the count gate before release: 2 flagged units from 2 components, where 60 and 20 were needed; its id stays reserved.
+
+SW-CFG-015 was first measured on a split design and withdrawn by the count gate: 22 flagged units from 16 components, where 60 and 20 were needed.
+
+SW-MCP-013 was first measured on a split design and withdrawn by the count gate: 54 flagged units from 47 components, where 60 and 20 were needed.
+<!-- measured-sets:end -->
 
 ## Measured rates
 
-What the rules find on fixed public sets of malicious and harmless skills, measured again for every release by the release workflow. Rules only: no model is called. A skill is found when the rules report at least one finding at or above the line (medium or above, or high or above, the lines `--fail-on` and the presets use), at each rule's own severity (no preset). A rate counts skills, with its 95% Wilson interval. Skills the scanner could not read whole are counted apart, never as found and never as clean. A set of four skills is too small for a rate: each of its skills is shown as found or not found. Only the 20 skill rules can be measured on skills; the MCP, configuration, registry and A2A rules are not measured here. Each release also measures disguised versions of the malicious skills (look-alike letters, hidden characters, encoding, joined strings, padding, markup and a word-list translation), with the rules on the text as written and after normalisation; see [Disguised content](#disguised-content). The full table per rule and per stratum, every release so far and the ids of the malicious skills the rules missed are in [benchmarks/RESULTS.md](benchmarks/RESULTS.md); how to run it yourself, the sources and their licences are in [benchmarks/README.md](benchmarks/README.md). The same table, release by release, is at
+What the rules find on fixed public sets of malicious and harmless skills, measured again for every release by the release workflow. Rules only: no model is called. A skill is found when the rules report at least one finding at or above the line (medium or above, or high or above, the lines `--fail-on` and the presets use), at each rule's own severity (no preset). A rate counts skills, with its 95% Wilson interval. Skills the scanner could not read whole are counted apart, never as found and never as clean. A set of four skills is too small for a rate: each of its skills is shown as found or not found. Only the 20 skill rules can be measured on skills; the MCP, configuration, registry and A2A rules are not measured here, and a rule that is not measured on skills is measured on [a set of its own](#rules-measured-on-a-set-of-their-own) before it is released. Each release also measures disguised versions of the malicious skills (look-alike letters, hidden characters, encoding, joined strings, padding, markup and a word-list translation), with the rules on the text as written and after normalisation; see [Disguised content](#disguised-content). The full table per rule and per stratum, every release so far and the ids of the malicious skills the rules missed are in [benchmarks/RESULTS.md](benchmarks/RESULTS.md); how to run it yourself, the sources and their licences are in [benchmarks/README.md](benchmarks/README.md). The same table, release by release, is at
 [spellwarden.ai/research/rule-benchmark](https://spellwarden.ai/research/rule-benchmark?utm_source=github&utm_medium=readme&utm_campaign=rule-benchmark).
 
 <!-- benchmark:start -->
@@ -451,7 +470,7 @@ followed by one entry that joins the nine prompt-injection patterns, `(?i:ignore
             "version": "1.0",
             "built_at": "2026-12-01T00:00:00Z",
             "engine": "<engine version>",
-            "rules_version": "2026.11.9",
+            "rules_version": "2026.11.10",
             "guard_sha256": "<sha256 of the guard file>",
             "options_sha256": "<sha256 of the canonical options>"
           },
@@ -745,6 +764,7 @@ A rule a later release adds is `balanced` in every preset until a release gives 
 | `SW-CFG-010` | Literal value under a secret name in an MCP server configuration | high | high | high | high |
 | `SW-CFG-012` | MCP server configured to approve every tool call automatically | high | high | high | high |
 | `SW-CFG-013` | Database or cluster MCP server with write access although a read-only mode exists | high | high | high | high |
+| `SW-CFG-015` | MCP server given the whole home directory or the filesystem root | high | high | high | high |
 | `SW-MCP-001` | Server lists tools without authentication | high | high | high | high: never lowered, although it fires on 16,546 census hosts, most of them public read-only servers by design; the largest remaining source of MCP noise |
 | `SW-MCP-002` | Static key authentication instead of OAuth | medium | high | medium | authentication: strict raises |
 | `SW-MCP-003` | OAuth dynamic client registration (deprecated; use Client ID Metadata Documents) | medium | medium | low | protocol migration; 5,366 census hosts (63% of OAuth servers) |
@@ -757,6 +777,7 @@ A rule a later release adds is `balanced` in every preset until a release gives 
 | `SW-MCP-010` | No protected resource metadata, or issuer not validated | medium | high | medium | token audience and issuer checks: strict raises |
 | `SW-MCP-011` | MCP server text contains instruction-like text | high | high | high | precision tuned on its own record (87 holdout false alarms in 1.12.0); a preset does not override it |
 | `SW-MCP-012` | MCP server's tools changed since they were approved | high | high | high | high |
+| `SW-MCP-013` | Tool takes a command line to run as an argument | medium | high | medium | a command primitive the user may intend (a shell server): strict raises |
 | `SW-REG-001` | Skill package not admitted in the organisation's private registry | high | high | high | the organisation's policy: no preset touches it |
 | `SW-REG-002` | MCP server not admitted in the organisation's private registry | high | high | high | as above |
 | `SW-REG-003` | Agent content the private registry cannot judge | high | high | high | as above |

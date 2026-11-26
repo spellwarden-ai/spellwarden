@@ -32,27 +32,32 @@ RULES_OF_1_7_1 = frozenset({
 })
 # Rules added after the 1.8.0 batch: SW-MCP-012 (1.15.0), which a probe alone never raises (tests/test_rules_mcp_012.py).
 ADDED_AFTER_1_8_0 = frozenset({"SW-MCP-012"})
-NEW_IDS = frozenset(rule.id for rule in BASELINE) - RULES_OF_1_7_1 - ADDED_AFTER_1_8_0
+# The two rules of 1.25.0 (P6-9). Not an `ADDED_AFTER_...` set: that set is subtracted from `NEW_IDS` and so takes a rule out of
+# the isolation checks, as it does for SW-MCP-012. These two are checked like the five of 1.8.0.
+BATCH_1_25_0 = frozenset({"SW-MCP-013", "SW-CFG-015"})
+NEW_IDS = frozenset(rule.id for rule in BASELINE) - RULES_OF_1_7_1 - ADDED_AFTER_1_8_0 - BATCH_1_25_0
+CHECKED_IDS = NEW_IDS | BATCH_1_25_0
 
 
 def test_the_batch_is_exactly_the_five_new_ids():
     assert len(RULES_OF_1_7_1) == 60
     assert RULES_OF_1_7_1 <= {rule.id for rule in BASELINE}
     assert NEW_IDS == {"SW-SKL-032", "SW-SKL-036", "SW-SKL-037", "SW-CFG-012", "SW-CFG-013"}
+    assert BATCH_1_25_0 == {"SW-MCP-013", "SW-CFG-015"} and not BATCH_1_25_0 & (NEW_IDS | ADDED_AFTER_1_8_0)
 
 
 def test_no_existing_skill_or_probe_fixture_holds_a_finding_of_a_new_rule():
-    rows = entries(exclude_rules=NEW_IDS)
-    assert rows and not [row for row in rows if row["rule_id"] in NEW_IDS]
+    rows = entries(exclude_rules=CHECKED_IDS)
+    assert rows and not [row for row in rows if row["rule_id"] in CHECKED_IDS]
 
 
 def test_no_existing_config_fixture_yields_a_finding_of_a_new_rule():
-    directories = [d for d in sorted(CONFIG_FIXTURES.glob("*/*")) if d.parent.name not in NEW_IDS and d.is_dir()]
+    directories = [d for d in sorted(CONFIG_FIXTURES.glob("*/*")) if d.parent.name not in CHECKED_IDS and d.is_dir()]
     assert any(d.parent.name == "plugins-settings" for d in directories)
     for directory in directories:
         files = {p.relative_to(directory).as_posix(): p.read_bytes() for p in directory.rglob("*") if p.is_file()}
         found = {f.rule_id for f in scan_agent_config(config_documents(files), BASELINE).findings}
-        assert not found & NEW_IDS, (directory.relative_to(CONFIG_FIXTURES).as_posix(), sorted(found & NEW_IDS))
+        assert not found & CHECKED_IDS, (directory.relative_to(CONFIG_FIXTURES).as_posix(), sorted(found & CHECKED_IDS))
 
 
 def test_no_sample_server_yields_a_finding_of_a_new_rule():
@@ -61,7 +66,7 @@ def test_no_sample_server_yields_a_finding_of_a_new_rule():
     for path in samples:
         probe, _expected = load_probe_fixture(f"samples/{path.stem}")
         found = {f.rule_id for f in evaluate_probe(probe, BASELINE).findings}
-        assert not found & NEW_IDS, (path.name, sorted(found & NEW_IDS))
+        assert not found & CHECKED_IDS, (path.name, sorted(found & CHECKED_IDS))
 
 
 @pytest.fixture(scope="module")
@@ -81,4 +86,4 @@ def golden_sarif(tmp_path_factory):
 
 def test_the_sarif_of_the_1_0_0_golden_repository_holds_no_result_of_a_new_rule(golden_sarif):
     results = golden_sarif["runs"][0]["results"]
-    assert results and not [r for r in results if r["ruleId"] in NEW_IDS]
+    assert results and not [r for r in results if r["ruleId"] in CHECKED_IDS]
