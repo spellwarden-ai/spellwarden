@@ -43,11 +43,11 @@ stays reserved. It was never released, so no scanner reports it and no finding c
 Measurement. Each rule is released only at the severity its own measurement gives, and a rule that does not reach the bar is
 taken out before the release. The measurement is on a set of public files of its own, never published because it holds
 third-party text; `benchmarks/measured_sets.json` holds its record (counts, hashes and dates) and `benchmarks/README.md` says
-how it is made. The bar is on precision on a held-out half, with its 95% Wilson interval: medium needs a precision of at least
+how it is made. The bar is on precision on the units scored, with its 95% Wilson interval: the held-out half of a split set, or every flagged unit of a whole-frame set. Medium needs a precision of at least
 0.60 and a lower end of at least 0.45, high needs 0.80 and 0.65, and fewer than 20 labelled units cannot be assessed. Recall is
 never a condition and is always published with its interval. `python benchmarks/rule_benchmark.py check-measured --release`
 refuses a release in which a rule is not `measured` at the severity it is registered at, and the release workflow runs it before
-anything is built. The measured numbers are written into this entry by the commit that records the measurement.
+anything is built.
 
 Tags. MCP05 is now an allowed tag of the baseline. Organisation rules keep the tag lists of 1.2.x, so a pack that uses it is
 refused, and the pack schema is unchanged. ASI06 and ASI08 are not added: no rule carries them.

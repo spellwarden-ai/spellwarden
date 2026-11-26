@@ -44,6 +44,15 @@ def test_the_changelog_has_the_1_25_0_entry_above_1_24_0():
     assert not re.search(r"<(?:precision|recall|interval|figure|number|date)>", raw), "a figure is still a slot"
 
 
+def test_the_changelog_measurement_paragraph_applies_the_bar_to_the_units_scored_not_to_a_held_out_half_only():
+    _raw, entry = _entry()
+    paragraph = entry[entry.index("Measurement. "):entry.index(" Tags. ")]
+    assert "The bar is on precision on the units scored, with its 95% Wilson interval" in paragraph
+    assert "the held-out half of a split set, or every flagged unit of a whole-frame set" in paragraph
+    assert "on a held-out half, with" not in paragraph
+    assert "written into this entry" not in paragraph
+
+
 # rule: (its bullet's head, the figures the measurement gave, the frame it was measured on).
 CHANGELOG_MEASURED = {
     "SW-CFG-015": ('(config, high, MCP02 and ASI03)', ("100.0% (85.1% to 100.0%)", "66.1% (47.0% to 84.8%)"), "9,859 server entries"),
