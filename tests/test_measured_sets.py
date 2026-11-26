@@ -331,8 +331,10 @@ def test_the_rounds_of_tuning_may_be_one_to_three():
 # --- whole-frame records and version 2 (spec 8.6 and 8.1a, claims 31 to 35) --------------------------------------------------------
 
 LIMIT_WHOLE = "The set was scored whole: no part of it was held out, and the rule was not tuned on it."
-SETS = Path(__file__).resolve().parents[2] / "code-p6-9-sets" / "data" / "rule-sets"  # the `code` tooling's records, beside this checkout
-SETS = Path(os.environ.get("SPELLWARDEN_RULE_SETS", SETS))
+# The records the `code` tooling wrote are committed here byte for byte (benchmarks/measured_sets.json, current and superseded), so
+# claims 33 and 35 read those copies and run everywhere. Setting SPELLWARDEN_RULE_SETS to the tooling's rule-sets directory also
+# checks each copy against the tooling's own record.json.
+RULE_SETS_ENV = "SPELLWARDEN_RULE_SETS"
 
 
 def whole_frame(positive: int = 22, benign: int = 0, **more) -> dict:
@@ -367,12 +369,16 @@ def document2(rules: dict, superseded: dict) -> dict:
 
 
 def real_record(name: str) -> dict:
-    path = SETS / name / "record.json"
-    if not path.is_file():
-        pytest.skip(f"the `code` tooling's record {name} is not at {SETS}; set SPELLWARDEN_RULE_SETS to the rule-sets directory")
-    loaded = json.loads(path.read_text(encoding="utf-8"))
-    assert set(loaded) == {"rule", "record"}
-    return loaded["record"]
+    """The record of the set `name` as the `code` tooling wrote it: its committed copy, checked against the tooling's file when
+    SPELLWARDEN_RULE_SETS names their directory."""
+    loaded = committed()
+    copies = {record["set"]: record for record in [*loaded["rules"].values(), *(r for rs in loaded["superseded"].values() for r in rs)]}
+    record = copies[name]
+    directory = os.environ.get(RULE_SETS_ENV)
+    if directory:
+        tooling = json.loads((Path(directory) / name / "record.json").read_text(encoding="utf-8"))
+        assert set(tooling) == {"rule", "record"} and tooling["record"] == record, name
+    return record
 
 
 def test_the_designs_and_the_band_of_a_whole_frame_set_are_the_specs():  # claim 32
@@ -440,6 +446,29 @@ def test_a_whole_frame_record_holds_a_severity_only_when_measured_and_a_reason_o
 def test_a_whole_frame_withdrawal_keeps_its_precision_for_either_reason():  # claim 31
     assert any("precision" in p for p in ms.check_record("SW-CFG-015", _without(whole_withdrawn("precision_below_bar", 10, 15), "precision")))
     assert any("precision" in p for p in ms.check_record("SW-CFG-015", _without(not_assessable(), "precision")))
+
+
+@pytest.mark.parametrize("make", (lambda: whole_withdrawn("precision_below_bar", 10, 15), not_assessable))
+@pytest.mark.parametrize("name", ("precision", "frame", "owner_audit", "g0", "scored"))
+def test_a_whole_frame_withdrawal_with_a_null_block_is_refused(make, name):  # claim 31 (r1:F1)
+    record = {**make(), name: None}
+    assert any(name in p for p in ms.check_record("SW-CFG-015", record)), name
+    assert ms.check_document(document2({"SW-CFG-015": record}, {})) != []
+
+
+@pytest.mark.parametrize("make", (lambda: whole_withdrawn("precision_below_bar", 10, 15), not_assessable))
+def test_a_valid_whole_frame_withdrawal_renders(make):  # claims 31 and 34 (r1:F1)
+    record = make()
+    assert ms.check_record("SW-CFG-015", record) == []
+    assert "SW-CFG-015 was measured and withdrawn before release" in ms.block(document2({"SW-CFG-015": record}, {}))
+
+
+@pytest.mark.parametrize("make", (whole_frame, lambda: whole_withdrawn("precision_below_bar", 10, 15), not_assessable))
+def test_a_whole_frame_record_says_it_was_scored_whole(make):  # claim 31 (r1:F3)
+    record = make()
+    record["limits"] = [text for text in record["limits"] if text != LIMIT_WHOLE]
+    assert any("scored whole" in p for p in ms.check_record("SW-CFG-015", record))
+    assert ms.WHOLE_FRAME_LIMIT == LIMIT_WHOLE
 
 
 def test_the_flagged_units_of_g0_are_the_flagged_units_scored_of_a_whole_frame_set():  # claim 31
@@ -546,6 +575,21 @@ def test_the_block_shows_a_withdrawn_precision_or_counts_and_one_line_for_each_s
     assert len(lines) == 7 and not any(line.startswith("|") for line in lines)
     only = ms.block(document2({"SW-MCP-013": whole_frame(36, 18, set="sw-mcp-013-v2")}, {"SW-MCP-013": [split_withdrawn]}))
     assert only.splitlines()[-1] == lines[6] and only.splitlines()[-2] == ""
+
+
+def test_a_superseded_line_carries_the_precision_or_the_counts_of_its_record():  # claim 34 (r1:F2)
+    below = whole_withdrawn("precision_below_bar", 10, 15, set="sw-cfg-015-v2")
+    short = not_assessable(set="sw-cfg-015-v3")
+    earlier = whole_frame(18, 2, set="sw-cfg-015-v1")
+    current = whole_frame(set="sw-cfg-015-v4")
+    lines = [line for line in ms.block(document2({"SW-CFG-015": current}, {"SW-CFG-015": [earlier, below, short]})).splitlines()
+             if line]
+    assert lines[-3] == "SW-CFG-015 was first measured on a whole-frame design at high (precision 90.0% (69.9% to 97.2%) over 20 "\
+        "flagged units scored on the whole frame), and measured again."
+    assert lines[-2] == "SW-CFG-015 was then measured on a whole-frame design and withdrawn (precision below bar): precision 40.0% "\
+        "(23.4% to 59.3%) over 25 flagged units scored on the whole frame."
+    assert lines[-1] == "SW-CFG-015 was then measured on a whole-frame design and withdrawn (not assessable): 5 positive, 5 benign, "\
+        "10 ambiguous and 2 error among 22 flagged units scored on the whole frame."
 
 
 def test_the_block_of_a_version_2_document_without_superseded_records_is_the_one_of_version_1():  # claim 34

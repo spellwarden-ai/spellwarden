@@ -39,6 +39,8 @@ SEVERITIES = ("medium", "high")
 MAX_STRING = 300
 G0_UNITS, G0_COMPONENTS = 60, 20  # the count gate of the spec's section 8.1
 WHOLE_FRAME_G0 = (20, 10)  # the least count of a whole-frame set (spec 8.1a): flagged units, components; from 60 and 20 on, split
+# Every whole-frame record says so in its limits (spec 8.6, 8.1a): its numbers are not a held-out measurement.
+WHOLE_FRAME_LIMIT = "The set was scored whole: no part of it was held out, and the rule was not tuned on it."
 MIN_LABELLED = 20  # fewer flagged units labelled positive or benign cannot be assessed
 BARS = (("high", 0.80, 0.65), ("medium", 0.60, 0.45))  # severity, least precision, least lower end of the 95% interval
 WILSON_Z = 1.959963984540054
@@ -216,6 +218,8 @@ def check_record(rule_id: str, record: object) -> list[str]:
     limits = record.get("limits")
     if not isinstance(limits, list) or not limits or not all(isinstance(text, str) and text for text in limits):
         problems.append(f"{rule_id}: limits is not a list of sentences")
+    elif whole and status != "pending" and WHOLE_FRAME_LIMIT not in limits:
+        problems.append(f"{rule_id}: a whole-frame record's limits hold the sentence {WHOLE_FRAME_LIMIT!r}")
     for key, pattern in (("frozen_sha256", _SHA256), ("candidate_commit", _COMMIT)):
         if key in record and (not isinstance(record[key], str) or pattern.fullmatch(record[key]) is None):
             problems.append(f"{rule_id}: {key} is not a hash")
@@ -223,7 +227,8 @@ def check_record(rule_id: str, record: object) -> list[str]:
         if key in record and (not isinstance(record[key], str) or _DATE.fullmatch(record[key]) is None):
             problems.append(f"{rule_id}: {key} is not a date")
     measured = status == "measured"
-    required = set(_SHAPES) - forbidden if measured else {"g0", "scored"} if whole and status == "withdrawn" else set()
+    # A whole-frame withdrawal holds every block of a measured record (spec 8.6), so none of them may be null either.
+    required = set(_SHAPES) - forbidden if measured or (whole and status == "withdrawn") else set()
     problems += _shape_problems(rule_id, record, set(forbidden), required, measured or (whole and status == "withdrawn"))
     if "kinds" in record:
         kinds = record["kinds"]
@@ -381,32 +386,45 @@ def _counts(record: Mapping) -> Mapping:
     return record["scored" if record.get("design") == "whole_frame" else "holdout"]
 
 
+def _result(record: Mapping) -> str:
+    """What a measured or withdrawn record found, from its counts: the precision of the flagged units it scored, or, when they
+    could not be assessed, the counts themselves. Empty for a record that holds neither."""
+    counts = record.get("scored", record.get("holdout"))
+    if not isinstance(counts, Mapping):
+        return ""
+    if record.get("reason") == "not_assessable":
+        return (f"{counts['positive']} positive, {counts['benign']} benign, {counts['ambiguous']} ambiguous and "
+                f"{counts['error']} error among {counts['flagged']} flagged units scored on the {_scope(record)}")
+    if isinstance(record.get("precision"), Mapping):
+        return f"precision {_range(record['precision'])} over {counts['flagged']} flagged units scored on the {_scope(record)}"
+    return ""
+
+
 def _withdrawn_line(rule_id: str, record: Mapping) -> str:
     if record["reason"] == "g0_failed" and "g0" in record:
         g0 = record["g0"]
         return (f"{rule_id} was withdrawn by the count gate before release: {g0['flagged_units']} flagged units from "
                 f"{g0['components']} components, where {G0_UNITS} and {G0_COMPONENTS} were needed; its id stays reserved.")
     reason = record["reason"].replace("_", " ")
-    line = f"{rule_id} was measured and withdrawn before release ({reason})"
-    counts = record.get("scored", record.get("holdout"))
-    if record["reason"] == "precision_below_bar" and counts is not None and "precision" in record:
-        line += f": precision {_range(record['precision'])} over {counts['flagged']} flagged units scored on the {_scope(record)}"
-    elif record["reason"] == "not_assessable" and counts is not None:
-        line += (f": {counts['positive']} positive, {counts['benign']} benign, {counts['ambiguous']} ambiguous and "
-                 f"{counts['error']} error among {counts['flagged']} flagged units scored on the {_scope(record)}")
-    return line + "; its id stays reserved."
+    result = _result(record)
+    return f"{rule_id} was measured and withdrawn before release ({reason})" + (f": {result}" if result else "") + \
+        "; its id stays reserved."
 
 
 def _superseded_line(rule_id: str, record: Mapping, number: int) -> str:
     design = "a whole-frame design" if record.get("design") == "whole_frame" else "a split design"
     first = "first measured" if number == 1 else "then measured"
     if record["status"] == "measured":
-        return f"{rule_id} was {first} on {design} at {record['severity']}, and measured again."
+        result = _result(record)
+        return f"{rule_id} was {first} on {design} at {record['severity']}" + (f" ({result})" if result else "") + \
+            ", and measured again."
     if record["reason"] == "g0_failed":
         g0 = record["g0"]
         return (f"{rule_id} was {first} on {design} and withdrawn by the count gate: {g0['flagged_units']} flagged units from "
                 f"{g0['components']} components, where {G0_UNITS} and {G0_COMPONENTS} were needed.")
-    return f"{rule_id} was {first} on {design} and withdrawn ({record['reason'].replace('_', ' ')})."
+    result = _result(record)
+    return f"{rule_id} was {first} on {design} and withdrawn ({record['reason'].replace('_', ' ')})" + \
+        (f": {result}." if result else ".")
 
 
 def block(document: Mapping) -> str:
