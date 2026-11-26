@@ -34,11 +34,9 @@ released, below. The third, `SW-SKL-038`, was withdrawn before the release.
   tuned and the set was scored once. Precision 100.0% (85.1% to 100.0%) on 22 labelled units, so the severity is high; recall
   66.1% (47.0% to 84.8%).
 
-`SW-SKL-038` "Writes to an agent's memory or instruction files" (skill, ASI06 and MCP10) is not released. It looked for a sentence
-or a command that tells an agent to write a standing directive into a memory or instruction file. The count gate withdrew it: over
-18,789 public skill, command and instruction files from 17,246 components it flagged 2 files from 2 components, where a split
-measurement needs 60 and 20 and a whole-frame measurement 20 and 10. It is not measured again, no rule uses its id and the id
-stays reserved. It was never released, so no scanner reports it and no finding changes. The tag ASI06 is not added.
+`SW-SKL-038` "Writes to an agent's memory or instruction files" was built and withdrawn by the count gate before the release: over
+18,789 public skill, command and instruction files it flagged 2 files from 2 components, too few to measure, so no scanner reports
+it and its id stays reserved.
 
 Measurement. Each rule is released only at the severity its own measurement gives, and a rule that does not reach the bar is
 taken out before the release. The measurement is on a set of public files of its own, never published because it holds

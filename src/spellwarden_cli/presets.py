@@ -76,7 +76,7 @@ ROWS: tuple[Row, ...] = (
     Row("SW-CFG-010", "high", "high", "high"),
     Row("SW-CFG-012", "high", "high", "high"),
     Row("SW-CFG-013", "high", "high", "high"),
-    Row("SW-CFG-015", "high", "high", "measured at high on its whole frame: never lowered"),
+    Row("SW-CFG-015", "high", "high", "high"),
     Row("SW-MCP-001", "high", "high", "high: never lowered, although it fires on 16,546 census hosts, most of them public "
         "read-only servers by design; the largest remaining source of MCP noise"),
     Row("SW-MCP-002", "high", "medium", "authentication: strict raises"),

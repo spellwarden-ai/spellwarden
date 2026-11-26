@@ -764,7 +764,7 @@ A rule a later release adds is `balanced` in every preset until a release gives 
 | `SW-CFG-010` | Literal value under a secret name in an MCP server configuration | high | high | high | high |
 | `SW-CFG-012` | MCP server configured to approve every tool call automatically | high | high | high | high |
 | `SW-CFG-013` | Database or cluster MCP server with write access although a read-only mode exists | high | high | high | high |
-| `SW-CFG-015` | MCP server given the whole home directory or the filesystem root | high | high | high | measured at high on its whole frame: never lowered |
+| `SW-CFG-015` | MCP server given the whole home directory or the filesystem root | high | high | high | high |
 | `SW-MCP-001` | Server lists tools without authentication | high | high | high | high: never lowered, although it fires on 16,546 census hosts, most of them public read-only servers by design; the largest remaining source of MCP noise |
 | `SW-MCP-002` | Static key authentication instead of OAuth | medium | high | medium | authentication: strict raises |
 | `SW-MCP-003` | OAuth dynamic client registration (deprecated; use Client ID Metadata Documents) | medium | medium | low | protocol migration; 5,366 census hosts (63% of OAuth servers) |
