@@ -547,6 +547,7 @@ def text_is_file_form(built: dict) -> bool:
 # rule: (severity, precision value, precision low, precision high, recall value, scored flagged, scored positive, scored benign).
 MEASURED_1_25_0 = {
     "SW-CFG-015": ("high", 1.0, 0.851345, 1.0, 0.661271, 22, 22, 0),
+    "SW-MCP-013": ("medium", 0.666667, 0.53361, 0.777586, 0.131091, 54, 36, 18),
 }
 
 

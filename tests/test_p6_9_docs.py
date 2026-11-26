@@ -47,6 +47,7 @@ def test_the_changelog_has_the_1_25_0_entry_above_1_24_0():
 # rule: (its bullet's head, the figures the measurement gave, the frame it was measured on).
 CHANGELOG_MEASURED = {
     "SW-CFG-015": ('(config, high, MCP02 and ASI03)', ("100.0% (85.1% to 100.0%)", "66.1% (47.0% to 84.8%)"), "9,859 server entries"),
+    "SW-MCP-013": ('(mcp, medium, MCP05 and ASI05)', ("66.7% (53.4% to 77.8%)", "13.1% (7.2% to 20.8%)"), "210,994 tools"),
 }
 
 

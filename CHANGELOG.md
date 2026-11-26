@@ -29,6 +29,9 @@ and each gets a rule; a third rule is added under MCP02 because the roadmap name
   names `tools` in `lists_cut`. It does not see injection through an argument of a tool that runs a fixed program, whether a
   server filters the command, servers that run as local processes (the probe reaches remote servers only) or code
   interpreters whose parameter is `code`.
+  Measured on its whole frame of 210,994 tools, because the frozen rule flagged 54 of them, fewer than the 60 a split needs:
+  every flagged unit was labelled, no part was held out, the rule was not tuned and the set was scored once. Precision 66.7%
+  (53.4% to 77.8%) on 54 labelled units, so the severity is medium; recall 13.1% (7.2% to 20.8%).
 - `SW-CFG-015` "MCP server given the whole home directory or the filesystem root" (config, high, MCP02 and ASI03): an
   argument that is the home directory itself (`~`, `$HOME`, `/Users/<name>`, `C:\Users\<name>`) or the root (`/`, `C:\`),
   after the package of a filesystem server, as the value of `--root`, `--allowed-directories` and the other flags that name a
