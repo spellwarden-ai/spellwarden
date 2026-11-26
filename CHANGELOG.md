@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.25.0 (2026-11-NN)
+## 1.25.0 (2026-11-27)
 
 Rules version 2026.11.10 (68 rules): two rules are new and no rule changed, so every finding 1.24.0 reports keeps its rule,
 location, evidence and fingerprint. The new rules read content that no rule read before, so a project can get a new finding at
@@ -58,6 +58,9 @@ run, so no file or tool list shows it before install; runtime traces show where 
 of Audit and Telemetry cannot be seen in a file or a tool list either; the enforcement rule `SW-OB-008` asks for an audit
 record of every tool call, runtime traces keep the tool calls sent to Spellwarden, and the audit evidence pack carries the log
 of what people did in Spellwarden itself.
+
+Rule benchmark: no rate got worse than in 1.24.0.
+Rule benchmark: normalisation adds no finding on harmless skills.
 
 ## 1.24.0 (2026-11-25)
 
