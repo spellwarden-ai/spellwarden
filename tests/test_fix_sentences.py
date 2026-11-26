@@ -35,7 +35,6 @@ SECTION_5 = {
     "SW-SKL-032": "Remove the download and the pasted script, and name the tool by its package so the user installs it from a package manager or the vendor's site.",
     "SW-SKL-036": "Scope each pre-approved shell entry to the named program the skill runs, or drop the entry if the skill needs no shell.",
     "SW-SKL-037": "Download a release with a version in its address and compare its published checksum or signature before you make the file executable.",
-    "SW-SKL-038": "Take the write to the agent's memory or instruction file out of the skill, and describe the text to add so the project's owner adds it by hand in a reviewed change.",
     "SW-MCP-001": "Require authentication before the server answers tools/list, using OAuth with protected resource metadata.",
     "SW-MCP-002": "Move the server from a static key to OAuth with protected resource metadata, and until then scope the key to one client and rotate it.",
     "SW-MCP-003": "Turn on Client ID Metadata Documents at the authorization server and publish client_id_metadata_document_supported as true in its metadata.",
@@ -146,6 +145,6 @@ def test_the_page_is_the_id_in_lower_case_and_an_organisation_rule_has_neither()
 
 def test_the_rules_listing_gives_each_rule_its_fix_and_page():
     listed = {entry["id"]: entry for entry in json.loads(rules_json(RuleSet.baseline()))}
-    assert len(listed) == 69
+    assert len(listed) == 68
     assert listed["SW-SKL-009"]["fix"] == SECTION_5["SW-SKL-009"]
     assert listed["SW-SKL-009"]["page"] == "https://spellwarden.ai/docs/rules/sw-skl-009"

@@ -26,7 +26,7 @@ EVIDENCE_PREFIX = "Matched after normalising: "
 # usable one, and decoded evidence would carry the encoded secret) and SW-SKL-015, SW-SKL-031 and SW-SKL-036 (the front matter,
 # which the views do not change).
 RULES = frozenset({"SW-SKL-001", "SW-SKL-003", "SW-SKL-004", "SW-SKL-005", "SW-SKL-006", "SW-SKL-007", "SW-SKL-008", "SW-SKL-009",
-                   "SW-SKL-012", "SW-SKL-013", "SW-SKL-014", "SW-SKL-019", "SW-SKL-032", "SW-SKL-037", "SW-SKL-038"})
+                   "SW-SKL-012", "SW-SKL-013", "SW-SKL-014", "SW-SKL-019", "SW-SKL-032", "SW-SKL-037"})
 
 # Every format character and the soft hyphen, removed before the injection phrases are matched (SW-SKL-001,
 # SW-MCP-011): `ig\u00adnore previous instructions` reads as the phrase to an agent. Moved here from `rules/skill.py` in 1.22.0,

@@ -1,5 +1,5 @@
-"""The three rules of 1.25.0 (SW-SKL-038, SW-MCP-013, SW-CFG-015) sit in the middle of the SARIF rule table, so a report written
-by this scanner holds three descriptors that a report recorded by an older release does not, and every `ruleIndex` after the first
+"""The two rules of 1.25.0 (SW-MCP-013, SW-CFG-015) sit in the middle of the SARIF rule table, so a report written
+by this scanner holds two descriptors that a report recorded by an older release does not, and every `ruleIndex` after the first
 of them is higher by the number of new descriptors before it. `without_new_rules` takes the descriptors out and renumbers
 `ruleIndex` through the reduced table, so that the golden tests of the older releases go on proving every other byte of their
 reports unchanged. The reports of the other formats name no rule table and come back as the very same text."""
@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import json
 
-NEW_RULE_IDS = ("SW-SKL-038", "SW-MCP-013", "SW-CFG-015")
+NEW_RULE_IDS = ("SW-MCP-013", "SW-CFG-015")
 
 
 def without_new_rules(name: str, text: str) -> str:

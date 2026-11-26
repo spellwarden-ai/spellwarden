@@ -20,12 +20,12 @@ def md(*lines: str, **front: str) -> str:
     return clean_md(**front) + "\n".join(lines) + "\n"
 
 
-def test_rule_table_has_21_rules_with_the_spec_ids_and_mappings():
+def test_rule_table_has_20_rules_with_the_spec_ids_and_mappings():
     ids = [r.id for r in RULES.by_area("skill")]
     assert ids == ["SW-SKL-001", "SW-SKL-002", "SW-SKL-003", "SW-SKL-004", "SW-SKL-005", "SW-SKL-006", "SW-SKL-007",
                    "SW-SKL-008", "SW-SKL-009", "SW-SKL-010", "SW-SKL-011", "SW-SKL-012", "SW-SKL-013", "SW-SKL-014",
                    "SW-SKL-015", "SW-SKL-019", "SW-SKL-031", "SW-SKL-032", "SW-SKL-036",
-                   "SW-SKL-037", "SW-SKL-038"]
+                   "SW-SKL-037"]
     assert RULES.get("SW-SKL-004").malicious_indicator and RULES.get("SW-SKL-008").malicious_indicator
     assert [r.id for r in RULES.by_area("skill") if r.malicious_indicator] == ["SW-SKL-004", "SW-SKL-008", "SW-SKL-032"]
     assert RULES.get("SW-SKL-019").owasp_agentic == ("ASI01",) and RULES.get("SW-SKL-019").owasp_mcp == ("MCP06",)
@@ -34,7 +34,7 @@ def test_rule_table_has_21_rules_with_the_spec_ids_and_mappings():
 
 def test_the_three_rules_of_1_8_0_have_their_titles_severities_and_mappings():
     table = {r.id: (r.title, r.severity_default, r.owasp_agentic + r.owasp_mcp, r.nist, r.malicious_indicator)
-             for r in RULES.by_area("skill") if "SW-SKL-032" <= r.id <= "SW-SKL-037"}
+             for r in RULES.by_area("skill") if r.id >= "SW-SKL-032"}
     assert table == {
         "SW-SKL-032": ("Instructions lure the user into running a password-protected download or a pasted script",
                        "critical", ("ASI04", "ASI09"), ("SR-3", "SI-3"), True),

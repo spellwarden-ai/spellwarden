@@ -117,7 +117,6 @@ ROWS: tuple[Row, ...] = (
     Row("SW-SKL-032", "critical", "critical", "malicious indicator"),
     Row("SW-SKL-036", "high", "low", "many benign skills pre-approve `Bash`; strict treats unscoped execution as a direct risk"),
     Row("SW-SKL-037", "high", "low", "the same pattern as SW-SKL-009 for executables; strict raises"),
-    Row("SW-SKL-038", "high", "medium", "a standing instruction that outlives the session: strict raises"),
 )
 _BY_ID = {row.rule_id: row for row in ROWS}
 

@@ -142,7 +142,7 @@ A2A_IDS = tuple(f"SW-A2A-{number:03d}" for number in range(1, 20))
 GROWTH_IDS = ("SW-CFG-012", "SW-CFG-013", "SW-SKL-032", "SW-SKL-036", "SW-SKL-037")
 # 1.15.0: SW-MCP-012 (tool changes since the approved list) sorts after SW-MCP-011.
 TOOL_CHANGE_IDS = ("SW-MCP-012",)
-# 1.25.0: SW-CFG-015, SW-MCP-013 and SW-SKL-038 (tests/golden_new_rules.py), each sorted among the existing ids.
+# 1.25.0: SW-CFG-015 and SW-MCP-013 (tests/golden_new_rules.py), each sorted among the existing ids.
 ADDED_IDS = (*REGISTRY_IDS, *A2A_IDS, *GROWTH_IDS, *TOOL_CHANGE_IDS, *NEW_RULE_IDS)
 # 1.9.1 retagged these 1.0.0 rules to the OWASP MCP Top 10 entry each detects (tests/test_owasp_mcp_tags.py pins the new
 # tags), so the `MCP` tags of their SARIF descriptors are dropped on both sides; every other tag must still match.
@@ -180,7 +180,7 @@ def _normalised_sarif(text: str, *, produced: bool) -> dict:
         table = driver["rules"]
         assert [r["id"] for r in table] == sorted(r["id"] for r in table)
         kept = [r for r in table if r["id"] not in ADDED_IDS]
-        assert len(table) - len(kept) == 31
+        assert len(table) - len(kept) == 30
         new_index = {old: kept.index(rule) for old, rule in enumerate(table) if rule in kept}
         for result in document["runs"][0]["results"]:
             assert result["ruleIndex"] in new_index, result

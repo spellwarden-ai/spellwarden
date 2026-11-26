@@ -32,9 +32,9 @@ RULES_OF_1_7_1 = frozenset({
 })
 # Rules added after the 1.8.0 batch: SW-MCP-012 (1.15.0), which a probe alone never raises (tests/test_rules_mcp_012.py).
 ADDED_AFTER_1_8_0 = frozenset({"SW-MCP-012"})
-# The three rules of 1.25.0 (P6-9). Not an `ADDED_AFTER_...` set: that set is subtracted from `NEW_IDS` and so takes a rule out of
-# the isolation checks, as it does for SW-MCP-012. These three are checked like the five of 1.8.0.
-BATCH_1_25_0 = frozenset({"SW-SKL-038", "SW-MCP-013", "SW-CFG-015"})
+# The two rules of 1.25.0 (P6-9). Not an `ADDED_AFTER_...` set: that set is subtracted from `NEW_IDS` and so takes a rule out of
+# the isolation checks, as it does for SW-MCP-012. These two are checked like the five of 1.8.0.
+BATCH_1_25_0 = frozenset({"SW-MCP-013", "SW-CFG-015"})
 NEW_IDS = frozenset(rule.id for rule in BASELINE) - RULES_OF_1_7_1 - ADDED_AFTER_1_8_0 - BATCH_1_25_0
 CHECKED_IDS = NEW_IDS | BATCH_1_25_0
 
@@ -43,7 +43,7 @@ def test_the_batch_is_exactly_the_five_new_ids():
     assert len(RULES_OF_1_7_1) == 60
     assert RULES_OF_1_7_1 <= {rule.id for rule in BASELINE}
     assert NEW_IDS == {"SW-SKL-032", "SW-SKL-036", "SW-SKL-037", "SW-CFG-012", "SW-CFG-013"}
-    assert BATCH_1_25_0 == {"SW-SKL-038", "SW-MCP-013", "SW-CFG-015"} and not BATCH_1_25_0 & (NEW_IDS | ADDED_AFTER_1_8_0)
+    assert BATCH_1_25_0 == {"SW-MCP-013", "SW-CFG-015"} and not BATCH_1_25_0 & (NEW_IDS | ADDED_AFTER_1_8_0)
 
 
 def test_no_existing_skill_or_probe_fixture_holds_a_finding_of_a_new_rule():

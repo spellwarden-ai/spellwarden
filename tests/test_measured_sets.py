@@ -224,7 +224,7 @@ def test_check_measured_exits_0_in_development_with_pending_records(tmp_path):
 
 def test_check_measured_release_exits_1_for_a_pending_record(tmp_path):
     code, out, _err = _run(tmp_path, all_pending(), "--release")
-    assert code == 1 and "SW-SKL-038: not measured yet" in out
+    assert code == 1 and "SW-MCP-013: not measured yet" in out and "SW-CFG-015: not measured yet" in out
 
 
 def test_check_measured_exits_1_for_an_invalid_record(tmp_path):
@@ -243,7 +243,7 @@ def test_check_measured_exits_2_for_a_missing_or_unreadable_file(tmp_path):
 def test_check_measured_reads_the_registered_rules_of_this_checkout():
     assert rb.main(["check-measured"]) == 0
     registered = {rule.id for rule in RuleSet.baseline()}
-    assert set(ms.PENDING_RULES) <= registered
+    assert set(ms.PENDING_RULES) - {"SW-SKL-038"} <= registered and "SW-SKL-038" not in registered
 
 
 # --- the README block (claim 29) ----------------------------------------------------------------------------------------------------
@@ -570,3 +570,14 @@ def test_a_measured_rule_holds_its_whole_frame_record_and_keeps_the_withdrawn_sp
     assert "whole frame" in ms.block(loaded)
     registered = {rule.id: rule.severity_default for rule in RuleSet.baseline()}
     assert registered[rule_id] == record["severity"]
+
+
+def test_the_memory_rule_is_withdrawn_by_the_count_gate_its_id_stays_reserved_and_the_release_gate_passes():
+    loaded = committed()
+    record = loaded["rules"]["SW-SKL-038"]
+    assert record["status"] == "withdrawn" and record["reason"] == "g0_failed" and record["set"] == "sw-skl-038-v1"
+    assert record["g0"] == {"flagged_units": 2, "components": 2, "passed": False} and record["frame"]["units"] == 18789
+    assert "SW-SKL-038" not in loaded["superseded"] and ms.check_record("SW-SKL-038", record) == []
+    assert "SW-SKL-038" not in {rule.id for rule in RuleSet.baseline()}
+    assert "SW-SKL-038 was measured and withdrawn before release (g0 failed); its id stays reserved." in ms.block(loaded)
+    assert rb.main(["check-measured", "--release"]) == 0

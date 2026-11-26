@@ -281,10 +281,6 @@
     "SW-SKL-037": {
       "first_released": "1.8.0",
       "title": "Executable downloaded from a moving reference and run without an integrity check"
-    },
-    "SW-SKL-038": {
-      "first_released": "1.25.0",
-      "title": "Writes to an agent's memory or instruction files"
     }
   }
 }

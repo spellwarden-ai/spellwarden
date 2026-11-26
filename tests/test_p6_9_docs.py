@@ -6,10 +6,10 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from spellwarden_scan import RuleSet, normalise
+from spellwarden_scan import RuleSet
 
 ROOT = Path(__file__).resolve().parents[1]
-NEW = ("SW-SKL-038", "SW-MCP-013", "SW-CFG-015")
+NEW = ("SW-MCP-013", "SW-CFG-015")
 
 
 def _read(name: str) -> str:
@@ -26,17 +26,17 @@ def _entry() -> tuple[str, str]:
 def test_the_changelog_has_the_1_25_0_entry_above_1_24_0():
     raw, entry = _entry()
     assert re.match(r"## 1\.25\.0 \((\d{4}-\d{2}-\d{2}|2026-11-NN)\)\n", raw)
-    assert "Rules version 2026.11.10 (69 rules): three rules are new and no rule changed, so every finding 1.24.0 reports keeps" in entry
+    assert "Rules version 2026.11.10 (68 rules): two rules are new and no rule changed, so every finding 1.24.0 reports keeps" in entry
     titles = {rule.id: rule.title for rule in RuleSet.baseline()}
     for rule_id in NEW:
         assert f'`{rule_id}` "{titles[rule_id]}"' in entry, rule_id
     for needle in ("ASI06", "ASI08", "MCP05", "MCP08", "MCP10", "`SW-OB-008`", "`SW-CFG-014` stays reserved", "medium",
-                   "`SW-CFG-015` is high under every preset", "`strict` raises the other two to high", "`low-noise` keeps them at medium",
+                   "`SW-CFG-015` is high under every preset", "`strict` raises `SW-MCP-013` to high", "`low-noise` keeps it at medium",
                    "`--fail-on medium`",
-                   f"`normalise.RULES` lists {len(normalise.RULES)} rules", "never silences it", "`lists_cut`",
+                   "never silences it", "`lists_cut`",
                    "never the path", "benchmarks/measured_sets.json", "`python benchmarks/rule_benchmark.py check-measured --release`",
                    "at least 0.60 and a lower end of at least 0.45", "0.80 and 0.65", "fewer than 20 labelled units cannot be assessed",
-                   "Recall is never a condition and is always published", "ASI06 and MCP05 are now allowed tags of the baseline",
+                   "Recall is never a condition and is always published", "MCP05 is now an allowed tag of the baseline", "ASI06 and ASI08 are not added",
                    "Organisation rules keep the tag lists of 1.2.x"):
         assert needle in entry, needle
     for character in ("—", "–", "!"):

@@ -113,11 +113,27 @@
       "status": "measured"
     },
     "SW-SKL-038": {
+      "frame": {
+        "collected": "2026-11-25",
+        "components": 17246,
+        "kind": "text file",
+        "units": 18789
+      },
+      "g0": {
+        "components": 2,
+        "flagged_units": 2,
+        "passed": false
+      },
       "limits": [
         "It does not see memory poisoned while an agent runs, memory a product keeps outside files, memory that is already poisoned, or a write made by code the text does not describe."
       ],
+      "reason": "g0_failed",
       "set": "sw-skl-038-v1",
-      "status": "pending"
+      "split": {
+        "holdout_units": 9567,
+        "tuning_units": 9222
+      },
+      "status": "withdrawn"
     }
   },
   "superseded": {

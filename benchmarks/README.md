@@ -12,7 +12,7 @@ release workflow runs it again for every release, on Linux and Windows, against 
 ## What it measures
 
 - Rules only. No model is called: the model-assisted analyzer (`--analyze`) is not part of this table.
-- The 21 skill rules (SW-SKL) on skill packages. A skill scan cannot fire the other 48 rules (SW-MCP, SW-CFG, SW-REG, SW-A2A),
+- The 20 skill rules (SW-SKL) on skill packages. A skill scan cannot fire the other 48 rules (SW-MCP, SW-CFG, SW-REG, SW-A2A),
   which judge MCP servers, configuration, the registry gate and A2A agent cards, so the table lists them as not measured here
   and never shows them as 0%.
 - Each rule at its own severity, the scanner's behaviour without a preset (`balanced`).
@@ -294,7 +294,7 @@ The release preparation records the entry before the tag, because a workflow sta
 
 ## Rules measured on a set of their own
 
-The 21 skill rules above are measured on skills. A rule that reads something else (the tool list of a probed server, an MCP
+The 20 skill rules above are measured on skills. A rule that reads something else (the tool list of a probed server, an MCP
 client configuration), or that asks a question the labels "malicious" and "benign skill" do not answer, is measured on a set of
 its own before it is released. The sets hold third-party text, so they are never published. This repository holds only the
 record of each set, `measured_sets.json`: counts, hashes and dates, and never a sample, a host, a path, a tool name or a quote.

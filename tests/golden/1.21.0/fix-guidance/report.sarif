@@ -1779,32 +1779,6 @@
               "shortDescription": {
                 "text": "Executable downloaded from a moving reference and run without an integrity check"
               }
-            },
-            {
-              "defaultConfiguration": {
-                "level": "warning"
-              },
-              "help": {
-                "markdown": "Take the write to the agent's memory or instruction file out of the skill, and describe the text to add so the project's owner adds it by hand in a reviewed change.\n\n[How to fix SW-SKL-038](https://spellwarden.ai/docs/rules/sw-skl-038?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix)",
-                "text": "Take the write to the agent's memory or instruction file out of the skill, and describe the text to add so the project's owner adds it by hand in a reviewed change."
-              },
-              "helpUri": "https://spellwarden.ai/docs/rules/sw-skl-038?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix",
-              "id": "SW-SKL-038",
-              "name": "WritesToAnAgentSMemoryOrInstructionFiles",
-              "properties": {
-                "security-severity": "5.5",
-                "tags": [
-                  "security",
-                  "ASI06",
-                  "MCP10",
-                  "SI-7",
-                  "AML.T0080.000",
-                  "AST03"
-                ]
-              },
-              "shortDescription": {
-                "text": "Writes to an agent's memory or instruction files"
-              }
             }
           ],
           "semanticVersion": "1.21.0"

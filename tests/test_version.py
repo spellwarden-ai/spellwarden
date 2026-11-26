@@ -1,4 +1,4 @@
-"""The current release is 1.25.0, which adds three rules (rules version 2026.11.10; P6-9); 1.24.0 makes the normalised scan faster and ends a scan that reaches a time limit incomplete
+"""The current release is 1.25.0, which adds two rules (rules version 2026.11.10; P6-9); 1.24.0 makes the normalised scan faster and ends a scan that reaches a time limit incomplete
 (`--time-limit`, `Deadline`, `TimeLimit`), without changing a rule (rules version 2026.11.9, unchanged); 1.23.0 reads an archive's
 links inside the scanned tree, measures the path bound on the path
 in the repository, bounds an archive's entries and makes the command's link out of the scan root an error, without changing a
@@ -34,7 +34,7 @@ def test_the_versions():
     assert __version__ == "1.25.0"
     assert tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))["project"]["version"] == __version__
     assert RULES_VERSION == "2026.11.10"
-    assert len(RuleSet.baseline()) == 69
+    assert len(RuleSet.baseline()) == 68
 
 
 def test_the_rules_version_parses_as_three_integers_and_follows_2026_11_9_in_numeric_order():
@@ -216,9 +216,8 @@ def test_the_changelog_has_the_1_22_0_entry_above_1_21_0():
     assert text.index("## 1.22.0 (") < text.index("## 1.21.0 (")
     raw = text[text.index("## 1.22.0 ("):text.index("## 1.21.0 (")]
     entry = " ".join(raw.split())
-    rules_of_1_22_0 = normalise.RULES - {"SW-SKL-038"}  # 1.25.0 added SW-SKL-038 to the rules that read the normalised copies
-    assert "Rules version 2026.11.9 (66 rules):" in entry and f"{len(rules_of_1_22_0)} skill rules also read" in entry
-    for rule_id in rules_of_1_22_0:
+    assert "Rules version 2026.11.9 (66 rules):" in entry and f"{len(normalise.RULES)} skill rules also read" in entry
+    for rule_id in normalise.RULES:
         assert rule_id in entry, rule_id
     assert "The steps, in this order: " + ", ".join(f"`{step}`" for step in normalise.STEPS) + "." in entry
     for needle in ("No rule id is added, removed or renamed", "`Matched after normalising:`", "`normalise`",

@@ -667,10 +667,8 @@ def test_measure_counts_read_items_only_and_lists_missed_malicious_items(tmp_pat
     entry = rb.measure(manifest, cache)
     assert entry["version"] == rb.SCANNER_VERSION and entry["rules_version"] == rb.RULES_VERSION
     assert entry["manifest_sha256"] == manifest.sha256 and entry["lines"] == ["medium", "high"]
-    skill_rules = len(rb.RuleSet.baseline().by_area("skill"))
-    assert len(entry["rules_measured"]) == skill_rules and entry["rules_measured"]["SW-SKL-015"] == "low"
-    assert len(entry["rules_not_measured"]) == len(rb.RuleSet.baseline()) - skill_rules
-    assert entry["rules_not_measured"] == sorted(entry["rules_not_measured"])
+    assert len(entry["rules_measured"]) == 20 and entry["rules_measured"]["SW-SKL-015"] == "low"
+    assert len(entry["rules_not_measured"]) == 48 and entry["rules_not_measured"] == sorted(entry["rules_not_measured"])
     malicious = entry["sets"]["alpha"]["strata"]["m"]
     assert malicious["items"] == 4 and malicious["unread"] == {"m-limit": "frontmatter_limit"}
     assert malicious["found"] == {"medium": 2, "high": 1}
@@ -1203,7 +1201,7 @@ def test_the_readme_has_the_measured_rates_section_after_the_rules_and_names_the
     section = text[text.index("## Measured rates\n"):text.index("## Org rules, packs and exports\n")]
     paragraph = " ".join(section[:section.index(rb.README_START)].split())
     for needle in ("Rules only: no model is called.", "never as found and never as clean",
-                   "each of its skills is shown as found or not found", "Only the 21 skill rules can be measured on skills",
+                   "each of its skills is shown as found or not found", "Only the 20 skill rules can be measured on skills",
                    "[benchmarks/RESULTS.md](benchmarks/RESULTS.md)", "[benchmarks/README.md](benchmarks/README.md)"):
         assert needle in paragraph, needle
     for character in ("\u2014", "\u2013", "!"):

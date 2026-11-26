@@ -31,11 +31,6 @@ MCP_TAGS = {
     "SW-SKL-007": ("MCP04",),
     "SW-SKL-009": ("MCP04",),
     "SW-SKL-037": ("MCP04",),
-    # MCP10 Context Injection & Over-Sharing: the part a file can show, "instruction-like content that tries to persist in memory"
-    # (the entry's mitigation: "Detect and block instruction-like content trying to persist in memory"): a skill or instruction
-    # file that writes a standing directive into a memory or instruction file (SW-SKL-038, 1.25.0). Context shared across users,
-    # agents or sessions is not detected by any rule.
-    "SW-SKL-038": ("MCP10",),
     "SW-CFG-003": ("MCP04",),
     "SW-CFG-009": ("MCP04",),
     # MCP06: instructions in content the agent retrieves into its context (here external content fetched without an
@@ -74,11 +69,9 @@ def test_every_enforcement_rule_carries_exactly_its_pinned_owasp_mcp_tags():
     assert actual == ENFORCEMENT_MCP_TAGS
 
 
-def test_only_the_memory_rule_is_tagged_context_injection_and_over_sharing():
-    """1.9.1 left MCP10 with no rule, because no rule detected context shared across sessions, users or agents. 1.25.0 tags SW-SKL-038,
-    which sees one part of the entry, instruction-like content that tries to persist in memory, and nothing of the sharing."""
+def test_no_rule_is_tagged_context_injection_and_over_sharing_any_more():
     tagged = [rule.id for rule in (*BASELINE, *ENFORCEMENT_RULES) if "MCP10" in rule.owasp_mcp]
-    assert tagged == ["SW-SKL-038"]
+    assert tagged == []
 
 
 def test_the_new_tags_are_allowed_for_the_baseline_and_stay_out_of_organisation_rules():

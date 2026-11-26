@@ -86,7 +86,6 @@ file has no deprecation marker, so "not deprecated" means "present in release 20
 | SW-SKL-032 | AML.T0011 User Execution | AST01 |
 | SW-SKL-036 | AML.T0053 AI Agent Tool Invocation | AST03 |
 | SW-SKL-037 | AML.T0010.005 Supply Chain Compromise: AI Agent Tool; AML.T0109 AI Supply Chain Rug Pull | AST02, AST07 |
-| SW-SKL-038 | AML.T0080.000 AI Agent Context Poisoning: Memory | AST03 |
 
 ## Review record
 

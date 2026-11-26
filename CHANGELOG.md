@@ -2,26 +2,18 @@
 
 ## 1.25.0 (2026-11-NN)
 
-Rules version 2026.11.10 (69 rules): three rules are new and no rule changed, so every finding 1.24.0 reports keeps its rule,
+Rules version 2026.11.10 (68 rules): two rules are new and no rule changed, so every finding 1.24.0 reports keeps its rule,
 location, evidence and fingerprint. The new rules read content that no rule read before, so a project can get a new finding at
 medium, or at high for `SW-CFG-015`, that it did not have on 1.24.0, and `--fail-on medium` or the `balanced` preset can fail a
-build that passed. `SW-CFG-015` is high under every preset; the preset `strict` raises the other two to high, and `low-noise`
-keeps them at medium. The baseline and accepted findings record them like any other finding.
+build that passed. `SW-CFG-015` is high under every preset; the preset `strict` raises `SW-MCP-013` to high, and `low-noise`
+keeps it at medium. The baseline and accepted findings record them like any other finding.
 
 1.25.0: rules for OWASP entries that had none. The documentation listed five entries with no rule: ASI06 Memory & Context
 Poisoning, ASI08 Cascading Failures, MCP05 Command Injection & Execution, MCP08 Lack of Audit and Telemetry and MCP10 Context
 Injection & Over-Sharing. For each, a check before install can see part of it or nothing. Two entries have a part it can see,
-and each gets a rule; a third rule is added under MCP02 because the roadmap named it.
+and each was given a candidate rule; a third candidate was added under MCP02 because the roadmap named it. Two of the three are
+released, below. The third, `SW-SKL-038`, was withdrawn before the release.
 
-- `SW-SKL-038` "Writes to an agent's memory or instruction files" (skill, medium, ASI06 and MCP10): a sentence or a shell
-  command that names a memory or instruction file (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `.cursorrules`, the rule folders, a
-  `MEMORY.md`, the memory folder of a Claude project), writes to it and puts a standing directive ("always", "never", "from now
-  on", "in every future session") into it. It is quiet when the same file asks the user for approval, when the sentence forbids
-  the write, when the directive only says when the file is updated ("Always update `CLAUDE.md` when you add a command") and in
-  a README or another file written for people. An instruction file is scanned like a skill, so the rule also reads `CLAUDE.md`
-  and `AGENTS.md`. It reads through the normalised copies of the text, like the other prose rules, so `normalise.RULES` lists 15
-  rules. It does not see memory poisoned while an agent runs, memory a product keeps outside files, memory that is already
-  poisoned, or a write made by code the text does not describe.
 - `SW-MCP-013` "Tool takes a command line to run as an argument" (mcp, medium, MCP05 and ASI05): a probed tool whose input
   schema has a free-text `command`, `cmd`, `commandLine`, `shell_command`, `bash_command`, `powershell_command`, `shell` or `bash` parameter with no
   `enum` or `const`, and whose name or description says that it runs or executes. A claim by the server that the tool is
@@ -42,6 +34,12 @@ and each gets a rule; a third rule is added under MCP02 because the roadmap name
   tuned and the set was scored once. Precision 100.0% (85.1% to 100.0%) on 22 labelled units, so the severity is high; recall
   66.1% (47.0% to 84.8%).
 
+`SW-SKL-038` "Writes to an agent's memory or instruction files" (skill, ASI06 and MCP10) is not released. It looked for a sentence
+or a command that tells an agent to write a standing directive into a memory or instruction file. The count gate withdrew it: over
+18,789 public skill, command and instruction files from 17,246 components it flagged 2 files from 2 components, where a split
+measurement needs 60 and 20 and a whole-frame measurement 20 and 10. It is not measured again, no rule uses its id and the id
+stays reserved. It was never released, so no scanner reports it and no finding changes. The tag ASI06 is not added.
+
 Measurement. Each rule is released only at the severity its own measurement gives, and a rule that does not reach the bar is
 taken out before the release. The measurement is on a set of public files of its own, never published because it holds
 third-party text; `benchmarks/measured_sets.json` holds its record (counts, hashes and dates) and `benchmarks/README.md` says
@@ -51,10 +49,13 @@ never a condition and is always published with its interval. `python benchmarks/
 refuses a release in which a rule is not `measured` at the severity it is registered at, and the release workflow runs it before
 anything is built. The measured numbers are written into this entry by the commit that records the measurement.
 
-Tags. ASI06 and MCP05 are now allowed tags of the baseline. Organisation rules keep the tag lists of 1.2.x, so a pack that uses
-either is refused, and the pack schema is unchanged. ASI08 is not added: no rule carries it.
+Tags. MCP05 is now an allowed tag of the baseline. Organisation rules keep the tag lists of 1.2.x, so a pack that uses it is
+refused, and the pack schema is unchanged. ASI06 and ASI08 are not added: no rule carries them.
 
-Entries that stay without a detection rule. ASI08 Cascading Failures is a fault that spreads between agents and tools while they
+Entries that stay without a detection rule. ASI06 Memory & Context Poisoning and MCP10 Context Injection & Over-Sharing: the check
+built for them was withdrawn by the count gate (above). A scan before install cannot see memory poisoned while an agent runs, memory
+kept outside files, or context shared across users, agents or sessions. Runtime traces list the sessions in which each skill, server
+and tool was used, and tool change alerts report a change to a tool after approval. ASI08 Cascading Failures is a fault that spreads between agents and tools while they
 run, so no file or tool list shows it before install; runtime traces show where a failure began and how far it went. MCP08 Lack
 of Audit and Telemetry cannot be seen in a file or a tool list either; the enforcement rule `SW-OB-008` asks for an audit
 record of every tool call, runtime traces keep the tool calls sent to Spellwarden, and the audit evidence pack carries the log

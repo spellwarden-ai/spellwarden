@@ -20,7 +20,7 @@ AS_OF = "2026-11-14"
 RECORDED_VERSION = "1.13.0"
 RECORDED_RULES_VERSION = "2026.11.6"
 # Rules added after 1.13.0. A scan of the golden repository raises none of them, but the SARIF rule table lists every rule.
-ADDED_AFTER_1_13_0 = ("SW-MCP-012", "SW-CFG-015", "SW-MCP-013", "SW-SKL-038")
+ADDED_AFTER_1_13_0 = ("SW-MCP-012", "SW-CFG-015", "SW-MCP-013")
 OUTPUTS = (("json", "report.json"), ("sarif", "report.sarif"), ("markdown", "report.md"),
            ("gitlab-codequality", "gl-code-quality-report.json"), ("text", "report.txt"))
 

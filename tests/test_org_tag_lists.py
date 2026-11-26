@@ -17,7 +17,7 @@ def test_the_organisation_nist_list_is_the_one_of_1_2_x():
 
 
 def test_the_baseline_only_tags_are_exactly_the_tags_added_since_1_2_x():
-    assert BASELINE_ONLY_TAGS == {"ASI02", "ASI03", "ASI05", "ASI06", "ASI07", "ASI09", "MCP02", "MCP03", "MCP04", "MCP05", "MCP06",
+    assert BASELINE_ONLY_TAGS == {"ASI02", "ASI03", "ASI05", "ASI07", "ASI09", "MCP02", "MCP03", "MCP04", "MCP05", "MCP06",
                                   "MCP07", "MCP08", "MCP09", "SC-8", "SI-3", "SI-7", "CM-7"}
     assert BASELINE_ONLY_TAGS <= set(ALLOWED_OWASP) | set(ALLOWED_NIST)
 
@@ -27,16 +27,17 @@ def test_the_new_batch_tags_are_allowed_in_the_baseline():
     assert {"CM-7", "SI-3"} <= set(ALLOWED_NIST)
 
 
-def test_asi06_and_mcp05_are_allowed_in_the_baseline_only_and_asi08_in_neither_list():
-    """1.25.0 (P6-9 spec 8.5): the memory rule and the command-line rule need these two tags; ASI08 stays out because no rule
-    carries it, and MCP10 is a tag of 1.2.x, so it stays an organisation tag."""
-    assert {"ASI06", "MCP05"} <= set(ALLOWED_OWASP) and {"ASI06", "MCP05"} <= BASELINE_ONLY_TAGS
-    assert not {"ASI06", "MCP05"} & set(ORG_ALLOWED_OWASP)
-    assert "ASI08" not in ALLOWED_OWASP and "ASI08" not in BASELINE_ONLY_TAGS
+def test_mcp05_is_allowed_in_the_baseline_only_and_asi06_and_asi08_in_neither_list():
+    """1.25.0 (P6-9 spec 8.5): the command-line rule needs MCP05; ASI06 and ASI08 stay out because no rule carries them (the memory
+    rule was withdrawn), and MCP10 is a tag of 1.2.x, so it stays an organisation tag."""
+    assert "MCP05" in ALLOWED_OWASP and "MCP05" in BASELINE_ONLY_TAGS
+    assert "MCP05" not in ORG_ALLOWED_OWASP
+    for tag in ("ASI06", "ASI08"):
+        assert tag not in ALLOWED_OWASP and tag not in BASELINE_ONLY_TAGS
     assert "MCP10" in ORG_ALLOWED_OWASP
 
 
-@pytest.mark.parametrize("tag", ("ASI06", "MCP05"))
+@pytest.mark.parametrize("tag", ("MCP05",))
 def test_an_organisation_rule_that_uses_a_tag_of_1_25_0_is_refused_as_bad_mapping(tag):
     spec = {"id": "SW-ORG-001", "title": "Org pattern", "severity": "high", "area": "skill", "owasp": [tag], "nist": ["SI-10"],
             "detection": {"kind": "pattern", "pattern": "needle"}}

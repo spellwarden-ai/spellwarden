@@ -32,7 +32,7 @@ def test_the_first_words_after_the_title_warn_never_to_run_a_sample_and_quote_th
 
 def test_it_says_what_is_measured_and_what_is_not():
     flat = _flat(_text())
-    for needle in ("Rules only. No model is called", "The 21 skill rules (SW-SKL)", "never shows them as 0%", "(`balanced`)",
+    for needle in ("Rules only. No model is called", "The 20 skill rules (SW-SKL)", "never shows them as 0%", "(`balanced`)",
                    "medium or above, and high or above", "95% Wilson interval", "never counted as found or as clean",
                    "macro-F1"):
         assert needle in flat, needle

@@ -13,7 +13,7 @@ _spec.loader.exec_module(check)
 
 def test_it_lists_the_page_of_every_baseline_rule():
     listed = check.pages()
-    assert len(listed) == 69
+    assert len(listed) == 68
     assert ("SW-SKL-009", "https://spellwarden.ai/docs/rules/sw-skl-009") in listed
     assert all(page == f"https://spellwarden.ai/docs/rules/{rule_id.lower()}" for rule_id, page in listed)
 
@@ -40,8 +40,8 @@ def test_a_page_must_answer_200_with_its_rule_id():
 def test_main_says_how_many_pages_answer(monkeypatch, capsys):
     monkeypatch.setattr(check, "problems", lambda _listed: [])
     assert check.main() == 0
-    assert capsys.readouterr().out == "69 of 69 rule pages answer\n"
+    assert capsys.readouterr().out == "68 of 68 rule pages answer\n"
     monkeypatch.setattr(check, "problems", lambda _listed: ["SW-SKL-001: x answered 404, not 200"])
     assert check.main() == 1
     captured = capsys.readouterr()
-    assert captured.out == "68 of 69 rule pages answer\n" and captured.err == "SW-SKL-001: x answered 404, not 200\n"
+    assert captured.out == "67 of 68 rule pages answer\n" and captured.err == "SW-SKL-001: x answered 404, not 200\n"

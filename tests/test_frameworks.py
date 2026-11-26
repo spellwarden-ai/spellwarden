@@ -67,7 +67,7 @@ def test_the_frameworks_list_every_identifier_a_rule_may_use():
 
 
 def test_every_rule_has_atlas_ids_or_a_no_technique_entry_never_both_never_neither():
-    assert len(RULES) == 69
+    assert len(RULES) == 68
     without = {rule.id for rule in RULES if not rule.atlas}
     assert without == set(frameworks.NO_ATLAS)
     assert all(frameworks.NO_ATLAS[rule_id].strip() for rule_id in without)
@@ -96,7 +96,7 @@ def test_the_ast_column_is_the_mapping_the_landing_page_published():
     assert by_ast == {
         "AST01": {"SW-SKL-004", "SW-SKL-008", "SW-SKL-032"},
         "AST02": {"SW-SKL-007", "SW-SKL-009", "SW-SKL-010", "SW-SKL-037", "SW-CFG-003", "SW-CFG-009"},
-        "AST03": {"SW-SKL-036", "SW-SKL-003", "SW-SKL-005", "SW-SKL-038"},
+        "AST03": {"SW-SKL-036", "SW-SKL-003", "SW-SKL-005"},
         "AST04": {"SW-SKL-015", "SW-SKL-031"},
         "AST05": {"SW-SKL-001", "SW-SKL-002", "SW-SKL-019"},
         "AST07": {"SW-SKL-009", "SW-SKL-037", "SW-CFG-003", "SW-CFG-009"},

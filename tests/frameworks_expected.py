@@ -74,5 +74,4 @@ EXPECTED: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
     "SW-SKL-032": (("AML.T0011",), ("AST01",)),
     "SW-SKL-036": (("AML.T0053",), ("AST03",)),
     "SW-SKL-037": (("AML.T0010.005", "AML.T0109"), ("AST02", "AST07")),
-    "SW-SKL-038": (("AML.T0080.000",), ("AST03",)),
 }

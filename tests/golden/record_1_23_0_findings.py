@@ -23,8 +23,6 @@ RECORDED_VERSION = "1.23.0"
 REDUCED = 128 * 1024  # bytes of agent text of a reduced generated case
 LINE = 64 * 1024  # characters of a reduced adversarial line
 FIXTURES = ROOT / "fixtures" / "skills"
-# the fixture directory of a rule that 1.23.0 does not have (SW-SKL-038, 1.25.0): not a case of this record, which keeps its 984
-FIXTURES_AFTER_1_23_0 = frozenset({"SW-SKL-038"})
 
 
 def _module(name: str, path: Path):
@@ -52,8 +50,6 @@ def fixture_packages() -> Iterator[tuple[str, dict[str, bytes]]]:
     """`(rule/kind, files)` of every directory `fixtures/skills/<rule>/positive` and `.../negative`, as the tests read them
     (`conftest.load_skill_fixture`, generated packages included)."""
     for rule in sorted(FIXTURES.iterdir()):
-        if rule.name in FIXTURES_AFTER_1_23_0:
-            continue
         for kind in ("positive", "negative"):
             files, _expected = conftest.load_skill_fixture(rule.name, kind)
             yield f"{rule.name}/{kind}", files
