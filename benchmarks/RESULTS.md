@@ -4,9 +4,9 @@
 
 What the scanner's skill rules find on fixed public sets of malicious and harmless skills, measured again for every release. Rules only: no model is called. What is measured, the sources and how to run it yourself are in [README.md](README.md).
 
-## Scanner 1.26.0
+## Scanner 1.27.0
 
-Rules version 2026.11.10, released 2026-11-27. Manifest `bb9897926d4b6ea47bfc99c6052457de1f634931c0608c25a006e34ee322c5fa`.
+Rules version 2026.11.11, released 2026-11-27. Manifest `bb9897926d4b6ea47bfc99c6052457de1f634931c0608c25a006e34ee322c5fa`.
 
 ### Held-out half of Spellwarden's labelled set (test)
 
@@ -314,51 +314,51 @@ Normalisation steps: entities, invisible, compat, lookalike, spaces, base64; gen
 
 ## Release by release
 
-| Set and line | 1.21.0 | 1.22.0 | 1.23.0 | 1.24.0 | 1.25.0 | 1.26.0 |
-|---|---|---|---|---|---|---|
-| Held-out half of Spellwarden's labelled set, detection, medium or above | 54.7% (29 of 53) | 54.7% (29 of 53) | 54.7% (29 of 53) | 54.7% (29 of 53) | 54.7% (29 of 53) | 54.7% (29 of 53) |
-| Held-out half of Spellwarden's labelled set, false positives, medium or above | 29.1% (32 of 110) | 29.1% (32 of 110) | 29.1% (32 of 110) | 29.1% (32 of 110) | 29.1% (32 of 110) | 29.1% (32 of 110) |
-| Held-out half of Spellwarden's labelled set, detection, high or above | 37.7% (20 of 53) | 37.7% (20 of 53) | 37.7% (20 of 53) | 37.7% (20 of 53) | 37.7% (20 of 53) | 37.7% (20 of 53) |
-| Held-out half of Spellwarden's labelled set, false positives, high or above | 6.4% (7 of 110) | 6.4% (7 of 110) | 6.4% (7 of 110) | 6.4% (7 of 110) | 6.4% (7 of 110) | 6.4% (7 of 110) |
-| MaliciousSkillBench test split (source-disjoint), detection, medium or above | 36.0% (302 of 839) | 36.1% (303 of 839) | 36.1% (303 of 839) | 36.1% (303 of 839) | 36.1% (303 of 839) | 36.1% (303 of 839) |
-| MaliciousSkillBench test split (source-disjoint), false positives, medium or above | 26.6% (145 of 545) | 26.6% (145 of 545) | 26.6% (145 of 545) | 26.6% (145 of 545) | 26.6% (145 of 545) | 26.6% (145 of 545) |
-| MaliciousSkillBench test split (source-disjoint), detection, high or above | 3.7% (31 of 839) | 3.8% (32 of 839) | 3.8% (32 of 839) | 3.8% (32 of 839) | 3.8% (32 of 839) | 3.8% (32 of 839) |
-| MaliciousSkillBench test split (source-disjoint), false positives, high or above | 9.7% (53 of 545) | 9.7% (53 of 545) | 9.7% (53 of 545) | 9.7% (53 of 545) | 9.7% (53 of 545) | 9.7% (53 of 545) |
-| Trail of Bits scanner-bypass skills, found, medium or above | found 3 of 4 | found 3 of 4 | found 3 of 4 | found 3 of 4 | found 3 of 4 | found 3 of 4 |
-| Trail of Bits scanner-bypass skills, found, high or above | found 0 of 4 | found 0 of 4 | found 0 of 4 | found 0 of 4 | found 0 of 4 | found 0 of 4 |
-| Tuning half of Spellwarden's labelled set, detection, medium or above | 47.5% (29 of 61) | 47.5% (29 of 61) | 47.5% (29 of 61) | 47.5% (29 of 61) | 47.5% (29 of 61) | 47.5% (29 of 61) |
-| Tuning half of Spellwarden's labelled set, false positives, medium or above | 34.9% (38 of 109) | 34.9% (38 of 109) | 34.9% (38 of 109) | 34.9% (38 of 109) | 34.9% (38 of 109) | 34.9% (38 of 109) |
-| Tuning half of Spellwarden's labelled set, detection, high or above | 23.0% (14 of 61) | 23.0% (14 of 61) | 23.0% (14 of 61) | 23.0% (14 of 61) | 23.0% (14 of 61) | 23.0% (14 of 61) |
-| Tuning half of Spellwarden's labelled set, false positives, high or above | 6.4% (7 of 109) | 6.4% (7 of 109) | 6.4% (7 of 109) | 6.4% (7 of 109) | 6.4% (7 of 109) | 6.4% (7 of 109) |
-| Held-out half of Spellwarden's labelled set, disguised: one encoding layer, detection, medium or above | not in this release | 83.0% (44 of 53) | 83.0% (44 of 53) | 83.0% (44 of 53) | 83.0% (44 of 53) | 83.0% (44 of 53) |
-| Held-out half of Spellwarden's labelled set, disguised: two encoding layers, detection, medium or above | not in this release | 83.0% (44 of 53) | 83.0% (44 of 53) | 83.0% (44 of 53) | 83.0% (44 of 53) | 83.0% (44 of 53) |
-| Held-out half of Spellwarden's labelled set, disguised: strings joined at run time, detection, medium or above | not in this release | 45.5% (20 of 44) | 45.5% (20 of 44) | 45.5% (20 of 44) | 45.5% (20 of 44) | 45.5% (20 of 44) |
-| Held-out half of Spellwarden's labelled set, disguised: look-alike letters, detection, medium or above | not in this release | 52.8% (28 of 53) | 52.8% (28 of 53) | 52.8% (28 of 53) | 52.8% (28 of 53) | 52.8% (28 of 53) |
-| Held-out half of Spellwarden's labelled set, disguised: markup tricks, detection, medium or above | not in this release | 54.7% (29 of 53) | 54.7% (29 of 53) | 54.7% (29 of 53) | 54.7% (29 of 53) | 54.7% (29 of 53) |
-| Held-out half of Spellwarden's labelled set, disguised: padding, detection, medium or above | not in this release | 54.7% (29 of 53) | 54.7% (29 of 53) | 54.7% (29 of 53) | 54.7% (29 of 53) | 54.7% (29 of 53) |
-| Held-out half of Spellwarden's labelled set, disguised: word-list translation, detection, medium or above | not in this release | 54.7% (29 of 53) | 54.7% (29 of 53) | 54.7% (29 of 53) | 54.7% (29 of 53) | 54.7% (29 of 53) |
-| Held-out half of Spellwarden's labelled set, disguised: zero-width characters inside words, detection, medium or above | not in this release | 100.0% (53 of 53) | 100.0% (53 of 53) | 100.0% (53 of 53) | 100.0% (53 of 53) | 100.0% (53 of 53) |
-| MaliciousSkillBench test split (source-disjoint), disguised: one encoding layer, detection, medium or above | not in this release | 89.2% (748 of 839) | 89.2% (748 of 839) | 89.2% (748 of 839) | 89.2% (748 of 839) | 89.2% (748 of 839) |
-| MaliciousSkillBench test split (source-disjoint), disguised: two encoding layers, detection, medium or above | not in this release | 89.2% (748 of 839) | 89.2% (748 of 839) | 89.2% (748 of 839) | 89.2% (748 of 839) | 89.2% (748 of 839) |
-| MaliciousSkillBench test split (source-disjoint), disguised: strings joined at run time, detection, medium or above | not in this release | 30.0% (218 of 727) | 30.0% (218 of 727) | 30.0% (218 of 727) | 30.0% (218 of 727) | 30.0% (218 of 727) |
-| MaliciousSkillBench test split (source-disjoint), disguised: look-alike letters, detection, medium or above | not in this release | 36.1% (303 of 839) | 36.1% (303 of 839) | 36.1% (303 of 839) | 36.1% (303 of 839) | 36.1% (303 of 839) |
-| MaliciousSkillBench test split (source-disjoint), disguised: markup tricks, detection, medium or above | not in this release | 36.0% (302 of 839) | 36.0% (302 of 839) | 36.0% (302 of 839) | 36.0% (302 of 839) | 36.0% (302 of 839) |
-| MaliciousSkillBench test split (source-disjoint), disguised: padding, detection, medium or above | not in this release | 36.1% (303 of 839) | 36.1% (303 of 839) | 36.1% (303 of 839) | 36.1% (303 of 839) | 36.1% (303 of 839) |
-| MaliciousSkillBench test split (source-disjoint), disguised: word-list translation, detection, medium or above | not in this release | 35.8% (300 of 839) | 35.8% (300 of 839) | 35.8% (300 of 839) | 35.8% (300 of 839) | 35.8% (300 of 839) |
-| MaliciousSkillBench test split (source-disjoint), disguised: zero-width characters inside words, detection, medium or above | not in this release | 100.0% (839 of 839) | 100.0% (839 of 839) | 100.0% (839 of 839) | 100.0% (839 of 839) | 100.0% (839 of 839) |
-| Trail of Bits scanner-bypass skills, disguised: one encoding layer, detection, medium or above | not in this release | found 3 of 4 | found 3 of 4 | found 3 of 4 | found 3 of 4 | found 3 of 4 |
-| Trail of Bits scanner-bypass skills, disguised: two encoding layers, detection, medium or above | not in this release | found 3 of 4 | found 3 of 4 | found 3 of 4 | found 3 of 4 | found 3 of 4 |
-| Trail of Bits scanner-bypass skills, disguised: strings joined at run time, detection, medium or above | not in this release | found 3 of 3 | found 3 of 3 | found 3 of 3 | found 3 of 3 | found 3 of 3 |
-| Trail of Bits scanner-bypass skills, disguised: look-alike letters, detection, medium or above | not in this release | found 3 of 4 | found 3 of 4 | found 3 of 4 | found 3 of 4 | found 3 of 4 |
-| Trail of Bits scanner-bypass skills, disguised: markup tricks, detection, medium or above | not in this release | found 3 of 4 | found 3 of 4 | found 3 of 4 | found 3 of 4 | found 3 of 4 |
-| Trail of Bits scanner-bypass skills, disguised: padding, detection, medium or above | not in this release | found 3 of 4 | found 3 of 4 | found 3 of 4 | found 3 of 4 | found 3 of 4 |
-| Trail of Bits scanner-bypass skills, disguised: word-list translation, detection, medium or above | not in this release | found 3 of 4 | found 3 of 4 | found 3 of 4 | found 3 of 4 | found 3 of 4 |
-| Trail of Bits scanner-bypass skills, disguised: zero-width characters inside words, detection, medium or above | not in this release | found 4 of 4 | found 4 of 4 | found 4 of 4 | found 4 of 4 | found 4 of 4 |
-| Tuning half of Spellwarden's labelled set, disguised: one encoding layer, detection, medium or above | not in this release | 82.0% (50 of 61) | 82.0% (50 of 61) | 82.0% (50 of 61) | 82.0% (50 of 61) | 82.0% (50 of 61) |
-| Tuning half of Spellwarden's labelled set, disguised: two encoding layers, detection, medium or above | not in this release | 82.0% (50 of 61) | 82.0% (50 of 61) | 82.0% (50 of 61) | 82.0% (50 of 61) | 82.0% (50 of 61) |
-| Tuning half of Spellwarden's labelled set, disguised: strings joined at run time, detection, medium or above | not in this release | 50.0% (24 of 48) | 50.0% (24 of 48) | 50.0% (24 of 48) | 50.0% (24 of 48) | 50.0% (24 of 48) |
-| Tuning half of Spellwarden's labelled set, disguised: look-alike letters, detection, medium or above | not in this release | 45.9% (28 of 61) | 45.9% (28 of 61) | 45.9% (28 of 61) | 45.9% (28 of 61) | 45.9% (28 of 61) |
-| Tuning half of Spellwarden's labelled set, disguised: markup tricks, detection, medium or above | not in this release | 45.9% (28 of 61) | 45.9% (28 of 61) | 45.9% (28 of 61) | 45.9% (28 of 61) | 45.9% (28 of 61) |
-| Tuning half of Spellwarden's labelled set, disguised: padding, detection, medium or above | not in this release | 47.5% (29 of 61) | 47.5% (29 of 61) | 47.5% (29 of 61) | 47.5% (29 of 61) | 47.5% (29 of 61) |
-| Tuning half of Spellwarden's labelled set, disguised: word-list translation, detection, medium or above | not in this release | 47.5% (29 of 61) | 47.5% (29 of 61) | 47.5% (29 of 61) | 47.5% (29 of 61) | 47.5% (29 of 61) |
-| Tuning half of Spellwarden's labelled set, disguised: zero-width characters inside words, detection, medium or above | not in this release | 100.0% (61 of 61) | 100.0% (61 of 61) | 100.0% (61 of 61) | 100.0% (61 of 61) | 100.0% (61 of 61) |
+| Set and line | 1.21.0 | 1.22.0 | 1.23.0 | 1.24.0 | 1.25.0 | 1.26.0 | 1.27.0 |
+|---|---|---|---|---|---|---|---|
+| Held-out half of Spellwarden's labelled set, detection, medium or above | 54.7% (29 of 53) | 54.7% (29 of 53) | 54.7% (29 of 53) | 54.7% (29 of 53) | 54.7% (29 of 53) | 54.7% (29 of 53) | 54.7% (29 of 53) |
+| Held-out half of Spellwarden's labelled set, false positives, medium or above | 29.1% (32 of 110) | 29.1% (32 of 110) | 29.1% (32 of 110) | 29.1% (32 of 110) | 29.1% (32 of 110) | 29.1% (32 of 110) | 29.1% (32 of 110) |
+| Held-out half of Spellwarden's labelled set, detection, high or above | 37.7% (20 of 53) | 37.7% (20 of 53) | 37.7% (20 of 53) | 37.7% (20 of 53) | 37.7% (20 of 53) | 37.7% (20 of 53) | 37.7% (20 of 53) |
+| Held-out half of Spellwarden's labelled set, false positives, high or above | 6.4% (7 of 110) | 6.4% (7 of 110) | 6.4% (7 of 110) | 6.4% (7 of 110) | 6.4% (7 of 110) | 6.4% (7 of 110) | 6.4% (7 of 110) |
+| MaliciousSkillBench test split (source-disjoint), detection, medium or above | 36.0% (302 of 839) | 36.1% (303 of 839) | 36.1% (303 of 839) | 36.1% (303 of 839) | 36.1% (303 of 839) | 36.1% (303 of 839) | 36.1% (303 of 839) |
+| MaliciousSkillBench test split (source-disjoint), false positives, medium or above | 26.6% (145 of 545) | 26.6% (145 of 545) | 26.6% (145 of 545) | 26.6% (145 of 545) | 26.6% (145 of 545) | 26.6% (145 of 545) | 26.6% (145 of 545) |
+| MaliciousSkillBench test split (source-disjoint), detection, high or above | 3.7% (31 of 839) | 3.8% (32 of 839) | 3.8% (32 of 839) | 3.8% (32 of 839) | 3.8% (32 of 839) | 3.8% (32 of 839) | 3.8% (32 of 839) |
+| MaliciousSkillBench test split (source-disjoint), false positives, high or above | 9.7% (53 of 545) | 9.7% (53 of 545) | 9.7% (53 of 545) | 9.7% (53 of 545) | 9.7% (53 of 545) | 9.7% (53 of 545) | 9.7% (53 of 545) |
+| Trail of Bits scanner-bypass skills, found, medium or above | found 3 of 4 | found 3 of 4 | found 3 of 4 | found 3 of 4 | found 3 of 4 | found 3 of 4 | found 3 of 4 |
+| Trail of Bits scanner-bypass skills, found, high or above | found 0 of 4 | found 0 of 4 | found 0 of 4 | found 0 of 4 | found 0 of 4 | found 0 of 4 | found 0 of 4 |
+| Tuning half of Spellwarden's labelled set, detection, medium or above | 47.5% (29 of 61) | 47.5% (29 of 61) | 47.5% (29 of 61) | 47.5% (29 of 61) | 47.5% (29 of 61) | 47.5% (29 of 61) | 47.5% (29 of 61) |
+| Tuning half of Spellwarden's labelled set, false positives, medium or above | 34.9% (38 of 109) | 34.9% (38 of 109) | 34.9% (38 of 109) | 34.9% (38 of 109) | 34.9% (38 of 109) | 34.9% (38 of 109) | 34.9% (38 of 109) |
+| Tuning half of Spellwarden's labelled set, detection, high or above | 23.0% (14 of 61) | 23.0% (14 of 61) | 23.0% (14 of 61) | 23.0% (14 of 61) | 23.0% (14 of 61) | 23.0% (14 of 61) | 23.0% (14 of 61) |
+| Tuning half of Spellwarden's labelled set, false positives, high or above | 6.4% (7 of 109) | 6.4% (7 of 109) | 6.4% (7 of 109) | 6.4% (7 of 109) | 6.4% (7 of 109) | 6.4% (7 of 109) | 6.4% (7 of 109) |
+| Held-out half of Spellwarden's labelled set, disguised: one encoding layer, detection, medium or above | not in this release | 83.0% (44 of 53) | 83.0% (44 of 53) | 83.0% (44 of 53) | 83.0% (44 of 53) | 83.0% (44 of 53) | 83.0% (44 of 53) |
+| Held-out half of Spellwarden's labelled set, disguised: two encoding layers, detection, medium or above | not in this release | 83.0% (44 of 53) | 83.0% (44 of 53) | 83.0% (44 of 53) | 83.0% (44 of 53) | 83.0% (44 of 53) | 83.0% (44 of 53) |
+| Held-out half of Spellwarden's labelled set, disguised: strings joined at run time, detection, medium or above | not in this release | 45.5% (20 of 44) | 45.5% (20 of 44) | 45.5% (20 of 44) | 45.5% (20 of 44) | 45.5% (20 of 44) | 45.5% (20 of 44) |
+| Held-out half of Spellwarden's labelled set, disguised: look-alike letters, detection, medium or above | not in this release | 52.8% (28 of 53) | 52.8% (28 of 53) | 52.8% (28 of 53) | 52.8% (28 of 53) | 52.8% (28 of 53) | 52.8% (28 of 53) |
+| Held-out half of Spellwarden's labelled set, disguised: markup tricks, detection, medium or above | not in this release | 54.7% (29 of 53) | 54.7% (29 of 53) | 54.7% (29 of 53) | 54.7% (29 of 53) | 54.7% (29 of 53) | 54.7% (29 of 53) |
+| Held-out half of Spellwarden's labelled set, disguised: padding, detection, medium or above | not in this release | 54.7% (29 of 53) | 54.7% (29 of 53) | 54.7% (29 of 53) | 54.7% (29 of 53) | 54.7% (29 of 53) | 54.7% (29 of 53) |
+| Held-out half of Spellwarden's labelled set, disguised: word-list translation, detection, medium or above | not in this release | 54.7% (29 of 53) | 54.7% (29 of 53) | 54.7% (29 of 53) | 54.7% (29 of 53) | 54.7% (29 of 53) | 54.7% (29 of 53) |
+| Held-out half of Spellwarden's labelled set, disguised: zero-width characters inside words, detection, medium or above | not in this release | 100.0% (53 of 53) | 100.0% (53 of 53) | 100.0% (53 of 53) | 100.0% (53 of 53) | 100.0% (53 of 53) | 100.0% (53 of 53) |
+| MaliciousSkillBench test split (source-disjoint), disguised: one encoding layer, detection, medium or above | not in this release | 89.2% (748 of 839) | 89.2% (748 of 839) | 89.2% (748 of 839) | 89.2% (748 of 839) | 89.2% (748 of 839) | 89.2% (748 of 839) |
+| MaliciousSkillBench test split (source-disjoint), disguised: two encoding layers, detection, medium or above | not in this release | 89.2% (748 of 839) | 89.2% (748 of 839) | 89.2% (748 of 839) | 89.2% (748 of 839) | 89.2% (748 of 839) | 89.2% (748 of 839) |
+| MaliciousSkillBench test split (source-disjoint), disguised: strings joined at run time, detection, medium or above | not in this release | 30.0% (218 of 727) | 30.0% (218 of 727) | 30.0% (218 of 727) | 30.0% (218 of 727) | 30.0% (218 of 727) | 30.0% (218 of 727) |
+| MaliciousSkillBench test split (source-disjoint), disguised: look-alike letters, detection, medium or above | not in this release | 36.1% (303 of 839) | 36.1% (303 of 839) | 36.1% (303 of 839) | 36.1% (303 of 839) | 36.1% (303 of 839) | 36.1% (303 of 839) |
+| MaliciousSkillBench test split (source-disjoint), disguised: markup tricks, detection, medium or above | not in this release | 36.0% (302 of 839) | 36.0% (302 of 839) | 36.0% (302 of 839) | 36.0% (302 of 839) | 36.0% (302 of 839) | 36.0% (302 of 839) |
+| MaliciousSkillBench test split (source-disjoint), disguised: padding, detection, medium or above | not in this release | 36.1% (303 of 839) | 36.1% (303 of 839) | 36.1% (303 of 839) | 36.1% (303 of 839) | 36.1% (303 of 839) | 36.1% (303 of 839) |
+| MaliciousSkillBench test split (source-disjoint), disguised: word-list translation, detection, medium or above | not in this release | 35.8% (300 of 839) | 35.8% (300 of 839) | 35.8% (300 of 839) | 35.8% (300 of 839) | 35.8% (300 of 839) | 35.8% (300 of 839) |
+| MaliciousSkillBench test split (source-disjoint), disguised: zero-width characters inside words, detection, medium or above | not in this release | 100.0% (839 of 839) | 100.0% (839 of 839) | 100.0% (839 of 839) | 100.0% (839 of 839) | 100.0% (839 of 839) | 100.0% (839 of 839) |
+| Trail of Bits scanner-bypass skills, disguised: one encoding layer, detection, medium or above | not in this release | found 3 of 4 | found 3 of 4 | found 3 of 4 | found 3 of 4 | found 3 of 4 | found 3 of 4 |
+| Trail of Bits scanner-bypass skills, disguised: two encoding layers, detection, medium or above | not in this release | found 3 of 4 | found 3 of 4 | found 3 of 4 | found 3 of 4 | found 3 of 4 | found 3 of 4 |
+| Trail of Bits scanner-bypass skills, disguised: strings joined at run time, detection, medium or above | not in this release | found 3 of 3 | found 3 of 3 | found 3 of 3 | found 3 of 3 | found 3 of 3 | found 3 of 3 |
+| Trail of Bits scanner-bypass skills, disguised: look-alike letters, detection, medium or above | not in this release | found 3 of 4 | found 3 of 4 | found 3 of 4 | found 3 of 4 | found 3 of 4 | found 3 of 4 |
+| Trail of Bits scanner-bypass skills, disguised: markup tricks, detection, medium or above | not in this release | found 3 of 4 | found 3 of 4 | found 3 of 4 | found 3 of 4 | found 3 of 4 | found 3 of 4 |
+| Trail of Bits scanner-bypass skills, disguised: padding, detection, medium or above | not in this release | found 3 of 4 | found 3 of 4 | found 3 of 4 | found 3 of 4 | found 3 of 4 | found 3 of 4 |
+| Trail of Bits scanner-bypass skills, disguised: word-list translation, detection, medium or above | not in this release | found 3 of 4 | found 3 of 4 | found 3 of 4 | found 3 of 4 | found 3 of 4 | found 3 of 4 |
+| Trail of Bits scanner-bypass skills, disguised: zero-width characters inside words, detection, medium or above | not in this release | found 4 of 4 | found 4 of 4 | found 4 of 4 | found 4 of 4 | found 4 of 4 | found 4 of 4 |
+| Tuning half of Spellwarden's labelled set, disguised: one encoding layer, detection, medium or above | not in this release | 82.0% (50 of 61) | 82.0% (50 of 61) | 82.0% (50 of 61) | 82.0% (50 of 61) | 82.0% (50 of 61) | 82.0% (50 of 61) |
+| Tuning half of Spellwarden's labelled set, disguised: two encoding layers, detection, medium or above | not in this release | 82.0% (50 of 61) | 82.0% (50 of 61) | 82.0% (50 of 61) | 82.0% (50 of 61) | 82.0% (50 of 61) | 82.0% (50 of 61) |
+| Tuning half of Spellwarden's labelled set, disguised: strings joined at run time, detection, medium or above | not in this release | 50.0% (24 of 48) | 50.0% (24 of 48) | 50.0% (24 of 48) | 50.0% (24 of 48) | 50.0% (24 of 48) | 50.0% (24 of 48) |
+| Tuning half of Spellwarden's labelled set, disguised: look-alike letters, detection, medium or above | not in this release | 45.9% (28 of 61) | 45.9% (28 of 61) | 45.9% (28 of 61) | 45.9% (28 of 61) | 45.9% (28 of 61) | 45.9% (28 of 61) |
+| Tuning half of Spellwarden's labelled set, disguised: markup tricks, detection, medium or above | not in this release | 45.9% (28 of 61) | 45.9% (28 of 61) | 45.9% (28 of 61) | 45.9% (28 of 61) | 45.9% (28 of 61) | 45.9% (28 of 61) |
+| Tuning half of Spellwarden's labelled set, disguised: padding, detection, medium or above | not in this release | 47.5% (29 of 61) | 47.5% (29 of 61) | 47.5% (29 of 61) | 47.5% (29 of 61) | 47.5% (29 of 61) | 47.5% (29 of 61) |
+| Tuning half of Spellwarden's labelled set, disguised: word-list translation, detection, medium or above | not in this release | 47.5% (29 of 61) | 47.5% (29 of 61) | 47.5% (29 of 61) | 47.5% (29 of 61) | 47.5% (29 of 61) | 47.5% (29 of 61) |
+| Tuning half of Spellwarden's labelled set, disguised: zero-width characters inside words, detection, medium or above | not in this release | 100.0% (61 of 61) | 100.0% (61 of 61) | 100.0% (61 of 61) | 100.0% (61 of 61) | 100.0% (61 of 61) | 100.0% (61 of 61) |

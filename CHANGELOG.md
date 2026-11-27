@@ -1,5 +1,32 @@
 # Changelog
 
+## 1.27.0 (2026-11-27)
+
+Rules version 2026.11.11 (68 rules): SW-SKL-010 (Bundled binary or executable file) reports binary content only: a file whose name
+ends in one of its binary extensions, a file whose first bytes are the magic number of an ELF, Windows or Mach-O program, and a file
+listed as executable whose content is not readable text. A readable text file is never reported for its executable mode alone; it is
+read as a script instead, unless it is read as Markdown. A text file is read as a script when its name has a script extension, when
+it is a fenced block tagged as code, or, since 1.27.0, when it is listed as executable and is not read as Markdown (a file ending in
+`.md`, or a path passed in `markdown_paths`). A file read as Markdown is read exactly as when it is not executable: its fenced code
+by the script rules, its prose by the other rules.
+SW-SKL-037 takes the language of a file read this way and without a script extension from its `#!` line (a shell, Python, Node, Deno or Bun
+interpreter, also behind `/usr/bin/env`); without such a line it reads nothing in it.
+
+What this changes for a text file that is listed as executable, is not read as Markdown and has no script extension. A project can
+lose an SW-SKL-010 finding on such a file and get a finding of a script rule (SW-SKL-004, SW-SKL-006, SW-SKL-009, SW-SKL-014,
+SW-SKL-037 or an org rule) on the same file that it did not have on 1.26.0. SW-SKL-007 and SW-SKL-008 now read a command of such a
+file that continues on the next line after `|`, `&&` or `||`, so a high or critical finding can be new, and an SW-SKL-012 finding on
+a line SW-SKL-008 now reports goes. A finding on such a file can move to its command's first line with another evidence and
+fingerprint, so a baseline entry or an acceptance of it has to be made again. A finding on any other file keeps its rule, location,
+evidence and fingerprint, and an SW-SKL-010 finding on binary content keeps its fingerprint.
+
+New: `spellwarden_scan.in_tests_or_fixtures(path, root="")` says whether a file is a test or a fixture, by its path under the scan
+root (see the README's "Tests and fixtures"). It is for presentation only: no rule, severity, status or exit code reads it. SW-CFG-013
+shares its directory list and detects what it detected in 1.26.0.
+
+Rule benchmark: no rate got worse than in 1.26.0.
+Rule benchmark: normalisation adds no finding on harmless skills.
+
 ## 1.26.0 (2026-11-27)
 
 Rules version 2026.11.10, unchanged (68 rules): no rule detects anything new, and every finding 1.25.0 reports keeps its rule,

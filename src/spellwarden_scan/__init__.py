@@ -50,6 +50,7 @@ from spellwarden_scan.probe import evaluate_probe
 from spellwarden_scan.rules import Rule, RuleSet
 from spellwarden_scan.rules.skill import logical_commands
 from spellwarden_scan.scan import evaluate_agent_card, scan_agent_config, scan_skill_package
+from spellwarden_scan.testfiles import in_tests_or_fixtures
 from spellwarden_scan.text import comment_safe, valid_block, valid_line
 from spellwarden_scan.version import RULES_VERSION, __version__
 
@@ -78,4 +79,6 @@ __all__ = [
     "REPOSITORY_LIMITS", "list_zip",
     # speed and deadline spec 7.1: added in 1.24.0
     "Deadline", "TimeLimit",
+    # scan feedback fixes spec 4: added in 1.27.0
+    "in_tests_or_fixtures",
 ]

@@ -157,3 +157,22 @@ def test_a_real_scan_of_the_a2a_fixture_passes_the_case_s_own_report_check(tmp_p
     expect = make_repo.build("a2a", built)
     code = main(["scan", str(built), "--format", "json", "--output", str(written), "--no-telemetry"])
     assert code == expect["exit_code"] == 0 and check._check_report(expect, json.loads(written.read_text())) == []
+
+
+def test_a_real_scan_of_the_exec_bit_fixture_passes_the_case_s_own_report_check(tmp_path):
+    """Scan feedback fixes spec 5 (engine 1.27.0): the case the release's e2e job and both wrappers run. The modes recorded in the git
+    index reach the scanner on every OS: `scripts/run`, a readable text file, is not reported for its mode, and `scripts/setup` is read
+    as a script because of its mode, so the one finding is its unpinned install. Without the modes the case has no finding."""
+    from spellwarden_cli.main import main
+
+    make_repo, check = _fixture_tools()
+    built, written = tmp_path / "fx", tmp_path / "report.json"
+    expect = make_repo.build("exec-bit", built)
+    assert sorted(expect["modes"]) == [".claude/skills/tool/scripts/run", ".claude/skills/tool/scripts/setup"]
+    code = main(["scan", str(built), "--format", "json", "--output", str(written), "--no-telemetry", "--fail-on",
+                 expect["inputs"]["fail-on"]])
+    report = json.loads(written.read_text())
+    assert code == expect["exit_code"] == 1 and check._check_report(expect, report) == []
+    assert [(finding["rule_id"], finding["location"]["path"], finding["location"]["line"]) for finding in report["findings"]] == [
+        ("SW-SKL-009", ".claude/skills/tool/scripts/setup", 2)]
+    assert len(report["findings"]) == expect["findings"]

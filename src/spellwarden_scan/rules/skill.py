@@ -14,7 +14,7 @@ from spellwarden_scan.model import Finding, Location
 # 1.22.0: moved to `normalise`, unchanged; SW-MCP-011, the A2A rules and the Docker MCP Gateway export import them from here
 from spellwarden_scan.normalise import _INVISIBLE as _INVISIBLE  # noqa: F401 (re-exported)
 from spellwarden_scan.normalise import visible
-from spellwarden_scan.package import SCRIPT_EXTENSIONS, CodeBlock, Package, TextFile
+from spellwarden_scan.package import CodeBlock, Package, TextFile, is_script_file
 from spellwarden_scan.rules import Rule, make_rule
 from spellwarden_scan.rules import patterns as P
 from spellwarden_scan.rules.growth_skl_032 import detect as _skl_032
@@ -47,7 +47,7 @@ _CONTINUES = ("|", "&&", "||")
 
 
 def _is_script(unit: TextFile | CodeBlock) -> bool:
-    return isinstance(unit, CodeBlock) or unit.path.lower().endswith(SCRIPT_EXTENSIONS)
+    return isinstance(unit, CodeBlock) or is_script_file(unit)
 
 
 def logical_commands(unit: TextFile | CodeBlock) -> Iterator[tuple[str, int, str]]:
@@ -423,14 +423,17 @@ _MAGIC = (b"\x7fELF", b"MZ", b"\xcf\xfa\xed\xfe", b"\xce\xfa\xed\xfe", b"\xca\xf
 
 
 def _skl_010(package: Package) -> Iterator[Finding]:
+    """1.27.0 (scan feedback fixes spec 5.1, 5.2): binary content only. A file whose name has a binary extension or whose raw
+    first bytes are an executable magic number, held as binary or as text, and a file held as binary that the package lists as
+    executable. A readable text file is never reported for its executable mode: it is read as a script (`is_script_file`)."""
     seen: set[str] = set()
     for binary in package.binary_files:
-        if binary.path.lower().endswith(_BINARY_EXTENSIONS) or binary.head.startswith(_MAGIC):
+        if (binary.path.lower().endswith(_BINARY_EXTENSIONS) or binary.head.startswith(_MAGIC)
+                or binary.path in package.executable_paths):
             seen.add(binary.path)
     for text in package.text_files:
         if text.path.lower().endswith(_BINARY_EXTENSIONS) or text.head.startswith(_MAGIC):
             seen.add(text.path)
-    seen.update(package.executable_paths)
     for path in sorted(seen):
         yield _finding("SW-SKL-010", "medium", TITLES["SW-SKL-010"], path, None, path, evidence=path)
 
