@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import re
 
+from golden_links import without_links_back
 from golden_new_rules import without_new_rules
 
 HELP_URI = "https://github.com/spellwarden-ai/spellwarden#the-rules"  # what every SARIF rule linked up to 1.20.0
@@ -112,6 +113,7 @@ _BY_NAME = {"report.json": _report, "report.sarif": _sarif, "report.cdx.json": _
 
 def without_fix_guidance(name: str, text: str) -> str:
     """`text`, the report `name` (a golden recorder's file name), as a scanner before 1.21.0 would have written it."""
+    text = without_links_back(name, text)  # scan links back: a report before 1.21.0 had no links back either
     strip = _BY_NAME.get(name)
     return text if strip is None else strip(text)
 

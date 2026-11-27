@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pytest
 from golden_fix import without_fix_guidance
+from golden_links import without_links_back
 
 from spellwarden_scan import RuleSet
 
@@ -39,11 +40,12 @@ def _golden(name: str) -> str:
 def test_each_report_is_the_recorded_one(produced, name):
     code, written = produced
     assert code == 1
-    assert written[name] == _golden(name), name
+    assert without_links_back(name, written[name]) == _golden(name), name
 
 
 def test_every_rule_page_address_is_the_page_with_the_tags_of_its_format(produced):
-    _, written = produced
+    _, produced_reports = produced
+    written = {name: without_links_back(name, text) for name, text in produced_reports.items()}
     expected = {"report.json": TAGS["cli"], "report.txt": TAGS["cli"], "report.md": TAGS["cli"], "report.sarif": TAGS["cli"],
                 "report.html": TAGS["html"], "report.cdx.json": TAGS["cyclonedx"]}
     pages = {rule.page for rule in RULES}
@@ -82,3 +84,14 @@ def test_code_quality_is_what_1_20_0_wrote_and_the_rest_differs_only_in_the_fix_
     for name, text in written.items():
         if name != "gl-code-quality-report.json":
             assert without_fix_guidance(name, text) != text, name
+
+
+def test_a_local_run_s_table_links_each_rule_id_with_rule_docs_and_cli(produced):
+    """Scan links back (spec 9): the untransformed report.md links each row's rule id with the campaign `rule-docs`."""
+    _, written = produced
+    rows = [line for line in written["report.md"].split("\n") if line.startswith("| ") and not line.startswith("| Severity")]
+    assert rows
+    for line in rows:
+        rule_id = line.split(" | ")[1].split("]")[0].lstrip("[")
+        assert line.split(" | ")[1] == (f"[{rule_id}](https://spellwarden.ai/docs/rules/{rule_id.lower()}"
+                                        "?utm_source=scanner&utm_medium=cli&utm_campaign=rule-docs)"), line

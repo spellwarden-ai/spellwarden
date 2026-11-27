@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import re
 from collections.abc import Sequence
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from spellwarden_scan.gate import GATE_REASONS
 
@@ -15,6 +17,9 @@ from spellwarden_cli.output.fixes import ORG_LINE, rule_fixes
 from spellwarden_cli.output.text import client_lines, connected_lines, not_done_why
 from spellwarden_cli.report import CONNECTED_ERRORS, Report, ReportFinding
 
+if TYPE_CHECKING:  # a type only: this module never imports `ci` when it runs
+    from spellwarden_cli.ci import CiContext
+
 MARKER = "<!-- spellwarden-scan -->"
 MAX_CHARS = 60_000
 MAX_ROWS = 25
@@ -23,13 +28,43 @@ ERROR_FIX_MAX = 1000  # a connected error says what to fix: it is not cut at a t
 # 1.24.0: nor is the error of a scan that reached `--time-limit`, whose message ends with the way out
 WHOLE_ERRORS = (*CONNECTED_ERRORS, "time_limit")
 README_URL = "https://github.com/spellwarden-ai/spellwarden"
-RULES_URL = f"{README_URL}#the-rules"
 # O3 spec 6.10: where the README explains why an item cannot be judged. Its connected-mode section has one heading per
 # reason, "Gate reason: <reason>", whose GitHub anchor is this (tests/test_readme_connected.py reads them back).
 REASON_ANCHORS = {reason: f"#gate-reason-{reason.replace('_', '-')}" for reason in GATE_REASONS}
 _SEVERITIES = ("critical", "high", "medium", "low")
 _LINK = re.compile(r"https://[A-Za-z0-9._~:/?#@!$&'*+,;=%-]+")
 _CUT = "\n\nThe report was cut at 60,000 characters. The JSON and SARIF reports hold everything.\n"
+# Links back (spec 5.1): the `utm_medium` of every spellwarden.ai and dash link this report writes names the CI service the run
+# detected. A closed table: the medium never comes from the environment.
+MEDIUMS = {"github": "github-action", "gitlab": "gitlab-component", "other": "ci", None: "cli"}
+RULES_DOCS_PAGE = "https://spellwarden.ai/docs/rules"
+LINT_GUIDE_PAGE = "https://spellwarden.ai/docs/activation-checks"
+ANALYZER_GUIDE_PAGE = "https://spellwarden.ai/docs/model-assisted-analyzer"
+PRESETS_GUIDE_PAGE = "https://spellwarden.ai/docs/presets"
+
+
+@dataclass(frozen=True)
+class MarkdownLinks:
+    """What the report's links and invitation lines depend on (spec 5.1); the default is a local run with no invitation."""
+    medium: str = "cli"   # a value of MEDIUMS: the utm_medium of every spellwarden.ai and dash link the report writes
+    invite: bool = False  # the dashboard line may be written (free mode decides the rest, spec 5.5)
+    badge: bool = False   # the badge offer may be written (free mode and the cap decide the rest, spec 5.6, 5.7)
+
+
+LOCAL_LINKS = MarkdownLinks()
+
+
+def links_for(context: CiContext, *, invite: bool) -> MarkdownLinks:
+    """The links of a run in `context` (spec 5.1): the medium of its CI service; the badge offer only for a default-branch run of
+    a public GitHub repository, and only when `invite`."""
+    badge = (invite and context.provider == "github" and context.run_kind() == "default_branch"
+             and context.visibility == "public")
+    return MarkdownLinks(medium=MEDIUMS.get(context.provider, MEDIUMS["other"]), invite=invite, badge=badge)
+
+
+def tagged(page: str, medium: str, campaign: str) -> str:
+    """`page` with the scanner's campaign tags (spec 5.1)."""
+    return f"{page}?utm_source=scanner&utm_medium={medium}&utm_campaign={campaign}"
 
 
 def _short(text: str) -> str:
@@ -77,7 +112,14 @@ def _location(item: ReportFinding) -> str:
     return f"{location.path}:{location.line}" if location.line else location.path
 
 
-def _findings(report: Report, open_findings: Sequence[ReportFinding]) -> list[str]:
+def _rule_cell(report: Report, rule_id: str, medium: str) -> str:
+    """Spec 5.2: a baseline rule's id links to its page; an organisation rule and an id the set lacks stay plain text."""
+    rule = report.rules.get(rule_id)
+    page = rule.page if rule is not None else None
+    return rule_id if page is None else f"[{rule_id}]({tagged(page, medium, 'rule-docs')})"
+
+
+def _findings(report: Report, open_findings: Sequence[ReportFinding], medium: str = "cli") -> list[str]:
     if not open_findings:
         return []
     lines = ["| Severity | Rule | Location | Title |", "|---|---|---|---|"]
@@ -86,16 +128,17 @@ def _findings(report: Report, open_findings: Sequence[ReportFinding]) -> list[st
         severity = finding.severity
         if item.preset_from is not None and report.preset is not None:  # 1.18.0: how a preset moved it
             severity += f" ({presets.change_words(item.preset_from, finding.severity, report.preset['name'])})"
-        lines.append(f"| {severity} | {finding.rule_id} | {_code_cell(_location(item))} | {_text(finding.title)} |")
+        lines.append(f"| {severity} | {_rule_cell(report, finding.rule_id, medium)} | {_code_cell(_location(item))} | "
+                     f"{_text(finding.title)} |")
     if len(open_findings) > MAX_ROWS:
         lines += ["", f"{len(open_findings) - MAX_ROWS} more findings are in the JSON and SARIF reports."]
-    fixes = _fixes(report, open_findings[:MAX_ROWS])
+    fixes = _fixes(report, open_findings[:MAX_ROWS], medium)
     if fixes:
         lines += ["", *fixes]
     return lines + [""]
 
 
-def _fixes(report: Report, shown: Sequence[ReportFinding]) -> list[str]:
+def _fixes(report: Report, shown: Sequence[ReportFinding], medium: str = "cli") -> list[str]:
     """1.21.0 (P6-15 spec 6.6): the section "How to fix" for the rows the table shows: one bullet per baseline rule, in rule id
     order, with its fix sentence and its page, and under it one bullet per distinct set of setting lines; then the organisation
     line when a shown row is an organisation rule's. The JSON and SARIF reports hold every rule's fix."""
@@ -104,20 +147,21 @@ def _fixes(report: Report, shown: Sequence[ReportFinding]) -> list[str]:
         return []
     lines = ["**How to fix**", ""]
     for entry in fixes:
-        lines.append(f"- **{entry.rule_id}** {escape.markdown(entry.sentence)} [Rule page]({entry.url})")
+        page = tagged(report.rules.get(entry.rule_id).page, medium, "rule-fix")  # spec 5.3; FIX_TAGS stays for the other reports
+        lines.append(f"- **{entry.rule_id}** {escape.markdown(entry.sentence)} [Rule page]({page})")
         lines += [f"  - In {escape.markdown(fix.where)}, write: {escape.code_span(fix.text)}" for fix in entry.lines]
     if organisation:
         lines.append(f"- {escape.markdown(ORG_LINE)}")
     return lines
 
 
-def _preset(report: Report) -> list[str]:
+def _preset(report: Report, medium: str = "cli") -> list[str]:
     """1.18.0: the preset's notice under the verdict, its guide as a link; nothing without a preset or with balanced."""
     notice = presets.notice_of(report)
     if notice is None:
         return []
     body = notice.message.removesuffix(f" See {presets.GUIDE_URL}")
-    return [f"**Preset:** {escape.markdown(body)} [How presets work]({presets.GUIDE_URL})", ""]
+    return [f"**Preset:** {escape.markdown(body)} [How presets work]({tagged(PRESETS_GUIDE_PAGE, medium, 'presets')})", ""]
 
 
 def _instruction_files(report: Report) -> list[str]:
@@ -202,11 +246,7 @@ def _agents(report: Report) -> list[str]:
     return lines + [""]
 
 
-LINT_GUIDE_URL = ("https://spellwarden.ai/docs/activation-checks?utm_source=scanner&utm_medium=cli"
-                  "&utm_campaign=description-lint")
-
-
-def _lint(report: Report) -> list[str]:
+def _lint(report: Report, medium: str = "cli") -> list[str]:
     """Phase 4 batch B spec 11.4: the section "Description lint": one row per note (at most 25), informational; nothing when
     no skill has a note."""
     rows = [(entry.skill, note) for entry in report.lint or () for note in entry.notes]
@@ -214,7 +254,8 @@ def _lint(report: Report) -> list[str]:
     if not rows and not left_out:
         return []
     lines = [f"**Description lint (informational, never changes the exit code):** {_plural(len(rows) + left_out, 'note')}. "
-             f"[What each check means]({LINT_GUIDE_URL})", "", "| Skill | Check | Note |", "|---|---|---|"]
+             f"[What each check means]({tagged(LINT_GUIDE_PAGE, medium, 'description-lint')})", "",
+             "| Skill | Check | Note |", "|---|---|---|"]
     for skill, note in rows[:MAX_ROWS]:
         lines.append(f"| {_code_cell(skill)} | {note.id} | {_text(note.message)} |")
     more = len(rows) - MAX_ROWS + left_out if len(rows) > MAX_ROWS else left_out
@@ -223,17 +264,13 @@ def _lint(report: Report) -> list[str]:
     return lines + [""]
 
 
-ANALYZER_GUIDE_URL = ("https://spellwarden.ai/docs/model-assisted-analyzer?utm_source=scanner&utm_medium=cli"
-                      "&utm_campaign=analyzer")
-
-
-def _analysis(report: Report) -> list[str]:
+def _analysis(report: Report, medium: str = "cli") -> list[str]:
     """Phase 4 batch B spec 11.3: the section "Model-assisted analysis" under `--analyze`: one row per skill (at most 25) with
     its status and the categories with an issue; advisory. Nothing without `--analyze`."""
     if report.analysis is None:
         return []
     lines = [f"**Model-assisted analysis (advisory, its verdicts never change the exit code):** "
-             f"[How it works and what it was measured on]({ANALYZER_GUIDE_URL})", "",
+             f"[How it works and what it was measured on]({tagged(ANALYZER_GUIDE_PAGE, medium, 'analyzer')})", "",
              "| Skill | Model | Result |", "|---|---|---|"]
     for entry in report.analysis[:MAX_ROWS]:
         if entry["status"] == "analyzed":
@@ -290,23 +327,25 @@ def connected_section(report: Report) -> str:
     return "\n".join([*out, *_not_admitted(report)])
 
 
-def render(report: Report) -> str:
+def render(report: Report, links: MarkdownLinks = LOCAL_LINKS) -> str:
+    medium = links.medium
     open_findings = report.unsuppressed()
     accepted = len(report.findings) - len(open_findings)
-    lines = [MARKER, f"**Spellwarden scan {_verdict(report)}.** {_counts(open_findings, accepted)}", "", *_preset(report)]
+    lines = [MARKER, f"**Spellwarden scan {_verdict(report)}.** {_counts(open_findings, accepted)}", "",
+             *_preset(report, medium)]
     section = connected_section(report)
     if section:
         lines.append(section)
     if report.clients is not None:  # `scan --user` (phase 3 batch 2a spec 11.3)
         lines += ["**Clients:**", "", *(f"- {_text(line)}" for line in client_lines(report)), ""]
-    lines += _findings(report, open_findings) + _instruction_files(report)
-    lines += _errors(report) + _lock(report) + _probes(report) + _agents(report) + _lint(report)
-    lines += _analysis(report)
+    lines += _findings(report, open_findings, medium) + _instruction_files(report)
+    lines += _errors(report) + _lock(report) + _probes(report) + _agents(report) + _lint(report, medium)
+    lines += _analysis(report, medium)
     if accepted:
         lines += [f"{_plural(accepted, 'accepted finding')} with {'its' if accepted == 1 else 'their'} reasons "
                   f"{'is' if accepted == 1 else 'are'} listed in the baseline file.", ""]
     lines.append(f"Spellwarden {_text(report.scanner_version)}, rules {_text(report.rules_version)}. "
-                 f"[What each rule checks]({RULES_URL})")
+                 f"[What each rule checks]({tagged(RULES_DOCS_PAGE, medium, 'rule-docs')}), [source code]({README_URL})")
     text = escape.log_lines("\n".join(lines) + "\n")
     if len(text) > MAX_CHARS:
         text = text[:text.rfind("\n", 0, MAX_CHARS - len(_CUT))] + _CUT

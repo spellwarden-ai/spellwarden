@@ -357,7 +357,8 @@ def test_the_markdown_report_says_it_under_the_verdict_and_in_the_severity_cell(
     out = FORMATS["markdown"](strict_report())
     body = message(strict_report()).removesuffix(f" See {presets.GUIDE_URL}")
     assert f"**Preset:** {body} [How presets work]({presets.GUIDE_URL})" in out
-    assert "| high (raised from medium by the strict preset) | SW-SKL-009 |" in out
+    assert ("| high (raised from medium by the strict preset) | [SW-SKL-009](https://spellwarden.ai/docs/rules/sw-skl-009"
+            "?utm_source=scanner&utm_medium=cli&utm_campaign=rule-docs) |") in out
     assert out.index("**Preset:**") < out.index("| Severity | Rule |")
     assert "(from SPELLWARDEN\\_PRESET)" in FORMATS["markdown"](off_report())
 

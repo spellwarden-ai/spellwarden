@@ -12,6 +12,7 @@ from spellwarden_cli.report import ReportFinding
 
 CFG_013_PAGE = "https://spellwarden.ai/docs/rules/sw-cfg-013?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix"
 SKL_009_PAGE = "https://spellwarden.ai/docs/rules/sw-skl-009?utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix"
+SKL_009_DOCS = "https://spellwarden.ai/docs/rules/sw-skl-009?utm_source=scanner&utm_medium=cli&utm_campaign=rule-docs"
 CFG_013_TITLE = "Database or cluster MCP server with write access although a read-only mode exists"
 
 
@@ -41,7 +42,7 @@ def test_no_open_finding_no_section_but_the_setting_lines_stay_under_their_findi
 def test_the_markdown_report_has_the_section_under_its_table():
     lines = FORMATS["markdown"](report()).split("\n")
     start = lines.index("**How to fix**")
-    assert lines[start - 1] == "" and lines[start - 2].startswith("| medium | SW-SKL-009 |")
+    assert lines[start - 1] == "" and lines[start - 2].startswith(f"| medium | [SW-SKL-009]({SKL_009_DOCS}) |")
     assert lines[start:start + 7] == [
         "**How to fix**", "",
         f"- **SW-CFG-013** {CFG_013} [Rule page]({CFG_013_PAGE})",

@@ -9,6 +9,7 @@ import json
 from pathlib import Path
 
 import pytest
+from golden_links import without_links_back
 
 from spellwarden_scan.evidence import fingerprint
 
@@ -31,7 +32,7 @@ def _golden(name: str) -> str:
 def test_each_report_is_the_recorded_one(produced, name):
     code, written = produced
     assert code == 1
-    assert written[name] == _golden(name), name
+    assert without_links_back(name, written[name]) == _golden(name), name
 
 
 def test_the_added_finding_quotes_line_26_as_written(produced):
