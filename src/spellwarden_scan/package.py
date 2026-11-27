@@ -54,6 +54,15 @@ class TextFile:
     text: str
     lines: tuple[str, ...]
     head: bytes = b""  # the raw first eight bytes: SW-SKL-010 reads magic numbers here, never from re-encoded text
+    # 1.27.0 (scan feedback fixes spec 5.3): listed executable and not read as Markdown, so the script rules read it whatever
+    # its name; false for an executable Markdown file, whose fenced blocks are its scripts
+    mode_script: bool = False
+
+
+def is_script_file(unit: TextFile) -> bool:
+    """1.27.0 (scan feedback fixes spec 5.3): a script by its extension, or by its executable mode when it is not read as
+    Markdown (`TextFile.mode_script`)."""
+    return unit.mode_script or unit.path.lower().endswith(SCRIPT_EXTENSIONS)
 
 
 @dataclass(frozen=True)
@@ -179,6 +188,8 @@ class Package:
         texts: list[TextFile] = []
         binaries: list[BinaryFile] = []
         blocks: list[CodeBlock] = []
+        # Only the executable entries under `root` belong to this package: a sibling directory's binaries are not its finding.
+        kept = frozenset(path for path in executable_paths if not prefix or path.startswith(prefix))
         for path in sorted(files):
             if prefix and not path.startswith(prefix):
                 continue
@@ -197,19 +208,19 @@ class Package:
             lines = split_lines(text)
             if meter is not None:
                 lines = Lines(lines, meter, path)
-            texts.append(TextFile(path, text, lines, content[:8]))
-            if path.lower().endswith(".md") or path in markdown:
+            read_as_markdown = path.lower().endswith(".md") or path in markdown
+            texts.append(TextFile(path, text, lines, content[:8], path in kept and not read_as_markdown))
+            if read_as_markdown:
                 blocks.extend(_code_blocks(path, lines, meter))
-        # Only the executable entries under `root` belong to this package: a sibling directory's binaries are not its finding.
-        kept = frozenset(path for path in executable_paths if not prefix or path.startswith(prefix))
         return cls(root, tuple(texts), tuple(binaries), tuple(blocks), metadata_of(files, root), kept, markdown, meter=meter)
 
     def instructions(self) -> tuple[TextFile, ...]:
         return tuple(f for f in self.text_files if f.path.lower().endswith(".md") or f.path in self.markdown_paths)
 
     def scripts(self) -> tuple[TextFile | CodeBlock, ...]:
-        """Script files by extension plus the fenced blocks tagged as code (spec 5.3)."""
-        files = tuple(f for f in self.text_files if f.path.lower().endswith(SCRIPT_EXTENSIONS))
+        """Script files by extension or by executable mode (a file read as Markdown never by its mode), plus the fenced blocks
+        tagged as code (spec 5.3; executable mode since 1.27.0, scan feedback fixes spec 5.3)."""
+        files = tuple(f for f in self.text_files if is_script_file(f))
         blocks = tuple(b for b in self.code_blocks if b.language in CODE_LANGUAGES)
         return files + blocks
 
@@ -246,7 +257,7 @@ class Package:
             lines = unit.lines  # a line that no step changed is the line as built; `folded` equals it
             if folded != unit.lines:
                 lines = folded if meter is None else Lines(folded, meter, unit.path)
-                folded_files.append(TextFile(unit.path, "\n".join(folded), lines, unit.head))
+                folded_files.append(TextFile(unit.path, "\n".join(folded), lines, unit.head, unit.mode_script))
                 for block in own:  # the original boundaries, never recomputed from folded text
                     start = block.first_line - 1
                     body = folded[start:start + block.line_count]
@@ -318,7 +329,8 @@ def _shadow(unit: TextFile, folded: tuple[str, ...], blocks: list[CodeBlock], st
         return None
     lines = tuple(out)
     text = "\n".join(lines)
-    return TextFile(unit.path, text, lines if meter is None else Lines(lines, meter, unit.path), unit.head), tuple(origin)
+    return (TextFile(unit.path, text, lines if meter is None else Lines(lines, meter, unit.path), unit.head, unit.mode_script),
+            tuple(origin))
 
 
 class View(Package):

@@ -116,11 +116,12 @@ def test_009_unpinned_installs():
         assert findings({"scripts/s.sh": line + "\n"}, "SW-SKL-009") == [], line
 
 
-def test_010_binaries_by_extension_magic_or_mode():
+def test_010_binaries_by_extension_magic_or_executable_binary_content_never_a_text_file_by_its_mode():
     assert findings({"SKILL.md": clean_md(), "tools/helper.exe": "MZ"}, "SW-SKL-010")[0].location == findings({"SKILL.md": clean_md(), "tools/helper.exe": "MZ"}, "SW-SKL-010")[0].location
     found = findings({"SKILL.md": clean_md(), "bin/x": b"\x7fELF\x02\x01\x01" + b"\x00" * 40}, "SW-SKL-010")
     assert found[0].location.path == "bin/x" and found[0].location.line is None
-    assert findings({"SKILL.md": clean_md(), "bin/run": "#!/bin/sh\n"}, "SW-SKL-010", executable_paths={"bin/run"})[0].location.path == "bin/run"
+    # 1.27.0 (scan feedback fixes spec 5): a readable text file listed as executable is read as a script, never reported here
+    assert findings({"SKILL.md": clean_md(), "bin/run": "#!/bin/sh\n"}, "SW-SKL-010", executable_paths={"bin/run"}) == []
     assert findings({"SKILL.md": clean_md(), "bin/run": "#!/bin/sh\n"}, "SW-SKL-010") == []
 
 

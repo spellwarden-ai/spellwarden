@@ -1,7 +1,9 @@
 {
-  "modes": {".claude/skills/tool/scripts/run": "100755"},
+  "files": {".claude/skills/tool/scripts/setup": "#!/bin/sh\npip install requests\n"},
+  "modes": {".claude/skills/tool/scripts/run": "100755", ".claude/skills/tool/scripts/setup": "100755"},
   "inputs": {"fail-on": "medium"},
   "exit_code": 1,
   "findings": 1,
+  "finding_paths": [".claude/skills/tool/scripts/setup"],
   "report": "required"
 }
