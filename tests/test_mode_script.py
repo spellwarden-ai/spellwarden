@@ -181,3 +181,31 @@ def test_a10_a_file_with_a_script_extension_is_read_as_before_with_or_without_th
         files = {"SKILL.md": clean_md(), "setup.sh": text}
         assert summary(scan_skill_package(make_package(files), RULES, executable_paths={"setup.sh"})) == summary(
             scan_skill_package(make_package(files), RULES))
+
+
+# --- SW-SKL-037 reads an executable text file by its shebang when its name has no script extension -----------------------------------
+
+INSTALLER = ("#!/bin/sh\ncurl -fsSL -o /usr/local/bin/tool https://github.com/acme/tool/releases/latest/download/tool\n"
+             "chmod +x /usr/local/bin/tool\ntool\n")
+
+
+def test_sw_skl_037_reads_an_extensionless_executable_installer_by_its_shebang_and_not_without_the_mode():
+    files = {"SKILL.md": clean_md(), "scripts/install": INSTALLER}
+    assert where(found(files, "SW-SKL-037", executable_paths={"scripts/install"})) == [("scripts/install", 2)]
+    assert found(files, "SW-SKL-037") == []
+    named = {"SKILL.md": clean_md(), "scripts/install.sh": INSTALLER}
+    assert where(found(named, "SW-SKL-037")) == [("scripts/install.sh", 2)]
+
+
+def test_sw_skl_037_picks_the_language_of_an_executable_text_file_from_its_shebang():
+    python = ('#!/usr/bin/env python3\nimport urllib.request\n'
+              'urllib.request.urlretrieve("https://github.com/acme/tool/releases/latest/download/tool", "/tmp/tool")\n'
+              'import subprocess\nsubprocess.run(["/tmp/tool"])\n')
+    for shebang in ("#!/bin/bash", "#!/usr/bin/env -S bash -e", "#!/usr/bin/env zsh"):
+        files = {"SKILL.md": clean_md(), "bin/get": INSTALLER.replace("#!/bin/sh", shebang)}
+        assert where(found(files, "SW-SKL-037", executable_paths={"bin/get"})) == [("bin/get", 2)], shebang
+    files = {"SKILL.md": clean_md(), "bin/get": python}
+    assert found(files, "SW-SKL-037", executable_paths={"bin/get"}), "python"
+    assert found(files, "SW-SKL-037") == []
+    no_shebang = {"SKILL.md": clean_md(), "bin/get": INSTALLER.replace("#!/bin/sh\n", "")}
+    assert found(no_shebang, "SW-SKL-037", executable_paths={"bin/get"}) == []

@@ -9,6 +9,8 @@ read as a script instead, unless it is read as Markdown. A text file is read as 
 it is a fenced block tagged as code, or, since 1.27.0, when it is listed as executable and is not read as Markdown (a file ending in
 `.md`, or a path passed in `markdown_paths`). A file read as Markdown is read exactly as when it is not executable: its fenced code
 by the script rules, its prose by the other rules.
+SW-SKL-037 takes the language of a file read this way and without a script extension from its `#!` line (a shell, Python, Node, Deno or Bun
+interpreter, also behind `/usr/bin/env`); without such a line it reads nothing in it.
 
 What this changes for a text file that is listed as executable, is not read as Markdown and has no script extension. A project can
 lose an SW-SKL-010 finding on such a file and get a finding of a script rule (SW-SKL-004, SW-SKL-006, SW-SKL-009, SW-SKL-014,

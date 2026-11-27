@@ -219,7 +219,8 @@ and a file listed as executable whose content is not readable text. Since 1.27.0
 executable mode alone; it is read as a script instead. For the script rules (SW-SKL-004, SW-SKL-006, SW-SKL-009, SW-SKL-014,
 SW-SKL-037 and org rules) a script is a file whose name has a script extension, a fenced block tagged as code, or a text file listed
 as executable that is not read as Markdown; a file read as Markdown (a name ending in `.md`, or a path in `markdown_paths`) is read
-exactly as when it is not executable. For a text file that is listed as executable, is not read as Markdown and has no script
+exactly as when it is not executable. SW-SKL-037 takes the language of such a file without a script extension from its `#!` line (a shell, Python,
+Node, Deno or Bun interpreter, also behind `/usr/bin/env`) and reads nothing in it when there is no such line. For a text file that is listed as executable, is not read as Markdown and has no script
 extension, this has three effects: a script rule can report a finding on it that 1.26.0 did not; SW-SKL-007 and SW-SKL-008 join a
 line of it that ends in `|`, `&&` or `||` to the next, so a high or critical finding can be new, and an SW-SKL-012 finding on a line
 SW-SKL-008 now reports goes; and a finding on it can move to its command's first line with another evidence and fingerprint, so its
