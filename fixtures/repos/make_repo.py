@@ -38,6 +38,8 @@ INPUT_DEFAULTS = {
     "preset": "",
     # a linked directory in an instruction folder (scanner 1.20.0): not followed, so it is the notice symlink_skipped
     "follow-links": "false",
+    # the Markdown report's dashboard line and badge offer (scanner 1.26.0): kept
+    "invite": "true",
 }
 # The variables `spellwarden ci-run gitlab` reads (spec 10.2a), by Action input name.
 GITLAB_VARIABLES = {
@@ -45,6 +47,7 @@ GITLAB_VARIABLES = {
     "probe-private": "SW_PROBE_PRIVATE", "comment": "SW_COMMENT", "telemetry": "SW_TELEMETRY", "org": "SW_ORG",
     "upload": "SW_UPLOAD", "analyze": "SW_ANALYZE", "model-endpoint": "SW_MODEL_ENDPOINT", "model": "SW_MODEL",
     "preset": "SW_PRESET", "follow-links": "SW_FOLLOW_LINKS",
+    "invite": "SW_INVITE",
 }
 MERGED_KEYS = ("files", "inputs", "env", "generated_files", "modes", "links")
 BASELINE = ".spellwarden/baseline.yml"
