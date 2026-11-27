@@ -41,6 +41,8 @@ RULES_DOCS_PAGE = "https://spellwarden.ai/docs/rules"
 LINT_GUIDE_PAGE = "https://spellwarden.ai/docs/activation-checks"
 ANALYZER_GUIDE_PAGE = "https://spellwarden.ai/docs/model-assisted-analyzer"
 PRESETS_GUIDE_PAGE = "https://spellwarden.ai/docs/presets"
+SIGNUP_PAGE = "https://dash.spellwarden.ai/signup"
+BADGES_PAGE = "https://spellwarden.ai/docs/badges"
 
 
 @dataclass(frozen=True)
@@ -65,6 +67,46 @@ def links_for(context: CiContext, *, invite: bool) -> MarkdownLinks:
 def tagged(page: str, medium: str, campaign: str) -> str:
     """`page` with the scanner's campaign tags (spec 5.1)."""
     return f"{page}?utm_source=scanner&utm_medium={medium}&utm_campaign={campaign}"
+
+
+SUMMARY_MARKER = "<!-- spellwarden-summary-only -->"
+BADGE_IMAGE = f"{BADGES_PAGE}/scanned-by-spellwarden.svg"
+BADGE_TARGET = f"{BADGES_PAGE}?utm_source=badge&utm_medium=readme&utm_campaign=scanned-by"
+# Spec 5.6: the badge offer, a constant appended after the body, so the comment poster can remove it as the exact end of the file
+# (`comment_body`). It starts with a blank line: the body ends with a line break.
+SUMMARY_TAIL = "\n".join([
+    "",
+    SUMMARY_MARKER,
+    "<details>",
+    '<summary>Add a "Scanned by Spellwarden" badge to your README</summary>',
+    "",
+    "Copy this line into your README:",
+    "",
+    "```markdown",
+    f"[![Scanned by Spellwarden]({BADGE_IMAGE})]({BADGE_TARGET})",
+    "```",
+    "",
+    "The badge shows that this repository runs the Spellwarden scan, not that the scan passed. A repository connected to the "
+    "Spellwarden dashboard can show a live status badge with its latest result instead: "
+    f"[how the badges work]({tagged(BADGES_PAGE, 'github-action', 'badge')}).",
+    "",
+    "</details>",
+]) + "\n"
+
+
+def comment_body(text: str) -> str:
+    """The pull or merge request comment of a Markdown report: `text` without `SUMMARY_TAIL` when it ends with it, else `text`."""
+    return text[:-len(SUMMARY_TAIL)] if text.endswith(SUMMARY_TAIL) else text
+
+
+def dashboard_line(medium: str) -> str:
+    """Spec 5.5: the one line about the dashboard, with the way to leave it out that fits the surface."""
+    if medium in (MEDIUMS["github"], MEDIUMS["gitlab"]):
+        opt_out = "set the input `invite` to `false`, or add `--no-invite` if you run the scanner yourself"
+    else:
+        opt_out = "add `--no-invite`"
+    return ("**Spellwarden dashboard:** see the findings of all your repositories in one place and turn on a live status badge "
+            f"for each one. [Create an account]({tagged(SIGNUP_PAGE, medium, 'dashboard')}). To leave this line out, {opt_out}.")
 
 
 def _short(text: str) -> str:
@@ -327,6 +369,11 @@ def connected_section(report: Report) -> str:
     return "\n".join([*out, *_not_admitted(report)])
 
 
+def _free_mode(report: Report) -> bool:
+    """Spec 5.5: no connected block, no "Connected mode unavailable" line, and no error of connected mode."""
+    return connected_section(report) == "" and not any(error.code in CONNECTED_ERRORS for error in report.errors)
+
+
 def render(report: Report, links: MarkdownLinks = LOCAL_LINKS) -> str:
     medium = links.medium
     open_findings = report.unsuppressed()
@@ -344,9 +391,14 @@ def render(report: Report, links: MarkdownLinks = LOCAL_LINKS) -> str:
     if accepted:
         lines += [f"{_plural(accepted, 'accepted finding')} with {'its' if accepted == 1 else 'their'} reasons "
                   f"{'is' if accepted == 1 else 'are'} listed in the baseline file.", ""]
+    free = _free_mode(report)
+    if links.invite and free:
+        lines += [dashboard_line(medium), ""]
     lines.append(f"Spellwarden {_text(report.scanner_version)}, rules {_text(report.rules_version)}. "
                  f"[What each rule checks]({tagged(RULES_DOCS_PAGE, medium, 'rule-docs')}), [source code]({README_URL})")
     text = escape.log_lines("\n".join(lines) + "\n")
     if len(text) > MAX_CHARS:
-        text = text[:text.rfind("\n", 0, MAX_CHARS - len(_CUT))] + _CUT
+        return text[:text.rfind("\n", 0, MAX_CHARS - len(_CUT))] + _CUT
+    if links.badge and free and len(text) + len(SUMMARY_TAIL) <= MAX_CHARS:  # spec 5.7: the whole offer, or none of it
+        text += SUMMARY_TAIL
     return text

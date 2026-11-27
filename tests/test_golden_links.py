@@ -27,3 +27,9 @@ def test_anything_else_comes_back_unchanged():
         assert without_links_back("report.md", text) == text
     for name in ("report.json", "report.txt", "report.sarif", "report.html", "report.cdx.json", "gl-code-quality-report.json"):
         assert without_links_back(name, f"{LINKED}\n{NEW_FOOTER}\n") == f"{LINKED}\n{NEW_FOOTER}\n"
+
+
+def test_the_dashboard_line_is_the_one_a_local_run_writes():
+    from spellwarden_cli.output import markdown
+
+    assert DASHBOARD_LINE == markdown.dashboard_line("cli")
