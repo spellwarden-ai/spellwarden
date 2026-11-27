@@ -501,7 +501,7 @@ Obot is not an export target: it creates its access policies, tool selections an
 ```
 spellwarden scan [PATH] [--format FMT [--output FILE]]... [--fail-on LEVEL] [--locked] [--probe | --no-probe]
                  [--probe-private | --no-probe-private] [--baseline FILE] [--config FILE] [--as-of YYYY-MM-DD]
-                 [--staged] [--follow-links] [--time-limit SECONDS] [--no-telemetry] [--upload | --no-upload]
+                 [--staged] [--follow-links] [--time-limit SECONDS] [--no-telemetry] [--no-invite] [--upload | --no-upload]
                  [--preset strict|balanced|low-noise] [--quiet] [--verbose]
 spellwarden lock [PATH] [--check | --probe] [--follow-links]
 spellwarden baseline add [PATH] (--fingerprint FP... | --all) --reason TEXT [--expires YYYY-MM-DD | --days N] [--follow-links]
@@ -651,14 +651,14 @@ On a pull or merge request the scan reads the baseline from the base revision, l
 
 ### Reports
 
-`--format` may be given several times, each followed by its own `--output` (stdout when omitted, one format at most). Every report is byte-identical for the same files, settings and `--as-of` date, holds no timestamp (a CycloneDX document's `metadata.timestamp` is the `--as-of` date at midnight UTC) and no absolute path, and is sorted.
+`--format` may be given several times, each followed by its own `--output` (stdout when omitted, one format at most). Every report is byte-identical for the same files, settings and `--as-of` date and, for the Markdown report, the same CI service and run kind, which its links and lines depend on (see "Links in the Markdown report"), holds no timestamp (a CycloneDX document's `metadata.timestamp` is the `--as-of` date at midnight UTC) and no absolute path, and is sorted.
 
 | Format | For |
 |---|---|
 | `text` (default) | a terminal |
 | `json` | tools; the shape is `schemas/report.schema.json` |
 | `sarif` | GitHub code scanning (SARIF 2.1.0, one fingerprint per result under `partialFingerprints["spellwarden/v1"]`, accepted findings as `suppressions`) |
-| `markdown` | the job summary and the pull or merge request comment (starts with `<!-- spellwarden-scan -->`, at most 60,000 characters) |
+| `markdown` | the job summary and the pull or merge request comment (starts with `<!-- spellwarden-scan -->`, at most 60,000 characters); links to each rule's page and, in free mode, a line about the dashboard; see "Links in the Markdown report" |
 | `gitlab-codequality` | the GitLab Code Quality report (critical, high, medium and low become critical, major, minor and info) |
 | `cyclonedx` | an AI bill of materials, CycloneDX 1.7 JSON (since 1.14.0): skills, plugins, marketplaces, instruction files and configuration documents as components, MCP servers and A2A agent cards as services, findings as vulnerabilities naming their component or service (open ones `in_triage`, accepted ones `exploitable` with `will_not_fix` and the baseline's reason), the rest as `spellwarden:` properties; the serial number is derived from the content, so the same scan gives the same file |
 | `html` | a person, in a browser (since 1.18.0): one self-contained file, every string from the repository escaped, no script and no network request when opened; see "HTML report" |
@@ -679,7 +679,7 @@ Since 1.21.0 every finding of a baseline rule says how to fix it: its rule's fix
 |---|---|
 | `json` | each finding's `fix` and `rule_url` (the page with `utm_source=scanner&utm_medium=cli&utm_campaign=rule-fix`), and `fix_lines` where the finding has setting lines |
 | `text` | a "How to fix" section after the findings, with each rule that has an open finding, its sentence and its page, and a `write in` line under a finding that has setting lines |
-| `markdown` | a "How to fix" section under the findings table for the rules of the rows the table shows, with the setting lines under their rule; the pull request comment and the merge request note are this report |
+| `markdown` | a "How to fix" section under the findings table for the rules of the rows the table shows, with the setting lines under their rule; the pull request comment and the merge request note are this report; its links carry `utm_medium` of the CI service (`cli` for a local run) |
 | `html` | the sentence and the setting lines in each finding, above its link to the rule page |
 | `sarif` | each baseline rule's `help` (text and Markdown) and its page as its `helpUri`, which a code scanning alert shows; a result's setting lines as `properties.fix_lines` |
 | `cyclonedx` | each vulnerability's `recommendation`, the sentence |
@@ -708,6 +708,37 @@ Setting lines are text to copy, never applied: no report changes your files, and
 Each row is a switch its server's or protocol's own documentation names; `src/spellwarden_scan/rules/fix_lines.py` names the page and the date it was read. A line follows the syntax of the file its finding is in: the `mcp-server-kubernetes` line is a JSON member in a JSON configuration and a TOML key in Codex's `config.toml`, in the form Codex's documentation gives for a server's environment variables. Every other server SW-CFG-013 finds, the `@supabase/mcp-server-supabase` package and `kubernetes-mcp-server` among them, gets the sentence alone.
 
 An organisation rule has no fix sentence and no page, because its policy pack holds no fix text: its findings have `fix` and `rule_url` null, and the text and Markdown sections end with one line that says to ask the people who manage the pack. The upload of connected mode leaves out `fix`, `rule_url` and `fix_lines`, as it leaves out `tags`.
+
+### Links in the Markdown report
+
+Since 1.26.0 the Markdown report, which is the job summary and the pull or merge request comment, links back to Spellwarden. Every link it writes to spellwarden.ai or to the dashboard carries `utm_source=scanner`, a `utm_medium` that names the CI service the scan detected, and a `utm_campaign` that names the link:
+
+| The scan ran on | `utm_medium` |
+|---|---|
+| GitHub Actions | `github-action` |
+| GitLab CI/CD | `gitlab-component` |
+| another CI service | `ci` |
+| no CI service (a local run) | `cli` |
+
+The medium names the CI service, not the wrapper: a workflow that runs `pipx run spellwarden` on GitHub Actions counts as `github-action`. The campaigns are `rule-docs` for each rule id in the findings table and for the last line, `rule-fix` for the "How to fix" links, `description-lint`, `analyzer` and `presets` for the guides of those sections, `dashboard` for the dashboard line and `badge` for the badge guide. The JSON, SARIF, text, CycloneDX and HTML reports keep their own links and tags in every environment (see "How to fix").
+
+Two runs over the same files, settings and `--as-of` date write the same Markdown report when they agree on the CI service (GitHub Actions, GitLab CI/CD, another CI service, or none for a local run), on the kind of run (a pull or merge request, the default branch, another branch) and, on GitHub, on whether the repository is public or private, which the badge offer reads. No other format depends on any of these.
+
+The findings table links each baseline rule id to its page; an organisation rule's id stays plain text. The last line names the scanner and rules versions and links to `https://spellwarden.ai/docs/rules` and to the source code on GitHub.
+
+**The dashboard line.** In free mode (no connected mode, no "Connected mode unavailable" line and no connected-mode error) the report has one line above its last line. On GitHub Actions and GitLab CI/CD it reads:
+
+```text
+**Spellwarden dashboard:** see the findings of all your repositories in one place and turn on a live status badge for each one. [Create an account](https://dash.spellwarden.ai/signup?utm_source=scanner&utm_medium=github-action&utm_campaign=dashboard). To leave this line out, set the input `invite` to `false`, or add `--no-invite` if you run the scanner yourself.
+```
+
+The address carries the medium of the run. On another CI service and in a local run the line ends "To leave this line out, add `--no-invite`." instead. It names no price.
+
+**The badge offer.** The job summary of a run that meets four conditions ends with a folded block that offers a "Scanned by Spellwarden" badge to copy into your README: the report is in free mode, the run is on GitHub Actions, it is a run of the default branch (a `push`, `schedule` or `workflow_dispatch` event, never a pull request) and the repository is public. The badge is a static image on spellwarden.ai: it shows that this repository runs the Spellwarden scan, not that the scan passed, so the block is there whatever the verdict. The block starts with the line `<!-- spellwarden-summary-only -->` and is the very end of the file. It lives only in the job summary: `spellwarden ci comment` and `spellwarden ci-run gitlab` post the report without it. They remove it only as the exact end of the file; that text anywhere else in a report cuts nothing. A report cut at 60,000 characters, or one that the block would take over that cap, has no block. A repository connected to the dashboard gets no block either: its `Results:` link leads to the repository page where its live status badge is turned on.
+
+**Leaving them out.** `--no-invite` (since 1.26.0) leaves out the dashboard line and the badge offer; the rule links stay. The GitHub Action and the GitLab component take an input `invite`, `true` by default, and `false` passes `--no-invite`; `spellwarden ci-run gitlab` reads it as the variable `SW_INVITE`. `spellwarden scan` itself reads no settings key and no environment variable for it, so a scanned settings file cannot change it.
+
+**Nothing is sent.** The scanner sends nothing for any of this: a link is a plain link, and the badge image is a static file on spellwarden.ai that a README viewer or GitHub's image proxy fetches like any image.
 
 ### Presets
 
@@ -1336,6 +1367,8 @@ include:
 ```
 
 Inputs, the comment token and the merge request comparison: [gitlab.com/spellwarden-ai/scan](https://gitlab.com/spellwarden-ai/scan). The merge request job clones with `GIT_DEPTH: "0"`, so the settings file and the baseline can be read from the merge base.
+
+**The dashboard line and the badge offer.** Both wrappers take an input `invite` (since 1.26.0, `true` by default): `false` leaves the dashboard line and the README badge offer out of the job summary and the comment, as `--no-invite` does. See "Links in the Markdown report".
 
 **Anywhere else.** `pipx run spellwarden==1.0.0 scan`, or the image `ghcr.io/spellwarden-ai/spellwarden:1.0.0`.
 

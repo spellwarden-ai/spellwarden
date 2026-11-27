@@ -23,3 +23,14 @@ Both wrappers take an input `follow-links` from their 1.20.0 release:
 | GitLab component | `spec:inputs: follow-links: {default: false, type: boolean}`, as its other true or false inputs | the same | the variable `SW_FOLLOW_LINKS`, which `spellwarden ci-run gitlab` turns into `--follow-links` when it is `true` |
 
 `false` passes no flag, and so does an empty or unset `SW_FOLLOW_LINKS`: a linked directory in an instruction folder is then the notice `symlink_skipped` and the files reached only through it are not judged. Any other value fails the wrapper's input check before the scan (the Action's own check; GitLab refuses a value that is not a boolean when it creates the pipeline), and `spellwarden ci-run gitlab` refuses another `SW_FOLLOW_LINKS` as a usage problem, as every other input. The lock does not record the argument, so a job that runs `scan --locked` with the input on needs a lock written with `spellwarden lock --follow-links`. What the argument follows and what it never follows: the README's "Instruction files".
+
+## The `invite` input (1.26.0)
+
+Both wrappers take an input `invite` from their 1.26.0 release:
+
+| Wrapper | Input | Values | How the scanner receives it |
+|---|---|---|---|
+| GitHub Action | `invite`, `description: "false to leave the dashboard line and the badge offer out of the job summary and the comment; true by default"` | `true` (the default), `false` | `--no-invite` when `false` |
+| GitLab component | `spec:inputs: invite: {default: true, type: boolean}`, as its other true or false inputs | the same | the variable `SW_INVITE`, which `spellwarden ci-run gitlab` turns into `--no-invite` when it is `false` |
+
+`true` passes no flag, and so does an empty or unset `SW_INVITE`: the Markdown report then holds the dashboard line in free mode and, in the job summary of a default-branch run of a public GitHub repository, the badge offer. Any other value fails the wrapper's input check before the scan (the Action's own check; GitLab refuses a value that is not a boolean when it creates the pipeline), and `spellwarden ci-run gitlab` refuses another `SW_INVITE` as a usage problem, as every other input. The rule links stay whatever the input. What the line and the offer say and when they appear: the README's "Links in the Markdown report".

@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.26.0 (2026-11-NN)
+
+Rules version 2026.11.10, unchanged (68 rules): no rule detects anything new, and every finding 1.25.0 reports keeps its rule,
+location, evidence and fingerprint.
+
+Links in the Markdown report. The Markdown report, which is the GitHub job summary and the pull or merge request comment, links
+each baseline rule id in its findings table to the rule's page, and its last line points at spellwarden.ai/docs/rules and at the
+source code. Its links to spellwarden.ai and to the dashboard name the CI service in `utm_medium` (`github-action`,
+`gitlab-component`, `ci`, or `cli` for a local run). In free mode it has one line about the Spellwarden dashboard, and in the job
+summary of a default-branch run of a public GitHub repository it ends with a folded offer of a "Scanned by Spellwarden" README
+badge, which shows that the scan runs, not that it passed; the pull or merge request comment never carries the offer. The new
+flag `--no-invite`, and the variable `SW_INVITE` of `spellwarden ci-run gitlab`, leave out the line and the offer; the rule links
+stay. No rule changed. The JSON, SARIF, text, CycloneDX, HTML and Code Quality reports are unchanged, byte for byte; only the
+Markdown report now depends on the CI service and the kind of run (see the README's "Links in the Markdown report").
+
 ## 1.25.0 (2026-11-27)
 
 Rules version 2026.11.10 (68 rules): two rules are new and no rule changed, so every finding 1.24.0 reports keeps its rule,
