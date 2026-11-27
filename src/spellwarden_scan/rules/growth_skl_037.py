@@ -924,7 +924,12 @@ def _kind(unit: TextFile | CodeBlock) -> str:
     if path.endswith(_JS_EXTENSIONS):
         return "js"
     # 1.27.0: a text file read as a script only because it is listed as executable has no extension to read; its shebang names it
-    return _shebang_kind(unit.lines[0]) if unit.mode_script and unit.lines else ""
+    # (the line as built, carried by both views: review r1:F1)
+    return _shebang_kind(unit.shebang) if unit.mode_script else ""
+
+
+# The options of env(1) that take their value as the next word (GNU coreutils and BSD env); `-S` splits the rest instead.
+_ENV_VALUE_OPTIONS = frozenset({"-u", "--unset", "-C", "--chdir", "-P"})
 
 
 def _shebang_kind(first_line: str) -> str:
@@ -934,7 +939,16 @@ def _shebang_kind(first_line: str) -> str:
         return ""
     words = first_line[2:].split()
     if words and words[0].rsplit("/", 1)[-1] == "env":
-        words = [word for word in words[1:] if not word.startswith("-") and "=" not in word]
+        kept: list[str] = []
+        skip = False
+        for word in words[1:]:
+            if skip:  # the value of `-u NAME`, `-C DIR` or `-P PATH` given as its own word (review r1:F2)
+                skip = False
+            elif word in _ENV_VALUE_OPTIONS:
+                skip = True
+            elif not word.startswith("-") and "=" not in word:
+                kept.append(word)
+        words = kept
     if not words:
         return ""
     name = words[0].rsplit("/", 1)[-1].lower()

@@ -209,3 +209,26 @@ def test_sw_skl_037_picks_the_language_of_an_executable_text_file_from_its_sheba
     assert found(files, "SW-SKL-037") == []
     no_shebang = {"SKILL.md": clean_md(), "bin/get": INSTALLER.replace("#!/bin/sh\n", "")}
     assert found(no_shebang, "SW-SKL-037", executable_paths={"bin/get"}) == []
+
+
+def test_sw_skl_037_reads_the_shebang_as_built_in_the_decoded_view_and_after_a_byte_order_mark():
+    # Review r1:F1: the decoded view holds only payloads, so the language comes from the file as built.
+    payload = base64.b64encode(INSTALLER.split("\n", 1)[1].encode()).decode()
+    encoded = {"SKILL.md": clean_md(), "scripts/install": f"#!/bin/sh\necho {payload} | base64 -d | sh\n"}
+    hits = found(encoded, "SW-SKL-037", executable_paths={"scripts/install"})
+    assert where(hits) == [("scripts/install", 2)]
+    assert hits[0].evidence.startswith("Matched after normalising:")
+    # Review r1:F2: a leading byte order mark is not a disguise; the file as written is matched, with or without normalising.
+    marked = {"SKILL.md": clean_md(), "scripts/install": "﻿" + INSTALLER}
+    for normalise_text in (True, False):
+        hits = found(marked, "SW-SKL-037", executable_paths={"scripts/install"}, normalise=normalise_text)
+        assert where(hits) == [("scripts/install", 2)], normalise_text
+        assert not hits[0].evidence.startswith("Matched after normalising:"), normalise_text
+
+
+def test_sw_skl_037_skips_the_value_of_an_env_option_that_takes_one():
+    # Review r1:F2: `env -u NAME` and `env -C DIR` name the interpreter after the option's value.
+    for shebang in ("#!/usr/bin/env -u FOO bash", "#!/usr/bin/env -C /tmp bash", "#!/usr/bin/env -P /bin sh",
+                    "#!/usr/bin/env --unset FOO -i bash"):
+        files = {"SKILL.md": clean_md(), "bin/get": INSTALLER.replace("#!/bin/sh", shebang)}
+        assert where(found(files, "SW-SKL-037", executable_paths={"bin/get"})) == [("bin/get", 2)], shebang

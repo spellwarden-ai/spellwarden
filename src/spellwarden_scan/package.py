@@ -57,6 +57,9 @@ class TextFile:
     # 1.27.0 (scan feedback fixes spec 5.3): listed executable and not read as Markdown, so the script rules read it whatever
     # its name; false for an executable Markdown file, whose fenced blocks are its scripts
     mode_script: bool = False
+    # 1.27.0 (review r1:F1, r1:F2): the `#!` line of a mode-script file as built (a leading byte order mark dropped), empty
+    # otherwise; both views carry it, since the folded view drops the mark and the decoded view holds only payloads
+    shebang: str = ""
 
 
 def is_script_file(unit: TextFile) -> bool:
@@ -209,7 +212,10 @@ class Package:
             if meter is not None:
                 lines = Lines(lines, meter, path)
             read_as_markdown = path.lower().endswith(".md") or path in markdown
-            texts.append(TextFile(path, text, lines, content[:8], path in kept and not read_as_markdown))
+            mode_script = path in kept and not read_as_markdown
+            first = lines[0].lstrip("\ufeff") if lines else ""
+            shebang = first if mode_script and first.startswith("#!") else ""
+            texts.append(TextFile(path, text, lines, content[:8], mode_script, shebang))
             if read_as_markdown:
                 blocks.extend(_code_blocks(path, lines, meter))
         return cls(root, tuple(texts), tuple(binaries), tuple(blocks), metadata_of(files, root), kept, markdown, meter=meter)
@@ -257,7 +263,7 @@ class Package:
             lines = unit.lines  # a line that no step changed is the line as built; `folded` equals it
             if folded != unit.lines:
                 lines = folded if meter is None else Lines(folded, meter, unit.path)
-                folded_files.append(TextFile(unit.path, "\n".join(folded), lines, unit.head, unit.mode_script))
+                folded_files.append(TextFile(unit.path, "\n".join(folded), lines, unit.head, unit.mode_script, unit.shebang))
                 for block in own:  # the original boundaries, never recomputed from folded text
                     start = block.first_line - 1
                     body = folded[start:start + block.line_count]
@@ -329,7 +335,8 @@ def _shadow(unit: TextFile, folded: tuple[str, ...], blocks: list[CodeBlock], st
         return None
     lines = tuple(out)
     text = "\n".join(lines)
-    return (TextFile(unit.path, text, lines if meter is None else Lines(lines, meter, unit.path), unit.head, unit.mode_script),
+    metered = lines if meter is None else Lines(lines, meter, unit.path)
+    return (TextFile(unit.path, text, metered, unit.head, unit.mode_script, unit.shebang),
             tuple(origin))
 
 
