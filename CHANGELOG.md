@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.27.0 (2026-11-NN)
+## 1.27.0 (2026-11-27)
 
 Rules version 2026.11.11 (68 rules): SW-SKL-010 (Bundled binary or executable file) reports binary content only: a file whose name
 ends in one of its binary extensions, a file whose first bytes are the magic number of an ELF, Windows or Mach-O program, and a file
@@ -21,6 +21,9 @@ evidence and fingerprint, and an SW-SKL-010 finding on binary content keeps its 
 New: `spellwarden_scan.in_tests_or_fixtures(path, root="")` says whether a file is a test or a fixture, by its path under the scan
 root (see the README's "Tests and fixtures"). It is for presentation only: no rule, severity, status or exit code reads it. SW-CFG-013
 shares its directory list and detects what it detected in 1.26.0.
+
+Rule benchmark: no rate got worse than in 1.26.0.
+Rule benchmark: normalisation adds no finding on harmless skills.
 
 ## 1.26.0 (2026-11-27)
 

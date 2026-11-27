@@ -286,7 +286,7 @@ MaliciousSkillBench test split (source-disjoint): Normalisation adds no finding 
 
 Tuning half of Spellwarden's labelled set: Normalisation adds no finding on harmless skills.
 
-Scanner 1.26.0, rules version 2026.11.10, released 2026-11-27.
+Scanner 1.27.0, rules version 2026.11.11, released 2026-11-27.
 <!-- benchmark:end -->
 
 ### Disguised content
