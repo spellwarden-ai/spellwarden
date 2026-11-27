@@ -29,12 +29,21 @@ def under_test_directory(path: str) -> bool:
     return any(part.lower() in TEST_DIRECTORIES for part in path.replace("\\", "/").split("/")[:-1])
 
 
+def _plain(path: str) -> str:
+    """`path` with backslashes as slashes and without a leading `./` or `/`, so a path and its root given in the same form compare
+    whether both are relative or both are absolute (review r0:F2)."""
+    plain = path.replace("\\", "/")
+    while plain.startswith("./"):
+        plain = plain[2:]
+    return plain.lstrip("/")
+
+
 def in_tests_or_fixtures(path: str, root: str = "") -> bool:
     """Whether `path` is a test or fixture file: a directory segment of its part under the scan root `root` is a test or fixture
     directory, or its file name matches one of `TEST_FILE_PATTERNS`. The root itself is never the reason; a path that is not under
     the root is judged as given. The prefix comparison is exact (archive and git paths are case-sensitive)."""
-    relative = path.replace("\\", "/")
-    prefix = root.replace("\\", "/").strip("/")
+    relative = _plain(path)
+    prefix = _plain(root).rstrip("/")
     if prefix and relative.startswith(prefix + "/"):
         relative = relative[len(prefix) + 1:]
     name = relative.rsplit("/", 1)[-1]

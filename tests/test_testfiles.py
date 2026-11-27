@@ -21,6 +21,8 @@ OUTSIDE = [
     ("tests", ""), ("test.py", ""), ("tests.py", ""), ("pkg/contest.py", ""), ("Test_setup.py", ""), ("APP.TEST.TS", ""),
     ("e2e/login.ts", ""), ("__mocks__/fs.js", ""), ("examples/x.sh", ""), ("benchmarks/x.py", ""), ("src/a.py", ""),
     ("tests/fixtures/s/SKILL.md", "tests/fixtures/s"), ("README.md", ""),
+    ("/repo/tests/fixtures/s/SKILL.md", "/repo/tests/fixtures/s"), ("./tests/fixtures/s/SKILL.md", "tests/fixtures/s"),
+    ("tests\\fixtures\\s\\SKILL.md", "./tests/fixtures/s/"),
 ]
 
 
