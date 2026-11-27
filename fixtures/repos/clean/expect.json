@@ -1,5 +1,9 @@
 {
   "exit_code": 0,
   "findings": 0,
-  "report": "required"
+  "report": "required",
+  "variants": {
+    "invite-off": {"inputs": {"invite": "false"}, "exit_code": 0, "report": "required"},
+    "invite-bad-value": {"inputs": {"invite": "maybe"}, "exit_code": 2, "report": "absent"}
+  }
 }
