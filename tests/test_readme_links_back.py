@@ -51,7 +51,7 @@ def test_the_subsection_says_what_a_markdown_report_depends_on_and_what_it_holds
                    "| GitHub Actions | `github-action` |", "| GitLab CI/CD | `gitlab-component` |", "| another CI service | `ci` |",
                    "| no CI service (a local run) | `cli` |", "`utm_source=scanner`",
                    "`rule-docs`", "`rule-fix`", "`description-lint`", "`analyzer`", "`presets`", "`dashboard`", "`badge`",
-                   "the report is in free mode", "the run is on GitHub Actions", "it is a run of the default branch",
+                   "the report is in free mode", "the run is on GitHub Actions", "it is a `push` or `workflow_dispatch` run of the default branch", "A scheduled run gets no block",
                    "the repository is public", "not that the scan passed", "`<!-- spellwarden-summary-only -->`",
                    "`spellwarden ci comment` and `spellwarden ci-run gitlab` post the report without it",
                    "that text anywhere else in a report cuts nothing", "`--no-invite`", "`SW_INVITE`", "input `invite`",
