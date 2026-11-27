@@ -32,6 +32,8 @@ NAMES_1_13_0 = ("PromptArgument", "PromptInfo", "ResourceInfo", "ResourceTemplat
 NAMES_1_23_0 = ("REPOSITORY_LIMITS", "list_zip")
 # speed and deadline spec 7.1
 NAMES_1_24_0 = ("Deadline", "TimeLimit")
+# scan feedback fixes spec 4.2
+NAMES_1_27_0 = ("in_tests_or_fixtures",)
 # O3 spec 5.4: the names that live in a submodule of the engine, which the package imports so that they are reachable.
 IDENTITY_NAMES = (
     "package_files", "PackageFiles", "package_sha256", "nested_skill_roots", "is_skill_file", "fold_skill_name",
@@ -54,7 +56,7 @@ def test_1_1_0_adds_exactly_the_names_of_spec_5_8():
     for name in NAMES_1_1_0:
         assert name in spellwarden_scan.__all__ and hasattr(spellwarden_scan, name), name
     assert sorted(spellwarden_scan.__all__) == sorted(NAMES_1_0_0 + NAMES_1_1_0 + NAMES_1_2_0 + NAMES_1_3_0 + NAMES_1_13_0
-                                                      + NAMES_1_23_0 + NAMES_1_24_0)
+                                                      + NAMES_1_23_0 + NAMES_1_24_0 + NAMES_1_27_0)
     assert len(spellwarden_scan.__all__) == len(set(spellwarden_scan.__all__))
 
 
@@ -210,3 +212,11 @@ def test_1_24_0_adds_the_deadline_and_the_time_limit():
     for name in NAMES_1_24_0:
         assert name in spellwarden_scan.__all__ and hasattr(spellwarden_scan, name), name
     assert spellwarden_scan.Deadline is deadline.Deadline and spellwarden_scan.TimeLimit is deadline.TimeLimit
+
+
+def test_1_27_0_adds_the_test_and_fixture_classifier():
+    from spellwarden_scan import testfiles
+
+    for name in NAMES_1_27_0:
+        assert name in spellwarden_scan.__all__ and hasattr(spellwarden_scan, name), name
+    assert spellwarden_scan.in_tests_or_fixtures is testfiles.in_tests_or_fixtures

@@ -51,6 +51,42 @@ print(result.sha256, result.metadata.name, result.truncated)
 - `deadline` (since 1.24.0; keyword-only, default `None`) is a `Deadline`, made with `Deadline.after(seconds)` and shared by every package of a scan. When its clock reaches it the call raises `TimeLimit`, which names the file being read (`path`, or `None`) and the stage (`stage`: `before`, `reading`, `normalising` or `judging`), and returns nothing for that package: the findings found so far are dropped with it, so a package that was not read whole never looks like a pass. The clock is read before each file, each view and each rule and once for every 64 KiB of line text; the default clock is `time.monotonic`, and `Deadline(at, clock)` takes your own. Without `deadline` nothing changes. The other entry points take none, because what they read is bounded already: `scan_agent_config` (documents of at most 1 MiB), `evaluate_agent_card`, `evaluate_probe` (the probe's own budget), `unpack_zip` and `list_zip` (`ArchiveLimits`). An entry point that reads content of unbounded size takes a deadline.
 - Evidence is at most 300 characters and credential-shaped text in it is masked. `fingerprint` is the SHA-256 of rule id, path and matched text, so a finding keeps its identity across scans.
 
+### Tests and fixtures
+
+`in_tests_or_fixtures(path, root="")` (since 1.27.0) says whether a file is a test or a fixture, from its path alone. It is for
+presentation: in 1.27.0 no rule, severity, status or exit code reads it, and a report that groups findings with it still counts and
+judges every finding. The hosted free scan uses it to show findings in tests and fixtures after the others.
+
+A file is in tests or fixtures when a folder of its path is one of these names, compared in any case (`TEST_DIRECTORIES` in
+`spellwarden_scan.testfiles`, the list SW-CFG-013 also reads):
+
+| Folder | Convention it follows |
+|---|---|
+| `test`, `tests` | pytest and unittest projects, Maven and Gradle (`src/test/`), Cargo integration tests, PHPUnit, Node packages; SwiftPM's `Tests/` by the case rule |
+| `__tests__` | Jest's default test folder |
+| `fixtures`, `__fixtures__` | pytest, Rails and Jest fixture folders |
+| `testdata` | the Go command, which leaves folders named `testdata` out of a build |
+| `test-data` | the hyphenated form of the same |
+
+or when its file name matches one of these patterns, compared exactly as the test runners compare them (`TEST_FILE_PATTERNS`):
+
+| File name | Convention it follows |
+|---|---|
+| `test_*.py`, `*_test.py`, `conftest.py` | pytest's default `python_files`, and its per-folder configuration file |
+| `*_test.go` | the Go command's test files |
+| `*.test.js`, `*.test.jsx`, `*.test.mjs`, `*.test.cjs`, `*.test.ts`, `*.test.tsx`, `*.test.mts`, `*.test.cts`, and the same eight with `.spec.` | Jest's default `testMatch` and Vitest's default `include` |
+| `*_spec.rb` | RSpec's default pattern |
+
+The path is read relative to `root`, the folder that was scanned: the scanned folder itself is never the reason, so a skill under
+`tests/fixtures/` that you scan on its own is not classified, while a `tests/` folder inside it is. A path that is not under `root`
+is read as given, and a backslash counts as a folder separator. When in doubt a file is left unclassified, so its finding stays
+where it is most visible. These are not classified, each for its reason: `spec` and `specs` folders (`docs/specs/` is documentation
+and `api/spec/` often holds an OpenAPI document an agent reads; RSpec's tests are still found by `*_spec.rb`); `e2e`, `cypress`,
+`playwright`, `__mocks__`, `__snapshots__`, `mocks` and `testing` (tool-specific or ambiguous); `examples`, `samples`, `benchmarks`,
+`vendor` and `docs` (what people copy, run or ship); plain names such as `test.py`, `tests.py` and `test.yml`
+(`.github/workflows/test.yml` is a real workflow); and Java, Kotlin, C# and PHP test names such as `*Test.java`, whose conventions put
+them under a `test` or `tests` folder, which is classified.
+
 ## Evaluating an MCP server probe
 
 ```python

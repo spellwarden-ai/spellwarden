@@ -16,7 +16,8 @@ read. A small registry names the write-capable servers and the switch that restr
 A restricting switch (`--read-only`, or a `read_only` / `readOnly` key of the server object), a disabled entry
 (`disabled: true` or `enabled: false`) and a documentation-only Supabase server (`features` naming only `docs`) are quiet.
 A configuration under a test or fixture directory (a path segment `test`, `tests`, `__tests__`, `fixtures`,
-`__fixtures__`, `testdata` or `test-data`) is quiet: no client loads it, and security tools keep deliberately
+`__fixtures__`, `testdata` or `test-data`, compared in any case: `spellwarden_scan.testfiles.TEST_DIRECTORIES`, shared since 1.27.0
+with the test-and-fixture classifier) is quiet: no client loads it, and security tools keep deliberately
 vulnerable configurations there (gate 9.2). A server yields at most one finding, at its line, and its evidence names
 the missing switch. Every scan is a plain
 string scan, linear in the size of the entry. The module is registered by the rule set, not here."""
@@ -27,6 +28,7 @@ from collections.abc import Iterator
 from spellwarden_scan.evidence import bounded_evidence, fingerprint
 from spellwarden_scan.model import Finding, FixLines, Location, McpServerEntry
 from spellwarden_scan.rules.fix_lines import KUBERNETES_ENV, KUBERNETES_ENV_TOML, SUPABASE_HOSTED
+from spellwarden_scan.testfiles import under_test_directory
 
 RULE_ID = "SW-CFG-013"
 TITLE = "Database or cluster MCP server with write access although a read-only mode exists"
@@ -232,19 +234,12 @@ def _missing(entry: McpServerEntry) -> str | None:
     return None
 
 
-_TEST_DIRS = frozenset({"test", "tests", "__tests__", "fixtures", "__fixtures__", "testdata", "test-data"})
-
-
-def _under_tests(path: str) -> bool:
-    return any(part.lower() in _TEST_DIRS for part in path.replace("\\", "/").split("/")[:-1])
-
-
 def detect(config) -> Iterator[Finding]:
     # Imported here, not at the top: rules/config.py will import this module to register it (import cycle).
     from spellwarden_scan.rules.config import config_matched
 
     for doc, entry in config.servers():
-        if doc.kind not in ("mcp", "plugin", "settings") or _disabled(entry) or _under_tests(doc.path):  # settings: 1.20.0
+        if doc.kind not in ("mcp", "plugin", "settings") or _disabled(entry) or under_test_directory(doc.path):  # settings: 1.20.0
             continue
         missing = _missing(entry)
         if missing is None:
