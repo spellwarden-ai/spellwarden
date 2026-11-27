@@ -8,6 +8,7 @@ import pytest
 from fake_http import RecordedOpener, load
 
 from spellwarden_cli import ci, forge
+from spellwarden_cli.output import markdown
 from spellwarden_cli.report import Notice
 
 BODY = forge.MARKER + "\n**Spellwarden**: passed."
@@ -157,3 +158,31 @@ def test_the_command_never_reads_the_body_through_a_symlink_or_from_a_non_file(t
     regular.write_bytes(BODY.encode("utf-8"))  # no `\r\n` on Windows
     assert ci.cmd_comment(_comment_args(regular)) == 0
     assert posted == [BODY]
+
+
+# --- scan links back (spec 5.8, claim C12): the comment never carries the badge offer that ends the job summary -------------
+
+WRITES = {("github", "create"): ("POST", "https://api.github.com/repos/acme/agents/issues/7/comments"),
+          ("github", "update"): ("PATCH", "https://api.github.com/repos/acme/agents/issues/comments/11"),
+          ("gitlab", "create"): ("POST", "https://gitlab.example/api/v4/projects/42/merge_requests/5/notes"),
+          ("gitlab", "update"): ("PUT", "https://gitlab.example/api/v4/projects/42/merge_requests/5/notes/9")}
+
+
+def _post(provider: str, scenario: str, body: str):
+    opener = RecordedOpener(load(f"forge_{provider}", scenario))
+    ctx, env = (PR, GITHUB_ENV) if provider == "github" else (MR, GITLAB_ENV)
+    return forge.post_comment(provider, body, env=env, ctx=ctx, opener=opener), opener
+
+
+@pytest.mark.parametrize(("provider", "scenario"), list(WRITES))
+def test_the_comment_is_the_report_without_the_badge_offer(provider, scenario):
+    notice, opener = _post(provider, scenario, BODY + "\n" + markdown.SUMMARY_TAIL)
+    assert notice is None
+    assert writes(opener) == [(*WRITES[provider, scenario], {"body": BODY + "\n"})]  # the earlier comment found by MARKER
+
+
+@pytest.mark.parametrize(("provider", "scenario"), list(WRITES))
+def test_a_body_without_the_offer_is_posted_byte_for_byte(provider, scenario):
+    body = BODY + "\n" + markdown.SUMMARY_MARKER + "\nnot the end\n"
+    notice, opener = _post(provider, scenario, body)
+    assert notice is None and writes(opener) == [(*WRITES[provider, scenario], {"body": body})]

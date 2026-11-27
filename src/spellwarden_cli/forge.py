@@ -15,7 +15,7 @@ from collections.abc import Callable, Mapping
 from urllib.parse import quote, urlsplit
 
 from spellwarden_cli.net import USER_AGENT, tls_urlopen
-from spellwarden_cli.output.markdown import MARKER  # one marker: the report's first line is what this module finds
+from spellwarden_cli.output.markdown import MARKER, comment_body  # one marker: the report's first line is what this module finds
 from spellwarden_cli.report import Notice
 
 MAX_PAGES = 10
@@ -139,7 +139,9 @@ def _gitlab(body: str, env: Mapping[str, str], number: int, opener) -> None:
 def post_comment(provider: str, body: str, *, env: Mapping[str, str], ctx, opener: Callable[..., object] | None = None
                  ) -> Notice | None:
     """Finds the comment of the token's user that starts with `MARKER` (at most 10 pages of 100) and updates it, or
-    creates one. None on success; a `Notice` otherwise. Never raises."""
+    creates one. None on success; a `Notice` otherwise. Never raises. The body posted is `comment_body(body)`: a Markdown
+    report without the badge offer that ends the job summary (scan links back spec 5.8)."""
+    body = comment_body(body)
     if not (ctx.is_request and ctx.request_number is not None):
         return Notice("comment_no_request", "", "this run has no pull or merge request to comment on")
     try:
