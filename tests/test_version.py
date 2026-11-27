@@ -1,4 +1,5 @@
-"""The current release is 1.25.0, which adds two rules (rules version 2026.11.10; P6-9); 1.24.0 makes the normalised scan faster and ends a scan that reaches a time limit incomplete
+"""The current release is 1.26.0, which links the Markdown report back to the rule pages and the dashboard without changing a rule
+(rules version 2026.11.10, unchanged); 1.25.0 adds two rules (rules version 2026.11.10; P6-9); 1.24.0 makes the normalised scan faster and ends a scan that reaches a time limit incomplete
 (`--time-limit`, `Deadline`, `TimeLimit`), without changing a rule (rules version 2026.11.9, unchanged); 1.23.0 reads an archive's
 links inside the scanned tree, measures the path bound on the path
 in the repository, bounds an archive's entries and makes the command's link out of the scan root an error, without changing a
@@ -31,7 +32,7 @@ PYPROJECT = Path(__file__).resolve().parents[1] / "pyproject.toml"
 
 
 def test_the_versions():
-    assert __version__ == "1.25.0"
+    assert __version__ == "1.26.0"
     assert tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))["project"]["version"] == __version__
     assert RULES_VERSION == "2026.11.10"
     assert len(RuleSet.baseline()) == 68
