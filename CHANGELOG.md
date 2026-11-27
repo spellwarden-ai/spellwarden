@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.26.0 (2026-11-NN)
+## 1.26.0 (2026-11-27)
 
 Rules version 2026.11.10, unchanged (68 rules): no rule detects anything new, and every finding 1.25.0 reports keeps its rule,
 location, evidence and fingerprint.
@@ -14,6 +14,9 @@ badge, which shows that the scan runs, not that it passed; the pull or merge req
 flag `--no-invite`, and the variable `SW_INVITE` of `spellwarden ci-run gitlab`, leave out the line and the offer; the rule links
 stay. No rule changed. The JSON, SARIF, text, CycloneDX, HTML and Code Quality reports are unchanged, byte for byte; only the
 Markdown report now depends on the CI service and the kind of run (see the README's "Links in the Markdown report").
+
+Rule benchmark: no rate got worse than in 1.25.0.
+Rule benchmark: normalisation adds no finding on harmless skills.
 
 ## 1.25.0 (2026-11-27)
 
