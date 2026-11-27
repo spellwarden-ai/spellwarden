@@ -443,3 +443,44 @@ def test_an_invalid_preset_input_is_a_problem_shown_escaped(tmp_path, monkeypatc
     assert problems == [f"input preset: {ci.escape.terminal('loud' + chr(27) + '[31m')!r} is not one of strict, balanced, "
                         "low-noise, or empty"]
     assert "--preset" not in argv
+
+
+# --- scan links back: the input invite (SW_INVITE, spec 5.10, claims C14 and C15) ------------------------------------------
+
+@pytest.mark.parametrize("value", [None, "", "true"])
+def test_invite_unset_empty_or_true_adds_no_flag(value, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    env = dict(VALID) if value is None else {**VALID, "SW_INVITE": value}
+    assert ci.gitlab_argv(env) == (TODAYS_VALID_ARGV, [], False, {})
+
+
+def test_invite_false_adds_no_invite_after_the_probe_private_flag_or_after_no_telemetry(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    argv, problems, _, _ = ci.gitlab_argv({**VALID, "SW_INVITE": "false"})
+    expected = list(TODAYS_VALID_ARGV)
+    expected.insert(expected.index("--no-probe-private") + 1, "--no-invite")
+    assert problems == [] and argv == expected
+    argv = ci.gitlab_argv({**VALID, "SW_INVITE": "false", "SW_TELEMETRY": "false"})[0]
+    assert argv[argv.index("--no-telemetry") + 1] == "--no-invite" and argv.count("--no-invite") == 1
+
+
+def test_another_invite_value_is_a_usage_problem_before_the_scan(capsys, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    seen = _scans(monkeypatch)
+    assert ci.gitlab_argv({**VALID, "SW_INVITE": "x"})[1] == ["input invite: 'x' is not one of true, false"]
+    assert ci.run_gitlab({**VALID, "SW_INVITE": "x"}) == 2 and seen == []
+    assert "spellwarden: error: input invite: 'x' is not one of true, false" in capsys.readouterr().err
+
+
+def test_the_job_s_markdown_has_the_gitlab_dashboard_line_unless_invite_is_false(tmp_path, monkeypatch, make_repo):
+    from spellwarden_cli.output import markdown
+
+    repo = make_repo(tmp_path / "project", {"README.md": "nothing to scan\n"})
+    monkeypatch.chdir(repo)
+    for name, value in PUSH.items():  # the scan detects its CI from the process environment, as in a real job
+        monkeypatch.setenv(name, value)
+    assert ci.run_gitlab({**VALID, "SW_TELEMETRY": "false"}) == 0
+    text = (repo / ci.GITLAB_MARKDOWN).read_text(encoding="utf-8")
+    assert markdown.dashboard_line("gitlab-component") in text and markdown.SUMMARY_MARKER not in text
+    assert ci.run_gitlab({**VALID, "SW_TELEMETRY": "false", "SW_INVITE": "false"}) == 0
+    assert "Spellwarden dashboard" not in (repo / ci.GITLAB_MARKDOWN).read_text(encoding="utf-8")
