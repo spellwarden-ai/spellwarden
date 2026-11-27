@@ -18,7 +18,7 @@ from spellwarden_scan import RULES_VERSION, RuleSet, __version__
 import dataclasses
 
 from spellwarden_cli import api, files, run
-from spellwarden_cli.output import FORMATS, write_stdout
+from spellwarden_cli.output import FORMATS, markdown, write_stdout
 from spellwarden_cli.presets import PRESETS
 from spellwarden_cli.report import LockState, Notice, Report
 from spellwarden_cli.secret import Credentials, Secret, read_credentials, take_secret
@@ -101,6 +101,10 @@ def _add_scan(commands) -> None:
     scan.add_argument("--config", metavar="FILE", help="a settings file instead of .spellwarden/config.yml")
     scan.add_argument("--as-of", type=_iso_date, metavar="YYYY-MM-DD", help="evaluation date (default: today, UTC)")
     scan.add_argument("--no-telemetry", action="store_true", help="send no usage ping")
+    # Scan links back (spec 5.9): one flag, no settings key and no environment variable, so a scanned file cannot change it
+    scan.add_argument("--no-invite", action="store_true",
+                      help="leave the Spellwarden dashboard line and the README badge offer out of the Markdown report; the rule "
+                           "page links stay")
     upload = scan.add_mutually_exclusive_group()
     upload.add_argument("--upload", dest="upload", action="store_true", default=None,
                         help="in connected mode, upload the results in CI (default: on); with --user, upload the "
@@ -290,10 +294,12 @@ def _request_opts_out(root: str) -> bool:
     return not own.telemetry
 
 
-def write_outputs(report: Report, outputs: list[tuple[str, str | None]], *, stdout: TextIO) -> None:
-    """Each format to its file (written to a temporary file in the same directory, then renamed) or to stdout."""
+def write_outputs(report: Report, outputs: list[tuple[str, str | None]], *, stdout: TextIO,
+                  links: markdown.MarkdownLinks | None = None) -> None:
+    """Each format to its file (written to a temporary file in the same directory, then renamed) or to stdout. Only the
+    Markdown report receives `links` (scan links back spec 5.9); without it, it is a local run's with no invitation."""
     for fmt, path in outputs:
-        text = FORMATS[fmt](report)
+        text = markdown.render(report, links or markdown.LOCAL_LINKS) if fmt == "markdown" else FORMATS[fmt](report)
         if path is None:
             write_stdout(text, stdout)
             continue
@@ -395,7 +401,8 @@ def cmd_scan(args: argparse.Namespace) -> int:
                         git_branch=lambda: ci.git_branch_of(root, env=os.environ))  # once, for the scan and the ping
     scope = ci.scan_scope(root, git=None, env=os.environ)  # once (P41): the grammar of O3 spec 8.4 decides
     report, telemetry = _scan_report(args, context, credentials, scope, model_key)
-    write_outputs(report, outputs, stdout=sys.stdout)
+    links = markdown.links_for(context, invite=not getattr(args, "no_invite", False))
+    write_outputs(report, outputs, stdout=sys.stdout, links=links)
     if not args.quiet:
         for fmt, path in outputs:
             if path is not None:
