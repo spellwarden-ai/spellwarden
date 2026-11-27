@@ -967,7 +967,8 @@ def gitlab_argv(env: Mapping[str, str], notices: list[Notice] | None = None
     variables). Every boolean is passed as an explicit positive or negative flag, so the scanned settings file cannot
     change what an input chose (6.3). The notices the scan's report must carry (1.17.0: `analyzer_no_key`) are appended
     to `notices`. 1.18.0: `SW_PRESET` (the input `preset`) adds `--preset VALUE` when it is not empty. 1.20.0:
-    `SW_FOLLOW_LINKS` (`true` or `false`, default `false`) adds `--follow-links` when it is `true`."""
+    `SW_FOLLOW_LINKS` (`true` or `false`, default `false`) adds `--follow-links` when it is `true`. Scan links back: `SW_INVITE`
+    (`true` or `false`, default `true`) adds `--no-invite` when it is `false`."""
     problems: list[str] = []
     path = env.get("SW_PATH") or "."
     fail_on = _choice(env, "SW_FAIL_ON", "fail-on", FAIL_ON, problems)
@@ -982,6 +983,9 @@ def gitlab_argv(env: Mapping[str, str], notices: list[Notice] | None = None
     follow_links = env.get("SW_FOLLOW_LINKS", "")
     if follow_links:  # Engine 1.20.0 (spec 7.20.1): unset or empty is `false`, as the component's default
         _choice(env, "SW_FOLLOW_LINKS", "follow-links", ("true", "false"), problems)
+    invite = env.get("SW_INVITE", "")
+    if invite:  # scan links back (spec 5.10): unset or empty is `true`, as the component's default
+        _choice(env, "SW_INVITE", "invite", ("true", "false"), problems)
     org = env.get("SW_ORG", "").strip()
     updates: dict[str, str] = {}
     if org:
@@ -1001,6 +1005,8 @@ def gitlab_argv(env: Mapping[str, str], notices: list[Notice] | None = None
     argv.append("--probe-private" if private == "true" else "--no-probe-private")
     if telemetry == "false":
         argv.append("--no-telemetry")
+    if invite == "false":
+        argv.append("--no-invite")
     if upload in ("true", "false"):
         argv.append("--upload" if upload == "true" else "--no-upload")
     if follow_links == "true":
