@@ -231,3 +231,10 @@ def test_f6_the_roadmap_no_longer_lists_the_report_channel_as_next_and_lists_it_
     assert "a thread per release in GitHub Discussions lists the rules that changed" in shipped
     assert "Since" not in shipped[shipped.index("Anyone can report"):]
     assert "A way to report" not in section(text, "## Next\n", "## Being considered")
+
+
+def test_pull_request_template_points_at_the_rules():
+    """P6-16's done-when: GitHub's community profile shows every file it checks for, the pull request template included."""
+    text = flat((ROOT / ".github" / "pull_request_template.md").read_text(encoding="utf-8"))
+    for needle in ("CONTRIBUTING.md", "SECURITY.md", "make check", "One concern per pull request", "test set"):
+        assert needle in text, needle
