@@ -1,5 +1,33 @@
 # Changelog
 
+## 1.28.0 (2026-11-NN)
+
+Rules version 2026.11.12 (68 rules): an executable file read as Markdown (a name ending in `.md`, or a path passed in
+`markdown_paths`) whose first line starts with `#!` is read as a script by the script rules (SW-SKL-004, SW-SKL-006, SW-SKL-009,
+SW-SKL-014, SW-SKL-037 and org rules): its prose as one script and its fenced blocks each as their own, so each line is read once.
+Run as `./SKILL.md`, such a file runs as the script its `#!` line names, and 1.27.0 read only its fenced blocks as scripts. A file
+read as Markdown without that line is read exactly as in 1.27.0, and so is every other file.
+
+The command passes each instruction file's executable bit to the engine, as it passes a skill's: an executable root `CLAUDE.md`,
+`AGENTS.md` or Cursor rule whose first line starts with `#!` is read as a script, and an executable instruction file whose content
+is not readable text gets SW-SKL-010, as on the hosted free scan. `scan --user` reads the bit of an instruction file of the home,
+except on Windows, which records none.
+
+What this changes, on an executable file read as Markdown whose first line starts with `#!` only. A script rule can report a
+finding on a prose line that had none. SW-SKL-007, SW-SKL-008 and SW-SKL-032 join a prose line that ends in `|`, `&&` or `||` to the
+next, so a high or critical finding can be new (SW-SKL-004 included), and an SW-SKL-012 finding on a line SW-SKL-008 now reports
+goes. A finding on its prose can move to its command's first line with another fingerprint, so a baseline entry or an acceptance of
+it has to be made again. A finding on one of its fenced lines keeps its rule, line and fingerprint. The prose takes its language
+from the `#!` line: a `#!` that names no shell, Python or JavaScript interpreter gives the prose no language for SW-SKL-037, and the
+fenced blocks keep their own tags. SW-SKL-015 still reports the front matter that a `#!` first line breaks.
+
+Findings in tests and fixtures are grouped in the command's reports: the text report lists them under their own heading after the
+others, the Markdown report (the job summary and the pull or merge request comment) and the HTML report in a collapsed block, and the
+JSON and SARIF reports mark each one `in_tests`. It is presentation only: `--fail-on` and the exit code count every finding, the
+verdict and summary lines say how many of the counted findings are in tests and fixtures, and the connected-mode upload leaves the
+mark out, so its body is the one 1.27.0 sent. A report without such a finding is byte-identical to 1.27.0's, and `scan --user`
+marks nothing.
+
 ## 1.27.0 (2026-11-27)
 
 Rules version 2026.11.11 (68 rules): SW-SKL-010 (Bundled binary or executable file) reports binary content only: a file whose name
