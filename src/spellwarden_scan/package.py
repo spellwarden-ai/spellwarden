@@ -54,8 +54,9 @@ class TextFile:
     text: str
     lines: tuple[str, ...]
     head: bytes = b""  # the raw first eight bytes: SW-SKL-010 reads magic numbers here, never from re-encoded text
-    # 1.27.0 (scan feedback fixes spec 5.3): listed executable and not read as Markdown, so the script rules read it whatever
-    # its name; false for an executable Markdown file, whose fenced blocks are its scripts
+    # 1.27.0 (scan feedback fixes spec 5.3), 1.28.0 (spec 4.2): listed executable, and not read as Markdown or read as Markdown
+    # with a `#!` first line, so the script rules read it whatever its name; false for an executable Markdown file without that
+    # line, whose fenced blocks are its scripts
     mode_script: bool = False
     # 1.27.0 (review r1:F1, r1:F2): the `#!` line of a mode-script file as built (a leading byte order mark dropped), empty
     # otherwise; both views carry it, since the folded view drops the mark and the decoded view holds only payloads
@@ -63,8 +64,8 @@ class TextFile:
 
 
 def is_script_file(unit: TextFile) -> bool:
-    """1.27.0 (scan feedback fixes spec 5.3): a script by its extension, or by its executable mode when it is not read as
-    Markdown (`TextFile.mode_script`)."""
+    """1.27.0 (scan feedback fixes spec 5.3): a script by its extension, or by its executable mode (`TextFile.mode_script`):
+    listed executable, and not read as Markdown or read as Markdown with a `#!` first line (1.28.0, spec 4.2)."""
     return unit.mode_script or unit.path.lower().endswith(SCRIPT_EXTENSIONS)
 
 
@@ -96,6 +97,22 @@ class CodeBlock:
         """The number of `lines`, worked out once and kept as one number: the readers that only count a block's lines (the fenced
         line sets, a folded block's slice) build no `Lines` for it."""
         return len(split_lines(self.text))
+
+
+def prose_script(file: TextFile, blocks: Collection[CodeBlock], *, meter: Meter | None = None) -> TextFile:
+    """1.28.0 (spec 4.3): the prose unit of a mode-script file read as Markdown. The same path, `head`, `mode_script` and
+    `shebang`, and the same number of lines, where each body line of a block of the same path whose language is in
+    `CODE_LANGUAGES` is an empty string (those lines are read through their blocks). Fence lines, prose, and the body of any
+    other block (`text`, `json`) stay: `sh` runs them too and no other script unit reads them. With the scan's time meter its
+    lines tick it as any `Lines` does; building it does not (a slice of `Lines` is a plain tuple)."""
+    lines = list(file.lines[:])
+    for block in blocks:
+        if block.path == file.path and block.language in CODE_LANGUAGES:
+            start = block.first_line - 1
+            lines[start:start + block.line_count] = [""] * block.line_count
+    blanked = tuple(lines)
+    return TextFile(file.path, "\n".join(blanked), blanked if meter is None else Lines(blanked, meter, file.path), file.head,
+                    file.mode_script, file.shebang)
 
 
 class TextLimit(Exception):
@@ -212,8 +229,9 @@ class Package:
             if meter is not None:
                 lines = Lines(lines, meter, path)
             read_as_markdown = path.lower().endswith(".md") or path in markdown
-            mode_script = path in kept and not read_as_markdown
             first = lines[0].lstrip("\ufeff") if lines else ""
+            # 1.28.0 (spec 4.2, owner A1): an executable file read as Markdown whose first line starts with `#!` runs as a script
+            mode_script = path in kept and (not read_as_markdown or first.startswith("#!"))
             shebang = first if mode_script and first.startswith("#!") else ""
             texts.append(TextFile(path, text, lines, content[:8], mode_script, shebang))
             if read_as_markdown:
@@ -224,9 +242,12 @@ class Package:
         return tuple(f for f in self.text_files if f.path.lower().endswith(".md") or f.path in self.markdown_paths)
 
     def scripts(self) -> tuple[TextFile | CodeBlock, ...]:
-        """Script files by extension or by executable mode (a file read as Markdown never by its mode), plus the fenced blocks
-        tagged as code (spec 5.3; executable mode since 1.27.0, scan feedback fixes spec 5.3)."""
-        files = tuple(f for f in self.text_files if is_script_file(f))
+        """Script files by extension or by executable mode, plus the fenced blocks tagged as code (spec 5.3; executable mode since
+        1.27.0, scan feedback fixes spec 5.3). Since 1.28.0 (spec 4.3) a mode-script file read as Markdown (an executable file
+        whose first line starts with `#!`) is its prose unit (`prose_script`) and its blocks stay their own units, so the script
+        rules read each line of it exactly once: a code-block line through its block, every other line through the prose unit."""
+        files = tuple(prose_script(f, self.code_blocks, meter=self.meter) if f.mode_script and self._is_markdown(f.path) else f
+                      for f in self.text_files if is_script_file(f))
         blocks = tuple(b for b in self.code_blocks if b.language in CODE_LANGUAGES)
         return files + blocks
 

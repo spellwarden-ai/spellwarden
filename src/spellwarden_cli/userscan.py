@@ -85,6 +85,17 @@ _LAYOUTS = {
 }
 
 
+def _executable(real: str) -> bool:
+    """1.28.0 (spec 4.4): the executable bit of the file at `real`, read as a skill's members are read (`os.stat`, any of the
+    three bits); False on Windows, which records none, and when the mode cannot be read."""
+    if os.name == "nt":
+        return False
+    try:
+        return bool(os.stat(real).st_mode & 0o111)
+    except OSError:
+        return False
+
+
 def _silent(_line: str) -> None:
     return None
 
@@ -633,7 +644,7 @@ class _Home:
             self.notices.append(Notice("instructions_front_matter", shown, "the front matter of this rule file could not be "
                                        "read, so its scope is not shown; the file is still scanned"))
         name = posixpath.basename(shown)
-        self.instructions[shown] = InstructionFile(shown, name, format, front_matter, content)
+        self.instructions[shown] = InstructionFile(shown, name, format, front_matter, content, executable=_executable(real))
         self.item("instructions", shown, name, client, plugin=plugin, format=format, front_matter=front_matter)
 
     def skill_directory(self, real: str, shown: str, client: str, plugin: str | None) -> None:

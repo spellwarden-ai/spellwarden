@@ -316,10 +316,12 @@ def engine_findings(found: Discovery, rules: RuleSet, notices: list[Notice], err
             notices.append(Notice("findings_truncated", skill.path, f"{result.truncated} more findings were not kept"))
     for instruction in found.instruction_files:
         # 1.13.0 (Phase 3 batch 1 spec 10.3): one file, scanned as an instruction file (every skill rule but the two about the
-        # SKILL.md metadata); `markdown_paths` makes a `.mdc` rule, `.cursorrules` and `.windsurfrules` read as Markdown
+        # SKILL.md metadata); `markdown_paths` makes a `.mdc` rule, `.cursorrules` and `.windsurfrules` read as Markdown. 1.28.0
+        # (spec 4.4): its executable bit too, as skills pass theirs, so one with a `#!` first line is read as a script
         try:
             result = scan_skill_package({instruction.path: instruction.content}, rules, root="", kind="instructions",
                                         markdown_paths=frozenset({instruction.path}),
+                                        executable_paths=frozenset({instruction.path}) if instruction.executable else frozenset(),
                                         **({"org_rule_budget": org_budget()} if org_budget is not None else {}),
                                         **({"deadline": deadline} if deadline is not None else {}))
         except FrontmatterLimit as exc:
