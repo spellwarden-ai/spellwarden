@@ -40,7 +40,7 @@ from dataclasses import dataclass
 
 from spellwarden_scan.evidence import excerpt, fingerprint
 from spellwarden_scan.model import Finding, Location
-from spellwarden_scan.package import SHELL_LANGUAGES, CodeBlock, Package, TextFile
+from spellwarden_scan.package import CodeBlock, Package, TextFile, language_kind, shebang_kind
 
 RULE_ID = "SW-SKL-037"
 TITLE = "Executable downloaded from a moving reference and run without an integrity check"
@@ -59,9 +59,6 @@ _ARG_SPAN = 600  # characters of a call's arguments that are read
 _SHELL_EXTENSIONS = (".sh", ".bash", ".zsh", ".ps1")
 _PYTHON_EXTENSIONS = (".py",)
 _JS_EXTENSIONS = (".js", ".mjs", ".ts")
-_SHEBANG_SHELLS = ("sh", "bash", "zsh", "dash", "ksh", "pwsh")
-_SHEBANG_JS = ("node", "deno", "bun")
-_JS_LANGUAGES = ("js", "javascript", "ts", "typescript")
 
 _DEFAULT_BRANCHES = frozenset({"main", "master", "head", "trunk", "develop", "dev", "latest", "nightly"})
 _DATA_SUFFIXES = (".json", ".csv", ".tsv", ".txt", ".md", ".html", ".xml", ".yaml", ".yml", ".toml", ".png", ".jpg", ".jpeg",
@@ -910,12 +907,7 @@ def _program_hits(unit: TextFile | CodeBlock, comment: str) -> Iterator[tuple[in
 
 def _kind(unit: TextFile | CodeBlock) -> str:
     if isinstance(unit, CodeBlock):
-        language = unit.language
-        if language in SHELL_LANGUAGES or language == "powershell":
-            return "shell"
-        if language == "python":
-            return "python"
-        return "js" if language in _JS_LANGUAGES else ""
+        return language_kind(unit.language)  # shared with `package.prose_script` since 1.28.0 (spec D13)
     path = unit.path.lower()
     if path.endswith(_SHELL_EXTENSIONS):
         return "shell"
@@ -925,38 +917,7 @@ def _kind(unit: TextFile | CodeBlock) -> str:
         return "js"
     # 1.27.0: a text file read as a script only because it is listed as executable has no extension to read; its shebang names it
     # (the line as built, carried by both views: review r1:F1)
-    return _shebang_kind(unit.shebang) if unit.mode_script else ""
-
-
-# The options of env(1) that take their value as the next word (GNU coreutils and BSD env); `-S` splits the rest instead.
-_ENV_VALUE_OPTIONS = frozenset({"-u", "--unset", "-C", "--chdir", "-P"})
-
-
-def _shebang_kind(first_line: str) -> str:
-    """The language a `#!` line names: sh, bash, zsh, dash, ksh or pwsh are shell, python* is Python, node, deno or bun is
-    JavaScript (also behind `/usr/bin/env`, with its options). Empty when there is no shebang or it names another program."""
-    if not first_line.startswith("#!"):
-        return ""
-    words = first_line[2:].split()
-    if words and words[0].rsplit("/", 1)[-1] == "env":
-        kept: list[str] = []
-        skip = False
-        for word in words[1:]:
-            if skip:  # the value of `-u NAME`, `-C DIR` or `-P PATH` given as its own word (review r1:F2)
-                skip = False
-            elif word in _ENV_VALUE_OPTIONS:
-                skip = True
-            elif not word.startswith("-") and "=" not in word:
-                kept.append(word)
-        words = kept
-    if not words:
-        return ""
-    name = words[0].rsplit("/", 1)[-1].lower()
-    if name in _SHEBANG_SHELLS:
-        return "shell"
-    if name.startswith("python"):
-        return "python"
-    return "js" if name in _SHEBANG_JS else ""
+    return shebang_kind(unit.shebang) if unit.mode_script else ""
 
 
 def _finding(path: str, line: int, matched: str) -> Finding:

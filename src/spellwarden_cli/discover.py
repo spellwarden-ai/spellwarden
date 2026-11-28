@@ -140,13 +140,16 @@ class InstructionFile:
     """An instruction file (Phase 3 batch 1 spec 10.2): `path` is the scan-root path, `name` the file name without its directory,
     `format` one of `instruction_files.FORMATS`, `front_matter` as `instruction_files.front_matter_of` read it, `content` the
     bytes (a followed link holds its target's, under the link's path). `plugin` (Engine 1.20.0: scan selection, 7.7) names the
-    local plugin directory whose `commands/` or `agents/` holds the file, None for every other file."""
+    local plugin directory whose `commands/` or `agents/` holds the file, None for every other file. `executable` (1.28.0, spec
+    4.4) is the file's executable bit as the file set lists it, the same `FileEntry.executable` skills use (a followed link's is
+    its target's); the scan passes it to the engine, so an executable file with a `#!` first line is read as a script."""
     path: str
     name: str
     format: str
     front_matter: dict | None
     content: bytes = field(hash=False)
     plugin: str | None = None
+    executable: bool = False
 
 
 @dataclass(frozen=True)
@@ -1059,7 +1062,9 @@ def _instruction_files(builder: _Builder, skill_directories: frozenset[str], plu
         if not readable:
             builder.notices.append(Notice("instructions_front_matter", path, "the front matter of this rule file could not be "
                                           "read, so its scope is not shown; the file is still scanned"))
-        found.append(InstructionFile(path, posixpath.basename(path), format, front_matter, content, plugin))
+        entry = builder.entries.get(source)
+        found.append(InstructionFile(path, posixpath.basename(path), format, front_matter, content, plugin,
+                                     executable=entry is not None and entry.executable))
     return found
 
 

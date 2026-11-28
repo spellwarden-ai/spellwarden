@@ -24,7 +24,7 @@ from spellwarden_cli import agents as agents_module
 from spellwarden_cli import details, discover, files
 from spellwarden_cli.ci import ORG_RE
 from spellwarden_cli.discover import Discovery, SkillPackage
-from spellwarden_cli.report import LockState, Notice, ProbeReport, Report, ReportFinding, SkillLint
+from spellwarden_cli.report import LockState, Notice, ProbeReport, Report, ReportFinding, SkillLint, mark_in_tests
 from spellwarden_cli.secret import Credentials
 from spellwarden_cli.settings import Settings
 
@@ -176,6 +176,9 @@ def scan(options: ScanOptions) -> Report:
             findings.extend(gate_findings)
         except connected.ConnectedFail as failed:  # the check could not be made: exit 2, no SW-REG findings
             errors.append(Notice(failed.code, "", failed.message))
+    # 1.28.0 (spec 5.1): every finding source is gathered, so the findings in tests and fixtures are marked here, once, before the
+    # baseline (which keeps the mark on the findings it accepts). A repository scan only: `scan --user` never comes here.
+    findings = list(mark_in_tests(findings))
     findings = apply_baseline(options, findings, notices, errors, base_gate=state is not None and context is not None
                               and context.is_request)
     lock = check_lock(options, found, errors, probes=probes if options.settings.probe else None, notices=notices)
@@ -316,10 +319,12 @@ def engine_findings(found: Discovery, rules: RuleSet, notices: list[Notice], err
             notices.append(Notice("findings_truncated", skill.path, f"{result.truncated} more findings were not kept"))
     for instruction in found.instruction_files:
         # 1.13.0 (Phase 3 batch 1 spec 10.3): one file, scanned as an instruction file (every skill rule but the two about the
-        # SKILL.md metadata); `markdown_paths` makes a `.mdc` rule, `.cursorrules` and `.windsurfrules` read as Markdown
+        # SKILL.md metadata); `markdown_paths` makes a `.mdc` rule, `.cursorrules` and `.windsurfrules` read as Markdown. 1.28.0
+        # (spec 4.4): its executable bit too, as skills pass theirs, so one with a `#!` first line is read as a script
         try:
             result = scan_skill_package({instruction.path: instruction.content}, rules, root="", kind="instructions",
                                         markdown_paths=frozenset({instruction.path}),
+                                        executable_paths=frozenset({instruction.path}) if instruction.executable else frozenset(),
                                         **({"org_rule_budget": org_budget()} if org_budget is not None else {}),
                                         **({"deadline": deadline} if deadline is not None else {}))
         except FrontmatterLimit as exc:

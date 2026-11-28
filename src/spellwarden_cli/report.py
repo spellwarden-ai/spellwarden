@@ -3,12 +3,15 @@ output and schema shares (spec 6.14). Every output module is a pure function
 of a `Report`; `exit_code()` implements the precedence of spec 6.2."""
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING
 
-from spellwarden_scan import SEVERITY_RANK, A2aScanResult, Finding, McpScanResult, Rule, RuleSet, toolhash
+from spellwarden_scan import (SEVERITY_RANK, A2aScanResult, Finding, McpScanResult, Rule, RuleSet, in_tests_or_fixtures,
+                              toolhash)
 from spellwarden_scan.agentconfig import DOCUMENT_ERRORS
 from spellwarden_scan.model import LintNote
+from spellwarden_scan.testfiles import under_test_directory
 
 if TYPE_CHECKING:
     from spellwarden_cli.discover import Item
@@ -110,12 +113,50 @@ class ReportFinding:
     # 1.18.0: the finding's severity without the preset, when a preset (strict or low-noise) changed it; None otherwise, and then
     # not serialised, so a report without a preset is byte-identical to 1.17.0's
     preset_from: str | None = None
+    # 1.28.0 (spec 5.1): the finding's file is in tests or fixtures (`mark_in_tests`). Presentation only: never part of
+    # `exit_code()` or `finding_order`, and serialised only when true, so a report without a marked finding is byte-identical to
+    # 1.27.0's
+    in_tests: bool = False
 
     def to_dict(self) -> dict:
         entry = {**self.finding.to_dict(), "item": self.item, "suppressed": self.suppressed, "baseline": self.baseline}
         if self.preset_from is not None:
             entry["preset_from"] = self.preset_from
+        if self.in_tests:
+            entry["in_tests"] = True
         return entry
+
+
+def _in_tests(row: ReportFinding) -> bool:
+    """A location that is not a file of the scan root (a URL, a probed tool) is never marked: a remote party must not move its
+    findings into a collapsed group (spec 5.1, D6). An item's own directory name is never the reason (review r0:F1, spec D4): for
+    a file under its item's directory, the folders above the item and the path below it are judged, so a live skill named `test`
+    (`.claude/skills/test/`) stays in the main table, while a fixture skill under `tests/` and a skill's own `tests/` are
+    marked."""
+    path = row.finding.location.path
+    if "://" in path or path.startswith("tool:"):
+        return False
+    item = row.item.strip("/")
+    if item and item != "." and path.startswith(item + "/"):
+        parent = item.rpartition("/")[0]
+        return (bool(parent) and under_test_directory(parent + "/")) or in_tests_or_fixtures(path, item)
+    return in_tests_or_fixtures(path)
+
+
+def mark_in_tests(findings: Iterable[ReportFinding]) -> tuple[ReportFinding, ...]:
+    """1.28.0 (spec 5.1): each finding marked by the engine's `in_tests_or_fixtures` on its location path, which is relative
+    to the scan root; a location that is not a file of the scan root (it holds `://` or starts with `tool:`) is never marked,
+    and an item's own directory name is never the reason (`_in_tests`)."""
+    return tuple(replace(row, in_tests=True) if _in_tests(row) else row for row in findings)
+
+
+def split_in_tests(rows: Iterable[ReportFinding]) -> tuple[tuple[ReportFinding, ...], tuple[ReportFinding, ...]]:
+    """1.28.0 (spec 5.2 to 5.4): `(unmarked, marked)`, each in the order given; what the text, Markdown and HTML reports group."""
+    unmarked: list[ReportFinding] = []
+    marked: list[ReportFinding] = []
+    for row in rows:
+        (marked if row.in_tests else unmarked).append(row)
+    return tuple(unmarked), tuple(marked)
 
 
 @dataclass(frozen=True)

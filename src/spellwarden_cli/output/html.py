@@ -4,7 +4,11 @@ output: every string from the scanned revision or a probed server, and every str
 that matches `RULE_ID_RE` and names a rule of the scanner); there is no script element, no event attribute, no form, no frame,
 no image and no external asset, one inline style without `url(`, and a Content-Security-Policy that forbids every fetch, so
 opening the file makes no network request. It holds every finding, notice and error the JSON report holds, in its order, without
-a cap of its own, and the same report gives the same bytes."""
+a cap of its own, and the same report gives the same bytes. The elements, in order: the head (charset, the
+Content-Security-Policy, viewport, title, style), the title, the meta line, the preset, the outcome, the counts table, the notices
+and errors, the clients, the findings by item (`section` and `article`, then, since 1.28.0, the findings in tests and fixtures by
+item inside one `details` element with its `summary`, which need no script and get the browser's default look), the items, the
+probes, the agents, the lock, the lint and the analysis."""
 from __future__ import annotations
 
 from collections import Counter
@@ -14,7 +18,7 @@ from spellwarden_scan.rules import RULE_ID_RE
 from spellwarden_cli import escape, presets
 from spellwarden_cli.output import agents as agent_view
 from spellwarden_cli.output.text import client_lines, not_done_why
-from spellwarden_cli.report import Report, ReportFinding, rule_fix
+from spellwarden_cli.report import Report, ReportFinding, rule_fix, split_in_tests
 
 CSP = "default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'"
 RULE_DOCS = "https://spellwarden.ai/docs/rules/{}?utm_source=scanner&utm_medium=html-report&utm_campaign=rule-docs"
@@ -117,17 +121,33 @@ def _findings(report: Report) -> list[str]:
         if report.errors:
             return [*parts, "<p>No findings in what was read; the scan is incomplete (see the errors above).</p>"]
         return [*parts, "<p>No findings.</p>"]
+    outside, inside = split_in_tests(report.findings)
+    sections, number = _item_sections(report, outside, 0)
+    parts += sections
+    if inside:  # 1.28.0 (spec 5.4): the findings in tests and fixtures, collapsed; their numbers continue, so every id is unique
+        if not outside:
+            parts.append("<p>No findings outside tests and fixtures.</p>")
+        noun = "finding" if len(inside) == 1 else "findings"
+        parts.append(f'<details class="in-tests"><summary>{len(inside)} {noun} in tests and fixtures (open ones count toward '
+                     "the result)</summary>")
+        parts += _item_sections(report, inside, number)[0]
+        parts.append("</details>")
+    return parts
+
+
+def _item_sections(report: Report, rows: tuple[ReportFinding, ...], number: int) -> tuple[list[str], int]:
+    """One `section` per item of `rows`, in item order, its findings numbered on from `number`; with the last number given."""
+    parts: list[str] = []
     by_item: dict[str, list[ReportFinding]] = {}
-    for row in report.findings:
+    for row in rows:
         by_item.setdefault(row.item, []).append(row)
-    number = 0
     for item in sorted(by_item):
         parts += ['<section class="item">', f"<h3>{_e(item)}</h3>"]
         for row in by_item[item]:
             number += 1
             parts += _finding(report, row, number)
         parts.append("</section>")
-    return parts
+    return parts, number
 
 
 def _clients(report: Report) -> list[str]:
@@ -233,6 +253,12 @@ def _analysis(report: Report) -> list[str]:
     return parts
 
 
+def _in_tests_row(open_findings: tuple[ReportFinding, ...]) -> list[str]:
+    """1.28.0 (spec 5.4): the counts table's row for M, the open findings in tests and fixtures; none when M is 0."""
+    marked = sum(1 for row in open_findings if row.in_tests)
+    return [f"<tr><td>in tests and fixtures</td><td>{marked}</td></tr>"] if marked else []
+
+
 def render(report: Report) -> str:
     open_findings = report.unsuppressed()
     counts = Counter(row.finding.severity for row in open_findings)
@@ -249,7 +275,8 @@ def render(report: Report) -> str:
     parts.append(f'<p class="outcome outcome-{outcome}">{_e(verdict)}</p>')
     parts += ['<table class="counts">', "<tr><th>Severity</th><th>Open findings</th></tr>",
               *(f"<tr><td>{severity}</td><td>{counts[severity]}</td></tr>" for severity in SEVERITIES),
-              f"<tr><td>accepted</td><td>{len(report.findings) - len(open_findings)}</td></tr>", "</table>"]
+              f"<tr><td>accepted</td><td>{len(report.findings) - len(open_findings)}</td></tr>",
+              *_in_tests_row(open_findings), "</table>"]
     parts += _notices(report) + _clients(report) + _findings(report) + _items(report) + _probes(report) + _agents(report)
     parts += _lock(report) + _lint(report) + _analysis(report)
     parts += ["</main>", "</body>", "</html>"]

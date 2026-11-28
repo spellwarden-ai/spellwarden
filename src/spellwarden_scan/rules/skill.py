@@ -53,7 +53,8 @@ def _is_script(unit: TextFile | CodeBlock) -> bool:
 def logical_commands(unit: TextFile | CodeBlock) -> Iterator[tuple[str, int, str]]:
     """One shell command per item, `(path, first line, command text)`: a line with a trailing backslash is joined
     to the next, and in a script or a fenced code block so is a line ending in `|`, `&&` or `||` (the shell reads
-    on). Markdown prose is joined at backslashes only (a table row ends in `|`). The one normalisation step of the
+    on). Markdown prose is joined at backslashes only (a table row ends in `|`), except the prose of a mode script read as
+    Markdown, which is joined as a script (1.28.0, spec 4.3). The one normalisation step of the
     skill rules and the hook rules (spec 5.4): a hook command is passed as `CodeBlock(path, "sh", command, line)`,
     so it is joined exactly like the same text in a script."""
     pending: list[str] = []

@@ -1,7 +1,8 @@
 """The Markdown report (spec 6.9): what a person reads in the job summary and the pull or merge request comment.
-It starts with the comment marker, states the verdict and the counts, lists at most 25 open findings, the lock
-changes, the probe summary and the accepted findings, and never exceeds 60,000 characters. Every value from the
-scanned revision or a probed server is escaped (spec 6.13)."""
+It starts with the comment marker, states the verdict and the counts, lists at most 25 open findings outside tests and fixtures,
+then the instruction files and the errors, then (1.28.0) at most 25 open findings in tests and fixtures in a collapsed block, the
+lock changes, the probe summary and the accepted findings, and never exceeds 60,000 characters (a cut inside the collapsed block
+closes it before the cut notice). Every value from the scanned revision or a probed server is escaped (spec 6.13)."""
 from __future__ import annotations
 
 import re
@@ -15,7 +16,7 @@ from spellwarden_cli import escape, instruction_files, presets
 from spellwarden_cli.output import agents as agent_view
 from spellwarden_cli.output.fixes import ORG_LINE, rule_fixes
 from spellwarden_cli.output.text import client_lines, connected_lines, not_done_why
-from spellwarden_cli.report import CONNECTED_ERRORS, Report, ReportFinding
+from spellwarden_cli.report import CONNECTED_ERRORS, Report, ReportFinding, split_in_tests
 
 if TYPE_CHECKING:  # a type only: this module never imports `ci` when it runs
     from spellwarden_cli.ci import CiContext
@@ -34,6 +35,9 @@ REASON_ANCHORS = {reason: f"#gate-reason-{reason.replace('_', '-')}" for reason 
 _SEVERITIES = ("critical", "high", "medium", "low")
 _LINK = re.compile(r"https://[A-Za-z0-9._~:/?#@!$&'*+,;=%-]+")
 _CUT = "\n\nThe report was cut at 60,000 characters. The JSON and SARIF reports hold everything.\n"
+# 1.28.0 (spec 5.3): the collapsed block of the findings in tests and fixtures; a cut inside it writes `_CLOSE` before `_CUT`
+_OPEN = "\n<details>"
+_CLOSE = "\n</details>"
 # Links back (spec 5.1): the `utm_medium` of every spellwarden.ai and dash link this report writes names the CI service the run
 # detected. A closed table: the medium never comes from the environment.
 MEDIUMS = {"github": "github-action", "gitlab": "gitlab-component", "other": "ci", None: "cli"}
@@ -141,12 +145,15 @@ def _verdict(report: Report) -> str:
     return "passed"
 
 
-def _counts(open_findings: Sequence[ReportFinding], accepted: int) -> str:
+def _counts(open_findings: Sequence[ReportFinding], accepted: int, in_tests: int = 0) -> str:
     by_severity = {severity: 0 for severity in _SEVERITIES}
     for item in open_findings:
         by_severity[item.finding.severity] += 1
     parts = ", ".join(f"{by_severity[severity]} {severity}" for severity in _SEVERITIES)
-    return f"{_plural(len(open_findings), 'finding')} ({parts}), {accepted} accepted."
+    counts = f"{_plural(len(open_findings), 'finding')} ({parts}), {accepted} accepted."
+    if in_tests == 1:  # 1.28.0 (spec 5.3): M, the open findings in tests and fixtures, which the counts above include
+        return f"{counts} 1 of them is in tests and fixtures and still counts."
+    return f"{counts} {in_tests} of them are in tests and fixtures and still count." if in_tests else counts
 
 
 def _location(item: ReportFinding) -> str:
@@ -161,23 +168,42 @@ def _rule_cell(report: Report, rule_id: str, medium: str) -> str:
     return rule_id if page is None else f"[{rule_id}]({tagged(page, medium, 'rule-docs')})"
 
 
-def _findings(report: Report, open_findings: Sequence[ReportFinding], medium: str = "cli") -> list[str]:
-    if not open_findings:
-        return []
+def _table(report: Report, rows: Sequence[ReportFinding], medium: str = "cli") -> list[str]:
+    """The findings table of `rows` (at most `MAX_ROWS`) and, when more are left out, the line that counts them."""
     lines = ["| Severity | Rule | Location | Title |", "|---|---|---|---|"]
-    for item in open_findings[:MAX_ROWS]:
+    for item in rows[:MAX_ROWS]:
         finding = item.finding
         severity = finding.severity
         if item.preset_from is not None and report.preset is not None:  # 1.18.0: how a preset moved it
             severity += f" ({presets.change_words(item.preset_from, finding.severity, report.preset['name'])})"
         lines.append(f"| {severity} | {_rule_cell(report, finding.rule_id, medium)} | {_code_cell(_location(item))} | "
                      f"{_text(finding.title)} |")
-    if len(open_findings) > MAX_ROWS:
-        lines += ["", f"{len(open_findings) - MAX_ROWS} more findings are in the JSON and SARIF reports."]
-    fixes = _fixes(report, open_findings[:MAX_ROWS], medium)
+    if len(rows) > MAX_ROWS:
+        lines += ["", f"{len(rows) - MAX_ROWS} more findings are in the JSON and SARIF reports."]
+    return lines
+
+
+def _findings(report: Report, outside: Sequence[ReportFinding], inside: Sequence[ReportFinding],
+              medium: str = "cli") -> list[str]:
+    """The main table of the open findings outside tests and fixtures, or (1.28.0, spec 5.3) the sentence that says there are
+    none when some are inside; then "How to fix" for the rows both tables show."""
+    if not outside and not inside:
+        return []
+    lines = _table(report, outside, medium) if outside else ["No findings outside tests and fixtures."]
+    fixes = _fixes(report, [*outside[:MAX_ROWS], *inside[:MAX_ROWS]], medium)
     if fixes:
         lines += ["", *fixes]
     return lines + [""]
+
+
+def _in_tests(report: Report, inside: Sequence[ReportFinding], medium: str = "cli") -> list[str]:
+    """1.28.0 (spec 5.3): the open findings in tests and fixtures in a collapsed block, at most `MAX_ROWS` rows with the line
+    that counts the rest; nothing when there are none. The summary holds no value from the scanned revision."""
+    if not inside:
+        return []
+    counts = "it counts" if len(inside) == 1 else "they count"
+    summary = f"<summary>{_plural(len(inside), 'finding')} in tests and fixtures ({counts} toward the result)</summary>"
+    return ["<details>", summary, "", *_table(report, inside, medium), "", "</details>", ""]
 
 
 def _fixes(report: Report, shown: Sequence[ReportFinding], medium: str = "cli") -> list[str]:
@@ -374,19 +400,32 @@ def _free_mode(report: Report) -> bool:
     return connected_section(report) == "" and not any(error.code in CONNECTED_ERRORS for error in report.errors)
 
 
+def _cut(text: str, *, block: bool) -> str:
+    """The report cut at the last line break that leaves room for `_CUT` within `MAX_CHARS`. With the collapsed block (1.28.0,
+    spec 5.3) room is left for `_CLOSE` too, and a cut that lands inside the block writes it before `_CUT`, so the cut notice is
+    never hidden in a closed block; without the block the cut is 1.27.0's, byte for byte."""
+    room = MAX_CHARS - len(_CUT) - (len(_CLOSE) if block else 0)
+    kept = text[:text.rfind("\n", 0, room)]
+    if block and kept.rfind(_OPEN) > kept.rfind(_CLOSE):
+        kept += _CLOSE
+    return kept + _CUT
+
+
 def render(report: Report, links: MarkdownLinks = LOCAL_LINKS) -> str:
     medium = links.medium
     open_findings = report.unsuppressed()
     accepted = len(report.findings) - len(open_findings)
-    lines = [MARKER, f"**Spellwarden scan {_verdict(report)}.** {_counts(open_findings, accepted)}", "",
+    outside, inside = split_in_tests(open_findings)
+    lines = [MARKER, f"**Spellwarden scan {_verdict(report)}.** {_counts(open_findings, accepted, len(inside))}", "",
              *_preset(report, medium)]
     section = connected_section(report)
     if section:
         lines.append(section)
     if report.clients is not None:  # `scan --user` (phase 3 batch 2a spec 11.3)
         lines += ["**Clients:**", "", *(f"- {_text(line)}" for line in client_lines(report)), ""]
-    lines += _findings(report, open_findings, medium) + _instruction_files(report)
-    lines += _errors(report) + _lock(report) + _probes(report) + _agents(report) + _lint(report, medium)
+    lines += _findings(report, outside, inside, medium) + _instruction_files(report)
+    lines += _errors(report) + _in_tests(report, inside, medium)  # 1.28.0 (spec 5.3): errors stay above the collapsed block
+    lines += _lock(report) + _probes(report) + _agents(report) + _lint(report, medium)
     lines += _analysis(report, medium)
     if accepted:
         lines += [f"{_plural(accepted, 'accepted finding')} with {'its' if accepted == 1 else 'their'} reasons "
@@ -398,7 +437,7 @@ def render(report: Report, links: MarkdownLinks = LOCAL_LINKS) -> str:
                  f"[What each rule checks]({tagged(RULES_DOCS_PAGE, medium, 'rule-docs')}), [source code]({README_URL})")
     text = escape.log_lines("\n".join(lines) + "\n")
     if len(text) > MAX_CHARS:
-        return text[:text.rfind("\n", 0, MAX_CHARS - len(_CUT))] + _CUT
+        return _cut(text, block=bool(inside))
     if links.badge and free and len(text) + len(SUMMARY_TAIL) <= MAX_CHARS:  # spec 5.7: the whole offer, or none of it
         text += SUMMARY_TAIL
     return text

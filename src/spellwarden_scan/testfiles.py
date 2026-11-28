@@ -1,7 +1,8 @@
 """Which files are tests or fixtures (scan feedback fixes spec 4): a rule on the path alone, relative to the scan root, and
 conservative (when in doubt a file is not classified, so its finding stays where it is most visible).
 
-Presentation only in 1.27.0: no rule, severity, status or exit code reads `in_tests_or_fixtures`; SW-CFG-013 shares
+Presentation only: no rule, severity, status or exit code reads `in_tests_or_fixtures`. Its callers are the hosted free scan
+(since 1.27.0) and the command's repository reports (`spellwarden_cli.report.mark_in_tests`, since 1.28.0); SW-CFG-013 shares
 `TEST_DIRECTORIES` through `under_test_directory`. The function's name does not start with "test", so pytest never collects it
 from a test module that imports it, and the module's name matches neither `test_*.py` nor `*_test.py`."""
 from __future__ import annotations

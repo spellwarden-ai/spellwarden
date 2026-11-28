@@ -174,6 +174,7 @@
         "suppressed": {"type": "boolean"},
         "preset_from": {"enum": ["critical", "high", "medium", "low"],
                         "description": "Scanner 1.18.0: the finding's severity without the preset, only when a preset changed it."},
+        "in_tests": {"const": true, "description": "Scanner 1.28.0: present, and true, when the finding's file is in tests or fixtures (spellwarden_scan.in_tests_or_fixtures on its scan-root path); absent otherwise. Presentation only: the exit code counts the finding. The upload leaves this out."},
         "tags": {"type": "object", "required": ["owasp_agentic", "owasp_mcp", "nist", "atlas", "owasp_ast"],
                  "description": "The tags of the finding's rule, one list per framework (since 1.13.0). atlas holds MITRE ATLAS technique ids, owasp_ast OWASP Agentic Skills Top 10 ids; a rule with none has an empty list. The upload leaves this out.",
                  "properties": {"owasp_agentic": {"type": "array", "items": {"type": "string"}},

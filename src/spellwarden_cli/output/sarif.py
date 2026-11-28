@@ -82,6 +82,8 @@ def _result(report: Report, item: ReportFinding, index: dict[str, int], instruct
         result.setdefault("properties", {})["clients"] = clients_of.get(item.item, [])
     if item.preset_from is not None:  # 1.18.0: the severity without the preset
         result.setdefault("properties", {})["preset_from"] = item.preset_from
+    if item.in_tests:  # 1.28.0 (spec 5.6): presentation only; level, fingerprints and suppressions are unchanged
+        result.setdefault("properties", {})["in_tests"] = True
     if finding.fix_lines is not None:  # 1.21.0 (P6-15 spec 6.8): the setting lines, text to copy; never a SARIF `fixes` object
         result.setdefault("properties", {})["fix_lines"] = finding.fix_lines.to_dict()
     if item.suppressed:
