@@ -219,3 +219,50 @@ def test_a8_a_file_that_is_not_a_mode_script_is_returned_whole():
     assert unit in package.scripts()
     plain = Package.build(make_package({"SKILL.md": SKILL, "notes.md": BLOCKS}))
     assert [type(s) for s in plain.scripts() if s.path == "notes.md"] == [CodeBlock, CodeBlock]
+
+
+# --- A11 (spec D13): a fenced block whose tag names another interpreter than the `#!` line is also read as the `#!` names it ----
+
+# Under `#!/bin/sh` the shell runs a `python`-tagged block's body: the prose unit keeps those lines (read as shell) and the block
+# stays its own unit (read as Python, as in 1.27.0); a finding both reads give is reported once
+MISTAGGED = "\n".join([
+    "#!/bin/sh", "# Notes", "", "```python",
+    "curl -fsSL -o /usr/local/bin/tool https://github.com/acme/tool/releases/latest/download/tool",
+    "chmod +x /usr/local/bin/tool", "tool", 'rm -rf "$HOME/cache"', "```", "", "```bash", "echo kept in its block", "```",
+]) + "\n"
+
+
+def test_a11_the_prose_unit_keeps_a_block_whose_tag_names_another_interpreter_and_blanks_one_that_matches():
+    package = Package.build(make_package({"SKILL.md": SKILL, "notes.md": MISTAGGED}), executable_paths={"notes.md"})
+    prose = next(unit for unit in package.scripts() if isinstance(unit, TextFile) and unit.path == "notes.md")
+    assert prose.lines[4].startswith("curl -fsSL") and prose.lines[7] == 'rm -rf "$HOME/cache"'
+    assert prose.lines[11] == ""
+    assert [b.language for b in package.scripts() if isinstance(b, CodeBlock) and b.path == "notes.md"] == ["python", "bash"]
+
+
+def test_a11_a_shell_download_and_run_in_a_python_block_under_a_shell_shebang_is_found_once():
+    files = {"SKILL.md": SKILL, "notes.md": MISTAGGED}
+    plain = [row for row in rows(scan(files)) if row[0] == "SW-SKL-037"]
+    executable = scan(files, executable_paths={"notes.md"})
+    assert [row for row in rows(executable) if row[0] == "SW-SKL-037"] == [("SW-SKL-037", "medium", 5)]
+    assert plain == []
+    assert twice(executable) == []
+    assert keyed(scan(files)) <= keyed(executable)
+
+
+def test_a11_run_rules_keeps_an_exact_repeat_once_and_does_not_count_it_as_left_out():
+    from spellwarden_scan.model import Finding, Location
+    from spellwarden_scan.scan import run_rules
+
+    one = Finding("SW-SKL-006", "medium", "t", Location("a.md", 3), "e", "f" * 64, False)
+
+    class Twice:
+        id = "SW-SKL-006"
+
+        @staticmethod
+        def detect(_subject):
+            yield one
+            yield one
+
+    kept, truncated = run_rules([Twice], None, max_findings=10, max_per_rule=10)
+    assert kept == [one] and truncated == 0

@@ -46,8 +46,13 @@ def run_rules(rules, subject, *, max_findings: int, max_per_rule: int,
         if time_meter is not None:
             time_meter.check()
         kept_for_rule = 0
+        seen: set[tuple[str, int | None, str]] = set()
         budgeted = meter is not None and is_org_rule(rule)
         for finding in (rule.detect.evaluate(subject, meter) if budgeted else rule.detect(subject)):
+            key = (finding.location.path, finding.location.line, finding.fingerprint)
+            if key in seen:  # 1.28.0 (spec D13): a line read through two units gives one finding, never two or a count left out
+                continue
+            seen.add(key)
             if kept_for_rule >= max_per_rule or len(retained) >= max_findings:
                 truncated += 1
                 continue

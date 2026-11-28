@@ -21,6 +21,51 @@ REPLACEMENT_SHARE = 0.05
 SCRIPT_EXTENSIONS = (".sh", ".bash", ".zsh", ".py", ".js", ".mjs", ".ts", ".rb", ".ps1", ".pl")
 SHELL_LANGUAGES = ("sh", "bash", "shell", "zsh", "console")
 CODE_LANGUAGES = SHELL_LANGUAGES + ("python", "js", "javascript", "ts", "typescript", "powershell")
+
+# 1.28.0 (spec D13): the interpreter a fenced block's tag or a `#!` line names: "shell", "python", "js", or "" for any other.
+# `prose_script` and SW-SKL-037 share them, so a tag and a `#!` line are read the same way everywhere.
+_JS_LANGUAGES = ("js", "javascript", "ts", "typescript")
+_SHEBANG_SHELLS = ("sh", "bash", "zsh", "dash", "ksh", "pwsh")
+_SHEBANG_JS = ("node", "deno", "bun")
+# The options of env(1) that take their value as the next word (GNU coreutils and BSD env); `-S` splits the rest instead.
+_ENV_VALUE_OPTIONS = frozenset({"-u", "--unset", "-C", "--chdir", "-P"})
+
+
+def language_kind(language: str) -> str:
+    """The interpreter a fenced block's tag names: a shell tag or `powershell` is shell, `python` is Python, a JavaScript or
+    TypeScript tag is JavaScript; empty for any other tag."""
+    if language in SHELL_LANGUAGES or language == "powershell":
+        return "shell"
+    if language == "python":
+        return "python"
+    return "js" if language in _JS_LANGUAGES else ""
+
+
+def shebang_kind(first_line: str) -> str:
+    """The language a `#!` line names: sh, bash, zsh, dash, ksh or pwsh are shell, python* is Python, node, deno or bun is
+    JavaScript (also behind `/usr/bin/env`, with its options). Empty when there is no shebang or it names another program."""
+    if not first_line.startswith("#!"):
+        return ""
+    words = first_line[2:].split()
+    if words and words[0].rsplit("/", 1)[-1] == "env":
+        kept: list[str] = []
+        skip = False
+        for word in words[1:]:
+            if skip:  # the value of `-u NAME`, `-C DIR` or `-P PATH` given as its own word (review r1:F2 of 1.27.0)
+                skip = False
+            elif word in _ENV_VALUE_OPTIONS:
+                skip = True
+            elif not word.startswith("-") and "=" not in word:
+                kept.append(word)
+        words = kept
+    if not words:
+        return ""
+    name = words[0].rsplit("/", 1)[-1].lower()
+    if name in _SHEBANG_SHELLS:
+        return "shell"
+    if name.startswith("python"):
+        return "python"
+    return "js" if name in _SHEBANG_JS else ""
 _SHELL_STARTS = ("$ ", "curl", "wget", "pip", "npm", "npx", "git", "rm", "sudo")
 # CommonMark fences: an opener is three or more backticks or tildes and any info string (a backtick fence's info
 # string holds no backtick); the language is the info string's first word, braces and dots stripped (`{bash}`,
@@ -102,12 +147,16 @@ class CodeBlock:
 def prose_script(file: TextFile, blocks: Collection[CodeBlock], *, meter: Meter | None = None) -> TextFile:
     """1.28.0 (spec 4.3): the prose unit of a mode-script file read as Markdown. The same path, `head`, `mode_script` and
     `shebang`, and the same number of lines, where each body line of a block of the same path whose language is in
-    `CODE_LANGUAGES` is an empty string (those lines are read through their blocks). Fence lines, prose, and the body of any
-    other block (`text`, `json`) stay: `sh` runs them too and no other script unit reads them. With the scan's time meter its
-    lines tick it as any `Lines` does; building it does not (a slice of `Lines` is a plain tuple)."""
+    `CODE_LANGUAGES` and names the interpreter the `#!` line names (`language_kind` equal to `shebang_kind`) is an empty string:
+    those lines are read through their blocks. Fence lines, prose, the body of any other block (`text`, `json`) and the body of
+    a block whose tag names another interpreter (a `python` block under `#!/bin/sh`, spec D13) stay: the `#!` interpreter runs
+    them, so they are read as it reads them, and a block of another interpreter is also read as its own unit, as in 1.27.0
+    (`run_rules` keeps a finding both reads give once). With the scan's time meter its lines tick it as any `Lines` does;
+    building it does not (a slice of `Lines` is a plain tuple)."""
     lines = list(file.lines[:])
+    interpreter = shebang_kind(file.shebang)
     for block in blocks:
-        if block.path == file.path and block.language in CODE_LANGUAGES:
+        if block.path == file.path and block.language in CODE_LANGUAGES and language_kind(block.language) == interpreter:
             start = block.first_line - 1
             lines[start:start + block.line_count] = [""] * block.line_count
     blanked = tuple(lines)
@@ -245,7 +294,8 @@ class Package:
         """Script files by extension or by executable mode, plus the fenced blocks tagged as code (spec 5.3; executable mode since
         1.27.0, scan feedback fixes spec 5.3). Since 1.28.0 (spec 4.3) a mode-script file read as Markdown (an executable file
         whose first line starts with `#!`) is its prose unit (`prose_script`) and its blocks stay their own units, so the script
-        rules read each line of it exactly once: a code-block line through its block, every other line through the prose unit."""
+        rules read each line of it once: a code-block line through its block, every other line through the prose unit, and the
+        body of a block whose tag names another interpreter than the `#!` line through both (spec D13)."""
         files = tuple(prose_script(f, self.code_blocks, meter=self.meter) if f.mode_script and self._is_markdown(f.path) else f
                       for f in self.text_files if is_script_file(f))
         blocks = tuple(b for b in self.code_blocks if b.language in CODE_LANGUAGES)
