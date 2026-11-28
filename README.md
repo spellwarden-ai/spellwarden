@@ -57,7 +57,8 @@ print(result.sha256, result.metadata.name, result.truncated)
 presentation: no rule, severity, status or exit code reads it, and a report that groups findings with it still counts and judges
 every finding. The hosted free scan uses it to show findings in tests and fixtures after the others. Since 1.28.0 the command marks
 them too, in a repository scan (`scan`, `scan --staged`): the JSON report gives each such finding `"in_tests": true` and SARIF
-`properties.in_tests`. The command reads the path relative to the scan root, so a fixture skill under `tests/` is marked; a location
+`properties.in_tests`. The command reads the path relative to the scan root, so a fixture skill under `tests/` is marked, while an item's own
+folder name is never the reason (a project skill named `test` in `.claude/skills/test/` is not marked; its own `tests/` folder is); a location
 that is an address or a probed tool is never marked; `scan --user` marks nothing, because a folder named `test` in a home or a
 client's folder says nothing about the file; and the connected-mode upload leaves the mark out. `--fail-on` and the exit code still
 count every finding.
@@ -225,7 +226,9 @@ executable mode alone; it is read as a script instead. For the script rules (SW-
 SW-SKL-037 and org rules) a script is a file whose name has a script extension, a fenced block tagged as code, or a text file listed
 as executable that is not read as Markdown. Since 1.28.0 an executable file read as Markdown (a name ending in `.md`, or a path in
 `markdown_paths`) whose first line starts with `#!` is read as a script too: its prose as one script, its fenced blocks each as their
-own, so each line is read once. A file read as Markdown without that line is read exactly as when it is not executable. SW-SKL-037 takes the language of such a file without a script extension from its `#!` line (a shell, Python,
+own, so each line is read once. A fenced block whose tag names another interpreter than the `#!` line (a `python` block
+under `#!/bin/sh`) is read both ways, as the `#!` interpreter runs it and as its tag says, and a finding both give is reported once.
+A file read as Markdown without that line is read exactly as when it is not executable. SW-SKL-037 takes the language of such a file without a script extension from its `#!` line (a shell, Python,
 Node, Deno or Bun interpreter, also behind `/usr/bin/env`) and reads nothing in it when there is no such line. For a text file that is listed as executable, is not read as Markdown and has no script
 extension, this has three effects: a script rule can report a finding on it that 1.26.0 did not; SW-SKL-007 and SW-SKL-008 join a
 line of it that ends in `|`, `&&` or `||` to the next, so a high or critical finding can be new, and an SW-SKL-012 finding on a line

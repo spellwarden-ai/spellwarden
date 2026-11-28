@@ -11,6 +11,7 @@ from spellwarden_scan import (SEVERITY_RANK, A2aScanResult, Finding, McpScanResu
                               toolhash)
 from spellwarden_scan.agentconfig import DOCUMENT_ERRORS
 from spellwarden_scan.model import LintNote
+from spellwarden_scan.testfiles import under_test_directory
 
 if TYPE_CHECKING:
     from spellwarden_cli.discover import Item
@@ -126,16 +127,27 @@ class ReportFinding:
         return entry
 
 
-def _in_tests(path: str) -> bool:
+def _in_tests(row: ReportFinding) -> bool:
     """A location that is not a file of the scan root (a URL, a probed tool) is never marked: a remote party must not move its
-    findings into a collapsed group (spec 5.1, D6)."""
-    return "://" not in path and not path.startswith("tool:") and in_tests_or_fixtures(path)
+    findings into a collapsed group (spec 5.1, D6). An item's own directory name is never the reason (review r0:F1, spec D4): for
+    a file under its item's directory, the folders above the item and the path below it are judged, so a live skill named `test`
+    (`.claude/skills/test/`) stays in the main table, while a fixture skill under `tests/` and a skill's own `tests/` are
+    marked."""
+    path = row.finding.location.path
+    if "://" in path or path.startswith("tool:"):
+        return False
+    item = row.item.strip("/")
+    if item and item != "." and path.startswith(item + "/"):
+        parent = item.rpartition("/")[0]
+        return (bool(parent) and under_test_directory(parent + "/")) or in_tests_or_fixtures(path, item)
+    return in_tests_or_fixtures(path)
 
 
 def mark_in_tests(findings: Iterable[ReportFinding]) -> tuple[ReportFinding, ...]:
     """1.28.0 (spec 5.1): each finding marked by the engine's `in_tests_or_fixtures` on its location path, which is relative
-    to the scan root; a location that is not a file of the scan root (it holds `://` or starts with `tool:`) is never marked."""
-    return tuple(replace(row, in_tests=True) if _in_tests(row.finding.location.path) else row for row in findings)
+    to the scan root; a location that is not a file of the scan root (it holds `://` or starts with `tool:`) is never marked,
+    and an item's own directory name is never the reason (`_in_tests`)."""
+    return tuple(replace(row, in_tests=True) if _in_tests(row) else row for row in findings)
 
 
 def split_in_tests(rows: Iterable[ReportFinding]) -> tuple[tuple[ReportFinding, ...], tuple[ReportFinding, ...]]:

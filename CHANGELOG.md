@@ -5,7 +5,8 @@
 Rules version 2026.11.12 (68 rules): an executable file read as Markdown (a name ending in `.md`, or a path passed in
 `markdown_paths`) whose first line starts with `#!` is read as a script by the script rules (SW-SKL-004, SW-SKL-006, SW-SKL-009,
 SW-SKL-014, SW-SKL-037 and org rules): its prose as one script and its fenced blocks each as their own, so each line is read once.
-Run as `./SKILL.md`, such a file runs as the script its `#!` line names, and 1.27.0 read only its fenced blocks as scripts. A file
+A fenced block whose tag names another interpreter than the `#!` line (a `python` block under `#!/bin/sh`) is read both as the
+`#!` interpreter runs it and as its tag says; a finding both give is reported once. Run as `./SKILL.md`, such a file runs as the script its `#!` line names, and 1.27.0 read only its fenced blocks as scripts. A file
 read as Markdown without that line is read exactly as in 1.27.0, and so is every other file.
 
 The command passes each instruction file's executable bit to the engine, as it passes a skill's: an executable root `CLAUDE.md`,
@@ -25,7 +26,8 @@ Findings in tests and fixtures are grouped in the command's reports: the text re
 others, the Markdown report (the job summary and the pull or merge request comment) and the HTML report in a collapsed block, and the
 JSON and SARIF reports mark each one `in_tests`. It is presentation only: `--fail-on` and the exit code count every finding, the
 verdict and summary lines say how many of the counted findings are in tests and fixtures, and the connected-mode upload leaves the
-mark out, so its body is the one 1.27.0 sent. A report without such a finding is byte-identical to 1.27.0's, and `scan --user`
+mark out, so its body is the one 1.27.0 sent. The path is read from the scan root, and an item's own folder name is never the
+reason: a project skill named `test` stays in the main table, while a fixture skill under `tests/` is grouped. A report without such a finding is byte-identical to 1.27.0's, and `scan --user`
 marks nothing.
 
 ## 1.27.0 (2026-11-27)

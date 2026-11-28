@@ -150,3 +150,24 @@ def test_b10_a_baseline_accepted_finding_in_tests_is_marked_and_stays_accepted(t
     assert accepted["suppressed"] is True and accepted["in_tests"] is True, err
     assert accepted["baseline"]["reason"] == "A fixture of the tests."
     assert code == 1  # the two open findings still fail at high
+
+
+# --- B11 (review r0:F1, spec D4): an item's own directory name is never the reason it is marked --------------------------------
+
+def test_b11_a_skill_named_test_is_not_marked_by_its_own_name_and_its_tests_folder_is():
+    def at(path: str, item: str) -> ReportFinding:
+        return ReportFinding(row(path).finding, item)
+
+    rows = [at(".claude/skills/test/install.sh", ".claude/skills/test"), at("fixtures/install.sh", "fixtures"),
+            at(".claude/skills/test/tests/x.sh", ".claude/skills/test"), at("tests/skills/b/install.sh", "tests/skills/b"),
+            at(".claude/skills/a/test_helper.py", ".claude/skills/a"), at("tests/CLAUDE.md", "tests/CLAUDE.md")]
+    assert [r.in_tests for r in mark_in_tests(rows)] == [False, False, True, True, True, True]
+
+
+def test_b11_a_live_project_skill_named_test_stays_in_the_main_table(tmp_path, make_repo, run_cli):
+    repo = b1_repo(make_repo, tmp_path / "repo", skills=(".claude/skills/test", "tests/skills/b"))
+    code, report, _, err = scan_json(run_cli, repo, None, *FLAGS, "--fail-on", "high")
+    assert code == 1, err
+    found = piped(report)
+    assert "in_tests" not in found[".claude/skills/test/install.sh"]
+    assert found["tests/skills/b/install.sh"]["in_tests"] is True
