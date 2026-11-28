@@ -226,7 +226,7 @@ executable mode alone; it is read as a script instead. For the script rules (SW-
 SW-SKL-037 and org rules) a script is a file whose name has a script extension, a fenced block tagged as code, or a text file listed
 as executable that is not read as Markdown. Since 1.28.0 an executable file read as Markdown (a name ending in `.md`, or a path in
 `markdown_paths`) whose first line starts with `#!` is read as a script too: its prose as one script, its fenced blocks each as their
-own, so each line is read once. A fenced block whose tag names another interpreter than the `#!` line (a `python` block
+own, so every line is read. A fenced block whose tag names another interpreter than the `#!` line (a `python` block
 under `#!/bin/sh`) is read both ways, as the `#!` interpreter runs it and as its tag says, and a finding both give is reported once.
 A file read as Markdown without that line is read exactly as when it is not executable. SW-SKL-037 takes the language of such a file without a script extension from its `#!` line (a shell, Python,
 Node, Deno or Bun interpreter, also behind `/usr/bin/env`) and reads nothing in it when there is no such line. For a text file that is listed as executable, is not read as Markdown and has no script
@@ -303,7 +303,7 @@ MaliciousSkillBench test split (source-disjoint): Normalisation adds no finding 
 
 Tuning half of Spellwarden's labelled set: Normalisation adds no finding on harmless skills.
 
-Scanner 1.27.0, rules version 2026.11.11, released 2026-11-27.
+Scanner 1.28.0, rules version 2026.11.12, released 2026-11-28.
 <!-- benchmark:end -->
 
 ### Disguised content
