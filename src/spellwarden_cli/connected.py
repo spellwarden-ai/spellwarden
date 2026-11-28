@@ -837,8 +837,9 @@ def _cap(report: dict, name: str, limit: int, cut: list[str]) -> None:
 LOCAL_NOTICES = ("description_lint", "model_assisted", "analysis_incomplete", "analyzer_no_key")
 
 
-# The keys of a report finding that the upload document leaves out (`reduce_report`)
-REPORT_ONLY_FINDING_KEYS = ("tags", "fix", "rule_url", "fix_lines")
+# The keys of a report finding that the upload document leaves out (`reduce_report`); `in_tests` (1.28.0, spec 5.5) is
+# presentation only, so the upload body stays byte-identical to 1.27.0's
+REPORT_ONLY_FINDING_KEYS = ("tags", "fix", "rule_url", "fix_lines", "in_tests")
 
 
 def reduce_report(report_dict: dict, limits: dict, envelope: dict | None = None) -> tuple[dict, int, list[str]]:

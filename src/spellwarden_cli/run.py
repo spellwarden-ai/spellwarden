@@ -24,7 +24,7 @@ from spellwarden_cli import agents as agents_module
 from spellwarden_cli import details, discover, files
 from spellwarden_cli.ci import ORG_RE
 from spellwarden_cli.discover import Discovery, SkillPackage
-from spellwarden_cli.report import LockState, Notice, ProbeReport, Report, ReportFinding, SkillLint
+from spellwarden_cli.report import LockState, Notice, ProbeReport, Report, ReportFinding, SkillLint, mark_in_tests
 from spellwarden_cli.secret import Credentials
 from spellwarden_cli.settings import Settings
 
@@ -176,6 +176,9 @@ def scan(options: ScanOptions) -> Report:
             findings.extend(gate_findings)
         except connected.ConnectedFail as failed:  # the check could not be made: exit 2, no SW-REG findings
             errors.append(Notice(failed.code, "", failed.message))
+    # 1.28.0 (spec 5.1): every finding source is gathered, so the findings in tests and fixtures are marked here, once, before the
+    # baseline (which keeps the mark on the findings it accepts). A repository scan only: `scan --user` never comes here.
+    findings = list(mark_in_tests(findings))
     findings = apply_baseline(options, findings, notices, errors, base_gate=state is not None and context is not None
                               and context.is_request)
     lock = check_lock(options, found, errors, probes=probes if options.settings.probe else None, notices=notices)

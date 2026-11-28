@@ -3,10 +3,12 @@ output and schema shares (spec 6.14). Every output module is a pure function
 of a `Report`; `exit_code()` implements the precedence of spec 6.2."""
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING
 
-from spellwarden_scan import SEVERITY_RANK, A2aScanResult, Finding, McpScanResult, Rule, RuleSet, toolhash
+from spellwarden_scan import (SEVERITY_RANK, A2aScanResult, Finding, McpScanResult, Rule, RuleSet, in_tests_or_fixtures,
+                              toolhash)
 from spellwarden_scan.agentconfig import DOCUMENT_ERRORS
 from spellwarden_scan.model import LintNote
 
@@ -110,12 +112,30 @@ class ReportFinding:
     # 1.18.0: the finding's severity without the preset, when a preset (strict or low-noise) changed it; None otherwise, and then
     # not serialised, so a report without a preset is byte-identical to 1.17.0's
     preset_from: str | None = None
+    # 1.28.0 (spec 5.1): the finding's file is in tests or fixtures (`mark_in_tests`). Presentation only: never part of
+    # `exit_code()` or `finding_order`, and serialised only when true, so a report without a marked finding is byte-identical to
+    # 1.27.0's
+    in_tests: bool = False
 
     def to_dict(self) -> dict:
         entry = {**self.finding.to_dict(), "item": self.item, "suppressed": self.suppressed, "baseline": self.baseline}
         if self.preset_from is not None:
             entry["preset_from"] = self.preset_from
+        if self.in_tests:
+            entry["in_tests"] = True
         return entry
+
+
+def _in_tests(path: str) -> bool:
+    """A location that is not a file of the scan root (a URL, a probed tool) is never marked: a remote party must not move its
+    findings into a collapsed group (spec 5.1, D6)."""
+    return "://" not in path and not path.startswith("tool:") and in_tests_or_fixtures(path)
+
+
+def mark_in_tests(findings: Iterable[ReportFinding]) -> tuple[ReportFinding, ...]:
+    """1.28.0 (spec 5.1): each finding marked by the engine's `in_tests_or_fixtures` on its location path, which is relative
+    to the scan root; a location that is not a file of the scan root (it holds `://` or starts with `tool:`) is never marked."""
+    return tuple(replace(row, in_tests=True) if _in_tests(row.finding.location.path) else row for row in findings)
 
 
 @dataclass(frozen=True)

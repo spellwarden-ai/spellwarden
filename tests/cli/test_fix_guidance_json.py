@@ -74,5 +74,5 @@ def test_the_upload_document_holds_none_of_the_three_keys():
     body, dropped, cut = connected.reduce_report(doc, LIMITS)
     assert (dropped, cut) == (0, []) and len(body["findings"]) == 3
     assert all(not {"tags", "fix", "rule_url", "fix_lines"} & set(entry) for entry in body["findings"])
-    assert connected.REPORT_ONLY_FINDING_KEYS == ("tags", "fix", "rule_url", "fix_lines")
+    assert connected.REPORT_ONLY_FINDING_KEYS == ("tags", "fix", "rule_url", "fix_lines", "in_tests")  # 1.28.0 adds in_tests
     assert all("fix" in entry for entry in doc["findings"])  # the report dict itself is not changed
