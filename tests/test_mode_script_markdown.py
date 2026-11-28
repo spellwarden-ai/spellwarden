@@ -250,7 +250,7 @@ def test_a11_a_shell_download_and_run_in_a_python_block_under_a_shell_shebang_is
     assert keyed(scan(files)) <= keyed(executable)
 
 
-def test_a11_run_rules_keeps_an_exact_repeat_once_and_does_not_count_it_as_left_out():
+def test_a11_run_rules_keeps_an_exact_repeat_once_for_a_skill_scan_and_does_not_count_it_as_left_out():
     from spellwarden_scan.model import Finding, Location
     from spellwarden_scan.scan import run_rules
 
@@ -264,5 +264,7 @@ def test_a11_run_rules_keeps_an_exact_repeat_once_and_does_not_count_it_as_left_
             yield one
             yield one
 
-    kept, truncated = run_rules([Twice], None, max_findings=10, max_per_rule=10)
+    kept, truncated = run_rules([Twice], None, max_findings=10, max_per_rule=10, drop_repeats=True)
     assert kept == [one] and truncated == 0
+    kept, truncated = run_rules([Twice], None, max_findings=10, max_per_rule=10)
+    assert kept == [one, one] and truncated == 0  # a probe scan keeps both

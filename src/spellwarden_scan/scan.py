@@ -35,11 +35,15 @@ def _sort_key(finding: Finding) -> tuple:
 
 
 def run_rules(rules, subject, *, max_findings: int, max_per_rule: int,
-              meter: BudgetMeter | None = None, time_meter: Meter | None = None) -> tuple[list[Finding], int]:
+              meter: BudgetMeter | None = None, time_meter: Meter | None = None,
+              drop_repeats: bool = False) -> tuple[list[Finding], int]:
     """Shared by the skill and the probe scans: lazily consumes each rule's
     findings, keeps at most the caps, counts the rest. With a `meter`, an org rule
     (Phase C spec 5.2.2) reads its units through it; baseline rules never do. With a `time_meter` (1.24.0, only
-    `scan_skill_package` passes one) the clock is read before each rule, and the subject's lines tick it as rules read them."""
+    `scan_skill_package` passes one) the clock is read before each rule, and the subject's lines tick it as rules read them.
+    With `drop_repeats` (1.28.0, spec D13; only `scan_skill_package` passes it) a rule's finding at a path, line and fingerprint
+    it already gave is kept once and not counted as left out: a line of a package can be read through two units. A probe scan
+    keeps every finding, since two addresses can reduce to one location."""
     retained = _retained_list()
     truncated = 0
     for rule in rules:
@@ -49,10 +53,11 @@ def run_rules(rules, subject, *, max_findings: int, max_per_rule: int,
         seen: set[tuple[str, int | None, str]] = set()
         budgeted = meter is not None and is_org_rule(rule)
         for finding in (rule.detect.evaluate(subject, meter) if budgeted else rule.detect(subject)):
-            key = (finding.location.path, finding.location.line, finding.fingerprint)
-            if key in seen:  # 1.28.0 (spec D13): a line read through two units gives one finding, never two or a count left out
-                continue
-            seen.add(key)
+            if drop_repeats:
+                key = (finding.location.path, finding.location.line, finding.fingerprint)
+                if key in seen:  # spec D13: a line read through two units gives one finding, never two or a count left out
+                    continue
+                seen.add(key)
             if kept_for_rule >= max_per_rule or len(retained) >= max_findings:
                 truncated += 1
                 continue
@@ -152,7 +157,7 @@ def scan_skill_package(files: Mapping[str, bytes], rules: RuleSet, *, root: str 
     if time_meter is not None:
         time_meter.stage = "judging"
     retained, truncated = run_rules(ordered, package, max_findings=max_findings,
-                                    max_per_rule=max_per_rule, meter=meter, time_meter=time_meter)
+                                    max_per_rule=max_per_rule, meter=meter, time_meter=time_meter, drop_repeats=True)
     identified = package_files(files, root, nested_roots)
     # Phase 4 batch B spec 11.4: the single-skill notes of the description lint; an instruction file has no description to lint
     notes = (tuple(lint.single(SkillMeta(root.strip("/"), package.metadata.name, package.metadata.description)))
