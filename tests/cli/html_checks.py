@@ -13,7 +13,9 @@ CSP = "default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'n
 RULE_LINK = re.compile(r"https://spellwarden\.ai/docs/rules/sw-(skl|mcp|cfg|reg|a2a)-[0-9]{3}"
                        r"\?utm_source=scanner&utm_medium=html-report&utm_campaign=rule-docs")
 ALLOWED_TAGS = frozenset({"html", "head", "meta", "title", "style", "body", "main", "h1", "h2", "h3", "p", "span", "a", "code",
-                          "pre", "table", "tr", "th", "td", "ul", "li", "section", "article", "br"})
+                          "pre", "table", "tr", "th", "td", "ul", "li", "section", "article", "br",
+                          # 1.28.0 (spec 5.4): the collapsed findings in tests and fixtures; no script needed
+                          "details", "summary"})
 ALLOWED_ATTRIBUTES = frozenset({"lang", "charset", "http-equiv", "content", "name", "class", "id", "href"})
 ALLOWED_METAS = ({"charset": "utf-8"}, {"http-equiv": "Content-Security-Policy", "content": CSP},
                  {"name": "viewport", "content": "width=device-width, initial-scale=1"})

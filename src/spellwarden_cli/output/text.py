@@ -1,5 +1,5 @@
-"""The terminal report (spec 6.9): one block per item with findings, then the
-lock changes, the probes, the notices, the errors and a summary line. Every
+"""The terminal report (spec 6.9): one block per item with findings, then (1.28.0) the same blocks for the findings in tests and
+fixtures under their own heading, then the lock changes, the probes, the notices, the errors and a summary line. Every
 string from the scanned revision is escaped with `escape.terminal`, and no line can be read as a CI workflow
 command (`escape.log_lines`)."""
 from __future__ import annotations
@@ -11,7 +11,7 @@ from spellwarden_cli import clients, instruction_files, presets
 from spellwarden_cli.escape import log_lines, terminal
 from spellwarden_cli.output import agents as agent_view
 from spellwarden_cli.output.fixes import ORG_LINE, rule_fixes
-from spellwarden_cli.report import FREE_MODE_NOTICES, Report
+from spellwarden_cli.report import FREE_MODE_NOTICES, Report, ReportFinding, split_in_tests
 
 _VERDICT = {0: "passed", 2: "incomplete: see the errors above"}
 
@@ -21,6 +21,7 @@ def _summary(report: Report) -> str:
     for rf in report.unsuppressed():
         counts[rf.finding.severity] += 1
     accepted = len(report.findings) - len(report.unsuppressed())
+    in_tests = sum(1 for rf in report.unsuppressed() if rf.in_tests)  # 1.28.0 (spec 5.2): M, the marked open findings
     code = report.exit_code()
     if code == 1:
         verdict = f"failed at {report.fail_on}"
@@ -28,8 +29,9 @@ def _summary(report: Report) -> str:
         verdict = f"lock file {report.lock.status}"
     else:
         verdict = _VERDICT[code]
+    marked = f", {in_tests} in tests and fixtures" if in_tests else ""
     return (f"{sum(counts.values())} findings ({counts['critical']} critical, {counts['high']} high, "
-            f"{counts['medium']} medium, {counts['low']} low), {accepted} accepted; {verdict}")
+            f"{counts['medium']} medium, {counts['low']} low), {accepted} accepted{marked}; {verdict}")
 
 
 _DOCUMENT_KINDS = ("mcp-config", "settings", "hooks", "plugin-manifest")
@@ -202,19 +204,13 @@ def how_to_fix_lines(report: Report) -> list[str]:
     return [*lines, ""]
 
 
-def render(report: Report) -> str:
+def _item_blocks(report: Report, rows: tuple[ReportFinding, ...], scopes: dict[str, str]) -> list[str]:
+    """One block per item of `rows`, in item order: the item line, then each finding line with its scope and fix lines, then a
+    blank line."""
     lines: list[str] = []
-    if report.connected is None:
-        lines.extend(connected_lines(report))  # the first line says that connected mode was not used
-    if report.clients is not None:  # `scan --user`: one line per client, then (`--inventory`) every item
-        lines.extend(client_lines(report))
-        if report.user == "inventory":
-            lines.extend(_inventory_lines(report))
-        lines.append("")
-    by_item: dict[str, list] = {}
-    for rf in report.findings:
+    by_item: dict[str, list[ReportFinding]] = {}
+    for rf in rows:
         by_item.setdefault(rf.item, []).append(rf)
-    scopes = instruction_files.scopes(report.items)  # Phase 3 batch 1 spec 10.4: when each instruction file is applied
     for item in sorted(by_item):
         lines.append(terminal(item))
         for rf in by_item[item]:
@@ -229,6 +225,25 @@ def render(report: Report) -> str:
             if f.fix_lines is not None:  # 1.21.0 (P6-15 spec 6.5): the setting lines, text to copy
                 lines.append(f"    write in {terminal(f.fix_lines.where)}: {terminal(f.fix_lines.text)}")
         lines.append("")
+    return lines
+
+
+def render(report: Report) -> str:
+    lines: list[str] = []
+    if report.connected is None:
+        lines.extend(connected_lines(report))  # the first line says that connected mode was not used
+    if report.clients is not None:  # `scan --user`: one line per client, then (`--inventory`) every item
+        lines.extend(client_lines(report))
+        if report.user == "inventory":
+            lines.extend(_inventory_lines(report))
+        lines.append("")
+    scopes = instruction_files.scopes(report.items)  # Phase 3 batch 1 spec 10.4: when each instruction file is applied
+    outside, inside = split_in_tests(report.findings)
+    lines.extend(_item_blocks(report, outside, scopes))
+    if inside:  # 1.28.0 (spec 5.2): every marked finding listed in full under its own heading; a CI log holds each of them
+        lines.append(f"In tests and fixtures ({_plural(len(inside), 'finding')}; open ones count toward the result like every "
+                     "other finding)")
+        lines.extend(_item_blocks(report, inside, scopes))
     lines.extend(how_to_fix_lines(report))
     if report.lock.status in ("stale", "absent"):
         lines.append(f"lock: {report.lock.status}")

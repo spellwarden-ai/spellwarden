@@ -138,6 +138,15 @@ def mark_in_tests(findings: Iterable[ReportFinding]) -> tuple[ReportFinding, ...
     return tuple(replace(row, in_tests=True) if _in_tests(row.finding.location.path) else row for row in findings)
 
 
+def split_in_tests(rows: Iterable[ReportFinding]) -> tuple[tuple[ReportFinding, ...], tuple[ReportFinding, ...]]:
+    """1.28.0 (spec 5.2 to 5.4): `(unmarked, marked)`, each in the order given; what the text, Markdown and HTML reports group."""
+    unmarked: list[ReportFinding] = []
+    marked: list[ReportFinding] = []
+    for row in rows:
+        (marked if row.in_tests else unmarked).append(row)
+    return tuple(unmarked), tuple(marked)
+
+
 @dataclass(frozen=True)
 class ProbeReport:
     item: str
